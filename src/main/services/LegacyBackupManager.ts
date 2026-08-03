@@ -24,9 +24,11 @@ import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, type S3Config, type WebDavConfig } from '@shared/types/backup'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import Database from 'better-sqlite3'
@@ -194,12 +196,16 @@ class BackupManager {
   ): Promise<string> {
     this.assertNoActiveDataWriters()
 
-    const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
-    const workDir = await this.createOperationDir('create')
+    if (destinationPath && (path.posix.basename(fileName) !== fileName || path.win32.basename(fileName) !== fileName)) {
+      throw new Error('Backup file name must not contain path separators')
+    }
+
     const outputDirectory = destinationPath ?? this.backupDir
     const outputFileName = destinationPath ? fileName : `${randomUUID()}-${path.basename(fileName)}`
-    const backupedFilePath = path.join(outputDirectory, outputFileName)
-    let outputStarted = false
+    const backupedFilePath = resolveAndValidatePath(outputDirectory, outputFileName)
+    const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
+    const workDir = await this.createOperationDir('create')
+    let output: AtomicWriteStream | undefined
 
     try {
       await fs.ensureDir(outputDirectory)
@@ -317,23 +323,23 @@ class BackupManager {
 
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
 
-      const output = fs.createWriteStream(backupedFilePath)
-      outputStarted = true
+      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath))
+      output = atomicOutput
       const archive = new ZipArchive({
         zlib: { level: 1 },
         zip64: true
       })
 
       await new Promise<void>((resolve, reject) => {
-        output.on('close', () => resolve())
-        output.on('error', reject)
+        atomicOutput.on('finish', () => resolve())
+        atomicOutput.on('error', reject)
         archive.on('error', reject)
         archive.on('warning', (err: any) => {
           if (err.code !== 'ENOENT') {
             logger.warn('[backupDirect] Archive warning:', err)
           }
         })
-        archive.pipe(output)
+        archive.pipe(atomicOutput)
         archive.directory(workDir, false)
         archive.finalize()
       })
@@ -343,8 +349,8 @@ class BackupManager {
       return backupedFilePath
     } catch (error) {
       logger.error('[backupDirect] Backup failed:', error as Error)
-      if (outputStarted) {
-        await fs.remove(backupedFilePath).catch(() => {})
+      if (output && !output.destroyed) {
+        await output.abort()
       }
       throw error
     } finally {

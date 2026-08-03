@@ -61,6 +61,7 @@ const {
   mockWriteRestoreJournal,
   mockCheckpointTruncateAssert,
   mockReadAppliedChain,
+  mockCreateAtomicWriteStream,
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
@@ -110,6 +111,7 @@ const {
     mockWriteRestoreJournal: vi.fn(),
     mockCheckpointTruncateAssert: vi.fn(),
     mockReadAppliedChain: vi.fn(),
+    mockCreateAtomicWriteStream: vi.fn(),
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
@@ -139,6 +141,10 @@ vi.mock('@main/data/db/restore/checkpoint', () => ({
 
 vi.mock('@main/data/db/restore/appliedChain', () => ({
   readAppliedChain: mockReadAppliedChain
+}))
+
+vi.mock('@main/utils/file', () => ({
+  createAtomicWriteStream: mockCreateAtomicWriteStream
 }))
 
 vi.mock('better-sqlite3', () => ({
@@ -368,23 +374,27 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
   })
 
-  const mockArchiveClose = () => {
-    let closeOutput: (() => void) | undefined
+  const mockArchiveClose = (pipeError?: Error) => {
+    let finishOutput: (() => void) | undefined
     const output = {
+      destroyed: false,
+      abort: vi.fn().mockResolvedValue(undefined),
       on: vi.fn((event: string, callback: () => void) => {
-        if (event === 'close') closeOutput = callback
+        if (event === 'finish') finishOutput = callback
         return output
       })
     }
     const archive = {
       on: vi.fn().mockReturnThis(),
-      pipe: vi.fn(),
+      pipe: vi.fn(() => {
+        if (pipeError) throw pipeError
+      }),
       directory: vi.fn(),
-      finalize: vi.fn(() => closeOutput?.())
+      finalize: vi.fn(() => finishOutput?.())
     }
-    vi.mocked(fs.createWriteStream).mockReturnValue(output as never)
+    mockCreateAtomicWriteStream.mockReturnValue(output)
     vi.mocked(ZipArchive).mockReturnValue(archive as never)
-    return archive
+    return { archive, output }
   }
 
   const mockDownloadedFileWrite = () => {
@@ -435,7 +445,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const copyDirectories = vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
     vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
-    const archive = mockArchiveClose()
+    const { archive } = mockArchiveClose()
 
     const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
@@ -484,6 +494,35 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
     expect(mockAgentSessionHold.dispose).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('rejects local backup file names containing path separators', async () => {
+    for (const fileName of ['../outside.zip', '..\\outside.zip']) {
+      await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, fileName, '/backups')).rejects.toThrow(
+        'Backup file name must not contain path separators'
+      )
+    }
+
+    expect(fs.ensureDir).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('keeps the existing local backup when archive creation fails', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    const archiveError = new Error('Archive failed')
+    const { output } = mockArchiveClose(archiveError)
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toBe(
+      archiveError
+    )
+
+    expect(output.abort).toHaveBeenCalledOnce()
+    expect(fs.remove).not.toHaveBeenCalledWith('/backups/backup.zip')
   })
 
   it('copies Data while excluding transient SQLite sidecars and the restore journal', async () => {
