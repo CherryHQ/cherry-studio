@@ -766,10 +766,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
             })
           }
 
-          await popup.error({
-            title: i18n.t('message.backup.failed'),
-            content: `${logPrefix} ${new Date().toLocaleString()} ` + error.message
-          })
+          toast.error(i18n.t('message.backup.failed'))
 
           void scheduleNextBackup('fromNow', backupType)
 

@@ -6,13 +6,14 @@ import { toast } from '@renderer/services/toast'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { restoreFromNutstore } from '../../services/NutstoreService'
+import { restoreFromNutstore, startNutstoreAutoSync, stopNutstoreAutoSync } from '../../services/NutstoreService'
 import { WebdavBackupManager } from '../WebdavBackupManager'
 
 const mocks = vi.hoisted(() => ({
   decryptToken: vi.fn(),
+  backupToWebdav: vi.fn(),
   listWebdavFiles: vi.fn(),
   restoreFromWebdav: vi.fn()
 }))
@@ -70,14 +71,22 @@ vi.mock('react-i18next', () => {
   return { useTranslation: () => ({ t }) }
 })
 
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string) => key }
+}))
+
 describe('WebdavBackupManager', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
 
     await preferenceService.set('data.backup.nutstore.token', 'encrypted-token')
     await preferenceService.set('data.backup.nutstore.path', '/cherry-studio')
+    await preferenceService.set('data.backup.nutstore.sync_interval', 1)
+    await preferenceService.set('data.backup.nutstore.max_backups', 0)
+    await preferenceService.set('data.backup.nutstore.skip_backup_file', false)
 
     mocks.decryptToken.mockResolvedValue({ username: 'user', access_token: 'access-token' })
+    mocks.backupToWebdav.mockRejectedValue(new Error('Backup failed'))
     mocks.listWebdavFiles.mockResolvedValue([
       { fileName: 'cherry-studio.v6.zip', modifiedTime: '2026-08-03T00:00:00.000Z', size: 1024 }
     ])
@@ -89,6 +98,7 @@ describe('WebdavBackupManager', () => {
 
     Object.assign(window.api, {
       backup: {
+        backupToWebdav: mocks.backupToWebdav,
         listWebdavFiles: mocks.listWebdavFiles,
         restoreFromWebdav: mocks.restoreFromWebdav
       },
@@ -96,6 +106,11 @@ describe('WebdavBackupManager', () => {
         decryptToken: mocks.decryptToken
       }
     })
+  })
+
+  afterEach(() => {
+    stopNutstoreAutoSync()
+    vi.useRealTimers()
   })
 
   it('shows only the localized failure toast when a Nutstore restore fails', async () => {
@@ -124,5 +139,19 @@ describe('WebdavBackupManager', () => {
     expect(toast.success).not.toHaveBeenCalled()
     expect(popup.error).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows one failure toast after Nutstore automatic backup retries are exhausted', async () => {
+    vi.useFakeTimers()
+
+    await startNutstoreAutoSync()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.advanceTimersByTimeAsync(7_000)
+    await vi.advanceTimersByTimeAsync(17_000)
+    await vi.advanceTimersByTimeAsync(37_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.backup.failed')
+    expect(popup.error).not.toHaveBeenCalled()
   })
 })

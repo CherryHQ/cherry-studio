@@ -26,11 +26,11 @@ const setNutstoreSyncState = (patch: Partial<RemoteSyncState>) => {
   Object.assign(nutstoreSyncState, patch)
 }
 
-async function getNutstoreToken() {
+async function getNutstoreToken(showMessage = true) {
   const nutstoreToken = await preferenceService.get('data.backup.nutstore.token')
 
   if (!nutstoreToken) {
-    toast.error(i18n.t('message.error.invalid.nutstore_token'))
+    showMessage && toast.error(i18n.t('message.error.invalid.nutstore_token'))
     return null
   }
   return nutstoreToken
@@ -124,13 +124,18 @@ async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number)
 
 export async function backupToNutstore({
   showMessage = false,
-  customFileName = ''
+  customFileName = '',
+  autoBackupProcess = false
 }: {
   showMessage?: boolean
   customFileName?: string
+  autoBackupProcess?: boolean
 } = {}) {
-  const nutstoreToken = await getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken(showMessage)
   if (!nutstoreToken) {
+    if (autoBackupProcess) {
+      throw new Error(i18n.t('message.error.invalid.nutstore_token'))
+    }
     return
   }
 
@@ -141,6 +146,9 @@ export async function backupToNutstore({
 
   const config = await createNutstoreConfig(nutstoreToken)
   if (!config) {
+    if (autoBackupProcess) {
+      throw new Error(i18n.t('message.backup.failed'))
+    }
     return
   }
 
@@ -175,15 +183,19 @@ export async function backupToNutstore({
       setNutstoreSyncState({ lastSyncError: null })
       showMessage && toast.success(i18n.t('message.backup.success'))
     } else {
-      setNutstoreSyncState({ lastSyncError: 'Backup failed' })
-      toast.error(i18n.t('message.backup.failed'))
+      throw new Error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
-    setNutstoreSyncState({ lastSyncError: 'Backup failed' })
     logger.error('[Nutstore] Backup failed:', error as Error)
-    toast.error(i18n.t('message.backup.failed'))
+    if (autoBackupProcess) {
+      throw error
+    }
+    setNutstoreSyncState({ lastSyncError: 'Backup failed' })
+    showMessage && toast.error(i18n.t('message.backup.failed'))
   } finally {
-    setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
+    if (!autoBackupProcess) {
+      setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
+    }
     isManualBackupRunning = false
   }
 }
@@ -265,14 +277,45 @@ export async function startNutstoreAutoSync() {
     }
 
     isAutoBackupRunning = true
+    const maxRetries = 4
+    let retryCount = 0
+
     try {
-      logger.verbose('[Nutstore AutoSync] Starting auto backup...')
-      await backupToNutstore({ showMessage: false })
-    } catch (error) {
-      logger.error('[Nutstore AutoSync] Auto backup failed:', error as Error)
+      while (retryCount < maxRetries) {
+        try {
+          logger.verbose(`[Nutstore AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
+          await backupToNutstore({ autoBackupProcess: true })
+          setNutstoreSyncState({ lastSyncError: null, lastSyncTime: Date.now(), syncing: false })
+          break
+        } catch (error) {
+          retryCount++
+          if (retryCount === maxRetries) {
+            logger.error('[Nutstore AutoSync] Auto backup failed after all retries:', error as Error)
+            setNutstoreSyncState({
+              lastSyncError: 'Auto backup failed',
+              lastSyncTime: Date.now(),
+              syncing: false
+            })
+            toast.error(i18n.t('message.backup.failed'))
+          } else {
+            const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
+            logger.warn(`[Nutstore AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
+            await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+
+            if (!isAutoBackupRunning) {
+              logger.info('[Nutstore AutoSync] Retry cancelled by user, exit')
+              break
+            }
+          }
+        }
+      }
     } finally {
+      const shouldReschedule = isAutoBackupRunning
       isAutoBackupRunning = false
-      await scheduleNextBackup()
+      setNutstoreSyncState({ syncing: false })
+      if (shouldReschedule) {
+        await scheduleNextBackup()
+      }
     }
   }
 }
