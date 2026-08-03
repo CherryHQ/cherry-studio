@@ -16,7 +16,8 @@
  * (missing entry, parse error, native materialization)
  * degrades to a model-visible note rather than silently dropping the file or
  * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
- * materialization path.
+ * materialization path, but their images remain capability-gated because they
+ * did not go through OCR fallback routing.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -163,11 +164,20 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     if (!fileEntryId) {
-      // Legacy / gateway part — eager materialization; degrade to a note on failure.
+      // Legacy / gateway part — eager materialization, but do not treat an image
+      // that bypassed OCR as a deliberate native fallback for a non-vision model.
       const name = part.filename ?? 'file'
-      if (!(await inlineNative(part))) {
+      const inlined = await materializeNativeFilePart(part)
+      if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name) as UIMessage['parts'][number])
+      } else if (!ctx.nativeSupport.image && inlined.mediaType.startsWith('image/')) {
+        kept.push({
+          type: 'text',
+          text: '[image attachment omitted: this model does not accept image input]'
+        } as UIMessage['parts'][number])
+      } else {
+        kept.push(inlined as UIMessage['parts'][number])
       }
       continue
     }

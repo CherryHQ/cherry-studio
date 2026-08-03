@@ -1,8 +1,8 @@
 /**
  * Capability-aware message shaping: drop audio/video a model can't accept before
- * it reaches the provider. Images are not gated here — attachment routing already
- * OCRs them for non-vision models, and an image part that survives routing is a
- * deliberate native fallback (OCR found no text) that must reach the provider.
+ * it reaches the provider. Images are gated earlier by attachment routing: legacy
+ * images remain capability-gated, while first-party non-vision images become OCR
+ * text or a deliberate native fallback that must reach the provider.
  *
  * Modality support is **model-intrinsic** (a model is vision/video/audio-capable
  * regardless of which `@ai-sdk/*` adapter or endpoint it routes through), so this
@@ -31,7 +31,7 @@ export function resolveMediaCapabilities(model: Model): MediaCapabilities {
 
 type GatedModality = 'video' | 'audio'
 
-/** Only video/audio are capability-gated; images and other files are forwarded. */
+/** Image routing is already complete; only video/audio still need gating here. */
 function gatedModality(mediaType: string): GatedModality | undefined {
   if (mediaType.startsWith('video/')) return 'video'
   if (mediaType.startsWith('audio/')) return 'audio'
@@ -43,9 +43,9 @@ function gatedModality(mediaType: string): GatedModality | undefined {
  *
  * Replacing in place (vs. dropping) keeps the turn non-empty and tells the model
  * an attachment was there, without depending on the coalesce/empty-assistant
- * rules to clean up after a deletion. Images and other files (e.g. PDFs) are left
- * untouched — their handling is a separate concern. Operates on UIMessages before
- * conversion.
+ * rules to clean up after a deletion. Images have already been handled by
+ * `prepareChatMessages`; other files (e.g. PDFs) are a separate concern. Operates
+ * on UIMessages before conversion.
  */
 export function stripUnsupportedMedia<T extends UIMessage = UIMessage>(messages: T[], caps: MediaCapabilities): T[] {
   return messages.map((message) => {

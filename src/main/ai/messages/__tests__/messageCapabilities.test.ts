@@ -24,7 +24,7 @@ describe('resolveMediaCapabilities', () => {
 describe('stripUnsupportedMedia', () => {
   const noVision = { image: false, video: true, audio: true }
 
-  it('leaves an image file untouched when the model has no declared vision support', () => {
+  it('leaves image routing to prepareChatMessages', () => {
     const msg = fileMsg('image/png')
     expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
   })

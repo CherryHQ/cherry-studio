@@ -27,6 +27,7 @@ vi.mock('../attachmentTextExtraction', () => ({
 }))
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { toModelMessages } from '../messageRules'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -98,6 +99,30 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
     expect(resolveMock).toHaveBeenCalled()
+  })
+
+  it('only forwards OCR fallback images through the full non-vision conversion pipeline', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+    resolveMock.mockImplementation(async (part) => ({ ...part, url: 'data:image/png;base64,AA' }))
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/legacy.png',
+      mediaType: 'image/png',
+      filename: 'legacy.png'
+    } as CherryMessagePart
+
+    const prepared = await run([fileWithEntry('e1', 'fallback.png', 'image/png'), legacy], NONE)
+    const model = await toModelMessages(prepared, { image: false, video: false, audio: false })
+
+    expect(resolveMock).toHaveBeenCalledTimes(2)
+    expect(prepared[0].parts).toEqual([
+      expect.objectContaining({ type: 'file', filename: 'fallback.png', url: 'data:image/png;base64,AA' }),
+      { type: 'text', text: '[image attachment omitted: this model does not accept image input]' }
+    ])
+    expect(JSON.stringify(model)).toContain('data:image/png;base64,AA')
+    expect(JSON.stringify(model)).toContain('image attachment omitted')
+    expect(JSON.stringify(model)).not.toContain('legacy.png')
   })
 
   it('inlines extracted text for office docs', async () => {

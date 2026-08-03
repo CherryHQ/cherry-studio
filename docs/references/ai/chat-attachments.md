@@ -50,9 +50,10 @@ Decided per file part in `prepareChatMessages`
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
-Only `fileEntryId`-backed (first-party chat) attachments are routed. Gateway /
-external file parts (no `fileEntryId`) are left untouched, so the OpenAI-
-compatible passthrough is unaffected.
+Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
+external file parts (no `fileEntryId`) are still eagerly materialized, but an
+image is omitted for a non-vision model because it was never an explicit OCR
+fallback. Other gateway/external file types keep their existing behavior.
 
 ## The cap (the only context guard)
 
