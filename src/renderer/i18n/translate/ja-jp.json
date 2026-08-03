@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} バックグラウンドタスク実行中",
+      "background_running_other": "{{count}} 個のバックグラウンドタスクが実行中"
     },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
@@ -235,6 +235,7 @@
           "discard_and_continue": "破棄して続行",
           "title": "保存されていない変更を破棄しますか？"
         },
+        "metadata_pending": "ファイルは保存されましたが、そのメタデータはまだ復旧中です。この保存を再試行しないでください。",
         "refresh_failed": "最新のファイル内容を再読み込みできません。",
         "save_failed": "このファイルを保存できません。変更を再試行するか破棄するまで、自動保存は一時停止されています。",
         "unsaved": "未保存",
@@ -325,25 +326,25 @@
         "more": "+{{count}} 件",
         "no_artifacts": "宣言された成果物なし",
         "no_subagents": "サブエージェントなし",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "バックグラウンドコマンド",
         "subagents": "サブエージェント",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "ワークフロー"
       },
       "status": {
         "activity": "活動",
         "agent": "エージェント",
         "context": "コンテキスト",
         "no_tasks": "アクティブなタスクはありません",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} ライブ",
+        "run_task_live_other": "{{count}} ライブ",
+        "run_tasks": "サブタスク",
         "selected_tool": "選択されたツール",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "タスクを停止",
+        "stop_run_task_failed": "タスクの停止に失敗しました",
         "task_count": "{{completed}} / {{total}} 完了",
         "tasks": "タスク",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} ツールコール",
+        "tool_uses_other": "{{count}} 回のツール呼び出し",
         "tools_active": "アクティブ",
         "tools_done": "完了",
         "tools_failed": "失敗",
@@ -2585,6 +2586,10 @@
     "user": "ユーザー"
   },
   "file_preview": {
+    "directory": {
+      "description": "このフォルダ内のファイルを選択してプレビューしてください。",
+      "title": "これはフォルダです"
+    },
     "html": {
       "empty": {
         "description": "このHTMLファイルにはコンテンツがありません。",
@@ -2650,6 +2655,10 @@
         "description": "{{limit}} MiBを超えるテキストファイルはプレビューできません。",
         "title": "ファイルが大きすぎます"
       }
+    },
+    "unavailable": {
+      "description": "ファイルが移動、削除されたか、アクセスできない可能性があります。",
+      "title": "ファイル利用不可"
     },
     "unsupported": {
       "action": "デフォルトのアプリで開く",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
+        "copying": "コピー中 {{percent}}%",
         "embedding": "埋め込み",
         "error": "エラー",
         "pending": "待機中",
@@ -3353,7 +3363,7 @@
             "label": "小型モデル（オプション）"
           }
         },
-        "model_config": "モデル構成",
+        "model_config": "モデル",
         "section": {
           "advanced": {
             "desc": "実行制限とランタイムパラメータ",
@@ -3847,8 +3857,9 @@
       }
     },
     "citation": "{{count}}個の引用内容",
+    "citation_source": "引用元 {{number}}",
     "citations": "引用内容",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "以前の会話履歴が見つかりませんでした — 新しい会話を続行します",
     "copied": "コピーしました！",
     "copy": {
       "failed": "コピーに失敗しました",
@@ -4130,7 +4141,7 @@
         "write": "保存",
         "writing": "保存"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "バックグラウンドで実行中",
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
@@ -4162,7 +4173,7 @@
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
         "webSearch": "ウェブ検索",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "ワークフロー",
         "write": "書く"
       },
       "noData": "このツールに利用可能なデータはありません",
@@ -4222,13 +4233,13 @@
         "result_other": "{{count}}件の結果"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "ワークフローのオーケストレーション",
+        "run_id": "実行ID",
+        "script": "ワークフロースクリプト",
+        "script_path": "スクリプトパス",
+        "started": "ワークフローを開始しました",
+        "summary": "要約",
+        "workflow": "ワークフロー"
       }
     },
     "topic": {
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "保存がブロックされました。ノートの読み込みに失敗しました。",
     "save_failed": "メモの保存に失敗しました",
     "save_failure": {
-      "description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。"
+      "description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。",
+      "metadata_pending": "メモは保存されましたが、ファイルのメタデータはまだ復旧中です。この保存を再試行しないでください。"
     },
     "search": {
       "both": "名称+内容",
@@ -5187,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "ローカルモデル",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
     "mineru": "MinerU",
@@ -5215,6 +5227,7 @@
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -6765,6 +6778,7 @@
         "allStatuses": "すべてのステータス",
         "allTypes": "すべての種類",
         "builtinOnly": "内蔵のみ",
+        "label": "フィルター",
         "status": "ステータスでフィルター",
         "type": "タイプでフィルター"
       },
@@ -6831,6 +6845,9 @@
         "loadError": "プロンプト取得エラー",
         "noPromptsAvailable": "利用可能なプロンプトはありません",
         "requiredField": "必須フィールド"
+      },
+      "protocolInstall": {
+        "title": "MCPをインストール"
       },
       "protocolInstallWarning": {
         "command": "起動コマンド",
@@ -7699,6 +7716,13 @@
         "usage_title": "使用",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory を開く",
+          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
+          "title": "毎日 10 米ドル分の無料 API クレジット"
+        }
+      },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
       "reorder_failed": "プロバイダーの並び替えに失敗しました",
@@ -7742,13 +7766,6 @@
           "toggle_client_email_visibility": "クライアントのメールアドレスの表示を切り替える",
           "toggle_private_key_visibility": "秘密鍵の表示を切り替える",
           "toggle_project_id_visibility": "プロジェクトIDの表示を切り替える"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Token Factory を開く",
-          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
-          "title": "毎日 10 米ドル分の無料 API クレジット"
         }
       }
     },
@@ -8077,7 +8094,7 @@
           "save_failed": "保存に失敗しました",
           "zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。"
         },
-        "fetch_urls_provider": "デフォルトのURL取得プロバイダー",
+        "fetch_urls_provider": "URL取得プロバイダー",
         "free": "無料",
         "is_default": "デフォルト",
         "local_provider": {

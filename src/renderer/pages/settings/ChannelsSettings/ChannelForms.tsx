@@ -60,6 +60,7 @@ type ChannelFieldsFormProps = ChannelFormProps & {
 
 const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const selectedCard = permissionModeCards.find((card) => card.mode === channel.permissionMode)
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-xs">{t('agent.channels.security.permissionMode')}</Label>
@@ -71,7 +72,16 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           })
         }>
         <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
+          {/* Own children so the trigger stays one line: the items below can be two. */}
+          <SelectValue>
+            {selectedCard ? (
+              <span className={selectedCard.dangerous ? 'text-destructive' : undefined}>
+                {t(selectedCard.titleKey, selectedCard.titleFallback)}
+              </span>
+            ) : (
+              t('agent.channels.security.inheritFromAgent')
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>

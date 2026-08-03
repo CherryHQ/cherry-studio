@@ -7,11 +7,12 @@ import type { ReactNode, Ref } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { SelectorShellProps } from '../../SelectorShell'
+import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const mocks = vi.hoisted(() => ({
+  bottomActions: [] as SelectorShellBottomAction[],
   loggerError: vi.fn(),
   openSettingsTab: vi.fn(),
   scrollToIndex: vi.fn(),
@@ -103,6 +104,7 @@ vi.mock('@renderer/components/SelectorShell', () => ({
     'data-testid': dataTestId
   }: SelectorShellProps) => {
     const actions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
+    mocks.bottomActions = actions
     const content = typeof children === 'function' ? children({ availableListHeight: undefined }) : children
 
     return (
@@ -228,6 +230,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
 describe('ModelSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.bottomActions = []
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -258,6 +261,56 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('clears a single selection from the bottom option and closes the selector', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        value={makeModel('openai::gpt-4' as UniqueModelId)}
+        noneOptionLabel="No model"
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'No model' }))
+
+    expect(onSelect).toHaveBeenCalledWith(undefined)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('marks the empty option selected after the configure action', () => {
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        noneOptionLabel="No model"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom', 'No model'])
+    expect(mocks.bottomActions[1]).toMatchObject({ type: 'selectable', selected: true })
+  })
+
+  it('omits the empty option from required single and multi selectors', () => {
+    const { rerender } = render(
+      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
+
+    rerender(<ModelSelector open multiple trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
   })
 
   it('suppresses only the immediate close caused by a multi-select item click', async () => {
@@ -435,5 +488,18 @@ describe('ModelSelector', () => {
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(screen.getByText('models.no_matches')).toBeInTheDocument()
+  })
+
+  it('keeps model filters on one horizontally scrollable row', () => {
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        availableTags: ['free'],
+        tagSelection: { free: false } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-filter-tags')).toHaveClass('flex-nowrap', 'overflow-x-auto')
   })
 })

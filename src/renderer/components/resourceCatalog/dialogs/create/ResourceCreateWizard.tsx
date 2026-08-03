@@ -7,6 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import {
+  resourceDialogCloseButtonClassName,
+  resourceDialogHeaderClassName,
+  resourceDialogTitleClassName
+} from '../components/EditDialogShared'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
@@ -259,12 +264,12 @@ export function ResourceCreateWizard({
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
         size="xl"
-        className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
+        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0', resourceDialogCloseButtonClassName)}
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
-        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
+        <div className={resourceDialogHeaderClassName}>
           <div className="min-w-0">
-            <DialogTitle className="truncate text-base">{title}</DialogTitle>
+            <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
           </div>
         </div>
 

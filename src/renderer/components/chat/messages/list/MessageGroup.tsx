@@ -70,7 +70,6 @@ const MessageGroup = ({
   const selection = useMessageListSelection()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
-  const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -379,7 +378,6 @@ const MessageGroup = ({
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
         $count={messageLength}
-        $gridColumns={gridColumns}
         className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
         onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
         {messages.map(renderMessage)}
@@ -417,17 +415,16 @@ const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
 const GridContainer = ({
   className,
   $count,
-  $gridColumns,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number; $gridColumns: number }) => {
+}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
   const gridTemplateColumns = isHorizontal
     ? `repeat(${$count}, minmax(420px, 1fr))`
     : isGrid
-      ? `repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr))`
+      ? 'repeat(2, minmax(0, 1fr))'
       : isFoldOrVertical
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined

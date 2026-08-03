@@ -38,7 +38,9 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         kind: 'command' as const,
         sources: ['popover'] as const,
         order: 80 + index / 100,
-        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
+        // The quick panel row is a fixed-height single line, so the label stays one line and
+        // the mode's caveat rides along in the description column instead of stacking below.
+        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} withWarning={false} />,
         // label/description are React nodes, which yield no searchable text — provide it explicitly.
         searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
           t(card.titleKey, card.titleFallback),
@@ -47,6 +49,12 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         description: (
           <span className={card.dangerous ? 'text-destructive/80' : undefined}>
             {t(card.descriptionKey, card.descriptionFallback)}
+            {card.warningKey && (
+              <span className={card.dangerous ? undefined : 'text-warning'}>
+                {' · '}
+                {t(card.warningKey, card.warningFallback ?? '')}
+              </span>
+            )}
           </span>
         ),
         icon: <PermissionModeIcon mode={card.mode} />,

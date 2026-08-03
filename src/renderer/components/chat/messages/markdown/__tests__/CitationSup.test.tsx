@@ -56,6 +56,8 @@ describe('CitationSup', () => {
     expect(sup).toHaveAttribute('role', 'button')
     expect(sup).toHaveAttribute('tabindex', '0')
     expect(sup.getAttribute('aria-label')).toContain('3')
+    expect(sup).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
+    expect(sup).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-primary')
   })
 
   it('gives different citations different accessible names', () => {
