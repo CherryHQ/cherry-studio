@@ -14,6 +14,8 @@ describe('detectDestructiveAssistantCommand', () => {
     ['git reset --hard HEAD~1', 'discarding version-control data'],
     ['git checkout .', 'discarding version-control data'],
     ['git checkout HEAD -- src/main.ts', 'discarding version-control data'],
+    ['git checkout -f feature', 'discarding version-control data'],
+    ['git checkout feature --force', 'discarding version-control data'],
     ['git switch --discard-changes feature', 'discarding version-control data'],
     ['sqlite3 app.db "DROP TABLE users"', 'destructive database operation'],
     ['terraform destroy -auto-approve', 'destructive infrastructure operation'],
