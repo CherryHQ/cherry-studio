@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import { isTextByContent } from '@main/utils/file'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { tool } from 'ai'
 import * as z from 'zod'
@@ -206,8 +206,8 @@ export async function executeFsRead(
   try {
     // Encoding-aware sniff (isbinaryfile + chardet) rather than a bare NUL
     // probe, so UTF-16 text files pass — readTextFileWithAutoEncoding below
-    // can decode them. `absolutePath` passed `isAbsolute` above.
-    if (!(await isTextByContent(absolutePath as AbsoluteFilePath))) {
+    // can decode them.
+    if (!(await isTextByContent(AbsoluteFilePathSchema.parse(absolutePath)))) {
       return { kind: 'error', code: 'binary', message: `Cannot read binary file: ${requestedPath}` }
     }
 
