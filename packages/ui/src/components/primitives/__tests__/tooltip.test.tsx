@@ -191,7 +191,7 @@ describe('Tooltip', () => {
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
     })
 
-    it('keeps the same tooltip color direction in dark mode', () => {
+    it('inverts tooltip colors in dark mode', () => {
       render(
         <Tooltip content="dark-safe" isOpen={true}>
           <button type="button">Trigger</button>
@@ -199,9 +199,7 @@ describe('Tooltip', () => {
       )
 
       const content = getTooltipContentElement('dark-safe')
-      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50')
-      expect(content.className).not.toContain('dark:bg-neutral-100')
-      expect(content.className).not.toContain('dark:text-neutral-900')
+      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50', 'dark:bg-neutral-100', 'dark:text-neutral-900')
     })
 
     it('does not render tooltip content when isOpen is false', () => {
@@ -221,7 +219,13 @@ describe('Tooltip', () => {
       const content = getTooltipContentElement('compound tip')
       const arrow = content.querySelector('svg')
       expect(arrow).toBeInTheDocument()
-      expect(arrow).toHaveClass('fill-neutral-900', 'stroke-neutral-900', 'stroke-2')
+      expect(arrow).toHaveClass(
+        'fill-neutral-900',
+        'stroke-neutral-900',
+        'stroke-2',
+        'dark:fill-neutral-100',
+        'dark:stroke-neutral-100'
+      )
       expect(arrow).toHaveAttribute('width', '12')
       expect(arrow).toHaveAttribute('height', '6')
       expect(arrow).toHaveClass('-translate-y-px')

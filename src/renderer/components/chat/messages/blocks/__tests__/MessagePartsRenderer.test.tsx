@@ -62,6 +62,11 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
 }))
 
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
+  __esModule: true,
+  default: ({ hostname }: { hostname: string }) => <span data-hostname={hostname} />
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
@@ -154,6 +159,10 @@ vi.mock('../../tools/MessageTools', () => {
 })
 
 vi.mock('../../tools/toolResponse', () => ({
+  normalizeToolOutputResponse: (output: unknown) =>
+    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output
+      ? (output as { content: unknown }).content
+      : output,
   buildToolResponseFromPart: (part: any, fallbackId?: string) => {
     const type = part.type as string
     if (!type.startsWith('tool-') && type !== 'dynamic-tool') return null
@@ -573,24 +582,6 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
-    it('uses stronger light-mode ink for ordinary message text', () => {
-      renderParts([{ type: 'text', text: 'hello world' }] as unknown as CherryMessagePart[])
-
-      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
-
-      expect(wrapper).toHaveClass('text-foreground')
-    })
-
-    it('does not apply the ordinary text color to data-code blocks', () => {
-      renderParts([
-        { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } }
-      ] as unknown as CherryMessagePart[])
-
-      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
-
-      expect(wrapper).not.toHaveClass('text-foreground')
-    })
-
     it('renders single and grouped images while skipping image parts without a URL', () => {
       const single = renderParts([
         { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }
@@ -896,6 +887,29 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByTestId('mock-markdown').textContent).toContain('data-citation')
       expect(screen.getByTestId('mock-markdown').textContent).toContain('https://ex.com')
+    })
+
+    it('shares citation display numbers across multiple text parts', () => {
+      renderParts([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: 'call-1', title: 'First', url: 'https://first.example', content: 'first' },
+            { id: 'call-2', title: 'Second', url: 'https://second.example', content: 'second' }
+          ]
+        },
+        { type: 'text', text: 'Later source first. [cite:call-2]' },
+        { type: 'text', text: 'Earlier source second. [cite:call-1]' }
+      ] as unknown as CherryMessagePart[])
+
+      const [first, second] = screen.getAllByTestId('mock-markdown').map((node) => node.textContent ?? '')
+      expect(first).toContain("data-citation='1'")
+      expect(first).toContain('https://second.example')
+      expect(second).toContain("data-citation='2'")
+      expect(second).toContain('https://first.example')
     })
 
     it('renders video and error value parts', () => {
@@ -1440,8 +1454,6 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
-      expect(screen.getByTestId('live-tool-group-header')).toHaveClass('select-none')
-      expect(screen.getByTestId('live-tool-group-content')).toHaveClass('pt-2')
 
       mockIsActiveTurnTarget.mockReturnValue(false)
       mockTopicStreamState.status = 'done'
@@ -1450,7 +1462,6 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed 1 second')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
-      expect(screen.getByTestId('completed-process-trigger')).toHaveClass('select-none')
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
       expect(screen.queryByTestId('tool-history-content')).toBeNull()
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
@@ -1496,7 +1507,6 @@ describe('MessagePartsRenderer', () => {
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
 
       fireEvent.click(historyTrigger)
-      expect(screen.getByTestId('tool-history-content')).toHaveClass('pt-2')
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
     })
 

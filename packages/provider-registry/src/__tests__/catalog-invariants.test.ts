@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf } from '../../scripts/canonicalize'
+import { canonOf, prefixHit } from '../../scripts/canonicalize'
+import { CREATORS } from '../creators'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
@@ -85,6 +86,22 @@ describe('catalog invariants (data/*.json)', () => {
   // and coexists with (or shadows) its true base row.
   it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
+  it('assigns overlapping creator prefixes to the most specific owner', () => {
+    const wrongOwner = models
+      .map((model) => {
+        const mostSpecific = CREATORS.flatMap((creator) =>
+          (creator.idPrefixes ?? [])
+            .filter((prefix) => prefixHit(model.id, prefix))
+            .map((prefix) => ({ creatorId: creator.id, prefix }))
+        ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+        return mostSpecific && mostSpecific.creatorId !== model.ownedBy
+          ? `${model.id}: ${model.ownedBy} != ${mostSpecific.creatorId} (${mostSpecific.prefix})`
+          : undefined
+      })
+      .filter(Boolean)
+    expect(wrongOwner).toEqual([])
   })
 
   it('every override resolves to a base row or carries a standalone name', () => {

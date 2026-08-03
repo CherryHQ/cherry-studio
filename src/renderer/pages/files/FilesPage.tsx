@@ -134,7 +134,12 @@ async function requestBatchedInternalEntryCreates(
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({
+          source: 'path' as const,
+          path,
+          // Files-page upload = add-to-library: 'manual' keeps zero-ref uploads out of GC (spec §4.1)
+          cleanupPolicy: 'manual' as const
+        }))
       })
     )
   )
@@ -850,9 +855,7 @@ function FilesPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div
-        data-testid="files-browser"
-        className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
         <FileSidebar
           filter={filter}
           onFilterChange={(f) => {
@@ -965,7 +968,6 @@ function FilesPage() {
           )}
 
           <Scrollbar
-            data-testid="files-scrollbar"
             ref={contentScrollRef}
             className="relative flex-1"
             onScroll={handleContentScroll}

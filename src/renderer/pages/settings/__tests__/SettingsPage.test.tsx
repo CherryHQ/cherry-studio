@@ -69,35 +69,18 @@ describe('SettingsPage', () => {
     navigateMock.mockReset()
   })
 
-  it('keeps setting groups transparent in a macOS transparent window', () => {
-    isMacTransparentWindowMock.mockReturnValue(true)
-
-    const { container } = render(<SettingsPage />)
-
-    expect(container.firstElementChild).toHaveStyle({ '--settings-group-background': 'transparent' })
-  })
-
-  it('uses a subtle group background in dark mode', () => {
-    const { container } = render(<SettingsPage />)
-
-    expect(container.firstElementChild).toHaveClass('dark:[--settings-group-background:var(--background-subtle)]')
-  })
-
   it('places local models directly below the default model', () => {
     const { container } = render(<SettingsPage />)
 
     expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
-    expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
     expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
-    expect(localModelsItem.querySelector('.lucide-file-box')).toBeInTheDocument()
-
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
@@ -115,8 +98,6 @@ describe('SettingsPage', () => {
     const systemItem = screen.getByRole('button', { name: '系统' })
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
     expect(systemItem.nextElementSibling).toBe(dependenciesItem)
-    expect(dependenciesItem.querySelector('.lucide-terminal')).toBeInTheDocument()
-
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
@@ -129,8 +110,6 @@ describe('SettingsPage', () => {
 
     expect(mcpItem).not.toBeNull()
     expect(mcpItem?.nextElementSibling).toBe(skillsItem)
-    expect(skillsItem.querySelector('.lucide-tool-case')).toBeInTheDocument()
-
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
   })

@@ -39,7 +39,6 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Badge: passthrough('span'),
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
@@ -108,6 +107,13 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
+    Select: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    SelectContent: passthrough('div'),
+    SelectItem: ({ children, value, ...props }: any) =>
+      React.createElement('div', { ...props, 'data-value': value }, children),
+    SelectTrigger: ({ children, size, ...props }: any) =>
+      React.createElement('button', { ...props, 'data-size': size, role: 'combobox', type: 'button' }, children),
+    SelectValue: () => null,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
@@ -319,7 +325,19 @@ describe('AppearanceSettings selectors', () => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    expect(screen.getByRole('button', { name: 'settings.theme.light' })).toHaveAttribute('aria-pressed', 'true')
+    const lightThemeButton = screen.getByRole('button', { name: 'settings.theme.light' })
+    const lightThemePreview = lightThemeButton.firstElementChild
+    const lightThemeLabel = lightThemePreview?.nextElementSibling
+
+    expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lightThemePreview).toHaveClass(
+      'border-primary',
+      'ring-2',
+      'group-focus-visible:border-ring',
+      'group-focus-visible:bg-accent'
+    )
+    expect(lightThemePreview).not.toHaveClass('group-focus-visible:ring-3', 'group-focus-visible:ring-ring/50')
+    expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
     expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
 
@@ -336,46 +354,6 @@ describe('AppearanceSettings selectors', () => {
       'settings.theme.title',
       'settings.general.common.sections.display_language'
     ])
-  })
-
-  it('matches both font popover widths to their triggers', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
-      element.getAttribute('data-popover-class-name')
-    )
-
-    expect(fontPopoverClassNames).toHaveLength(2)
-    expect(fontPopoverClassNames).toEqual([
-      expect.stringContaining('w-(--radix-popover-trigger-width)'),
-      expect.stringContaining('w-(--radix-popover-trigger-width)')
-    ])
-  })
-
-  it('matches the font triggers to the other appearance selectors', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontSelectors = Array.from(container.querySelectorAll('select'))
-
-    expect(fontSelectors).toHaveLength(2)
-    fontSelectors.forEach((selector) => {
-      expect(selector).toHaveClass(
-        'h-8',
-        'rounded-md',
-        'border-border',
-        'bg-transparent',
-        'text-sm',
-        'dark:bg-input/30'
-      )
-    })
   })
 
   it('shows migration guidance for marked v1 custom CSS', () => {

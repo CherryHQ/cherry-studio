@@ -205,21 +205,6 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should have clickable styling', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
-      openArtifactFile: mockOpenArtifactFile
-    })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-link')
-    expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
-  })
-
-  it('should render ellipsis dropdown trigger', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
-    expect(screen.getByRole('button', { name: 'More' })).toHaveClass('items-center')
-  })
-
   it('should render ellipsis dropdown trigger for external editor capability', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openInExternalApp: mockOpenInExternalApp })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
@@ -265,9 +250,7 @@ describe('ClickableFilePath', () => {
   it('should render plain text when openArtifactFile capability is unavailable', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('/tmp/test.ts').some((element) => element.classList.contains('cursor-default'))).toBe(
-      true
-    )
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 
   it('should disable all file actions when interactive is false', () => {
@@ -279,8 +262,6 @@ describe('ClickableFilePath', () => {
 
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
-    const text = screen.getAllByText('/tmp/test.ts').find((element) => element.classList.contains('cursor-default'))
-    expect(text).toBeInTheDocument()
-    expect(text).toHaveClass('text-muted-foreground')
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 })

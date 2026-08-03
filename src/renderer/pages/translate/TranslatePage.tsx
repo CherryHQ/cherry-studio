@@ -893,7 +893,7 @@ const TranslatePage: FC = () => {
             <button
               type="button"
               onClick={onAbort}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-secondary-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-secondary-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:bg-secondary-hover focus-visible:outline-none">
               <CirclePause size={14} className="lucide-custom" />
               <span>{t('common.stop')}</span>
             </button>
@@ -903,7 +903,7 @@ const TranslatePage: FC = () => {
               onClick={onTranslate}
               disabled={!couldTranslate}
               className={cn(
-                'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none',
                 couldTranslate
                   ? 'bg-primary text-primary-foreground hover:opacity-90'
                   : 'cursor-not-allowed bg-muted text-foreground-disabled'

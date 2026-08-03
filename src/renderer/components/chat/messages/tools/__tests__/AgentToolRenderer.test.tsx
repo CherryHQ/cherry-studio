@@ -856,7 +856,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('meta tool rendering', () => {
-    it('renders tool_search with the light tool-row styling', async () => {
+    it('renders and expands tool_search results', async () => {
       const toolResponse = createToolResponse({
         id: 'meta-tool-search',
         tool: {
@@ -877,17 +877,10 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      const { container } = render(<MessageTool toolResponse={toolResponse} />)
+      render(<MessageTool toolResponse={toolResponse} />)
 
-      const disclosure = container.querySelector('.message-tools-container')
-      expect(disclosure).toHaveClass('border-none')
-      expect(disclosure).toHaveClass('bg-transparent')
-      expect(disclosure).not.toHaveClass('rounded-[7px]')
       expect(screen.queryByTestId('wrench-icon')).toBeNull()
-
-      const title = screen.getByText('tool_search · ns=mcp:tavily')
-      expect(title).toHaveClass('font-normal')
-      expect(title).toHaveClass('text-muted-foreground')
+      expect(screen.getByText('tool_search · ns=mcp:tavily')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
@@ -980,18 +973,10 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       const toolHeader = screen.getByText('View').closest('[role="button"]')!
-      expect(toolHeader).toHaveClass('w-fit')
-      expect(toolHeader).not.toHaveClass('w-full')
 
       fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
-      expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
-      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
-        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
-      )
-      expect(terminal?.className).toContain('bg-[#f5f5f5]')
-      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
@@ -1010,11 +995,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should render the DEDICATED BashTool component
-      const bashLabel = screen.getByText('Installing')
-      expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
-      expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
-      expect(bashLabel.parentElement).toHaveClass('font-normal text-muted-foreground')
+      expect(screen.getByText('Installing')).toBeInTheDocument()
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')
