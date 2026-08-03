@@ -48,8 +48,7 @@ in `src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts`:
 export const INTERNAL_FEATURES = [
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
-  modelParamsFeature,
-  pdfCompatibilityFeature,        // must run before anthropicCacheFeature
+  deepseekDsmlParserFeature,
   reasoningExtractionFeature,     // must run before simulateStreamingFeature
   simulateStreamingFeature,
   anthropicCacheFeature,
@@ -59,7 +58,9 @@ export const INTERNAL_FEATURES = [
   qwenThinkingFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
-  providerUrlContextFeature
+  providerUrlContextFeature,
+  terminalToolFailureFeature,
+  steerYieldFeature
 ]
 ```
 
@@ -100,9 +101,13 @@ buildAgentParams(input)
   ├─ resolveCapabilities      → enableWebSearch / enableUrlContext / …
   ├─ resolveEffectiveEndpoint → endpointType (model > provider default)
   ├─ resolveAiSdkProviderId   → adapter-family routing (see adapter-family.md)
+  ├─ extractAiSdkStandardParams → standard params + provider-scoped params
+  ├─ resolveRequestedMaxOutputTokens → raw output limit before reasoning adjustment
+  ├─ resolveReasoningInvocation → reasoning wire + explicit thinking budget
   ├─ collectFromFeatures      → plugins + hookParts
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
-  └─ buildAgentOptions        → providerOptions + customParameters split
+  └─ buildAgentOptions        → standard params + providerOptions + call overrides
+                                + reasoning-adjusted output limit
                                 + optional body-passthrough fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
@@ -116,6 +121,31 @@ top-level `AgentOptions` (AI SDK forwards them to the model), provider
 params merge into `providerOptions[aiSdkProviderId]` (after a
 `mergeCustomProviderParameters` pass that respects existing capability
 options).
+
+Standard sampling params are assembled directly in `buildAgentOptions`;
+they are not contributed by a `RequestFeature`. Assistant `temperature`
+and `topP` values are capability-filtered, then custom standard params
+override them, and per-call overrides apply last.
+
+`maxOutputTokens` uses a separate raw-limit resolution before reasoning:
+
+1. `request.callOverrides.maxOutputTokens`
+2. `assistant.customParameters.maxOutputTokens`
+3. the enabled assistant max-token setting
+4. `model.maxOutputTokens`, only for an `anthropic-messages` endpoint
+5. `undefined`
+
+The resolved raw limit is also used to resolve the reasoning invocation;
+when it is undefined, `model.maxOutputTokens` remains a budget-sizing
+fallback without being forced into `AgentOptions`. For an
+`anthropic-messages` request, `buildAgentOptions` reads the effective thinking
+mode after per-call provider-option overrides. It subtracts an explicit additive
+budget exactly once before passing the non-thinking remainder to the SDK (with a
+minimum of one token). Adaptive or disabled thinking has no explicit budget and
+is not subtracted. An undefined raw limit remains omitted, so unknown
+Anthropic-compatible non-Claude models can defer to the endpoint instead of
+inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
+fallback because Anthropic requires `max_tokens`.
 
 Flat provider params also pass through a request-local fetch wrapper after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names
