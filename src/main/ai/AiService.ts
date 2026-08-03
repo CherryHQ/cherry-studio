@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises'
-
 import { application } from '@application'
 import {
   type AiPlugin,
@@ -319,11 +317,6 @@ export class AiService extends BaseService {
           logger.error('Failed to reconcile skills', error)
         })
       )
-    // One-shot cleanup of the retired context-build VFS temp dir (persisted
-    // outputs now live in FileManager, ref-GC'd). macOS/Linux temp cleaners
-    // reclaim it eventually; Windows never does. Drop with the path key after
-    // a release or two.
-    void fs.rm(application.getPath('feature.context_build.vfs.temp'), { recursive: true, force: true }).catch(() => {})
     logger.info('AiService initialized')
   }
 
