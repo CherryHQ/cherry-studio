@@ -29,6 +29,16 @@ describe('bundled native binaries', () => {
     expect(getClaudeNativePackageCandidates('win32', 'x64')).toEqual(['@anthropic-ai/claude-agent-sdk-win32-x64'])
   })
 
+  it('does not inspect Linux libc on non-Linux targets', () => {
+    const getReportSpy = vi.spyOn(process.report, 'getReport')
+
+    expect(getClaudeNativePackageCandidates('darwin', 'arm64')).toEqual(['@anthropic-ai/claude-agent-sdk-darwin-arm64'])
+    expect(getClaudeNativePackageCandidates('win32', 'x64')).toEqual(['@anthropic-ai/claude-agent-sdk-win32-x64'])
+    expect(getReportSpy).not.toHaveBeenCalled()
+
+    getReportSpy.mockRestore()
+  })
+
   it('prefers the matching libc and keeps the other Linux package as a fallback', () => {
     expect(getClaudeNativePackageCandidates('linux', 'arm64', 'glibc')).toEqual([
       '@anthropic-ai/claude-agent-sdk-linux-arm64',

@@ -33,14 +33,15 @@ function detectLinuxLibc(): LinuxLibc {
 export function getClaudeNativePackageCandidates(
   platform: NodeJS.Platform = process.platform,
   arch: NodeJS.Architecture = process.arch,
-  linuxLibc: LinuxLibc = detectLinuxLibc()
+  linuxLibc?: LinuxLibc
 ): string[] {
   assertSupportedTarget('Claude Code native binary', platform, arch)
 
   if (platform === 'linux') {
+    const resolvedLinuxLibc = linuxLibc ?? detectLinuxLibc()
     const glibcPackage = `@anthropic-ai/claude-agent-sdk-linux-${arch}`
     const muslPackage = `${glibcPackage}-musl`
-    return linuxLibc === 'glibc' ? [glibcPackage, muslPackage] : [muslPackage, glibcPackage]
+    return resolvedLinuxLibc === 'glibc' ? [glibcPackage, muslPackage] : [muslPackage, glibcPackage]
   }
 
   return [`@anthropic-ai/claude-agent-sdk-${platform}-${arch}`]
