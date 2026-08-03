@@ -30,7 +30,8 @@ import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
   resolveEffectiveEndpoint,
-  resolveProviderOptionsKey
+  resolveProviderOptionsKey,
+  resolveWireModelId
 } from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -234,7 +235,7 @@ async function resolveSdkConfig(
         endpointType: resolvedEndpoint.endpointType,
         gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
       }),
-      modelId: model.apiModelId ?? model.id
+      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     },
     credentialReceipt
   }
