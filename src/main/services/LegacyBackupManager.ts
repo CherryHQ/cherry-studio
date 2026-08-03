@@ -15,6 +15,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -41,6 +42,10 @@ import WebDav from './WebDav'
 const logger = loggerService.withContext('BackupManager')
 const DIRECT_BACKUP_VERSION = 7
 const QUIESCE_TIMEOUT_MS = 30_000
+const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
+const BACKUP_OPERATION_DIR_PATTERN =
+  /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
+const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
 
 interface DirectBackupMetadata {
   version: number
@@ -103,6 +108,38 @@ class BackupManager {
 
   private get backupDir(): string {
     return application.getPath('feature.backup.temp')
+  }
+
+  async cleanupStaleTempArtifacts(): Promise<void> {
+    const cutoff = Date.now() - STALE_TEMP_ARTIFACT_AGE_MS
+
+    try {
+      const entries = await fs.readdir(this.backupDir, { withFileTypes: true })
+      for (const entry of entries) {
+        const isManagedDirectory = entry.isDirectory() && BACKUP_OPERATION_DIR_PATTERN.test(entry.name)
+        const isManagedArchive = entry.isFile() && BACKUP_TEMP_ARCHIVE_PATTERN.test(entry.name)
+        if (!isManagedDirectory && !isManagedArchive) {
+          continue
+        }
+
+        const artifactPath = path.join(this.backupDir, entry.name)
+        try {
+          const stats = await fs.lstat(artifactPath)
+          if (stats.mtimeMs >= cutoff) {
+            continue
+          }
+          await fs.remove(artifactPath)
+          logger.info('[cleanupStaleTempArtifacts] Removed stale backup artifact', { path: artifactPath })
+        } catch (error) {
+          logger.warn('[cleanupStaleTempArtifacts] Failed to remove stale backup artifact', {
+            path: artifactPath,
+            error
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('[cleanupStaleTempArtifacts] Failed to inspect backup temp directory', error as Error)
+    }
   }
 
   /**
@@ -559,8 +596,8 @@ class BackupManager {
     const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
     const s3Client = this.getS3Storage(s3Config)
     try {
-      const fileBuffer = await fs.promises.readFile(backupedFilePath)
-      const result = await s3Client.putFileContents(filename, fileBuffer)
+      const contentLength = (await fs.stat(backupedFilePath)).size
+      const result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), contentLength)
       await fs.remove(backupedFilePath)
       logger.info(`S3 backup completed: ${filename}`)
       return result
@@ -1105,17 +1142,7 @@ class BackupManager {
     const downloadDir = await this.createOperationDir('webdav-download')
     const backupedFilePath = path.join(downloadDir, path.basename(filename))
     try {
-      const retrievedFile = await webdavClient.getFileContents(filename)
-
-      // Write file using streaming
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(backupedFilePath)
-        writeStream.write(retrievedFile as Buffer)
-        writeStream.end()
-
-        writeStream.on('finish', () => resolve())
-        writeStream.on('error', (error) => reject(error))
-      })
+      await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
 
       await this.stageRestore(backupedFilePath)
     } catch (error: any) {
@@ -1143,14 +1170,7 @@ class BackupManager {
     const downloadDir = await this.createOperationDir('s3-download')
     const backupedFilePath = path.join(downloadDir, path.basename(filename))
     try {
-      const retrievedFile = await s3Client.getFileContents(filename)
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(backupedFilePath)
-        writeStream.write(retrievedFile)
-        writeStream.end()
-        writeStream.on('finish', () => resolve())
-        writeStream.on('error', (error) => reject(error))
-      })
+      await pipeline(await s3Client.getFileStream(filename), fs.createWriteStream(backupedFilePath))
 
       logger.info(`S3 restore file downloaded successfully: ${filename}`)
       await this.stageRestore(backupedFilePath)

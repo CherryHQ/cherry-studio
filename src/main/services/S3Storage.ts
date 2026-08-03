@@ -3,27 +3,15 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
-  PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import { loggerService } from '@logger'
 import type { S3Config } from '@shared/types/backup'
 import * as net from 'net'
 import { Readable } from 'stream'
 
 const logger = loggerService.withContext('S3Storage')
-
-/**
- * 将可读流转换为 Buffer
- */
-function streamToBuffer(stream: Readable): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(Buffer.concat(chunks)))
-  })
-}
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
@@ -64,14 +52,16 @@ export default class S3Storage {
         accessKeyId: accessKeyId,
         secretAccessKey: secretAccessKey
       },
-      forcePathStyle: usePathStyle
+      forcePathStyle: usePathStyle,
+      // Avoid aws-chunked framing, which some S3-compatible providers reject for streamed PUTs.
+      requestChecksumCalculation: 'WHEN_REQUIRED'
     })
 
     this.bucket = bucket
     this.root = root?.replace(/^\/+/g, '').replace(/\/+$/g, '') || ''
 
     this.putFileContents = this.putFileContents.bind(this)
-    this.getFileContents = this.getFileContents.bind(this)
+    this.getFileStream = this.getFileStream.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
     this.listFiles = this.listFiles.bind(this)
     this.checkConnection = this.checkConnection.bind(this)
@@ -85,31 +75,33 @@ export default class S3Storage {
     return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
   }
 
-  async putFileContents(key: string, data: Buffer | string) {
+  async putFileContents(key: string, data: Buffer | string | Readable, contentLength?: number) {
     try {
       const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
 
-      return await this.client.send(
-        new PutObjectCommand({
+      return await new Upload({
+        client: this.client,
+        params: {
           Bucket: this.bucket,
           Key: this.buildKey(key),
           Body: data,
-          ContentType: contentType
-        })
-      )
+          ContentType: contentType,
+          ContentLength: contentLength
+        }
+      }).done()
     } catch (error) {
       logger.error('[S3Storage] Error putting object:', error as Error)
       throw error
     }
   }
 
-  async getFileContents(key: string): Promise<Buffer> {
+  async getFileStream(key: string): Promise<Readable> {
     try {
       const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
       if (!res.Body || !(res.Body instanceof Readable)) {
         throw new Error('Empty body received from S3')
       }
-      return await streamToBuffer(res.Body as Readable)
+      return res.Body
     } catch (error) {
       logger.error('[S3Storage] Error getting object:', error as Error)
       throw error

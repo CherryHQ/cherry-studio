@@ -150,6 +150,7 @@ export async function backupToNutstore({
     if (autoBackupProcess) {
       throw new Error(i18n.t('message.backup.failed'))
     }
+    showMessage && toast.error(i18n.t('message.backup.failed'))
     return
   }
 
@@ -203,14 +204,14 @@ export async function backupToNutstore({
 }
 
 export async function restoreFromNutstore(fileName?: string) {
-  const nutstoreToken = await getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken(false)
   if (!nutstoreToken) {
-    return
+    throw new Error('Nutstore credentials are unavailable')
   }
 
   const config = await createNutstoreConfig(nutstoreToken)
   if (!config) {
-    return
+    throw new Error('Nutstore credentials are unavailable')
   }
 
   try {

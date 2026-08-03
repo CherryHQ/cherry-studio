@@ -297,7 +297,6 @@ export async function backupToWebdav({
     setWebDAVSyncState({ lastSyncError: message })
     showMessage && toast.error(message)
     logger.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
-    throw error
   } finally {
     if (!autoBackupProcess) {
       setWebDAVSyncState({
@@ -453,7 +452,6 @@ export async function backupToS3({
     setS3SyncState({ lastSyncError: message })
     logger.error('backupToS3: Error uploading file to S3:', error)
     showMessage && toast.error(message)
-    throw error
   } finally {
     if (!autoBackupProcess) {
       setS3SyncState({

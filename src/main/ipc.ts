@@ -29,6 +29,8 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new LegacyBackupManager()
 
 export async function registerIpc() {
+  void backupManager.cleanupStaleTempArtifacts()
+
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerService = application.get('PowerService')
   // powerService.registerShutdownHandler(() => {

@@ -1,4 +1,5 @@
 import type * as CryptoModule from 'node:crypto'
+import { Readable, Writable } from 'node:stream'
 
 import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import type * as PathModule from 'path'
@@ -295,7 +296,11 @@ import BackupManager from '../LegacyBackupManager'
 // The implementation uses path.normalize() which converts to platform separators
 const normalizePath = (p: string): string => path.normalize(p)
 
-const createDirent = (name: string) => ({ name })
+const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
+  name,
+  isDirectory: () => type === 'directory',
+  isFile: () => type === 'file'
+})
 
 const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   size,
@@ -383,17 +388,45 @@ describe('BackupManager direct v2 data compatibility', () => {
   }
 
   const mockDownloadedFileWrite = () => {
-    let finish: (() => void) | undefined
-    const writeStream = {
-      write: vi.fn(),
-      end: vi.fn(() => queueMicrotask(() => finish?.())),
-      on: vi.fn((event: string, callback: () => void) => {
-        if (event === 'finish') finish = callback
-        return writeStream
-      })
-    }
-    vi.mocked(fs.createWriteStream).mockReturnValue(writeStream as never)
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        }
+      }) as never
+    )
   }
+
+  it('removes only stale managed backup temp artifacts', async () => {
+    const now = Date.now()
+    const staleExtract = 'extract-c3556dcc-5460-420e-b994-a68b89642bd3'
+    const freshCreate = 'create-fa46adee-c7e2-4ac4-a73e-9424c4bf2754'
+    const staleArchive = '594c6356-638b-45cc-a2ef-242ea29e39bf-cherry-studio.zip'
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+    vi.mocked(fs.readdir).mockResolvedValue([
+      createDirent(staleExtract, 'directory'),
+      createDirent(freshCreate, 'directory'),
+      createDirent(staleArchive),
+      createDirent('extract-not-an-operation', 'directory'),
+      createDirent('manual-backup.zip')
+    ] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      const mtimeMs = String(entryPath).includes(freshCreate) ? now - 60 * 60 * 1000 : now - 25 * 60 * 60 * 1000
+      return { ...createStats('file'), mtimeMs } as never
+    })
+
+    try {
+      await backupManager.cleanupStaleTempArtifacts()
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    expect(fs.remove).toHaveBeenCalledTimes(2)
+    expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleExtract}`)
+    expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleArchive}`)
+    expect(fs.lstat).toHaveBeenCalledTimes(3)
+  })
 
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
@@ -682,8 +715,9 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   it('removes the WebDAV download directory before relaunching', async () => {
     mockDownloadedFileWrite()
+    const createReadStream = vi.fn(() => Readable.from(Buffer.from('backup')))
     vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
-      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+      createReadStream
     })
     const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
     const events: string[] = []
@@ -700,13 +734,15 @@ describe('BackupManager direct v2 data compatibility', () => {
     })
 
     expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
+    expect(createReadStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/webdav-download-operation-id', 'relaunch'])
   })
 
   it('removes the S3 download directory before relaunching', async () => {
     mockDownloadedFileWrite()
+    const getFileStream = vi.fn().mockResolvedValue(Readable.from(Buffer.from('backup')))
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
-      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+      getFileStream
     })
     const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
     const events: string[] = []
@@ -730,7 +766,33 @@ describe('BackupManager direct v2 data compatibility', () => {
     })
 
     expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
+    expect(getFileStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/s3-download-operation-id', 'relaunch'])
+  })
+
+  it('streams S3 backups with a known content length', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    const uploadStream = Readable.from(Buffer.from('backup'))
+    const putFileContents = vi.fn().mockResolvedValue({})
+    vi.spyOn(backupManager as any, 'backup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents })
+    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 6) as never)
+    vi.mocked(fs.createReadStream).mockReturnValue(uploadStream as never)
+
+    await backupManager.backupToS3({} as Electron.IpcMainInvokeEvent, {
+      endpoint: 'https://s3.example.com',
+      region: 'test',
+      bucket: 'backups',
+      accessKeyId: 'access-key',
+      secretAccessKey: 'secret-key',
+      fileName: 'backup.zip',
+      autoSync: false,
+      syncInterval: 0,
+      maxBackups: 1
+    })
+
+    expect(putFileContents).toHaveBeenCalledWith('backup.zip', uploadStream, 6)
+    expect(fs.promises.readFile).not.toHaveBeenCalled()
   })
 
   it('restores complete-Data version 7 archives without reading standalone SQLite or .claude resources', async () => {

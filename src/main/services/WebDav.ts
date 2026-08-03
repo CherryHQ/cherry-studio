@@ -6,6 +6,7 @@ import type Stream from 'stream'
 import type {
   BufferLike,
   CreateDirectoryOptions,
+  CreateReadStreamOptions,
   GetFileContentsOptions,
   PutFileContentsOptions,
   WebDAVClient
@@ -33,6 +34,7 @@ export default class WebDav {
 
     this.putFileContents = this.putFileContents.bind(this)
     this.getFileContents = this.getFileContents.bind(this)
+    this.createReadStream = this.createReadStream.bind(this)
     this.createDirectory = this.createDirectory.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
   }
@@ -58,9 +60,17 @@ export default class WebDav {
     }
 
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
+    // webdav 5.x ignores contentLength for streams, but still honors per-request headers.
+    const requestOptions =
+      typeof options?.contentLength === 'number'
+        ? {
+            ...options,
+            headers: { ...options.headers, 'Content-Length': String(options.contentLength) }
+          }
+        : options
 
     try {
-      return await this.instance.putFileContents(remoteFilePath, data, options)
+      return await this.instance.putFileContents(remoteFilePath, data, requestOptions)
     } catch (error) {
       logger.error('Error putting file contents on WebDAV:', error as Error)
       throw error
@@ -80,6 +90,14 @@ export default class WebDav {
       logger.error('Error getting file contents on WebDAV:', error as Error)
       throw error
     }
+  }
+
+  public createReadStream = (filename: string, options?: CreateReadStreamOptions) => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+
+    return this.instance.createReadStream(path.posix.join(this.webdavPath, filename), options)
   }
 
   public getDirectoryContents = async () => {
