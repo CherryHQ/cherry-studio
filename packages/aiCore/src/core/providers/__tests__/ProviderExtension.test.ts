@@ -793,7 +793,7 @@ describe('ProviderExtension', () => {
       expect(createFn).toHaveBeenCalledTimes(2)
     })
 
-    it('should handle settings with functions by treating them uniformly', async () => {
+    it('should reuse settings with the same function reference', async () => {
       const createFn = vi.fn(createMockProviderV3)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
@@ -807,9 +807,29 @@ describe('ProviderExtension', () => {
       const instance1 = await extension.createProvider(settings1)
       const instance2 = await extension.createProvider(settings2)
 
-      // Same function reference → same serialization → same cache hit
+      // Same function identity → same cache hit
       expect(instance1).toBe(instance2)
       expect(createFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should distinguish settings with different function references', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      const instance1 = await extension.createProvider({
+        apiKey: 'key',
+        fetch: () => Promise.resolve(new Response('first'))
+      })
+      const instance2 = await extension.createProvider({
+        apiKey: 'key',
+        fetch: () => Promise.resolve(new Response('second'))
+      })
+
+      expect(instance1).not.toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(2)
     })
 
     it('should distinguish settings with null vs missing keys', async () => {
