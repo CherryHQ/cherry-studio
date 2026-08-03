@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} στοιχεία απέτυχαν να επεξεργαστούν",
       "batch_mixed": "{{succeeded}} στοιχεία πέτυχαν, {{failed}} στοιχεία απέτυχαν",

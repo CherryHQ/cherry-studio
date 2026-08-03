@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isAllowedRoute, openRouteInMainWindow } from '@main/services/mainWindowNavigation'
 import type { navigationRequestSchemas } from '@shared/ipc/schemas/navigation'
@@ -12,5 +13,12 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
       return
     }
     openRouteInMainWindow(path)
+  },
+  'navigation.focus_or_open_conversation': async ({ target, title }, { senderId }) => {
+    await application.get('ConversationNavigationService').focusOrOpen(target, title, senderId)
+  },
+  'navigation.report_conversation_ownership': async ({ requestId, ownsTarget }, { senderId }) => {
+    if (!senderId) return
+    application.get('ConversationNavigationService').reportOwnership(requestId, senderId, ownsTarget)
   }
 }

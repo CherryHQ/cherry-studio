@@ -51,7 +51,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const sessionId = extractAgentSessionId(req.topicId)
-    const completionTarget = { conversationType: 'agent', conversationId: sessionId } as const
+    const conversation = { type: 'agent', id: sessionId } as const
 
     const session = agentSessionService.getById(sessionId)
     if (!session.agentId) {
@@ -136,7 +136,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber],
         isMultiModel: false,
-        completionTarget
+        conversation
       }
     }
 
@@ -235,7 +235,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
       listeners: [subscriber, ...runtime.listeners],
       isMultiModel: false,
-      completionTarget
+      conversation
     }
   }
 }

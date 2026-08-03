@@ -1,22 +1,22 @@
+import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
-import type { TaskCompletionTarget } from '@shared/types/notification'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  applicationGet: vi.fn(),
   agentSessionGetById: vi.fn(),
+  applicationGet: vi.fn(),
   broadcastToType: vi.fn(),
+  completionListener: undefined as ((event: ConversationCompletedEvent) => void) | undefined,
   electronNotifications: [] as Array<{
     options: { title: string; body: string }
     click?: () => void
     show: ReturnType<typeof vi.fn>
   }>,
-  getWindow: vi.fn(),
+  focusOrOpen: vi.fn(() => Promise.resolve()),
   getWindowInfosByType: vi.fn(),
-  getWindowType: vi.fn(),
+  loggerError: vi.fn(),
   loggerWarn: vi.fn(),
-  openRouteInMainWindow: vi.fn(),
   preferenceGet: vi.fn(),
   send: vi.fn(),
   showMainWindow: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 vi.mock('@data/services/TopicService', () => ({ topicService: { getById: mocks.topicGetById } }))
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ warn: mocks.loggerWarn }) }
+  loggerService: { withContext: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }) }
 }))
 vi.mock('@main/i18n', () => ({
   t: (key: string) =>
@@ -40,7 +40,6 @@ vi.mock('@main/i18n', () => ({
       'notification.completion.assistant': 'Assistant response complete'
     })[key] ?? key
 }))
-vi.mock('../mainWindowNavigation', () => ({ openRouteInMainWindow: mocks.openRouteInMainWindow }))
 vi.mock('electron', () => ({
   Notification: class {
     private readonly state: (typeof mocks.electronNotifications)[number]
@@ -73,34 +72,50 @@ const mainWindowInfo = (overrides: Partial<WindowInfo> = {}): WindowInfo => ({
   ...overrides
 })
 
+function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): void {
+  mocks.completionListener?.({
+    topicId: 'topic-1',
+    turnId: 'turn-1',
+    completedAt: 100,
+    conversation: { type: 'assistant', id: 'topic-1' },
+    ...overrides
+  })
+}
+
 describe('NotificationService', () => {
   let service: InstanceType<typeof NotificationService>
 
-  beforeEach(() => {
+  beforeEach(async () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     mocks.electronNotifications.length = 0
-    service = new NotificationService()
+    mocks.completionListener = undefined
     mocks.getWindowInfosByType.mockReturnValue([])
     mocks.preferenceGet.mockReturnValue(true)
+    mocks.topicGetById.mockReturnValue({ name: 'Research notes' })
+    mocks.agentSessionGetById.mockReturnValue({ name: 'Refactor project' })
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'WindowManager') {
+      if (name === 'AiStreamManager') {
         return {
-          getWindowInfosByType: mocks.getWindowInfosByType,
-          getWindow: mocks.getWindow,
-          getWindowType: mocks.getWindowType
+          onConversationCompleted: (listener: (event: ConversationCompletedEvent) => void) => {
+            mocks.completionListener = listener
+            return { dispose: vi.fn() }
+          }
         }
       }
-      if (name === 'IpcApiService') {
-        return { send: mocks.send, broadcastToType: mocks.broadcastToType }
-      }
+      if (name === 'ConversationNavigationService') return { focusOrOpen: mocks.focusOrOpen }
+      if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
+      if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       if (name === 'PreferenceService') return { get: mocks.preferenceGet }
       throw new Error(`Unexpected application.get(${name})`)
     })
+
+    service = new NotificationService()
+    await service._doInit()
   })
 
-  it('sends one in-app event to the focused full-chrome window', () => {
+  it('sends one presentation-ready event to the focused full-chrome window', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main
         ? [mainWindowInfo()]
@@ -115,49 +130,45 @@ describe('NotificationService', () => {
           ]
     )
 
-    service.notifyTaskCompletion({
-      topicId: 'topic-1',
-      turnId: 'turn-1',
-      completedAt: 100,
-      target: { conversationType: 'assistant', conversationId: 'topic-1' }
-    })
+    emitCompletion()
 
     expect(mocks.send).toHaveBeenCalledOnce()
     expect(mocks.send).toHaveBeenCalledWith('sub-1', 'notification.task_completed', {
-      topicId: 'topic-1',
       turnId: 'turn-1',
-      completedAt: 100,
-      delivery: 'in-app'
+      target: { conversationType: 'assistant', conversationId: 'topic-1' },
+      title: 'Assistant response complete',
+      message: 'Research notes'
     })
     expect(mocks.preferenceGet).not.toHaveBeenCalled()
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 
-  it('shows a main-owned assistant system notification in the background and cold-opens its route on click', () => {
+  it('shows a main-owned Agent system notification and delegates its click to conversation navigation', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
-    mocks.topicGetById.mockReturnValue({ name: 'Research notes' })
 
-    service.notifyTaskCompletion({
-      topicId: 'topic-1',
-      turnId: 'turn-2',
-      completedAt: 200,
-      target: { conversationType: 'assistant', conversationId: 'topic-1' }
+    emitCompletion({
+      topicId: 'agent-session:session-1',
+      turnId: 'turn-agent',
+      conversation: { type: 'agent', id: 'session-1' }
     })
 
     expect(mocks.electronNotifications).toHaveLength(1)
     expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Assistant response complete',
-      body: 'Research notes'
+      title: 'Agent task complete',
+      body: 'Refactor project'
     })
 
     mocks.electronNotifications[0].click?.()
-    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/chat?topicId=topic-1')
+    expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+      { conversationType: 'agent', conversationId: 'session-1' },
+      'Refactor project'
+    )
     expect(mocks.broadcastToType).not.toHaveBeenCalled()
   })
 
-  it('resolves Agent names in main and uses the localized fallback when lookup fails', () => {
+  it('logs a name lookup failure and keeps notifying with the localized generic name', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
@@ -165,66 +176,30 @@ describe('NotificationService', () => {
       throw new Error('missing')
     })
 
-    service.notifyTaskCompletion({
-      topicId: 'agent-session:session-1',
-      turnId: 'turn-3',
-      completedAt: 300,
-      target: { conversationType: 'agent', conversationId: 'session-1' }
+    emitCompletion({
+      topicId: 'agent-session:missing',
+      conversation: { type: 'agent', id: 'missing' }
     })
 
     expect(mocks.electronNotifications[0].options).toEqual({ title: 'Agent task complete', body: 'New task' })
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to resolve completed conversation name',
-      expect.objectContaining({ target: { conversationType: 'agent', conversationId: 'session-1' } })
+      expect.objectContaining({ target: { conversationType: 'agent', conversationId: 'missing' } })
     )
-
-    mocks.electronNotifications[0].click?.()
-    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/agents?sessionId=session-1')
   })
 
-  it('does not show a background notification when the preference is disabled or no full-chrome window exists', () => {
+  it('does not notify in the background when the preference is disabled or no full-chrome window exists', () => {
     mocks.preferenceGet.mockReturnValue(false)
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
     )
-
-    service.notifyTaskCompletion({
-      topicId: 'topic-1',
-      turnId: 'turn-disabled',
-      completedAt: 400,
-      target: { conversationType: 'assistant', conversationId: 'topic-1' }
-    })
+    emitCompletion({ turnId: 'turn-disabled' })
     expect(mocks.electronNotifications).toHaveLength(0)
 
     mocks.preferenceGet.mockReturnValue(true)
     mocks.getWindowInfosByType.mockReturnValue([])
-    service.notifyTaskCompletion({
-      topicId: 'topic-1',
-      turnId: 'turn-windowless',
-      completedAt: 500,
-      target: { conversationType: 'assistant', conversationId: 'topic-1' }
-    })
+    emitCompletion({ turnId: 'turn-windowless' })
     expect(mocks.electronNotifications).toHaveLength(0)
-  })
-
-  it('focuses a registered target in another window instead of opening a duplicate', () => {
-    const target: TaskCompletionTarget = { conversationType: 'agent', conversationId: 'session-1' }
-    const window = {
-      isDestroyed: vi.fn(() => false),
-      isMinimized: vi.fn(() => false),
-      restore: vi.fn(),
-      show: vi.fn(),
-      focus: vi.fn()
-    }
-    mocks.getWindow.mockReturnValue(window)
-    mocks.getWindowType.mockReturnValue(WindowType.SubWindow)
-    service.syncTaskTargets('sub-1', [target])
-
-    expect(service.focusTaskTarget(target, 'main-1')).toBe(true)
-    expect(mocks.send).toHaveBeenCalledWith('sub-1', 'notification.open_task_target_requested', { target })
-    expect(window.show).toHaveBeenCalledOnce()
-    expect(window.focus).toHaveBeenCalledOnce()
-    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
   })
 
   it('preserves the existing click behavior for unrelated system notifications', async () => {

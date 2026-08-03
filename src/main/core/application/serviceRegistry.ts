@@ -30,6 +30,7 @@ import { BinaryManager } from '@main/services/BinaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -88,6 +89,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  ConversationNavigationService,
   CitationPreviewService,
   LanTransferService,
   FileManager,

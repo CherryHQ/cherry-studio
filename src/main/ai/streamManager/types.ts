@@ -3,7 +3,6 @@ import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { TaskCompletionTarget } from '@shared/types/notification'
 import type { UIMessageChunk } from 'ai'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
@@ -122,6 +121,18 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
+export interface StreamConversation {
+  type: 'assistant' | 'agent'
+  id: string
+}
+
+export interface ConversationCompletedEvent {
+  topicId: string
+  turnId: string
+  completedAt: number
+  conversation: StreamConversation
+}
+
 /**
  * Topic-level stream state, keyed by `topicId` in AiStreamManager. A topic
  * has at most one ActiveStream. Status transitions:
@@ -140,8 +151,8 @@ export interface ActiveStream {
   status: TopicStreamStatus
   isMultiModel: boolean
   lifecycle: StreamLifecycle
-  /** Omitted for temporary/internal streams that must not notify on completion. */
-  completionTarget?: TaskCompletionTarget
+  /** Omitted for temporary/internal streams that do not represent a persistent conversation. */
+  conversation?: StreamConversation
 
   /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number

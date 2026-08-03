@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Resposta do assistente",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} itens falharam ao ser processados",
       "batch_mixed": "{{succeeded}} itens foram bem-sucedidos, {{failed}} itens falharam",

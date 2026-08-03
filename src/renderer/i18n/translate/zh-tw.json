@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "助手回應",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} 個項目處理失敗",
       "batch_mixed": "{{succeeded}} 個項目處理成功，{{failed}} 個項目處理失敗",

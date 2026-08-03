@@ -153,13 +153,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-    const completionTarget = { conversationType: 'assistant', conversationId: req.topicId } as const
+    const conversation = { type: 'assistant', id: req.topicId } as const
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
       return {
         ...(await this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)),
-        completionTarget
+        conversation
       }
     }
 
@@ -168,7 +168,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (req.trigger === 'steer-continuation') {
       return {
         ...(await this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)),
-        completionTarget
+        conversation
       }
     }
 
@@ -203,7 +203,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false,
-        completionTarget
+        conversation
       }
     }
 
@@ -344,7 +344,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
         isMultiModel,
-        completionTarget
+        conversation
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)

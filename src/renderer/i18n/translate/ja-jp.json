@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "助手回應",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}}件のアイテムの処理に失敗しました",
       "batch_mixed": "{{succeeded}}件が成功し、{{failed}}件が失敗しました",

@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "助手响应",
-    "completion": {
-      "agent": "Agent 任务已完成",
-      "assistant": "助手回复已完成"
-    },
     "knowledge": {
       "batch_error": "{{failed}} 个项目处理失败",
       "batch_mixed": "{{succeeded}} 个项目处理成功，{{failed}} 个项目处理失败",

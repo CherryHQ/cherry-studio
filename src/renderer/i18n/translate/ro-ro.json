@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Răspuns asistent",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} elemente nu au putut fi procesate",
       "batch_mixed": "{{succeeded}} elemente au reușit, {{failed}} elemente au eșuat",

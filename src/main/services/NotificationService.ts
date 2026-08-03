@@ -2,27 +2,19 @@ import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ConversationCompletedEvent } from '@main/ai/streamManager'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   type Notification,
   TASK_COMPLETION_NOTIFICATION_ACTION_KEY,
-  type TaskCompletionNotificationMeta,
-  type TaskCompletionTarget
+  type TaskCompletionNotificationMeta
 } from '@shared/types/notification'
 import { Notification as ElectronNotification } from 'electron'
 
-import { openRouteInMainWindow } from './mainWindowNavigation'
-
 const logger = loggerService.withContext('NotificationService')
-
-interface TaskCompletionSignal {
-  topicId: string
-  turnId: string
-  completedAt: number
-  target: TaskCompletionTarget
-}
 
 function isTaskCompletionMeta(meta: unknown): meta is TaskCompletionNotificationMeta {
   if (!meta || typeof meta !== 'object') return false
@@ -35,14 +27,15 @@ function isTaskCompletionMeta(meta: unknown): meta is TaskCompletionNotification
   )
 }
 
-function isSameTaskTarget(left: TaskCompletionTarget, right: TaskCompletionTarget): boolean {
-  return left.conversationType === right.conversationType && left.conversationId === right.conversationId
-}
-
 @Injectable('NotificationService')
+@DependsOn(['AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
-  private readonly taskTargetsByWindow = new Map<string, TaskCompletionTarget[]>()
+  protected onInit(): void {
+    this.registerDisposable(
+      application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
+    )
+  }
 
   public async sendNotification(notification: Notification): Promise<void> {
     const electronNotification = new ElectronNotification({
@@ -55,7 +48,10 @@ export class NotificationService extends BaseService {
         notification.actionKey === TASK_COMPLETION_NOTIFICATION_ACTION_KEY &&
         isTaskCompletionMeta(notification.meta)
       ) {
-        this.openTaskTarget(notification.meta)
+        void application
+          .get('ConversationNavigationService')
+          .focusOrOpen(notification.meta, notification.message)
+          .catch((error) => logger.error('Failed to open completed conversation', error as Error))
         return
       }
 
@@ -66,7 +62,7 @@ export class NotificationService extends BaseService {
     electronNotification.show()
   }
 
-  public notifyTaskCompletion({ topicId, turnId, completedAt, target }: TaskCompletionSignal): void {
+  private handleConversationCompleted({ turnId, completedAt, conversation }: ConversationCompletedEvent): void {
     const windowManager = application.get('WindowManager')
     const mainWindows = windowManager.getWindowInfosByType(WindowType.Main)
     const subWindows = windowManager
@@ -75,22 +71,28 @@ export class NotificationService extends BaseService {
     const fullChromeWindows = [...mainWindows, ...subWindows]
     const focusedWindow = fullChromeWindows.find((window) => window.isFocused)
 
-    if (focusedWindow) {
-      application.get('IpcApiService').send(focusedWindow.id, 'notification.task_completed', {
-        topicId,
-        turnId,
-        completedAt,
-        delivery: 'in-app'
-      })
-      return
+    if (!focusedWindow) {
+      if (fullChromeWindows.length === 0) return
+      if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     }
 
-    if (fullChromeWindows.length === 0) return
-    if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
-
+    const target: ConversationNavigationTarget = {
+      conversationType: conversation.type,
+      conversationId: conversation.id
+    }
     const title =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     const message = this.resolveTaskTargetName(target)
+
+    if (focusedWindow) {
+      application.get('IpcApiService').send(focusedWindow.id, 'notification.task_completed', {
+        turnId,
+        target,
+        title,
+        message
+      })
+      return
+    }
 
     void this.sendNotification({
       id: `task-completion:${turnId}`,
@@ -104,23 +106,7 @@ export class NotificationService extends BaseService {
     })
   }
 
-  public syncTaskTargets(windowId: string, targets: TaskCompletionTarget[]): void {
-    if (targets.length === 0) {
-      this.taskTargetsByWindow.delete(windowId)
-      return
-    }
-    this.taskTargetsByWindow.set(windowId, targets)
-  }
-
-  public focusTaskTarget(target: TaskCompletionTarget, requestingWindowId: string | null): boolean {
-    return this.focusRegisteredTaskTarget(target, requestingWindowId)
-  }
-
-  protected onDestroy(): void {
-    this.taskTargetsByWindow.clear()
-  }
-
-  private resolveTaskTargetName(target: TaskCompletionTarget): string {
+  private resolveTaskTargetName(target: ConversationNavigationTarget): string {
     const fallback = target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
 
     try {
@@ -133,42 +119,5 @@ export class NotificationService extends BaseService {
       logger.warn('Failed to resolve completed conversation name', { target, err: error })
       return fallback
     }
-  }
-
-  private openTaskTarget(target: TaskCompletionTarget): void {
-    if (this.focusRegisteredTaskTarget(target, null)) return
-
-    const route =
-      target.conversationType === 'agent'
-        ? `/app/agents?sessionId=${encodeURIComponent(target.conversationId)}`
-        : `/app/chat?topicId=${encodeURIComponent(target.conversationId)}`
-    openRouteInMainWindow(route)
-  }
-
-  private focusRegisteredTaskTarget(target: TaskCompletionTarget, excludedWindowId: string | null): boolean {
-    const windowManager = application.get('WindowManager')
-
-    for (const [windowId, targets] of this.taskTargetsByWindow) {
-      if (windowId === excludedWindowId || !targets.some((candidate) => isSameTaskTarget(candidate, target))) continue
-
-      const window = windowManager.getWindow(windowId)
-      if (!window || window.isDestroyed()) {
-        this.taskTargetsByWindow.delete(windowId)
-        continue
-      }
-
-      application.get('IpcApiService').send(windowId, 'notification.open_task_target_requested', { target })
-
-      if (windowManager.getWindowType(windowId) === WindowType.Main) {
-        application.get('MainWindowService').showMainWindow()
-      } else {
-        if (window.isMinimized()) window.restore()
-        window.show()
-        window.focus()
-      }
-      return true
-    }
-
-    return false
   }
 }

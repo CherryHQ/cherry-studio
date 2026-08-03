@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Ответ ассистента",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} элементов не удалось обработать",
       "batch_mixed": "{{succeeded}} элементов выполнено успешно, {{failed}} элементов завершилось с ошибкой",

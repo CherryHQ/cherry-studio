@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Phản hồi của Trợ lý",
-    "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} mục không xử lý được",
       "batch_mixed": "{{succeeded}} mục thành công, {{failed}} mục thất bại",

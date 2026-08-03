@@ -4596,10 +4596,6 @@
   },
   "notification": {
     "assistant": "Assistant Response",
-    "completion": {
-      "agent": "Agent task complete",
-      "assistant": "Assistant response complete"
-    },
     "knowledge": {
       "batch_error": "{{failed}} items failed to process",
       "batch_mixed": "{{succeeded}} items succeeded, {{failed}} items failed",

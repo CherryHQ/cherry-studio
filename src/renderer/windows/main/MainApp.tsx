@@ -6,11 +6,11 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { TaskCompletionNotificationRuntime } from '@renderer/components/TaskCompletionNotificationRuntime'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
-import { useTaskCompletionNotifications } from '@renderer/hooks/useTaskCompletionNotifications'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
@@ -51,14 +51,6 @@ function MainWindowRuntime(): null {
   useAppUpdateHandler()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
-
-  return null
-}
-
-// Completion routing needs TabsContext, so it is mounted only in the normal
-// post-onboarding branch, as a sibling of the shared window runtime.
-function TaskCompletionNotificationRuntime(): null {
-  useTaskCompletionNotifications()
 
   return null
 }
