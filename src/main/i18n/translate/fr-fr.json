@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Nouvelle tâche",
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
         "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Nouvelle conversation"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Tâche de l'agent terminée",
+      "assistant": "Réponse de l'assistant terminée"
     }
   },
   "paintings": {

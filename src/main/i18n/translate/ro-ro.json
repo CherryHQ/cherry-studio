@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Sarcină nouă",
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
         "missing": "Calea către spațiul de lucru nu există: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Conversație nouă"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Sarcina agentului a fost finalizată",
+      "assistant": "Răspunsul asistentului a fost finalizat"
     }
   },
   "paintings": {

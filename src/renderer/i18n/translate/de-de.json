@@ -4603,7 +4603,7 @@
       "error": "{{error}}",
       "success": "{{type}} erfolgreich zur Wissensdatenbank hinzugefügt"
     },
-    "tip": "Bei erfolgreicher Antwort wird nur für Nachrichten über 30 Sekunden eine Benachrichtigung angezeigt"
+    "tip": "Dieser Schalter steuert nur Systembenachrichtigungen, wenn Cherry Studio im Hintergrund läuft. Abschlusskarten in der App sind immer aktiviert."
   },
   "ocr": {
     "processing": "OCR wird verarbeitet..."
@@ -7324,7 +7324,7 @@
     },
     "no_provider_selected": "Kein Anbieter ausgewählt",
     "notification": {
-      "assistant": "Assistenten-Nachrichten",
+      "assistant": "Abschlussbenachrichtigungen für Agent und Assistent",
       "backup": "Backup",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen"

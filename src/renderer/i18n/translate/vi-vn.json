@@ -4603,7 +4603,7 @@
       "error": "{{error}}",
       "success": "Đã thêm thành công {{type}} vào cơ sở tri thức"
     },
-    "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
+    "tip": "Công tắc này chỉ kiểm soát thông báo hệ thống khi Cherry Studio chạy ở chế độ nền. Thẻ hoàn tất trong ứng dụng luôn được bật."
   },
   "ocr": {
     "processing": "Đang xử lý OCR..."
@@ -7324,7 +7324,7 @@
     },
     "no_provider_selected": "Nhà cung cấp chưa được chọn",
     "notification": {
-      "assistant": "Tin nhắn Trợ lý",
+      "assistant": "Thông báo hoàn tất của Agent và Trợ lý",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
       "title": "Thông báo"

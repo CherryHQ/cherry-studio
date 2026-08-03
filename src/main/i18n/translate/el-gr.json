@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Νέα εργασία",
       "workspace_status": {
         "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
         "missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Νέα συνομιλία"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Η εργασία του Agent ολοκληρώθηκε",
+      "assistant": "Η απάντηση του βοηθού ολοκληρώθηκε"
     }
   },
   "paintings": {

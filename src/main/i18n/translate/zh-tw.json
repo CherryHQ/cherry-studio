@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "新任務",
       "workspace_status": {
         "inaccessible": "工作區路徑無法存取：{{path}}",
         "missing": "工作區路徑不存在：{{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "新對話"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Agent 任務已完成",
+      "assistant": "助手回覆已完成"
     }
   },
   "paintings": {

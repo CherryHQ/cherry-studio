@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Новая задача",
       "workspace_status": {
         "inaccessible": "Путь к рабочей области недоступен: {{path}}",
         "missing": "Путь к рабочей области не существует: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Новый чат"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Задача агента выполнена",
+      "assistant": "Ответ ассистента готов"
     }
   },
   "paintings": {

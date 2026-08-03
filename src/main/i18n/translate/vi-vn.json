@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Nhiệm vụ mới",
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
         "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Cuộc trò chuyện mới"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Nhiệm vụ của Agent đã hoàn tất",
+      "assistant": "Phản hồi của Trợ lý đã hoàn tất"
     }
   },
   "paintings": {

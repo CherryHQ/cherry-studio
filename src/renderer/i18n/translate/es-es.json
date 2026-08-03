@@ -4603,7 +4603,7 @@
       "error": "{{error}}",
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
-    "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
+    "tip": "Este interruptor solo controla las notificaciones del sistema cuando Cherry Studio está en segundo plano. Las tarjetas de finalización dentro de la aplicación siempre están activadas."
   },
   "ocr": {
     "processing": "Procesando OCR..."
@@ -7324,7 +7324,7 @@
     },
     "no_provider_selected": "No se ha seleccionado un proveedor",
     "notification": {
-      "assistant": "Mensaje del asistente",
+      "assistant": "Notificaciones de finalización del agente y del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
       "title": "Notificaciones"

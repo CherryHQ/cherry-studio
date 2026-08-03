@@ -4603,7 +4603,7 @@
       "error": "{{error}}",
       "success": "S-a adăugat cu succes {{type}} în baza de cunoștințe"
     },
-    "tip": "Dacă răspunsul este de succes, atunci doar mesajele care depășesc 30 de secunde vor declanșa un memento"
+    "tip": "Acest comutator controlează doar notificările de sistem atunci când Cherry Studio rulează în fundal. Cardurile de finalizare din aplicație sunt întotdeauna activate."
   },
   "ocr": {
     "processing": "Procesare OCR..."
@@ -7324,7 +7324,7 @@
     },
     "no_provider_selected": "Furnizor neselectat",
     "notification": {
-      "assistant": "Mesaj asistent",
+      "assistant": "Notificări de finalizare pentru agent și asistent",
       "backup": "Mesaj backup",
       "knowledge_embed": "Mesaj bază de cunoștințe",
       "title": "Notificări"

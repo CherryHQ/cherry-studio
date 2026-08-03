@@ -4603,7 +4603,7 @@
       "error": "{{error}}",
       "success": "{{type}} ajouté avec succès à la base de connaissances"
     },
-    "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
+    "tip": "Ce bouton contrôle uniquement les notifications système lorsque Cherry Studio est en arrière-plan. Les cartes de fin de tâche dans l'application sont toujours activées."
   },
   "ocr": {
     "processing": "Traitement OCR en cours..."
@@ -7324,7 +7324,7 @@
     },
     "no_provider_selected": "Aucun fournisseur sélectionné",
     "notification": {
-      "assistant": "Message de l'assistant",
+      "assistant": "Notifications de fin de tâche de l'agent et de l'assistant",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
       "title": "Notifications"

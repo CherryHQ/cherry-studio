@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "Neue Aufgabe",
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
         "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "Neuer Chat"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Agent-Aufgabe abgeschlossen",
+      "assistant": "Assistentenantwort abgeschlossen"
     }
   },
   "paintings": {

@@ -6,7 +6,7 @@
       }
     },
     "session": {
-      "new": "[to be translated]:New task",
+      "new": "新しいタスク",
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
@@ -76,7 +76,7 @@
   },
   "chat": {
     "conversation": {
-      "new": "[to be translated]:New Chat"
+      "new": "新しいチャット"
     }
   },
   "common": {
@@ -105,8 +105,8 @@
   },
   "notification": {
     "completion": {
-      "agent": "[to be translated]:Agent task complete",
-      "assistant": "[to be translated]:Assistant response complete"
+      "agent": "Agent タスクが完了しました",
+      "assistant": "アシスタントの応答が完了しました"
     }
   },
   "paintings": {
