@@ -7,9 +7,11 @@ import {
   type DropdownNavProps,
   type DropdownProps,
   getDefaultClassNames,
-  type MonthCaptionProps
+  type MonthCaptionProps,
+  useDayPicker
 } from 'react-day-picker'
 
+import { useDirection } from './direction'
 import { DirectionalIcon } from './directional-icon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 
@@ -21,12 +23,15 @@ function Calendar({
   components,
   showOutsideDays = true,
   captionLayout = 'dropdown',
+  dir,
   ...props
 }: CalendarProps) {
   const defaultClassNames = getDefaultClassNames()
+  const direction = useDirection()
 
   return (
     <DayPicker
+      dir={dir ?? direction}
       showOutsideDays={showOutsideDays}
       captionLayout={captionLayout}
       className={cn('p-3', className)}
@@ -139,21 +144,20 @@ function handleCalendarDropdownChange(value: string | number, onChange: Dropdown
 }
 
 function CalendarChevron({ className, orientation, disabled, ...props }: ChevronProps) {
+  const { dayPickerProps } = useDayPicker()
   const iconClassName = cn('size-4', disabled && 'opacity-40', className)
 
-  if (orientation === 'left') {
-    return (
-      <DirectionalIcon>
+  if (orientation === 'left' || orientation === 'right') {
+    const icon =
+      orientation === 'left' ? (
         <ChevronLeft className={iconClassName} {...props} />
-      </DirectionalIcon>
-    )
-  }
-  if (orientation === 'right') {
-    return (
-      <DirectionalIcon>
+      ) : (
         <ChevronRight className={iconClassName} {...props} />
-      </DirectionalIcon>
-    )
+      )
+
+    // With `around`, DayPicker swaps physical chevrons itself. Its Nav component
+    // keeps fixed chevrons for the other layouts, so those still need mirroring.
+    return dayPickerProps.navLayout === 'around' ? icon : <DirectionalIcon>{icon}</DirectionalIcon>
   }
   if (orientation === 'up') return <ChevronUp className={iconClassName} {...props} />
   return <ChevronDown className={iconClassName} {...props} />
