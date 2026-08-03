@@ -4,10 +4,10 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { getLeadingEmoji } from '@renderer/utils/naming'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isNonChatModel } from '@shared/utils/model'
 import { Bot, ChevronDown } from 'lucide-react'
 import { useCallback, useState } from 'react'
 
@@ -140,7 +140,7 @@ export function ChatConversationControls({
           onOpenChange={setMentionedModelSelectorOpen}
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
-          filter={isSelectableAssistantModel}
+          filter={(candidate) => !isNonChatModel(candidate)}
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -165,7 +165,7 @@ export function ChatConversationControls({
           multiple={false}
           value={model}
           onSelect={onModelSelect}
-          filter={isSelectableAssistantModel}
+          filter={(candidate) => !isNonChatModel(candidate)}
           shortcut="chat.model.select"
           side={side}
           align="start"

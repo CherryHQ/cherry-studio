@@ -5,7 +5,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { isNonChatModel } from '@shared/utils/model'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -91,7 +91,7 @@ function AssistantEditDialogHost({
       open={open}
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
-      modelFilter={isSelectableAssistantModel}
+      modelFilter={(candidate) => !isNonChatModel(candidate)}
       initialTab={target.initialTab}
     />
   )
