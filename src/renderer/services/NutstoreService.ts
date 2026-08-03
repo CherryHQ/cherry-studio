@@ -7,7 +7,6 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
@@ -203,12 +202,9 @@ export async function restoreFromNutstore(fileName?: string) {
   try {
     await window.api.backup.restoreFromWebdav({ ...config, fileName })
     logger.info('[Nutstore] Backup restore staged, app will restart')
-  } catch (error: any) {
+  } catch (error) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    void popup.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
+    throw error
   }
 }
 

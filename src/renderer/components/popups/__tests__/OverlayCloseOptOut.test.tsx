@@ -1,6 +1,9 @@
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactModule from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -169,5 +172,38 @@ describe('popup overlay close opt-out', () => {
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
     expect(screen.getByText('backup.content')).toBeInTheDocument()
+  })
+})
+
+describe('BackupPopup submission', () => {
+  it('keeps the popup open and shows a localized error when active writers block backup', async () => {
+    const user = userEvent.setup()
+    let rejectBackup!: (error: Error) => void
+    mocks.backup.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectBackup = reject
+        })
+    )
+
+    render(<PopupHost />)
+    act(() => {
+      void BackupPopup.show()
+    })
+
+    const submitButton = await screen.findByRole('button', { name: 'backup.confirm.button' })
+    await user.click(submitButton)
+
+    expect(submitButton).toBeDisabled()
+    await user.click(submitButton)
+    expect(mocks.backup).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      rejectBackup(new Error(`Error invoking remote method: ${BACKUP_ACTIVE_WRITERS_ERROR_CODE}`))
+    })
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('backup.error.active_data_writers')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(submitButton).toBeEnabled()
   })
 })

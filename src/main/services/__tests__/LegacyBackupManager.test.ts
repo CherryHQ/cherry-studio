@@ -1,5 +1,6 @@
 import type * as CryptoModule from 'node:crypto'
 
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -541,6 +542,28 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['AI stream', mockAiStreamManager.hasLiveStreams],
+    ['agent session', mockAgentSessionRuntime.hasBusySessions]
+  ])('fails immediately when an %s can still write data', async (_, markBusy) => {
+    markBusy.mockReturnValue(true)
+    mockAiStreamManager.drainInFlight.mockResolvedValue({ stragglerIds: ['should-not-wait'] })
+
+    try {
+      await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+        BACKUP_ACTIVE_WRITERS_ERROR_CODE
+      )
+
+      expect(mockChannelManager.pause).not.toHaveBeenCalled()
+      expect(mockAiStreamManager.drainInFlight).not.toHaveBeenCalled()
+      expect(mockAgentSessionRuntime.drainInFlight).not.toHaveBeenCalled()
+      expect(fs.ensureDir).not.toHaveBeenCalled()
+    } finally {
+      markBusy.mockReturnValue(false)
+      mockAiStreamManager.drainInFlight.mockResolvedValue({ stragglerIds: [] })
+    }
   })
 
   it('fails closed when an AI writer does not drain before the snapshot', async () => {

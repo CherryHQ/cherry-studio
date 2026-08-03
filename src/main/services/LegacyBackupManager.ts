@@ -25,7 +25,7 @@ import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, type S3Config, type WebDavConfig } from '@shared/types/backup'
 import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import Database from 'better-sqlite3'
@@ -155,6 +155,8 @@ class BackupManager {
     destinationPath: string | undefined,
     slimBackup: boolean
   ): Promise<string> {
+    this.assertNoActiveDataWriters()
+
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
     const workDir = await this.createOperationDir('create')
     const outputDirectory = destinationPath ?? this.backupDir
@@ -1189,7 +1191,9 @@ class BackupManager {
       application.get('AiStreamManager').hasLiveStreams() ||
       application.get('AgentSessionRuntimeService').hasBusySessions()
     ) {
-      throw new Error('A conversation is still running. Wait for it to finish, then retry the backup or restore.')
+      throw new Error(
+        `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
+      )
     }
   }
 

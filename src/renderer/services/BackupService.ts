@@ -317,12 +317,9 @@ export async function restoreFromWebdav(fileName?: string) {
   try {
     await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
     logger.info('[WebDAVBackup] Backup restore staged, app will restart')
-  } catch (error: any) {
-    logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
-    void popup.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
+  } catch (error) {
+    logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
+    throw error
   }
 }
 

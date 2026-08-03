@@ -11,7 +11,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { IpcChannel } from '@shared/IpcChannel'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,6 +29,7 @@ interface ProgressData {
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
+  const [submitting, setSubmitting] = useState(false)
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
@@ -41,8 +44,19 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }, [])
 
   const onOk = async () => {
-    await backup(skipBackupFile)
-    resolve({})
+    setSubmitting(true)
+    try {
+      await backup(skipBackupFile)
+      resolve({})
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
+          ? t('backup.error.active_data_writers')
+          : t('message.backup.failed')
+      toast.error(message)
+      setProgressData(undefined)
+      setSubmitting(false)
+    }
   }
 
   const onCancel = () => {
@@ -60,7 +74,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     return t(getBackupProgressLabelKey(progressData.stage))
   }
 
-  const isDisabled = progressData ? progressData.stage !== 'completed' : false
+  const isDisabled = submitting || (progressData ? progressData.stage !== 'completed' : false)
 
   const title = t('backup.title')
   const okText = t('backup.confirm.button')

@@ -223,8 +223,8 @@ export function WebdavBackupManager({
       await (restoreMethod || restoreFromWebdav)(fileName)
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.restore.error'))
     } finally {
       setRestoring(false)
     }

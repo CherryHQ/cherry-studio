@@ -27,3 +27,5 @@ export type S3Config = {
   syncInterval: number
   maxBackups: number
 }
+
+export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'
