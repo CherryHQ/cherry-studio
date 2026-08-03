@@ -34,7 +34,8 @@
  * - `historyPartsByMessageId` contains persisted parts plus translations. It
  *   never observes the high-frequency execution overlay.
  * - `partsByMessageId` applies the execution overlay on top for the mutable
- *   streaming tail.
+ *   streaming tail, including live messages whose DB row has not joined the
+ *   history array yet.
  * - Both maps structurally share unchanged arrays and preserve their container
  *   identity when no relevant message changed.
  */
@@ -138,6 +139,28 @@ export function useStableMessagePartsLayers(
           : currentCandidate
       nextCurrent[message.id] = currentParts
       currentChanged ||= currentParts !== previousCurrentParts
+    }
+
+    for (const [messageId, executionParts] of Object.entries(overlay)) {
+      if (messageId in nextCurrent || executionParts.length === 0) continue
+      hasExecutionOverlay = true
+      const currentCandidate = appendTranslation(executionParts, translationOverlay[messageId])
+      const previousCurrentParts = previousCurrent[messageId]
+      const currentParts =
+        previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
+          ? previousCurrentParts
+          : currentCandidate
+      nextCurrent[messageId] = currentParts
+      currentChanged ||= currentParts !== previousCurrentParts
+    }
+
+    if (!currentChanged) {
+      for (const messageId in previousCurrent) {
+        if (!(messageId in nextCurrent)) {
+          currentChanged = true
+          break
+        }
+      }
     }
 
     const historyPartsByMessageId = historyChanged ? nextHistory : previousHistory

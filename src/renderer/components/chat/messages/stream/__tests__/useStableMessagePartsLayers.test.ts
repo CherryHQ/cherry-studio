@@ -117,6 +117,44 @@ describe('useStablePartsByMessageId', () => {
     expect(result.current['m1']).toBe(partsBase)
   })
 
+  it('tracks overlay-only messages without adding them to sealed history', () => {
+    const historyParts = [textPart('history')]
+    const liveParts = [textPart('live')]
+    const retainedLiveParts = [textPart('retained-live')]
+    const messages = [makeMessage('m1', historyParts)]
+
+    const { result, rerender } = renderHook(
+      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStableMessagePartsLayers(messages, ov, {}),
+      {
+        initialProps: {
+          ov: { 'live-m2': liveParts, 'live-m3': retainedLiveParts } as Record<string, CherryMessagePart[]>
+        }
+      }
+    )
+
+    expect(result.current.historyPartsByMessageId['live-m2']).toBeUndefined()
+    expect(result.current.historyPartsByMessageId['live-m3']).toBeUndefined()
+    expect(result.current.partsByMessageId['live-m2']).toBe(liveParts)
+    expect(result.current.partsByMessageId['live-m3']).toBe(retainedLiveParts)
+
+    const first = result.current
+    rerender({ ov: { 'live-m2': liveParts, 'live-m3': retainedLiveParts } })
+    expect(result.current).toBe(first)
+    expect(result.current.partsByMessageId).toBe(first.partsByMessageId)
+    expect(result.current.partsByMessageId['live-m2']).toBe(liveParts)
+    expect(result.current.partsByMessageId['live-m3']).toBe(retainedLiveParts)
+
+    rerender({ ov: { 'live-m3': retainedLiveParts } })
+    expect(result.current.partsByMessageId['live-m2']).toBeUndefined()
+    expect(result.current.partsByMessageId['live-m3']).toBe(retainedLiveParts)
+    expect(result.current.partsByMessageId).not.toBe(result.current.historyPartsByMessageId)
+
+    rerender({ ov: {} })
+    expect(result.current.partsByMessageId['live-m2']).toBeUndefined()
+    expect(result.current.partsByMessageId['live-m3']).toBeUndefined()
+    expect(result.current.partsByMessageId).toBe(result.current.historyPartsByMessageId)
+  })
+
   it('keeps translated history sealed while execution overlay frames change', () => {
     const baseParts = [textPart('base')]
     const firstFrame = [textPart('stream-1')]
