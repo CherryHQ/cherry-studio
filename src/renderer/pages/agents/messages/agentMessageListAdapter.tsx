@@ -392,7 +392,6 @@ export function useAgentMessageListProviderValue({
       loadingResetDelayMs: 600,
       listKey: topic.id,
       localSendGeneration,
-      readonly: true,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -477,7 +476,8 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      aiUsageMessageKind: 'agent-session'
     }),
     [assistantProfile, headerCapabilities.userProfile, topic.name]
   )

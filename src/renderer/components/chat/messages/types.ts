@@ -11,6 +11,7 @@ import type {
   MultiModelMessageStyle,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
+import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -287,7 +288,6 @@ export interface MessageListState {
   listKey?: string
   /** Monotonic counter incremented only after this renderer opens a local user turn. */
   localSendGeneration?: number
-  readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
@@ -388,6 +388,8 @@ export interface MessageListMeta {
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
   imageExportFileName?: string
+  /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
+  aiUsageMessageKind?: AiUsageRecordMessageKind
 }
 
 export interface MessageListProviderValue {

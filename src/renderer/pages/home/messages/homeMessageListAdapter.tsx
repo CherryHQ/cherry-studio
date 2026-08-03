@@ -767,7 +767,6 @@ export function useHomeMessageListProviderValue({
       loadingResetDelayMs: 300,
       listKey: assistant?.id ?? topic.assistantId,
       localSendGeneration,
-      readonly: false,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,

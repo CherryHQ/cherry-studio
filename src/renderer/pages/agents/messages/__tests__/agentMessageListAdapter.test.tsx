@@ -274,7 +274,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
-    expect(value?.state.readonly).toBe(true)
     expect(value?.state.partsByMessageId).toBe(partsByMessageId)
     expect(value?.state.messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])
     expect(value?.state.messages[1]).toMatchObject({

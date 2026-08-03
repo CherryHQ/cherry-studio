@@ -10,7 +10,7 @@ import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
-import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
@@ -56,8 +56,7 @@ const CodeBlock: React.FC<Props> = ({
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
   const actions = useOptionalMessageListActions()
-  const ui = useOptionalMessageListUi()
-  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock && ui?.readonly !== true
+  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock
 
   const handleSave = useCallback(
     (newContent: string) => {
