@@ -8,6 +8,7 @@ export default defineCreator({
   idPrefixes: ['qwen', 'qvq', 'tongyi'],
   serverTools: {
     'web-search': [
+      'qwen3-8-max',
       'qwen3-8-max-preview',
       'qwen3-7-max',
       'qwen3-6-max-preview',
@@ -32,6 +33,9 @@ export default defineCreator({
     // Always-think SKUs: thinking cannot be disabled — the explicit
     // `toggle: false` stops the generic qwen rule below; budget still applies.
     { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
+    // `qwen3.8-max-preview` serves thinking mode only, unlike the hybrid
+    // `qwen3.8-max` (help.aliyun.com/zh/model-studio/text-generation-model).
+    { pattern: '^qwen3[.-]8-max-preview', toggle: false },
     // QwQ/QVQ always-reasoning previews.
     { pattern: '^qwq|^qvq', toggle: false },
     { pattern: '^qwen', toggle: true, template: true },
@@ -50,8 +54,8 @@ export default defineCreator({
     // `qwen-max-latest` is a distinct alias — the versioned SKU predates
     // thinking-token support.
     { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
-    { pattern: '^qwen3[.-][5-9](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
-    { pattern: 'qwen3-(?!max).*$', budget: { min: 1024, max: 38912 }, template: true },
+    { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
+    { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: '^qwen3.*thinking' },
     { pattern: 'qwq|qvq' },
@@ -69,6 +73,28 @@ export default defineCreator({
     { pattern: '^(?!.*(?:coder|instruct))qwen-?3-(?:vl|omni|next)' }
   ],
   models: [
+    {
+      id: 'qwen3-8-max',
+      name: 'Qwen3.8 Max',
+      family: 'qwen',
+      capabilities: ['reasoning', 'function-call'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxInputTokens: 991000,
+      maxOutputTokens: 128000
+    },
+    {
+      id: 'qwen3-8-max-preview',
+      name: 'Qwen3.8 Max Preview',
+      family: 'qwen',
+      capabilities: ['reasoning', 'function-call'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxInputTokens: 991000,
+      maxOutputTokens: 128000
+    },
     {
       id: 'qwen-image',
       name: 'Qwen Image',

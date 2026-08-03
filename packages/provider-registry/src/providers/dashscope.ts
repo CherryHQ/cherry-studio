@@ -65,7 +65,18 @@ const qwen38Support: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
   defaultEffort: 'xhigh',
   supportedEfforts: ['none', 'low', 'medium', 'xhigh'],
+  // NOT a budget knob — Qwen3.8 has no `thinking_budget` (the parameter's model
+  // list stops at Qwen3.7), which is why `controls` carries effort only. The
+  // limits exist so the API gateway can reverse a caller-supplied `budget_tokens`
+  // into the nearest effort tier (`nearestEffortForBudget`).
   thinkingTokenLimits: { min: 0, max: 262_144 }
+}
+
+/** `qwen3.8-max-preview` serves thinking mode only — no `'none'` tier, so reasoning cannot be disabled. */
+const qwen38PreviewSupport: ReasoningSupport = {
+  ...qwen38Support,
+  controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'], default: 'xhigh' }],
+  supportedEfforts: ['low', 'medium', 'xhigh']
 }
 
 const highMaxSupport: ReasoningSupport = {
@@ -86,6 +97,14 @@ const effortChatWire: ReasoningWireProfile = {
 }
 
 const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
+
+// Preview variants omit the off mode entirely: thinking is always on there.
+const qwen38PreviewChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { effort: EFFORT })
+const qwen38PreviewResponsesWire: ReasoningWireProfile = modeWire(
+  'reasoningEffort',
+  { auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'xhigh' }
+)
 
 const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', {
   off: 'disabled',
@@ -142,6 +161,7 @@ const responsesModels = new Set([
   'qwen3-7-plus',
   'qwen3-7-max',
   'qwen3-max',
+  'qwen3-8-max',
   'qwen3-8-max-preview'
 ])
 
@@ -183,13 +203,23 @@ const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.
 const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   ...qwenReasoningOverrides,
   {
+    apiModelId: 'qwen3.8-max',
+    modelId: 'qwen3-8-max',
+    name: 'Qwen3.8 Max',
+    ...endpointPin('qwen3-8-max'),
+    reasoningContracts: {
+      'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
+      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+    }
+  },
+  {
     apiModelId: 'qwen3.8-max-preview',
     modelId: 'qwen3-8-max-preview',
     name: 'Qwen3.8 Max Preview',
     ...endpointPin('qwen3-8-max-preview'),
     reasoningContracts: {
-      'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
-      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+      'openai-chat-completions': { support: qwen38PreviewSupport, wire: qwen38PreviewChatWire },
+      'openai-responses': { support: qwen38PreviewSupport, wire: qwen38PreviewResponsesWire }
     }
   },
   {

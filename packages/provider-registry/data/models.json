@@ -2104,6 +2104,40 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 1000000,
+      "family": "qwen",
+      "id": "qwen3-8-max",
+      "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Qwen3.8 Max",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 1000000,
+      "family": "qwen",
+      "id": "qwen3-8-max-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Qwen3.8 Max Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba"
+    },
+    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 131072,
       "family": "qwen",
@@ -2132,14 +2166,14 @@
           },
           {
             "kind": "budget",
-            "max": 81920,
-            "min": 0
+            "max": 38912,
+            "min": 1024
           }
         ],
         "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
-          "max": 81920,
-          "min": 0
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -20856,5 +20890,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "83843534d152a445"
+  "version": "f770d3c3614dd0e2"
 }
