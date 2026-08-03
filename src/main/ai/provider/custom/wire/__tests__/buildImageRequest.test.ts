@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AppProviderId } from '../../../../types'
 import { splitParamValues } from '../../../../utils/imageOptions'
+import { resolveProviderOptionsKey } from '../../../endpoint'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
 import {
   DEFAULT_DIFFUSION_REGISTRATION,
@@ -14,11 +16,17 @@ import {
 // the literal expected `providerOptions` bag. (These literals were locked against
 // the legacy buildImageProviderOptions emitter while it still existed.)
 
-/** Run a provider's registration (WIRE_REGISTRY, else the diffusion default). */
-function engine(providerId: string, paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
+/** Run a provider's registration (WIRE_REGISTRY, else the diffusion default) and
+ *  deliver under `sdkConfig.optionsKey`, exactly as `AiService.generateImage` does —
+ *  so the ids whose SDK package reads its own namespace (google-vertex → `vertex`,
+ *  doubao → `bytedance`, cherryin-chat → `cherryin`) are asserted end to end. */
+function engine(
+  providerId: AppProviderId,
+  paramValues: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
   const { vendorBag } = splitParamValues(paramValues)
   const registration = WIRE_REGISTRY[providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-  return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
+  return buildVendorProviderOptions(resolveProviderOptionsKey(providerId), paramValues, registration, vendorBag)
 }
 
 describe('buildVendorProviderOptions — OpenRouter image API', () => {
@@ -96,7 +104,17 @@ describe('buildVendorProviderOptions — diffusion family (passthrough)', () => 
 })
 
 describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () => {
-  const OPENAI_FAMILY = ['openai', 'openai-chat', 'azure', 'azure-responses', 'huggingface', 'cherryin', 'newapi']
+  // The `-chat`/azure/huggingface variants all read `providerOptions.openai`, so their
+  // primary body collapses onto the mirror; only the ids that own a namespace get two keys.
+  const OPENAI_FAMILY: AppProviderId[] = [
+    'openai',
+    'openai-chat',
+    'azure',
+    'azure-responses',
+    'huggingface',
+    'cherryin',
+    'newapi'
+  ]
 
   it.each(OPENAI_FAMILY)('dual-keys the openai body under openai + %s, dropping seed', (providerId) => {
     const paramValues = {
@@ -108,9 +126,10 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
       moderation: 'low',
       style: 'vivid'
     }
+    const body = { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
     expect(engine(providerId, paramValues)).toEqual({
-      openai: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' },
-      [providerId]: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
+      openai: body,
+      [resolveProviderOptionsKey(providerId)]: body
     })
   })
 

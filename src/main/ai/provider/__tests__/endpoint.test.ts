@@ -19,15 +19,58 @@ const ENDPOINT_TYPES_USED = [
 ] as const
 
 describe('resolveProviderOptionsKey', () => {
-  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(
-    'maps the %s runtime adapter to the Vertex provider-options namespace',
+  // The namespace each SDK package actually reads. Several of our runtime ids share one
+  // package (the variants), and three packages hardcode a name of their own.
+  it.each([
+    ['openai-chat', 'openai'],
+    ['azure', 'openai'],
+    ['azure-responses', 'openai'],
+    ['huggingface', 'openai'],
+    ['azure-anthropic', 'anthropic'],
+    ['google-vertex', 'vertex'],
+    ['google-vertex-anthropic', 'vertex'],
+    ['google-vertex-maas', 'vertex'],
+    ['xai-responses', 'xai'],
+    ['cherryin-chat', 'cherryin'],
+    ['doubao', 'bytedance']
+  ] as const)('maps the %s runtime adapter to the %s namespace', (providerId, expected) => {
+    expect(resolveProviderOptionsKey(providerId)).toBe(expected)
+  })
+
+  it.each(['openai', 'anthropic', 'google', 'xai', 'bedrock', 'ollama', 'openrouter', 'deepseek'] as const)(
+    'preserves %s, whose runtime namespace matches its registration',
     (providerId) => {
-      expect(resolveProviderOptionsKey(providerId)).toBe('vertex')
+      expect(resolveProviderOptionsKey(providerId)).toBe(providerId)
     }
   )
 
-  it('preserves provider ids whose runtime namespace matches their registration', () => {
-    expect(resolveProviderOptionsKey('openai')).toBe('openai')
+  it('names the openai-compatible family after the concrete provider (the SDK model name)', () => {
+    expect(resolveProviderOptionsKey('openai-compatible', 'zhipu')).toBe('zhipu')
+    // Without the concrete id there is nothing better than the generic family name.
+    expect(resolveProviderOptionsKey('openai-compatible')).toBe('openai-compatible')
+  })
+
+  describe('aggregators follow the endpoint to the upstream family', () => {
+    it.each([
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+      [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai']
+    ] as const)('routes %s to the %s namespace', (endpointType, expected) => {
+      for (const providerId of ['cherryin', 'cherryin-chat', 'newapi', 'aihubmix', 'gateway'] as const) {
+        expect(resolveProviderOptionsKey(providerId, undefined, endpointType)).toBe(expected)
+      }
+    })
+
+    it('falls back to the id (or its table entry) on chat-completions', () => {
+      expect(resolveProviderOptionsKey('aihubmix', undefined, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('aihubmix')
+      expect(resolveProviderOptionsKey('cherryin-chat', undefined, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(
+        'cherryin'
+      )
+    })
+
+    it('leaves non-aggregator ids alone regardless of endpoint', () => {
+      expect(resolveProviderOptionsKey('openai-compatible', 'zhipu', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('zhipu')
+    })
   })
 })
 

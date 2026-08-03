@@ -200,10 +200,6 @@ export const OLLAMA_WIRE_PROFILE: WireProfile = {
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
-  /** Delivery-key override for the primary body (default: the provider id). The
-   *  Vertex image adapter registers as `google-vertex`, but `@ai-sdk/google-vertex`
-   *  reads `providerOptions.vertex` — so its body must ride under `vertex`, not the id. */
-  readonly key?: string
   /** Dual-key the body under `openai` AND the provider id (OpenAI image family). */
   readonly dualOpenAI?: boolean
   /** Forward vendor-bag fields the profile doesn't map — the legacy
@@ -239,20 +235,15 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   // The provider resolver upgrades cherryin's default chat endpoint to this variant
   // (provider/config.ts), so 'cherryin-chat' — not 'cherryin' — is the id AiService
-  // actually looks up for the common image-generation path. But the wrapper above
-  // reads providerOptions['cherryin'] (its own fixed internal key, independent of
-  // our providerId variant), so deliver under 'cherryin' here too — mirroring
-  // google-vertex → vertex below.
-  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true },
+  // actually looks up for the common image-generation path. The delivery key stays
+  // `cherryin` (the wrapper's own fixed namespace) via `resolveProviderOptionsKey`.
+  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
-  // Vertex reuses the google body but delivers under `vertex` (the key the
-  // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
-  'google-vertex': { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' },
+  // Vertex reuses the google body; `resolveProviderOptionsKey` delivers it under `vertex`.
+  'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
   dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
-  // `@ai-sdk/bytedance` reads `providerOptions.bytedance` — its own fixed key, independent
-  // of our `doubao` provider id — so the body is re-keyed, mirroring google-vertex → vertex.
-  doubao: { profile: DOUBAO_WIRE_PROFILE, key: 'bytedance', passthrough: true },
+  doubao: { profile: DOUBAO_WIRE_PROFILE, passthrough: true },
   // passthrough: forward the vendor bag (imageResolution / addWatermark /
   // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The

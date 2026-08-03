@@ -204,6 +204,7 @@ interface WireProfile  { fields: Partial<Record<CanonicalParamKey, WireRule>> } 
 interface WireRegistration {
   profile: WireProfile
   dualOpenAI?: boolean            // mirror the clean body under `openai` too (gpt-image family)
+                                  // (no delivery-key field — that is `sdkConfig.optionsKey`)
   passthrough?: boolean | 'wire'  // forward unmapped vendor-bag fields: raw camelCase (custom
                                   // models read them) or wire-named ('wire' — the body IS the HTTP body)
   also?: { key; profile }[]       // a sibling provider key (dmxapi → google.imageConfig)
@@ -224,10 +225,24 @@ shape is routed to its own provider id instead (config.ts builders — doubao �
 `WIRE_REGISTRY.doubao` / `@ai-sdk/bytedance` is the precedent).
 
 The result is delivered under **`sdkConfig.optionsKey`** — the `providerOptions`
-namespace the SDK image model actually reads (`resolveProviderOptionsKey`: the
-concrete provider id for the openai-compatible family, `vertex` for the vertex
-family, else the SDK id). The AI SDK image model spreads that body into the
-request; `structured` becomes the typed call options (`imageParams`).
+namespace the SDK image model actually reads, resolved by
+`resolveProviderOptionsKey` ([`src/main/ai/provider/endpoint.ts`](../../../src/main/ai/provider/endpoint.ts)), the
+single source for that fact across chat and image: the concrete provider id for
+the openai-compatible family, the upstream family for an aggregator on an
+anthropic/google/responses endpoint, a table entry for the ids whose SDK package
+names its own namespace (`google-vertex → vertex`, `doubao → bytedance`,
+`cherryin-chat → cherryin`, the openai/anthropic/xai variants), else the SDK id.
+The AI SDK image model spreads that body into the request; `structured` becomes
+the typed call options (`imageParams`).
+
+A registry `supports` entry that has **no** route to the wire — not native, not
+in the provider's profile, not carried by its passthrough or a transport — is a
+control that renders and does nothing (#17394). `imageParamDeliverability.test.ts`
+([`src/main/ai/provider/__tests__/`](../../../src/main/ai/provider/__tests__/imageParamDeliverability.test.ts))
+walks every declared (provider, model, mode) through the real resolution path and
+fails on one. It catches the *dropped* class only: `passthrough` and transport
+providers satisfy it for the whole provider at once, so a key with the wrong
+vendor field name still passes — that layer is the boundary snapshots' job.
 
 The SDK image model is one of: a custom `ImageModelV3` (e.g.
 [`silicon/SiliconImageModel.ts`](../../../src/main/ai/provider/custom/silicon/SiliconImageModel.ts), [`aihubmix/aihubmixImageModel.ts`](../../../src/main/ai/provider/custom/aihubmix/aihubmixImageModel.ts)), `@ai-sdk/openai-compatible`, or `@ai-sdk/google`. It **reads** the wire body — it does not re-rename it.
