@@ -11,6 +11,7 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { autoBackupService } from '@renderer/services/AutoBackupService'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
@@ -45,6 +46,14 @@ function MainWindowRuntime(): null {
     // timer for dev DX, not a production log — loggerService is not apt.
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
+  }, [])
+
+  // The main window is the single renderer owner for automatic backup scheduling.
+  useEffect(() => {
+    void autoBackupService
+      .initialize()
+      .catch((error) => logger.error('Failed to initialize automatic backup scheduling', error as Error))
+    return () => autoBackupService.dispose()
   }, [])
 
   useAppUpdateHandler()

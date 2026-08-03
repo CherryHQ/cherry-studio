@@ -74,10 +74,9 @@ export async function checkConnection() {
   return isSuccess
 }
 
-let autoSyncStarted = false
-let syncTimeout: NodeJS.Timeout | null = null
-let isAutoBackupRunning = false
 let isManualBackupRunning = false
+
+export const isNutstoreBackupRunning = () => isManualBackupRunning
 
 async function cleanupOldBackups(
   webdavConfig: WebDavConfig,
@@ -227,117 +226,6 @@ export async function restoreFromNutstore(fileName?: string) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
     throw error
   }
-}
-
-export async function startNutstoreAutoSync() {
-  if (autoSyncStarted) {
-    return
-  }
-
-  const nutstoreToken = await getNutstoreToken()
-
-  if (!nutstoreToken) {
-    logger.warn('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
-    return
-  }
-
-  autoSyncStarted = true
-
-  stopNutstoreAutoSync()
-
-  await scheduleNextBackup()
-
-  async function scheduleNextBackup() {
-    if (syncTimeout) {
-      clearTimeout(syncTimeout)
-      syncTimeout = null
-    }
-
-    const nutstoreSyncInterval = await preferenceService.get('data.backup.nutstore.sync_interval')
-
-    if (nutstoreSyncInterval <= 0) {
-      logger.warn('[Nutstore AutoSync] Invalid sync interval, nutstore auto sync disabled')
-      stopNutstoreAutoSync()
-      return
-    }
-
-    // 用户指定的自动备份时间间隔（毫秒）
-    const requiredInterval = nutstoreSyncInterval * 60 * 1000
-
-    // 如果存在最后一次同步WebDAV的时间，以它为参考计算下一次同步的时间
-    const timeUntilNextSync = nutstoreSyncState.lastSyncTime
-      ? Math.max(1000, nutstoreSyncState.lastSyncTime + requiredInterval - Date.now())
-      : requiredInterval
-
-    syncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
-
-    logger.verbose(
-      `[Nutstore AutoSync] Next sync scheduled in ${Math.floor(timeUntilNextSync / 1000 / 60)} minutes ${Math.floor(
-        (timeUntilNextSync / 1000) % 60
-      )} seconds`
-    )
-  }
-
-  async function performAutoBackup() {
-    if (isAutoBackupRunning || isManualBackupRunning) {
-      logger.verbose('[Nutstore AutoSync] Backup already in progress, rescheduling')
-      await scheduleNextBackup()
-      return
-    }
-
-    isAutoBackupRunning = true
-    const maxRetries = 4
-    let retryCount = 0
-
-    try {
-      while (retryCount < maxRetries) {
-        try {
-          logger.verbose(`[Nutstore AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
-          await backupToNutstore({ autoBackupProcess: true })
-          setNutstoreSyncState({ lastSyncError: null, lastSyncTime: Date.now(), syncing: false })
-          break
-        } catch (error) {
-          retryCount++
-          if (retryCount === maxRetries) {
-            logger.error('[Nutstore AutoSync] Auto backup failed after all retries:', error as Error)
-            const message = getLocalizedBackupErrorMessage(error)
-            setNutstoreSyncState({
-              lastSyncError: message,
-              lastSyncTime: Date.now(),
-              syncing: false
-            })
-            toast.error(message)
-          } else {
-            const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
-            logger.warn(`[Nutstore AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
-            await new Promise((resolve) => setTimeout(resolve, backoffDelay))
-
-            if (!isAutoBackupRunning) {
-              logger.info('[Nutstore AutoSync] Retry cancelled by user, exit')
-              break
-            }
-          }
-        }
-      }
-    } finally {
-      const shouldReschedule = isAutoBackupRunning
-      isAutoBackupRunning = false
-      setNutstoreSyncState({ syncing: false })
-      if (shouldReschedule) {
-        await scheduleNextBackup()
-      }
-    }
-  }
-}
-
-export function stopNutstoreAutoSync() {
-  if (syncTimeout) {
-    logger.verbose('[Nutstore AutoSync] Stopping nutstore auto sync')
-    clearTimeout(syncTimeout)
-    syncTimeout = null
-  }
-  isAutoBackupRunning = false
-  autoSyncStarted = false
 }
 
 export async function createDirectory(path: string, options?: CreateDirectoryOptions) {

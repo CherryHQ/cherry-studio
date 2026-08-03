@@ -14,7 +14,8 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
+import { autoBackupService } from '@renderer/services/AutoBackupService'
+import { getBackupSyncState } from '@renderer/services/BackupService'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
@@ -53,14 +54,14 @@ const LocalBackupSettings: React.FC = () => {
 
   const { localBackupSync } = getBackupSyncState()
 
-  const onSyncIntervalChange = (value: number) => {
-    void setLocalBackupSyncInterval(value)
+  const onSyncIntervalChange = async (value: number) => {
+    await setLocalBackupSyncInterval(value)
     if (value === 0) {
-      void setLocalBackupAutoSync(false)
-      stopAutoSync('local')
+      await setLocalBackupAutoSync(false)
+      autoBackupService.stop('local')
     } else {
-      void setLocalBackupAutoSync(true)
-      void startAutoSync(false, 'local')
+      await setLocalBackupAutoSync(true)
+      void autoBackupService.start(false, 'local')
     }
   }
 
@@ -110,7 +111,7 @@ const LocalBackupSettings: React.FC = () => {
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
-      void startAutoSync(true, 'local')
+      void autoBackupService.start(true, 'local')
       return
     }
 
@@ -144,7 +145,7 @@ const LocalBackupSettings: React.FC = () => {
   const handleClearDirectory = async () => {
     await setLocalBackupDir('')
     await setLocalBackupAutoSync(false)
-    stopAutoSync('local')
+    autoBackupService.stop('local')
   }
 
   const renderSyncStatus = () => {

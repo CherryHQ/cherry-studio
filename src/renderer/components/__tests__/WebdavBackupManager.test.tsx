@@ -9,12 +9,8 @@ import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  backupToNutstore,
-  restoreFromNutstore,
-  startNutstoreAutoSync,
-  stopNutstoreAutoSync
-} from '../../services/NutstoreService'
+import { autoBackupService } from '../../services/AutoBackupService'
+import { backupToNutstore, restoreFromNutstore } from '../../services/NutstoreService'
 import { WebdavBackupManager } from '../WebdavBackupManager'
 
 const mocks = vi.hoisted(() => ({
@@ -92,6 +88,7 @@ describe('WebdavBackupManager', () => {
 
     await preferenceService.set('data.backup.nutstore.token', 'encrypted-token')
     await preferenceService.set('data.backup.nutstore.path', '/cherry-studio')
+    await preferenceService.set('data.backup.nutstore.auto_sync', true)
     await preferenceService.set('data.backup.nutstore.sync_interval', 1)
     await preferenceService.set('data.backup.nutstore.max_backups', 0)
     await preferenceService.set('data.backup.nutstore.skip_backup_file', false)
@@ -127,7 +124,7 @@ describe('WebdavBackupManager', () => {
   })
 
   afterEach(() => {
-    stopNutstoreAutoSync()
+    autoBackupService.dispose()
     vi.useRealTimers()
   })
 
@@ -200,7 +197,7 @@ describe('WebdavBackupManager', () => {
       new Error(`${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
     )
 
-    await startNutstoreAutoSync()
+    await autoBackupService.initialize()
     await vi.advanceTimersByTimeAsync(60_000)
     await vi.advanceTimersByTimeAsync(7_000)
     await vi.advanceTimersByTimeAsync(17_000)
