@@ -155,7 +155,6 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.railGutterPx === next.railGutterPx &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
-    previous.topic === next.topic &&
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
@@ -758,7 +757,6 @@ const MessageList = () => {
                   index < firstLiveGroupIndex && streamingLayers
                     ? streamingLayers.historyPartsByMessageId
                     : partsByMessageId,
-                topic,
                 registerMessageElement,
                 onMultiModelMessageStyleChange: (style) => {
                   setGroupLayoutOverrides((current) =>
@@ -798,7 +796,6 @@ const MessageList = () => {
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
                 partsByMessageId={partsByMessageId}
-                topic={topic}
               />
             </NarrowLayout>
           ))}

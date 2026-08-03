@@ -5199,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Локальные модели",
     "longcat": "Тоторо",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6778,6 +6778,7 @@
         "allStatuses": "Все статусы",
         "allTypes": "Все типы",
         "builtinOnly": "Только встроенный",
+        "label": "Фильтр",
         "status": "Фильтр по статусу",
         "type": "Фильтр по типу"
       },
@@ -6844,6 +6845,9 @@
         "loadError": "Ошибка получения подсказок",
         "noPromptsAvailable": "Нет доступных подсказок",
         "requiredField": "Обязательное поле"
+      },
+      "protocolInstall": {
+        "title": "Установить MCP"
       },
       "protocolInstallWarning": {
         "command": "Команда запуска",

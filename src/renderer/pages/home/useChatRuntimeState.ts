@@ -5,7 +5,11 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { MessageListRuntime, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import {
+  createOverlayRefreshHandoff,
+  useMessageStreamingLayers
+} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -14,7 +18,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import {
   useTopicAwaitingApproval,
@@ -32,7 +35,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useStableMessagePartsLayers } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -184,24 +186,17 @@ export function useChatRuntimeState({
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
-  // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
-  // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
-  // torn-down turn's live card would otherwise override the finalized DB row.
-  // Refresh-then-reset off the status edge; branch bookkeeping stays in
-  // `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
-  useTopicOverlayHandoffOnTerminal(topic.id, async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  })
+  // Deterministic overlay→DB handoff at terminal (see hook docs); branch
+  // bookkeeping stays in `handleExecutionFinish`.
+  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay))
 
-  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
+  const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,
     overlay,
+    executions: branchActiveExecutions,
+    liveAssistants,
     translationOverlay
-  )
+  })
   const activeAwaitingInputMessageId = useMemo(
     () =>
       activeNodeId
@@ -218,23 +213,6 @@ export function useChatRuntimeState({
   const displayMessages = useMemo(
     () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
     [messages, liveAssistants]
-  )
-  const liveMessageIdCandidates = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...branchActiveExecutions.flatMap((execution) =>
-            execution.anchorMessageId ? [execution.anchorMessageId] : []
-          ),
-          ...liveAssistants.map((message) => message.id)
-        ])
-      ),
-    [branchActiveExecutions, liveAssistants]
-  )
-  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
-  const streamingLayers = useMemo<MessageStreamingLayers>(
-    () => ({ historyPartsByMessageId, liveMessageIds }),
-    [historyPartsByMessageId, liveMessageIds]
   )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline

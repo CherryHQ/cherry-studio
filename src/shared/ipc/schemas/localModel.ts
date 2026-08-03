@@ -1,4 +1,9 @@
-import { LOCAL_MODEL_KINDS, LOCAL_MODEL_STATUSES, type LocalModelKind } from '@shared/data/presets/localModel'
+import {
+  LOCAL_MODEL_DOWNLOAD_RESULTS,
+  LOCAL_MODEL_KINDS,
+  LOCAL_MODEL_STATUSES,
+  type LocalModelKind
+} from '@shared/data/presets/localModel'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -24,8 +29,11 @@ export const localModelRequestSchemas = {
     input: modelInput,
     output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES) })
   }),
-  // Resolves only when the download completes (or rejects on failure/cancel).
-  'local_model.download': defineRoute({ input: modelInput, output: z.void() }),
+  // All coalesced callers receive the same terminal result; only genuine failures reject.
+  'local_model.download': defineRoute({
+    input: modelInput,
+    output: z.object({ result: z.enum(LOCAL_MODEL_DOWNLOAD_RESULTS) })
+  }),
   'local_model.cancel': defineRoute({ input: modelInput, output: z.void() }),
   // `removed: false` means the model was kept because something still depends on it
   // (an embedding model still wired to a knowledge base); the weights are not deleted.

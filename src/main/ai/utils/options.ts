@@ -278,6 +278,15 @@ export function buildResolvedReasoningProviderOptions(context: {
   return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
 }
 
+/** Whether a custom parameter key names a providerOptions namespace rather than a body field. */
+export function isCustomProviderNamespace(
+  key: string,
+  providerOptions: Record<string, unknown>,
+  rawProviderId: string
+): boolean {
+  return Object.hasOwn(providerOptions, key) || key === rawProviderId
+}
+
 /**
  * For `openai-compatible`, rename `reasoning_effort` → `reasoningEffort` —
  * AI SDK silently drops the snake_case form.
@@ -296,7 +305,7 @@ export function mergeCustomProviderParameters(
 
   let result = providerOptions
   for (const key of Object.keys(normalizedProviderParams)) {
-    const isProviderNamespace = actualAiSdkProviderIds.includes(key) || key === rawProviderId
+    const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
     const value =
       adapterFamily === 'openai-compatible' &&
       isProviderNamespace &&

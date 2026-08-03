@@ -1,7 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -28,7 +27,6 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
-  topic: Topic
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -54,7 +52,6 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
-  topic,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -308,7 +305,6 @@ const MessageGroup = ({
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
-        topic,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -358,7 +354,6 @@ const MessageGroup = ({
       isGrid,
       isGrouped,
       isMultiModelGroup,
-      topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,
@@ -516,7 +511,7 @@ function messagePartsShallowEqual(
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
-// Custom comparator: bail out only when topic / latest flag / derived model map /
+// Custom comparator: bail out only when latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
@@ -528,7 +523,6 @@ function messagePartsShallowEqual(
 // arrive as new objects.
 export default memo(MessageGroup, (prev, next) => {
   return (
-    prev.topic === next.topic &&
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&

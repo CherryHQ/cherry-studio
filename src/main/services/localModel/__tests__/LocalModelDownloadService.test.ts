@@ -57,7 +57,7 @@ describe('LocalModelDownloadService', () => {
   it('reports not_downloaded → ready across a successful download', async () => {
     expect(service.getStatus()).toBe('not_downloaded')
 
-    await service.download()
+    await expect(service.download()).resolves.toBe('ready')
 
     expect(service.getStatus()).toBe('ready')
   })
@@ -73,8 +73,13 @@ describe('LocalModelDownloadService', () => {
       status: 'error',
       percent: 0
     })
-    // downloading flag cleared → next getStatus no longer reports 'downloading'.
-    expect(service.getStatus()).toBe('not_downloaded')
+    expect(service.getStatus()).toBe('error')
+    // Failure is runtime-only; a fresh service (app restart) derives status from disk again.
+    expect(new TestDownloadService().getStatus()).toBe('not_downloaded')
+
+    service.failWith = null
+    await service.download()
+    expect(service.getStatus()).toBe('ready')
   })
 
   it('best-effort cleanup: a throwing cleanupAfterError neither masks the failure nor skips the error broadcast', async () => {
@@ -122,13 +127,13 @@ describe('LocalModelDownloadService', () => {
     expect(secondSettled).toBe(false)
 
     release()
-    await Promise.all([first, second])
+    await expect(Promise.all([first, second])).resolves.toEqual(['ready', 'ready'])
     expect(secondSettled).toBe(true)
     // Still only one real download despite two callers.
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('treats an aborted download as a cancel: cleans up and rethrows, no error log/broadcast', async () => {
+  it('treats an aborted download as a cancel: cleans up and resolves cancelled, no error log/broadcast', async () => {
     vi.spyOn(
       service as unknown as { performDownload: (s: AbortSignal) => Promise<void> },
       'performDownload'
@@ -145,7 +150,7 @@ describe('LocalModelDownloadService', () => {
 
     const pending = service.download()
     service.cancel()
-    await expect(pending).rejects.toThrow()
+    await expect(pending).resolves.toBe('cancelled')
 
     // Partials are still cleaned up...
     expect(service.cleanupCalls).toBe(1)
@@ -154,6 +159,11 @@ describe('LocalModelDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
+    expect(broadcastSpy()).toHaveBeenCalledWith('local_model.download_progress', {
+      model: 'embedding',
+      status: 'not_downloaded',
+      percent: 0
+    })
     expect(service.getStatus()).toBe('not_downloaded')
   })
 })

@@ -1,4 +1,5 @@
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
@@ -129,16 +130,16 @@ describe('useModelSelectorData', () => {
     expect(result.current.selectableModelsById.has('google::gemini-pro')).toBe(false)
   })
 
-  it('hides the provider settings action for CherryAI', () => {
+  it.each(['cherryai', LOCAL_EMBEDDING_PROVIDER_ID])('hides the provider settings action for %s', (providerId) => {
     wireDeps({
-      providers: [makeProvider('cherryai')],
-      models: [makeModel('qwen', 'cherryai')]
+      providers: [makeProvider(providerId)],
+      models: [makeModel('qwen', providerId)]
     })
 
     const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
 
     expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
-      key: 'provider-cherryai',
+      key: `provider-${providerId}`,
       canNavigateToSettings: false
     })
   })
@@ -154,6 +155,20 @@ describe('useModelSelectorData', () => {
     )
 
     expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['google', 'anthropic', 'openai'])
+  })
+
+  it('does not synthesize a prioritized provider when it is not registered', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+
+    const { result } = renderHook(() =>
+      useModelSelectorData({ searchText: '', prioritizedProviderIds: ['local-embedding'] })
+    )
+
+    expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['openai'])
+    expect(result.current.listItems.some((item) => item.key.includes('local-embedding'))).toBe(false)
   })
 
   it('renders pinned rows first, in pin order, without provider-group duplicates', () => {
