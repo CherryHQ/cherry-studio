@@ -854,11 +854,20 @@ class ProviderRegistryService {
     const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
 
+    // The dialect is a CATALOG fact that is deliberately not persisted on the
+    // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
+    // resolvable `apiModelId`, no `presetModelId` — must re-resolve it here.
+    // Without this the row silently takes the newer wire and Claude <=4.5 /
+    // Gemini 2.x emit a dialect their API rejects. Support resolution above is
+    // untouched: controls still come from the row, only the dialect is looked up.
+    const wireDialect =
+      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
       contract,
-      wireDialect: support?.wireDialect
+      wireDialect
     })
     return { ...resolved, support }
   }
