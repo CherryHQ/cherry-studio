@@ -5169,6 +5169,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "abliteration": "Abliteration AI",
     "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",

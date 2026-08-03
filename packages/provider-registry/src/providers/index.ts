@@ -1,4 +1,5 @@
 import p_302ai from './302ai'
+import p_abliteration from './abliteration'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
@@ -80,6 +81,7 @@ export const PROVIDERS: Provider[] = [
   p_lanyun,
   p_ph8,
   p_sophnet,
+  p_abliteration,
   p_ppio,
   p_qiniu,
   p_openrouter,
