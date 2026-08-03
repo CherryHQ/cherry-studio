@@ -1,5 +1,6 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -344,6 +345,35 @@ describe('SelectorShell', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('112'))
+  })
+
+  it('renders selectable bottom actions with selected state and native keyboard behavior', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        bottomAction={[
+          { label: 'Configure', onClick: vi.fn() },
+          { type: 'selectable', label: 'No model', selected: true, onClick: onSelect }
+        ]}>
+        <div />
+      </SelectorShell>
+    )
+
+    const configureAction = screen.getByRole('button', { name: 'Configure' })
+    const noneOption = screen.getByRole('button', { name: 'No model' })
+    expect(noneOption).toHaveAttribute('aria-pressed', 'true')
+
+    configureAction.focus()
+    await user.tab()
+    expect(noneOption).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(onSelect).toHaveBeenCalledOnce()
   })
 
   it('can render multi-select as a search badge', () => {

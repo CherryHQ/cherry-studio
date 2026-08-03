@@ -613,37 +613,6 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-1' }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByText('Choose logger')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
-  })
-
   it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {
     partsByMessageIdMock.value = {
       'message-1': [

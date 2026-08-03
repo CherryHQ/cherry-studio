@@ -111,8 +111,47 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class KnowledgeBaseService {
+  private readonly embeddingModelsBeingRemoved = new Set<string>()
+
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  /** Prevents a reference from being added while an owner asynchronously removes a model's weights. */
+  acquireEmbeddingModelRemovalGuard(modelId: string): (() => void) | undefined {
+    if (this.embeddingModelsBeingRemoved.has(modelId)) {
+      return undefined
+    }
+
+    this.embeddingModelsBeingRemoved.add(modelId)
+    try {
+      const [inUse] = this.db
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .where(eq(knowledgeBaseTable.embeddingModelId, modelId))
+        .limit(1)
+        .all()
+      if (inUse) {
+        this.embeddingModelsBeingRemoved.delete(modelId)
+        return undefined
+      }
+    } catch (error) {
+      this.embeddingModelsBeingRemoved.delete(modelId)
+      throw error
+    }
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.embeddingModelsBeingRemoved.delete(modelId)
+    }
+  }
+
+  private assertEmbeddingModelIsNotBeingRemoved(modelId: string | null): void {
+    if (modelId !== null && this.embeddingModelsBeingRemoved.has(modelId)) {
+      throw DataApiErrorFactory.resourceLocked('EmbeddingModel', modelId, 'model weight removal')
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): KnowledgeBaseEntitySearchItem[] {
@@ -223,6 +262,8 @@ export class KnowledgeBaseService {
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
+
+    this.assertEmbeddingModelIsNotBeingRemoved(embeddingModelId)
 
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
@@ -351,6 +392,10 @@ export class KnowledgeBaseService {
 
     if (Object.keys(updates).length === 0) {
       return existing
+    }
+
+    if (embeddingModelChanged) {
+      this.assertEmbeddingModelIsNotBeingRemoved(nextEmbeddingModelId)
     }
 
     const row = application.get('DbService').withWriteTx((tx) => {

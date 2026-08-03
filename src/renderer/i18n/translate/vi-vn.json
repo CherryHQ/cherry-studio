@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tác vụ nền đang chạy",
+      "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -235,7 +235,7 @@
           "discard_and_continue": "Loại bỏ và tiếp tục",
           "title": "Hủy bỏ các thay đổi chưa lưu?"
         },
-        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
+        "metadata_pending": "Tệp đã được lưu, nhưng siêu dữ liệu của nó vẫn đang được khôi phục. Không thử lại thao tác lưu này.",
         "refresh_failed": "Không thể tải lại nội dung tệp mới nhất.",
         "save_failed": "Không thể lưu tệp này. Tính năng tự động lưu đã tạm dừng cho đến khi bạn thử lại hoặc hủy bỏ các thay đổi.",
         "unsaved": "Chưa lưu",
@@ -326,25 +326,25 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Lệnh nền",
         "subagents": "Đại lý phụ",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Quy trình làm việc"
       },
       "status": {
         "activity": "Hoạt động",
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} trực tiếp",
+        "run_task_live_other": "{{count}} trực tiếp",
+        "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Dừng tác vụ",
+        "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
+        "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
@@ -2586,6 +2586,10 @@
     "user": "Người dùng"
   },
   "file_preview": {
+    "directory": {
+      "description": "Chọn một tệp trong thư mục này để xem trước.",
+      "title": "Đây là một thư mục"
+    },
     "html": {
       "empty": {
         "description": "Tệp HTML này không có nội dung.",
@@ -2651,6 +2655,10 @@
         "description": "Các tệp văn bản lớn hơn {{limit}} MiB không thể được xem trước.",
         "title": "Tệp quá lớn"
       }
+    },
+    "unavailable": {
+      "description": "Tệp có thể đã được di chuyển, xóa hoặc không thể truy cập được.",
+      "title": "Tệp không khả dụng"
     },
     "unsupported": {
       "action": "Mở bằng ứng dụng mặc định",
@@ -3058,6 +3066,7 @@
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
+        "copying": "Đang sao chép {{percent}}%",
         "embedding": "Nhúng",
         "error": "Lỗi",
         "pending": "Đang chờ",
@@ -3848,8 +3857,9 @@
       }
     },
     "citation": "{{count}} trích dẫn",
+    "citation_source": "Nguồn trích dẫn {{number}}",
     "citations": "Tài liệu tham khảo",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Không tìm thấy lịch sử cuộc trò chuyện trước đó — tiếp tục trong cuộc trò chuyện mới",
     "copied": "Đã sao chép!",
     "copy": {
       "failed": "Sao chép thất bại",
@@ -4131,7 +4141,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Đang chạy trong nền",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -4163,7 +4173,7 @@
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
         "webSearch": "Tìm kiếm trên web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Quy trình làm việc",
         "write": "Viết"
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
@@ -4223,13 +4233,13 @@
         "result_other": "{{count}} kết quả"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Điều phối quy trình làm việc",
+        "run_id": "ID chạy",
+        "script": "Kịch bản quy trình làm việc",
+        "script_path": "Đường dẫn tập lệnh",
+        "started": "Đã bắt đầu quy trình làm việc",
+        "summary": "Tóm tắt",
+        "workflow": "quy trình làm việc"
       }
     },
     "topic": {
@@ -4495,7 +4505,7 @@
     "save_failed": "Không lưu được ghi chú",
     "save_failure": {
       "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
-      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
+      "metadata_pending": "Ghi chú đã được lưu, nhưng siêu dữ liệu tệp của nó vẫn đang được khôi phục. Không thử lại việc lưu này."
     },
     "search": {
       "both": "Tên+Nội dung",
@@ -5189,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Mô hình cục bộ",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5217,6 +5227,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Đám mây GPU AMD",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7701,6 +7712,13 @@
         "usage_title": "Cách sử dụng",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
+        }
+      },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "reorder_failed": "Không thể sắp xếp lại các nhà cung cấp",
@@ -7744,13 +7762,6 @@
           "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
           "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
           "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Mở Token Factory",
-          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
-          "title": "10 USD tín dụng API miễn phí mỗi ngày"
         }
       }
     },

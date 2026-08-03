@@ -123,7 +123,7 @@ export const useRestoreKnowledgeBase = () => {
 
       const sourceBaseId = input.sourceBaseId.trim()
       const name = input.name?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim() || null
       const dimensions = input.dimensions
 
       if (!sourceBaseId) {
@@ -134,12 +134,12 @@ export const useRestoreKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
+      if (dimensions !== null && (!Number.isInteger(dimensions) || dimensions <= 0)) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      if ((embeddingModelId === null) !== (dimensions === null)) {
+        throw new Error('Knowledge base embedding model and dimensions must be provided together')
       }
 
       setIsRestoring(true)
