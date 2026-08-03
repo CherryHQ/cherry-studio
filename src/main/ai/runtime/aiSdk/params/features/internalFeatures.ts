@@ -19,7 +19,6 @@ import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
-import { modelParamsFeature } from './modelParams'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
@@ -34,7 +33,6 @@ import { terminalToolFailureFeature } from './terminalToolFailure'
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
-  modelParamsFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
   reasoningExtractionFeature,

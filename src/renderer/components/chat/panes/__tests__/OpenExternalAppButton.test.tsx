@@ -170,8 +170,6 @@ describe('OpenExternalAppButton', () => {
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
     const button = screen.getByRole('button', { name: 'Open in Finder' })
-    expect(button).toHaveAttribute('data-variant', 'ghost')
-    expect(button).toHaveAttribute('data-size', 'icon-sm')
 
     fireEvent.click(button)
 

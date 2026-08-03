@@ -7,7 +7,7 @@ import { captureWithFetch } from './captureRequest'
 /**
  * AiHubMix → Anthropic tool-schema boundary.
  *
- * Guards `patches/@ai-sdk__anthropic.patch`, which wires the backported
+ * Guards `patches/@ai-sdk__anthropic.patch`, which wires
  * `sanitizeJsonSchema` into `prepareTools` so tool `input_schema` is reduced to
  * the JSON Schema subset Anthropic strict tool use / structured outputs accept
  * (shared limits — see the patch). Without it, a tool whose schema carries
@@ -15,7 +15,7 @@ import { captureWithFetch } from './captureRequest'
  * ("For 'array' type, property 'maxItems' is not supported"). If a future
  * `@ai-sdk/anthropic` bump drops the patch wiring, this test fails loudly.
  *
- * The backported sanitizer strips every unsupported validation keyword
+ * The sanitizer strips every unsupported validation keyword
  * (`minItems`/`maxItems`/`minLength`/`maxLength`/...) and folds the dropped
  * constraints into the node `description`, keeping `type`/`items`/`required`.
  */

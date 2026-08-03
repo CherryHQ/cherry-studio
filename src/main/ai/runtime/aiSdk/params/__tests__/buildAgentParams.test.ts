@@ -1,7 +1,8 @@
 import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +11,7 @@ import type * as ResolveRequestContextSettingsModule from '../../../../contextBu
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
+import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
 const { resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
@@ -51,7 +53,7 @@ const {
   applyCallOverrides,
   buildAgentParams,
   composeStopWhen,
-  resolveReasoningMaxTokens,
+  resolveRequestedMaxOutputTokens,
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
@@ -113,6 +115,294 @@ describe('buildAgentParams provider resolution', () => {
       }
     })
     expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+
+  it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
+    const firstCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'true' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: true })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 1 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['one', 'two']) }
+    ]
+    const secondCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'false' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: false })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 2 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['three']) }
+    ]
+    const assistantCustomParameterSets = [firstCustomParameters, secondCustomParameters, firstCustomParameters]
+    const expectedCustomParameterSets = assistantCustomParameterSets.map((customParameters) =>
+      Object.fromEntries(customParameters.map(({ name, value }) => [name, JSON.parse(value)]))
+    )
+    const receivedBodies: Record<string, unknown>[] = []
+    const requestFetches: Array<typeof globalThis.fetch> = []
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBodies.push(JSON.parse(init?.body as string))
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          object: 'chat.completion',
+          created: 0,
+          model: 'gpt-test',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockImplementation(async () => ({
+      config: {
+        providerId: 'openai-chat' as const,
+        providerSettings: {
+          apiKey: 'sk-test',
+          baseURL: 'https://api.test/v1',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    }))
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-test',
+      providerId: 'openai',
+      apiModelId: 'gpt-test'
+    })
+    for (const customParameters of assistantCustomParameterSets) {
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider,
+        model,
+        assistant: makeAssistant({ settings: { customParameters } })
+      })
+      requestFetches.push(result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)
+      await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+        model: result.sdkConfig.modelId,
+        prompt: 'hello',
+        providerOptions: result.options.providerOptions
+      })
+    }
+
+    const receivedCustomParameterSets = expectedCustomParameterSets.map((expectedCustomParameters, index) =>
+      Object.fromEntries(Object.keys(expectedCustomParameters).map((name) => [name, receivedBodies[index]?.[name]]))
+    )
+    expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
+    expect(requestFetches[2]).toBe(requestFetches[0])
+    expect(requestFetches[1]).not.toBe(requestFetches[0])
+  })
+})
+
+describe('buildAgentParams standard model parameters', () => {
+  function makeSetup(endpointType: EndpointType, maxOutputTokens?: number) {
+    const providerId = endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? 'anthropic' : 'openai-compatible'
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId,
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom',
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: {
+        [endpointType]: { adapterFamily: providerId }
+      }
+    })
+    const model = makeModel({
+      id: 'custom::model',
+      providerId: 'custom',
+      endpointTypes: [endpointType],
+      maxOutputTokens
+    })
+    return { provider, model }
+  }
+
+  it('passes enabled assistant sampling settings directly to ToolLoopAgent options', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const assistant = makeAssistant({
+      settings: {
+        enableTemperature: true,
+        temperature: 0.4,
+        enableTopP: true,
+        topP: 0.8,
+        enableMaxTokens: true,
+        maxTokens: 12_000
+      }
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options).toMatchObject({
+      temperature: 0.4,
+      topP: 0.8,
+      maxOutputTokens: 12_000
+    })
+  })
+
+  it('uses the model catalog limit for an Anthropic-compatible non-Claude model', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 65_536)
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.maxOutputTokens).toBe(65_536)
+  })
+
+  it('leaves maxOutputTokens unset when an Anthropic-compatible model has no limit metadata', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.maxOutputTokens).toBeUndefined()
+  })
+
+  it('applies call override over custom parameter and enabled assistant max tokens', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 65_536)
+    const assistant = makeAssistant({
+      settings: {
+        enableMaxTokens: true,
+        maxTokens: 12_000,
+        customParameters: [{ name: 'maxOutputTokens', type: 'number', value: 24_000 }]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { maxOutputTokens: 32_000 } },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.maxOutputTokens).toBe(32_000)
+  })
+
+  it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    const result = await buildAgentParams({
+      request: {
+        callOverrides: {
+          maxOutputTokens: 10_000,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toMatchObject({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+    })
+    expect(result.options.maxOutputTokens).toBe(6000)
+  })
+
+  it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 65_536)
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.maxOutputTokens).toBeUndefined()
+  })
+
+  it.each([
+    { providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' },
+    { providerId: 'opencode', apiModelId: 'qwen3.5-plus' }
+  ])('subtracts the additive thinking budget once for $apiModelId', async ({ providerId, apiModelId }) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: providerId,
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: `${providerId}::${apiModelId}`,
+      providerId,
+      apiModelId,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      maxOutputTokens: 10_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'budget', min: 1024, max: 8192 }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        enableMaxTokens: true,
+        maxTokens: 10_000,
+        reasoning_effort: 'high'
+      }
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+    const thinking = result.options.providerOptions?.anthropic?.thinking as { budgetTokens: number }
+
+    expect(thinking.budgetTokens).toBeGreaterThan(0)
+    expect(result.options.maxOutputTokens).toBe(10_000 - thinking.budgetTokens)
+  })
+
+  it('does not subtract an adaptive thinking mode without a budget', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'opencode',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'opencode::minimax-m3',
+      providerId: 'opencode',
+      apiModelId: 'minimax-m3',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      maxOutputTokens: 10_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle', default: true }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        enableMaxTokens: true,
+        maxTokens: 10_000,
+        reasoning_effort: 'auto'
+      }
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.providerOptions).toMatchObject({ anthropic: { thinking: { type: 'adaptive' } } })
+    expect(result.options.maxOutputTokens).toBe(10_000)
   })
 })
 
@@ -371,25 +661,45 @@ describe('buildAgentParams — assistant context-settings passthrough (P2-D)', (
   })
 })
 
-describe('resolveReasoningMaxTokens', () => {
+describe('resolveRequestedMaxOutputTokens', () => {
   const model = makeModel({ maxOutputTokens: 64_000 })
 
-  it('ignores a stale assistant limit when max tokens are disabled', () => {
+  it('uses the model limit for Anthropic Messages when assistant max tokens are disabled', () => {
     const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
 
-    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(64_000)
+    expect(
+      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    ).toBe(64_000)
   })
 
-  it('uses an enabled assistant limit before the model default', () => {
+  it('uses an enabled assistant limit before the Anthropic model default', () => {
     const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
 
-    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(16_000)
+    expect(
+      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    ).toBe(16_000)
+  })
+
+  it('uses a custom parameter before the assistant limit', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveRequestedMaxOutputTokens(undefined, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
+      24_000
+    )
   })
 
   it('gives the per-request override highest precedence', () => {
     const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
 
-    expect(resolveReasoningMaxTokens(32_000, assistant, model)).toBe(32_000)
+    expect(resolveRequestedMaxOutputTokens(32_000, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
+      32_000
+    )
+  })
+
+  it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
+    expect(
+      resolveRequestedMaxOutputTokens(undefined, undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    ).toBeUndefined()
   })
 })
 
