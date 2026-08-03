@@ -1,108 +1,160 @@
 {
-  "report_date": "2026-08-02",
+  "report_date": "2026-08-03",
   "v2_branch_status": {
     "open_prs_to_v2": 0,
-    "closed_prs_to_v2": "100+ (historical, last activity ~May 2026)",
-    "observation": "v2 branch is no longer the active development target. All current development merges to `main`. v2 work has been fully integrated. v2 branch is now used only as a legacy reference."
+    "closed_prs_to_v2_last_30d": 0,
+    "observation": "v2 branch is no longer the active development target. All current development merges to `main`. v2 work has been fully integrated. v2 branch now used only as legacy reference."
   },
-  "latest_release": {
+  "latest_release_estimate": {
     "tag": "v2.0.0-rc.4",
-    "commit": "d498753",
-    "released": "2026-08-02 (inferred from recent branch activity)",
-    "note": "rc.4 shipped; active fixes now targeting rc.5 or stable"
+    "note": "rc.4 shipped; active fixes now targeting rc.5 or stable. RC regression issues still open."
   },
   "active_development_areas": {
     "build_toolchain_modernization": {
       "status": "in_progress",
-      "prs": [
-        "#17719 chore(typescript): adopt TypeScript 7",
-        "#17720 chore(oxlint): enable tsgolint 7",
-        "#17721 chore(format): migrate to Oxfmt",
-        "#17722 chore(lint): replace ESLint with Oxlint",
-        "#17723 chore(ui-contract): migrate parser to Oxc",
-        "#17724 chore(build-toolchain): upgrade to Vite 8",
-        "#17744 chore(build-toolchain): drop @electron-toolkit/tsconfig"
+      "description": "Full build toolchain modernization wave — TypeScript 7, Oxlint, Vite 8",
+      "tracking_issues": [
+        "#17746 Restore typescript/no-unnecessary-type-assertion to error (tsgolint 7 backlog)"
       ],
-      "summary": "Full build toolchain modernization wave in flight — TypeScript 7, Oxlint, Vite 8"
-    },
-    "agent_session_fixes": {
-      "status": "active",
-      "prs": [
-        "#17737 fix(agent-session): align auto-compaction with model context window",
-        "#17632 feat(agent-session): isolate model selection per session",
-        "#17594 fix(claude-code-runtime): prevent stale results completing foreground turns"
-      ]
-    },
-    "mcp_improvements": {
-      "status": "active",
-      "prs": [
-        "#17699 fix(mcp): restore deeplink installation",
-        "#17610 refactor(mcp-runtime): migrate connections to MCP SDK v2",
-        "#17546 fix(mcp-settings): run capability reads concurrently on server enable",
-        "#17290 fix(mcp-oauth): avoid background authorization prompts"
+      "recent_prs": [
+        "TypeScript 7 migration",
+        "Oxlint/tsgolint 7 adoption",
+        "Oxfmt formatter",
+        "ESLint → Oxlint replacement",
+        "Vite 8 upgrade",
+        "drop @electron-toolkit/tsconfig"
       ]
     },
     "performance_lazy_loading": {
       "status": "active",
-      "prs": [
-        "#17659 perf(icons): use static WebP avatars for first paint",
-        "#17601 perf(message-anchor): reduce navigation update work",
-        "#17508 perf(mcp-settings): parallelize capability refresh",
-        "#17439 perf(main-window): lazy-load onboarding"
+      "description": "Systematic lazy-load and virtualization wave — all filed by DeJeune",
+      "open_issues": [
+        "#17669 Defer HTML artifact runtime outside artifact messages",
+        "#17618 Limit painting template loading to visible cards",
+        "#17412 Virtualize unbounded global search message previews",
+        "#17363 Chat startup eagerly bundles error detail and diagnosis modules",
+        "#17362 Enabling MCP server serializes independent capability requests",
+        "#17316 Painting history rehydrates every unchanged record",
+        "#17289 Painting hydration serializes independent file-entry batches",
+        "#17288 Closed history view eagerly bundles both history implementations",
+        "#17287 CLI config adapters serialize independent file pipelines",
+        "#17286 Backup dialogs serialize independent device metadata IPC",
+        "#17285 Notes eagerly bundles both mutually exclusive editor stacks",
+        "#17204 Knowledge route eagerly bundles optional RAG and recall panels"
+      ],
+      "recent_merged_prs": [
+        "#17780 perf(conversation-load): parallelize active model loading",
+        "#17775 perf(data-api): defer inactive renderer queries"
+      ]
+    },
+    "agent_session_improvements": {
+      "status": "active",
+      "description": "Agent session reliability, model selection, stream handling",
+      "open_issues": [
+        "#17587 Claude Agent sessions intermittently persist zero-output results as successful turns",
+        "#17599 Pass immutable AssistantTurnOptions end to end",
+        "#17600 Unify composer tool-state snapshots",
+        "#17545 Support split stream lanes for background subagents",
+        "#17727 Agent context compression not working in Work tab",
+        "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions (NEW today)"
+      ]
+    },
+    "mcp_improvements": {
+      "status": "active",
+      "description": "MCP reliability, OAuth, process management",
+      "open_issues": [
+        "#17689 MCP stdio server process leak — duplicate python instances per tool call",
+        "#17688 mcp-auto-install npm 404",
+        "#17605 Unable to complete alphaXiv MCP OAuth",
+        "#17362 Enabling MCP server serializes independent capability requests"
+      ]
+    },
+    "data_layer_and_gc": {
+      "status": "active",
+      "description": "v2 data layer cleanup — file refs, GC, backup",
+      "open_issues": [
+        "#17709 RC users' migrated file entries remain permanently manual after cleanup policy rollout",
+        "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
+        "#17501 Add ownership-derived GC for Data/Agents",
+        "#17431 Brand AgentWorkspacePathSchema as canonical filesystem path type",
+        "#17429 Consolidate path separator normalization",
+        "#17393 Make async image generation deliver result across restart",
+        "#17388 Pass FileEntry ids to image generation instead of re-encoded bytes",
+        "#17387 Saving temporary chat never registers file refs (GC risk)"
+      ]
+    },
+    "model_compatibility": {
+      "status": "active",
+      "description": "Model-specific bugs and new provider integrations",
+      "open_issues": [
+        "#17751 deepseek v4 flash does not display chain of thought (NEW today)",
+        "#17212 Reasoning content must be echoed in multi-turn tool calling (GLM/Kimi/MiniMax/Anthropic/Gemini)",
+        "#17127 Agent incompatible with llama.cpp Anthropic endpoint",
+        "#16971 MiniMax M3 model fails in stream processing",
+        "#16790 reasoning_content unsupported by some providers"
       ]
     },
     "v1_hotfix_channel": {
       "status": "active",
-      "prs": [
-        "#17743 fix(mcp): repair stale auto-install package args",
-        "#17728 fix(builtin-agent): stamp builtin_role so Cherry Assistant injects",
-        "#17715 fix(chat): scroll to top correctly",
-        "#17685 fix(agents): recover corrupted agent and session data"
-      ],
+      "open_prs": 3,
       "note": "v1 branch actively receiving hotfixes in parallel with v2 main development"
     },
-    "i18n_rtl": {
-      "status": "active",
-      "prs": [
-        "#17588 feat(rtl): add Arabic language and direction foundations",
-        "#17604 Turkish language"
-      ]
-    },
-    "backup_data": {
-      "status": "active",
-      "prs": [
-        "#17499 feat(backup): replace Backup v2 with whole-database restore",
-        "#17377 feat(cache-cleanup): add selective cache and legacy data cleanup"
+    "internal_team_roadmap": {
+      "description": "internal_team issues filed by SiinXu represent formal product roadmap items",
+      "open_count": 30,
+      "key_items": [
+        "#17782 Agent Orchestration Primitives — Peer Agent Sessions (new Aug 3)",
+        "#16659 Streaming Idle Watchdog with Auto-Retry",
+        "#16658 Background Agent Task Recovery After Process Restart",
+        "#16657 Cross-Device Agent Task Continuation",
+        "#16656 Control Reasoning CoT in Historical Context",
+        "#16650 Separate Model for Tool Calls",
+        "#16648 Merge Chat History on Cloud Backup Restore",
+        "#16646 MCP Server Auto-Reconnect and Auth Recovery",
+        "#16643 Domain Allow-List for Web Search",
+        "#16642 Resume Interrupted Tool Turn",
+        "#16641 Answer Strictly from Knowledge Base",
+        "#16636 AI-Native Notes Editor",
+        "#16392 Cherry Cloud Relay and Mobile Entry"
       ]
     }
   },
-  "open_issues_by_v2_milestone": {
-    "rc_regressions": [
-      "#17571 v2 RC1 missing context count slider",
-      "#17470 v2 migration aborts on legacy agents.db schema drift",
-      "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
-      "#17341 Failed to persist root span — Cannot read properties of undefined",
-      "#17343 Multiple net::ERR_FAILED errors during startup",
-      "#17716 v2.0 cannot read clipboard images"
-    ],
-    "agent_feature_gaps": [
-      "#17545 Support split stream lanes for background subagents",
-      "#17599 Pass immutable AssistantTurnOptions end to end",
-      "#17600 Unify composer tool-state snapshots",
-      "#17513 Build unified long-term memory system for non-developer users",
-      "#17331 Add per-session knowledge-base selection to Agent composer"
-    ],
-    "data_layer_todos": [
-      "#17709 RC users' migrated file entries remain permanently manual",
-      "#17387 Saving a temporary chat never registers file refs (GC risk)",
-      "#17501 Add ownership-derived garbage collection for Data/Agents",
-      "#17431 Brand AgentWorkspacePathSchema as canonical filesystem path type"
-    ]
-  },
+  "rc_regressions_blocking": [
+    {
+      "number": 17571,
+      "title": "v2 RC1 missing context count slider (v1 Context Count slider removed with no replacement)",
+      "comments": 2,
+      "age_days": 5,
+      "priority": "high"
+    },
+    {
+      "number": 17470,
+      "title": "v2 migration aborts on legacy agents.db schema drift",
+      "comments": 1,
+      "priority": "medium"
+    },
+    {
+      "number": 17695,
+      "title": "Agent migration keeps old workspace root after cross-machine v1 restore",
+      "priority": "medium"
+    },
+    {
+      "number": 17341,
+      "title": "Failed to persist root span ai.turn: Cannot read properties of undefined",
+      "priority": "medium"
+    },
+    {
+      "number": 17343,
+      "title": "Multiple net::ERR_FAILED errors during startup (update check, IP info)",
+      "priority": "low"
+    }
+  ],
   "velocity_estimate": {
-    "prs_merged_last_7d_estimate": 40,
-    "issues_opened_last_7d": 51,
-    "issues_closed_last_30d": "100+ (from search results)",
-    "note": "Project at high velocity — multiple PRs merged daily, daily i18n sync bot active"
+    "prs_merged_last_30d": 568,
+    "prs_merged_per_day_avg": 18.9,
+    "issues_opened_today": 5,
+    "issues_opened_last_7d": 55,
+    "open_prs_count": 100,
+    "note": "Extremely high velocity project. Daily i18n sync bot active. DeJeune accounts for ~27% of open PRs."
   }
 }

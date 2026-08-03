@@ -1,45 +1,52 @@
 {
-  "report_date": "2026-08-02",
-  "note": "Discussions fetched via GraphQL — GitHub Discussions API available but not queried directly this run due to gh CLI absence. Analysis derived from issues tagged 'discussion' and 'help wanted'.",
+  "report_date": "2026-08-03",
+  "note": "Discussions analyzed from issues tagged 'discussion' and 'help wanted' (GitHub Discussions GraphQL not queried — gh CLI unavailable in this environment).",
   "discussion_labeled_issues_open": {
     "count": 20,
+    "new_since_yesterday": 0,
     "examples": [
       {
         "number": 17649,
         "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?",
         "labels": ["help wanted", "discussion"],
-        "created_at": "2026-07-30"
+        "created_at": "2026-07-30",
+        "age_days": 4
       },
       {
         "number": 17432,
         "title": "[Discussion]: clarify and strengthen regression coverage for AI SDK Agent stream trajectories",
         "labels": ["help wanted", "discussion"],
         "comments": 2,
-        "created_at": "2026-07-26"
+        "created_at": "2026-07-26",
+        "age_days": 8
       },
       {
         "number": 17389,
         "title": "[Discussion]: Which sources may declare a FileEntry reference? (unwritten upstream half of file-ref contract)",
         "labels": ["help wanted", "discussion", "Data"],
-        "created_at": "2026-07-25"
+        "created_at": "2026-07-25",
+        "age_days": 9
       },
       {
         "number": 17330,
         "title": "[Discussion]: Define Agent system workspace directory lifecycle contract",
         "labels": ["Docs", "help wanted", "discussion"],
-        "created_at": "2026-07-24"
-      },
-      {
-        "number": 17183,
-        "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
-        "labels": ["help wanted", "discussion"],
-        "created_at": "2026-07-20"
+        "created_at": "2026-07-24",
+        "age_days": 10
       },
       {
         "number": 17271,
         "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
         "labels": ["help wanted", "discussion", "RAG", "Assistant"],
-        "created_at": "2026-07-22"
+        "created_at": "2026-07-22",
+        "age_days": 12
+      },
+      {
+        "number": 17183,
+        "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
+        "labels": ["help wanted", "discussion"],
+        "created_at": "2026-07-20",
+        "age_days": 14
       }
     ]
   },
@@ -47,32 +54,50 @@
     {
       "topic": "v2 migration / RC regression",
       "frequency": "high",
-      "sample_issues": ["#17470", "#17571", "#17695", "#17341"]
+      "trending": true,
+      "sample_issues": ["#17470", "#17571", "#17695", "#17341", "#17343"]
     },
     {
-      "topic": "Agent mode model compatibility",
+      "topic": "Agent mode model compatibility (custom providers, OpenRouter, GLM)",
       "frequency": "high",
-      "sample_issues": ["#17260", "#17486", "#17282", "#16970"]
+      "trending": true,
+      "sample_issues": ["#17260", "#17486", "#17282", "#16970", "#17781"]
     },
     {
-      "topic": "MCP server reliability",
+      "topic": "MCP server reliability (process leaks, OAuth, npm 404)",
       "frequency": "medium-high",
+      "trending": false,
       "sample_issues": ["#17689", "#17688", "#16951", "#17605"]
-    },
-    {
-      "topic": "Clipboard / file attachment in v2",
-      "frequency": "medium",
-      "sample_issues": ["#17716", "#17741"]
     },
     {
       "topic": "Agent context window management",
       "frequency": "medium",
+      "trending": false,
       "sample_issues": ["#17571", "#17727", "#17735"]
+    },
+    {
+      "topic": "Thinking/CoT display and control across models",
+      "frequency": "medium",
+      "trending": true,
+      "sample_issues": ["#17751", "#17212", "#16623", "#17642"]
+    },
+    {
+      "topic": "Process not terminating after window close",
+      "frequency": "medium",
+      "trending": true,
+      "sample_issues": ["#17629", "#16550"]
     }
   ],
   "community_health": {
     "open_help_wanted": 25,
-    "discussions_awaiting_answer": "unknown (GraphQL not queried)",
-    "note": "Project is very active — 51 new issues in last 7 days, 100+ open PRs"
-  }
+    "total_open_issues": 842,
+    "merged_prs_last_30d": 568,
+    "note": "Project extremely active — 5 new issues today, 568 PRs merged last 30 days. High engagement from internal team (SiinXu, DeJeune, kennyzheng-builds)."
+  },
+  "trending_today": [
+    "deepseek v4 flash CoT not displaying (#17751)",
+    "Agent 'Failed to list agents' error (#17781)",
+    "Agent Orchestration Primitives feature request (#17782)",
+    "Processes not cleaning up after window close (#17629 still active)"
+  ]
 }

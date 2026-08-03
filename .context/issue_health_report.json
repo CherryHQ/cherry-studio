@@ -1,33 +1,35 @@
 {
-  "report_date": "2026-08-02",
-  "total_open": 849,
+  "report_date": "2026-08-03",
+  "total_open": 842,
+  "delta_from_yesterday": -7,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Jul 26 – Aug 2)",
-      "estimated_count": 300,
-      "pct": 35.3
+      "description": "Updated within last 7 days (Jul 27 – Aug 3)",
+      "estimated_count": 295,
+      "pct": 35.0
     },
     "aging": {
-      "description": "Updated 7–30 days ago (Jul 2 – Jul 25)",
-      "estimated_count": 250,
-      "pct": 29.4
+      "description": "Updated 7–30 days ago (Jul 4 – Jul 26)",
+      "estimated_count": 248,
+      "pct": 29.5
     },
     "stale": {
-      "description": "Updated 30–90 days ago (May 3 – Jul 1)",
+      "description": "Updated 30–90 days ago (May 5 – Jul 3)",
       "estimated_count": 200,
-      "pct": 23.6
+      "pct": 23.7
     },
     "zombie": {
-      "description": "Not updated in 90+ days (before May 3)",
+      "description": "Not updated in 90+ days (before May 5)",
       "estimated_count": 99,
-      "pct": 11.7
+      "pct": 11.8
     }
   },
+  "note_on_inactive_label": "Many issues in the 30–90 day window carry the 'inactive' label (bot-applied). The bot's comment bumps updated_at daily, which inflates the 'active' bucket if measured naively. Counts above use estimated human-activity dates.",
   "label_coverage": {
-    "labeled_count": 752,
-    "unlabeled_count": 97,
+    "labeled_count": 746,
+    "unlabeled_count": 96,
     "unlabeled_pct": 11.4,
-    "note": "97 issues lack any label — triage backlog"
+    "note": "96 issues lack any label — triage backlog (improved from 97 yesterday)"
   },
   "p1_open_issues": {
     "count": 3,
@@ -35,23 +37,31 @@
       {
         "number": 14899,
         "title": "Unified Notification Center",
-        "age_days": 87,
-        "status": "Planned"
+        "age_days": 88,
+        "status": "Planned — no active PR"
       },
       {
         "number": 13608,
         "title": "xiaomi mimo response last-line only",
-        "age_days": 137,
+        "age_days": 138,
         "status": "No fix PR found"
       },
       {
         "number": 13193,
         "title": "Azure OpenAI responses API fallback failure",
-        "age_days": 151,
+        "age_days": 152,
         "status": "No fix PR found"
       }
     ]
   },
+  "recently_closed_p1": [
+    {
+      "number": 17636,
+      "title": "Agent session turn can hang forever after a failed turn",
+      "closed_at": "2026-07-30",
+      "note": "Fixed and closed yesterday — good signal"
+    }
+  ],
   "v2_migration_bugs_open": {
     "examples": [
       "#17470 v2 migration aborts on legacy agents.db schema drift",
@@ -59,24 +69,46 @@
       "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined",
       "#17571 v2 RC1 chat mode missing context window/context count adjustment"
     ],
-    "note": "Multiple v2 RC migration and regression issues remain open after rc.4 release"
+    "note": "Multiple v2 RC migration and regression issues remain open — rc.4 shipped, rc.5 work in progress"
   },
   "agent_bugs_cluster": {
     "count_estimate": 25,
+    "new_today": [
+      "#17781 My agent shows 'Failed to list agents'"
+    ],
     "examples": [
       "#17587 Claude Agent sessions persist zero-output results as successful turns",
       "#17486 Agent auth fails (401) while assistant chat works fine",
       "#17727 Agent context compression not working in Work tab",
-      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable"
+      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable",
+      "#17560 Agent disappears from sidebar after clearing conversation"
     ]
   },
   "performance_issues_open": {
     "count_estimate": 60,
-    "pattern": "Many Performance-labeled issues are internal tech-debt filed by DeJeune (lazy loading, virtualization, deferred bundles)"
+    "pattern": "Performance issues are mostly internal tech-debt filed by DeJeune — lazy loading, virtualization, deferred bundles. Many have corresponding PRs already open."
+  },
+  "mcp_cluster": {
+    "count_estimate": 55,
+    "notable": [
+      "#17689 MCP stdio server process leak — duplicate python instances per tool call",
+      "#17688 mcp-auto-install cannot start — npm 404",
+      "#17605 Unable to complete alphaXiv MCP OAuth"
+    ]
+  },
+  "new_issue_activity_today": {
+    "count": 5,
+    "breakdown": {
+      "feature_requests": 3,
+      "bugs": 1,
+      "other": 1
+    }
   },
   "recommendations": [
-    "Triage 97 unlabeled issues — 11% of backlog is invisible to filters",
-    "P1 issues #13608 and #13193 are 137–151 days old with no fix PR — need owner assignment",
-    "Agent auth/session bugs (#17486, #17329, #17587) are user-facing regressions in v2"
+    "Triage 96 unlabeled issues — 11.4% of backlog invisible to label filters",
+    "P1 issues #13608 and #13193 are 138–152 days old with no fix PR — need owner assignment or close as wontfix",
+    "Agent auth/session bugs (#17486, #17329, #17587, #17781) are user-facing regressions in v2 — cluster for sprint",
+    "MCP process leak (#17689) is a systemic issue affecting all Windows users with Python MCP servers",
+    "v2 RC regression #17571 (missing context count slider) has 2 comments — user pressure building"
   ]
 }
