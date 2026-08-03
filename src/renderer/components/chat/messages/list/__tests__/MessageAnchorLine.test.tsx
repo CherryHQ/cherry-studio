@@ -309,13 +309,17 @@ describe('MessageAnchorLine', () => {
     it('styles the preview card with the semantic popover surface only', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
       partsMap['user-2'] = [textPart('Question two')]
-      const { container } = render(<MessageAnchorLine messages={messages} />)
+      partsMap['assistant-2'] = [textPart('Answer two')]
+      const { container, getByText } = render(<MessageAnchorLine messages={messages} />)
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
 
       const card = container.querySelector<HTMLElement>('.bg-popover')
       expect(card).not.toBeNull()
       expect(card?.className).not.toContain('dark:bg-neutral-800')
+      // These maintained semantic tokens are the visual contract after the
+      // foreground hierarchy migration on main.
+      expect(getByText('Answer two')).toHaveClass('text-muted-foreground')
     })
   })
 
@@ -331,6 +335,8 @@ describe('MessageAnchorLine', () => {
       })
       expect(ticks[0]).toHaveAttribute('aria-current', 'true')
       expect(ticks[1]).not.toHaveAttribute('aria-current')
+      // Inactive ticks use main's maintained strong-structure token.
+      expect(ticks[1].firstElementChild).toHaveClass('bg-border-strong')
     })
 
     it('reaches a tick with Tab and activates it with Enter', async () => {

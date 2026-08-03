@@ -351,7 +351,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
                     'rounded-full',
                     tickTransitionClassName,
                     isFocused ? 'h-0.5' : 'h-[1.5px]',
-                    emphasized ? 'bg-foreground' : 'bg-border-hover'
+                    emphasized ? 'bg-foreground' : 'bg-border-strong'
                   )}
                   style={{ width }}
                 />
@@ -370,7 +370,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           {focusedAnswer && (
             <div
               className={classNames(
-                'line-clamp-2 break-all text-foreground-secondary text-sm leading-5',
+                'line-clamp-2 break-all text-muted-foreground text-sm leading-5',
                 focusedQuestion && 'mt-1'
               )}>
               {focusedAnswer}
