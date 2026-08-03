@@ -348,7 +348,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
-          'library.config.agent.model_config': 'Model configuration',
+          'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
           'library.config.basic.custom_params': 'Custom parameters',
@@ -1013,13 +1013,15 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByText('Knowledge One'))
 
     selectTab('MCP')
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable MCP' })).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'MCP Mode' })).toBeVisible())
     expect(screen.queryByRole('button', { name: 'Add MCP server' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP Mode' })
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Disabled' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
-    selectTab('Model configuration')
+    selectTab('Model')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
     expectHelpTrigger('Temperature', 'Controls randomness.')
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
@@ -1057,7 +1059,7 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model configuration')
+    selectTab('Model')
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
@@ -1336,8 +1338,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} />)
 
     selectTab('MCP')
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
 
     expect(screen.getByText('MCP services')).toBeInTheDocument()
     expect(screen.getByText('MCP One')).toBeInTheDocument()

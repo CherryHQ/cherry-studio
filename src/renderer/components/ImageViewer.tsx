@@ -7,9 +7,10 @@ import {
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
-import { copyImageToClipboard } from '@renderer/utils/image'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { blobToDataUrl, convertImageToPng, copyImageToClipboard, getImageBlobFromSource } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
-import { CopyIcon } from 'lucide-react'
+import { CopyIcon, SaveIcon } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +32,22 @@ export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImage
 const getPreviewIndex = (items: ImagePreviewItem[], src: string, fallbackIndex = 0) => {
   const matchedIndex = items.findIndex((item) => item.src === src)
   return matchedIndex >= 0 ? matchedIndex : fallbackIndex
+}
+
+const getImageSaveName = (item: ImagePreviewItem) => {
+  let name = item.alt?.trim()
+
+  if (!name && /^(?:file|https?):/.test(item.src)) {
+    try {
+      const pathname = decodeURIComponent(new URL(item.src).pathname)
+      name = pathname.slice(pathname.lastIndexOf('/') + 1)
+    } catch {
+      // Fall back to the generic image name below.
+    }
+  }
+
+  const nameWithoutImageExtension = name?.replace(/\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/i, '')
+  return removeSpecialCharactersForFileName(nameWithoutImageExtension || '') || 'image'
 }
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -110,6 +127,34 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     [t]
   )
 
+  const handleSaveImage = React.useCallback(
+    async (item: ImagePreviewItem) => {
+      try {
+        const blob = await getImageBlobFromSource(item.src)
+        const pngBlob = await convertImageToPng(blob)
+        const saved = await window.api.file.saveImage(getImageSaveName(item), await blobToDataUrl(pngBlob))
+        if (saved) {
+          toast.success(t('common.saved'))
+        }
+      } catch (error) {
+        const err = error as Error
+        logger.error(`Failed to save image: ${err.message}`, { stack: err.stack })
+        toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  const saveAction = React.useMemo<ImagePreviewAction>(
+    () => ({
+      icon: <SaveIcon className="size-3.5" />,
+      id: 'save-as',
+      label: t('preview.save_as'),
+      onSelect: handleSaveImage
+    }),
+    [handleSaveImage, t]
+  )
+
   const builtInActions = React.useMemo<ImagePreviewAction[]>(
     () => [
       {
@@ -118,6 +163,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         label: t('preview.copy.image'),
         onSelect: handleCopyImage
       },
+      saveAction,
       {
         icon: <CopyIcon className="size-3.5" />,
         id: 'copy-src',
@@ -125,12 +171,16 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         onSelect: handleCopySource
       }
     ],
-    [handleCopyImage, handleCopySource, t]
+    [handleCopyImage, handleCopySource, saveAction, t]
   )
 
   const contextActions = React.useMemo(
     () => [...builtInActions, ...(previewConfig?.actions ?? [])],
     [builtInActions, previewConfig?.actions]
+  )
+  const toolbarActions = React.useMemo(
+    () => [saveAction, ...(previewConfig?.toolbarActions ?? [])],
+    [previewConfig?.toolbarActions, saveAction]
   )
   const displayItem = items.find((item) => item.src === src) ?? {
     alt: typeof alt === 'string' ? alt : undefined,
@@ -212,7 +262,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
           onActiveIndexChange={setActiveIndex}
           onOpenChange={setOpen}
           open={open}
-          toolbarActions={previewConfig?.toolbarActions}
+          toolbarActions={toolbarActions}
         />
       )}
     </>

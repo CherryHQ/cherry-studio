@@ -1955,7 +1955,7 @@
       "family": "qwen",
       "id": "qwen3-7-flash",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Qwen 3.7 Flash",
       "outputModalities": ["text"],
@@ -1981,12 +1981,12 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "toggle"
+          },
+          {
             "kind": "budget",
             "max": 81920,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -3534,51 +3534,6 @@
             "kind": "budget",
             "max": 64000,
             "min": 1024
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 64000,
-          "min": 1024
-        },
-        "wireDialect": "budget"
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
-      "contextWindow": 200000,
-      "id": "claude-haiku-4-5-batch",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Anthropic: Claude Haiku 4.5 (batch)",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 64000,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -7476,6 +7431,35 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
+      "id": "deepseek-v4-flash-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "DeepSeek V4 Flash Latest",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.09
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
       "family": "deepseek-thinking",
       "id": "deepseek-v4-pro",
       "inputModalities": ["text"],
@@ -9528,23 +9512,10 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "effort",
-            "values": ["minimal", "high"]
-          },
-          {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 1024
           }
         ],
-        "supportedEfforts": ["minimal", "high", "none"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 1024
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -9579,23 +9550,10 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "effort",
-            "values": ["minimal", "high"]
-          },
-          {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 1024
           }
         ],
-        "supportedEfforts": ["minimal", "high", "none"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 1024
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -12995,11 +12953,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output"],
       "contextWindow": 131072,
       "family": "mistral-nemo",
       "id": "mistral-nemo",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
       "name": "Mistral Nemo",
@@ -13375,6 +13333,26 @@
       }
     },
     {
+      "capabilities": ["audio-recognition"],
+      "family": "voxtral",
+      "id": "voxtral-mini-latest",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "Voxtral Mini (latest)",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "family": "voxtral",
+      "id": "voxtral-mini-tts-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Voxtral Mini TTS (latest)",
+      "outputModalities": ["audio"],
+      "ownedBy": "mistral"
+    },
+    {
       "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
       "contextWindow": 32000,
       "family": "mistral",
@@ -13394,6 +13372,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.35
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "audio-recognition", "file-input"],
+      "contextWindow": 32000,
+      "family": "voxtral",
+      "id": "voxtral-small-latest",
+      "inputModalities": ["text", "audio"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Voxtral Small (latest)",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -16341,7 +16342,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6000000000000001
+          "perMillionTokens": 0.6
         }
       },
       "reasoning": {
@@ -16501,7 +16502,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.0000000000000002
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
@@ -18170,11 +18171,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 262144,
       "family": "step",
       "id": "step-3-5-flash",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 262114,
       "metadata": {},
       "name": "Step 3.5 Flash",
@@ -18279,11 +18280,11 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-air-v2-5",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 80000,
       "metadata": {},
       "name": "Kat Coder Air V2.5",
@@ -18357,11 +18358,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2-5",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 80000,
       "metadata": {},
       "name": "Kat Coder Pro V2.5",
@@ -19023,6 +19024,16 @@
       "inputModalities": ["text"],
       "metadata": {},
       "name": "Veo 3.1",
+      "outputModalities": ["video"],
+      "ownedBy": "vercel"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "family": "veo",
+      "id": "veo-3-1-lite-generate-001",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Veo 3.1 Lite Generate",
       "outputModalities": ["video"],
       "ownedBy": "vercel"
     },
@@ -19961,11 +19972,11 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "capabilities": ["image-recognition", "audio-recognition", "video-generation", "file-input"],
       "contextWindow": 1024,
       "family": "grok",
       "id": "grok-imagine-video-1-5",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "audio"],
       "metadata": {},
       "name": "Grok Imagine Video 1.5",
       "outputModalities": ["video"],
@@ -21190,5 +21201,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "657113b585e9d5f0"
+  "version": "6bc31fbf016d6648"
 }

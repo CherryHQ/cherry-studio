@@ -970,7 +970,10 @@ describe('AgentRightPane', () => {
     )
 
     const preview = screen.getByTestId('status-shortcut-preview')
-    fireEvent.click(within(preview).getByRole('button', { name: /Inspect task state/ }))
+    const taskButton = within(preview).getByRole('button', { name: /Inspect task state/ })
+    expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
+    expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
+    fireEvent.click(taskButton)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')

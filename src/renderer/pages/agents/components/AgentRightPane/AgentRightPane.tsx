@@ -861,7 +861,7 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
             {toolCallId ? (
               <button
                 type="button"
-                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
                 {content}
               </button>

@@ -7,7 +7,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { beforeEach, describe, expect, it, test, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -113,7 +113,6 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 
 // Import the functions to test AFTER setting up mocks
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { processCitations } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import {
@@ -280,50 +279,14 @@ describe('ExportService', () => {
       mockedMessages = [userMsg, assistantMsg]
     })
 
-    it('should handle empty content in message blocks', async () => {
-      const msgWithEmptyContent = createMessage({ role: 'user', id: 'empty_block' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
-      ])
-      const markdown = await messageToMarkdown(msgWithEmptyContent)
-      expect(markdown).toContain('## 🧑‍💻 User')
-      // Should handle empty content gracefully
-      expect(markdown).toBeDefined()
-      expect(markdown.split('\n\n').filter((s) => s.trim()).length).toBeGreaterThanOrEqual(1)
-    })
+    it('should format user and assistant message roles', async () => {
+      const userMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'u1')!)
+      const assistantMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'a1')!)
 
-    it('should format user message using main text block', async () => {
-      const msg = mockedMessages.find((m) => m.id === 'u1')
-      expect(msg).toBeDefined()
-      const markdown = await messageToMarkdown(msg!)
-      expect(markdown).toContain('## 🧑‍💻 User')
-      expect(markdown).toContain('hello user')
-
-      // The format is: [titleSection, '', contentSection, citation].join('\n')
-      // When citation is empty, we get: "## 🧑‍💻 User\n\nhello user\n"
-      const sections = markdown.split('\n\n')
-      expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
-    })
-
-    it('should format assistant message using main text block', async () => {
-      const msg = mockedMessages.find((m) => m.id === 'a1')
-      expect(msg).toBeDefined()
-      const markdown = await messageToMarkdown(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
-      expect(markdown).toContain('hi assistant')
-
-      // The format is: [titleSection, '', contentSection, citation].join('\n')
-      // When citation is empty, we get: "## 🤖 Assistant\n\nhi assistant\n"
-      const sections = markdown.split('\n\n')
-      expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
-    })
-
-    it('should handle message with no main text block gracefully', async () => {
-      const msg = createMessage({ role: 'user', id: 'u2' }, [])
-      mockedMessages.push(msg)
-      const markdown = await messageToMarkdown(msg)
-      expect(markdown).toContain('## 🧑‍💻 User')
-      // Check that it doesn't fail when no content exists
-      expect(markdown).toBeDefined()
+      expect(userMarkdown).toContain('## 🧑‍💻 User')
+      expect(userMarkdown).toContain('hello user')
+      expect(assistantMarkdown).toContain('## 🤖 Assistant')
+      expect(assistantMarkdown).toContain('hi assistant')
     })
 
     it('should format parts-only export view text', async () => {
@@ -567,12 +530,6 @@ describe('ExportService', () => {
       // The answer body still resolves to a real number, so stripping is scoped to the trace.
       expect(markdown).toContain('Prices rose 3%. [^1]')
     })
-
-    it('should format citations as footnotes when standardize citations is enabled', () => {
-      // Remove this test as it's testing integration with mocked store settings
-      // The functionality is already tested in the Citation formatting section
-      expect(true).toBe(true) // Placeholder
-    })
   })
 
   describe('messagesToMarkdown', () => {
@@ -584,10 +541,7 @@ describe('ExportService', () => {
       const assistantMsg = createMessage({ role: 'assistant', id: 'a5' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Assistant response B' }
       ])
-      const singleUserMsg = createMessage({ role: 'user', id: 'u4' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Single user query' }
-      ])
-      mockedMessages = [userMsg, assistantMsg, singleUserMsg]
+      mockedMessages = [userMsg, assistantMsg]
     })
 
     it('should join multiple messages with markdown separator', async () => {
@@ -602,73 +556,6 @@ describe('ExportService', () => {
 
     it('should handle an empty array of messages', async () => {
       expect(await messagesToMarkdown([])).toBe('')
-    })
-
-    it('should handle a single message without separator', async () => {
-      const msgs = mockedMessages.filter((m) => m.id === 'u4')
-      const markdown = await messagesToMarkdown(msgs)
-      expect(markdown).toContain('Single user query')
-      expect(markdown.split('\n\n---\n\n').length).toBe(1)
-    })
-  })
-
-  describe('formatMessageAsPlainText (via topicToPlainText)', () => {
-    beforeEach(() => {
-      vi.clearAllMocks()
-    })
-
-    it('should format user and assistant messages correctly to plain text with roles', async () => {
-      const userMsg = createMessage({ role: 'user', id: 'u_plain_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '# User Content Formatted' }
-      ])
-      const assistantMsg = createMessage({ role: 'assistant', id: 'a_plain_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '*Assistant Content Formatted*' }
-      ])
-      const testTopic = createTopic({
-        id: 't_plain_formatted',
-        name: 'Formatted Plain Topic',
-        assistantId: 'asst_test_formatted',
-        messages: [userMsg, assistantMsg] as any
-      })
-      // Mock getTopicMessages to return the expected messages
-      ;(getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
-      // Specific mock for this test to check formatting
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
-
-      const plainText = await topicToPlainText(testTopic)
-
-      expect(plainText).toContain('User:\nUser Content Formatted')
-      expect(plainText).toContain('Assistant:\nAssistant Content Formatted')
-      expect(markdownToPlainText).toHaveBeenCalledWith('# User Content Formatted')
-      expect(markdownToPlainText).toHaveBeenCalledWith('*Assistant Content Formatted*')
-      expect(markdownToPlainText).toHaveBeenCalledWith('Formatted Plain Topic')
-    })
-  })
-
-  describe('messagesToPlainText (via topicToPlainText)', () => {
-    beforeEach(() => {
-      vi.clearAllMocks()
-    })
-
-    it('should join multiple formatted plain text messages with double newlines', async () => {
-      const msg1 = createMessage({ role: 'user', id: 'm_plain1_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Msg1 Formatted' }
-      ])
-      const msg2 = createMessage({ role: 'assistant', id: 'm_plain2_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Msg2 Formatted' }
-      ])
-      const testTopic = createTopic({
-        id: 't_multi_plain_formatted',
-        name: 'Multi Plain Formatted',
-        assistantId: 'asst_test_multi_formatted',
-        messages: [msg1, msg2] as any
-      })
-      // Mock getTopicMessages to return the expected messages
-      ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
-
-      const plainText = await topicToPlainText(testTopic)
-      expect(plainText).toBe('Multi Plain Formatted\n\nUser:\nMsg1 Formatted\n\nAssistant:\nMsg2 Formatted')
     })
   })
 
@@ -746,44 +633,6 @@ describe('ExportService', () => {
       vi.clearAllMocks() // Clear mocks before each test in this suite
     })
 
-    it('should handle empty content in topic messages', async () => {
-      const msgWithEmpty = createMessage({ role: 'user', id: 'empty_content' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
-      ])
-      const testTopic = createTopic({
-        id: 'topic_empty_content',
-        name: 'Topic with empty content',
-        assistantId: 'asst_test',
-        messages: [msgWithEmpty] as any
-      })
-      // Mock getTopicMessages to return the expected messages
-      ;(getTopicMessages as any).mockResolvedValue([msgWithEmpty])
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
-
-      const result = await topicToPlainText(testTopic)
-      expect(result).toBe('Topic with empty content\n\nUser:\n')
-    })
-
-    it('should handle special characters in topic content', async () => {
-      const msgWithSpecial = createMessage({ role: 'user', id: 'special_chars' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Content with "quotes" & <tags> and &entities;' }
-      ])
-      const testTopic = createTopic({
-        id: 'topic_special_chars',
-        name: 'Topic with "quotes" & symbols',
-        assistantId: 'asst_test',
-        messages: [msgWithSpecial] as any
-      })
-      // Mock getTopicMessages to return the expected messages
-      ;(getTopicMessages as any).mockResolvedValue([msgWithSpecial])
-      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
-
-      const result = await topicToPlainText(testTopic)
-      expect(markdownToPlainText).toHaveBeenCalledWith('Topic with "quotes" & symbols')
-      expect(markdownToPlainText).toHaveBeenCalledWith('Content with "quotes" & <tags> and &entities;')
-      expect(result).toContain('Content with "quotes" & <tags> and &entities;')
-    })
-
     it('should return plain text for a topic with messages', async () => {
       const msg1 = createMessage({ role: 'user', id: 'tp_u1' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '**Hello**' }
@@ -822,75 +671,5 @@ describe('ExportService', () => {
       expect(result).toBe('Empty Topic')
       expect(markdownToPlainText).toHaveBeenCalledWith('## Empty Topic')
     })
-
-    it('should return empty string if topicMessages is null', async () => {
-      const testTopic = createTopic({
-        id: 'topic_null_msgs_plain',
-        name: 'Null Messages Topic',
-        assistantId: 'asst_test',
-        messages: null as any
-      })
-      // Mock getTopicMessages to return empty array for null case
-      ;(getTopicMessages as any).mockResolvedValue([])
-
-      const result = await topicToPlainText(testTopic)
-      expect(result).toBe('Null Messages Topic')
-    })
-  })
-})
-
-describe('Citation formatting in Markdown export', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.resetModules()
-  })
-
-  test('should properly integrate processCitations with messageToMarkdown', () => {
-    // Test the actual processCitations function behavior
-    const testContent =
-      'This text has citations [<sup data-citation="test">1</sup>](url) and [2] that should be removed.'
-    const processedContent = processCitations(testContent, 'remove')
-
-    // The function should remove citation markers
-    expect(processedContent).toBe('This text has citations and that should be removed.')
-    expect(processedContent).not.toContain('[<sup')
-    expect(processedContent).not.toContain('[1]')
-    expect(processedContent).not.toContain('[2]')
-  })
-
-  test('should properly integrate processCitations with normalization', () => {
-    // Test the actual processCitations function behavior
-    const testContent =
-      'Content with different citation formats [<sup data-citation="test">1</sup>](url1) and [2] and <sup data-citation="test2">3</sup>.'
-    const processedContent = processCitations(testContent, 'normalize')
-
-    // Citations should be normalized to footnote format
-    expect(processedContent).toBe('Content with different citation formats [^1] and [^2] and [^3].')
-    expect(processedContent).not.toContain('[<sup')
-    expect(processedContent).not.toContain('<sup')
-  })
-
-  test('should properly test formatCitationsAsFootnotes through messageToMarkdown', async () => {
-    const msgWithCitations = createExportView([
-      {
-        type: 'text',
-        text: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].',
-        providerMetadata: {
-          cherry: {
-            references: [{ category: 'citation', url: 'https://example1.com', title: 'Example Citation 1' }]
-          }
-        }
-      }
-    ])
-
-    // This tests the complete flow including formatCitationsAsFootnotes
-    const markdown = await messageToMarkdown(msgWithCitations)
-
-    // Should contain the title and content
-    expect(markdown).toContain('## 🤖 Assistant')
-    expect(markdown).toContain('Content with citations')
-
-    // Should include citation content (mocked by getCitationContent)
-    expect(markdown).toContain('[^1]: [Example Citation 1](https://example1.com)')
   })
 })

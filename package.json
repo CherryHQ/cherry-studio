@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-rc.3",
+  "version": "2.0.0-rc.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -42,8 +42,6 @@
     "i18n:hardcoded:strict": "cross-env I18N_STRICT=true tsx scripts/check-hardcoded-strings.ts",
     "i18n:unused": "tsx scripts/check-unused-i18n.ts",
     "i18n:remove-unused": "tsx scripts/check-unused-i18n.ts --clean",
-    "styles:legacy-vars": "tsx scripts/check-legacy-css-vars.ts",
-    "styles:legacy-vars:strict": "cross-env LEGACY_CSS_VARS_STRICT=true tsx scripts/check-legacy-css-vars.ts",
     "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
     "i18n:sync": "dotenv -e .env -- tsx scripts/sync-i18n.ts",

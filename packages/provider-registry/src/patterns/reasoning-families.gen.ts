@@ -143,7 +143,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
   { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
-  { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
+  { pattern: '^gemma-?4', toggle: true },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
     effort: ['minimal', 'low', 'medium', 'high']
@@ -158,9 +158,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemini-pro-latest$', budget: { min: 128, max: 32768 }, template: true },
   { pattern: 'gemini-.*-flash.*$', budget: { min: 0, max: 24576 }, template: true },
   { pattern: 'gemini-.*-pro.*$', budget: { min: 128, max: 32768 }, template: true },
-  { pattern: 'gemma-?4[:-]?e[24]b', budget: { min: 1024, max: 8192 }, template: true },
-  { pattern: 'gemma-?4[:-]?26b', budget: { min: 1024, max: 30720 }, template: true },
-  { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
   { pattern: '^gemini.*thinking' },
   { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
   { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },

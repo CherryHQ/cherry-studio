@@ -473,11 +473,6 @@ idempotent, reports every non-`preserve` migration source, and changes only appr
 canonical providers, contract fixtures, vendor files, and explicitly listed isolated local themes are excluded;
 contextual and review rules remain visible manual work.
 
-Run `pnpm styles:legacy-vars` for a strategy-labelled dry-run report, `pnpm styles:legacy-vars --fix` to apply exact
-replacements, or `pnpm styles:legacy-vars:strict` to fail when any non-preserved migration source remains. After a
-fix, contextual and review findings intentionally remain. Reporting and replacement share the same registry, so
-migration policy and the syntax-aware tooling do not maintain separate hard-coded inventories.
-
 ## 8. Governance
 
 Adding or changing an official Shadcn variable or an unprefixed product variable is a shared API change.

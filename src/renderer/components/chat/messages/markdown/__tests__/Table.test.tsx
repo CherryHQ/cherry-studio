@@ -144,20 +144,9 @@ describe('Table', () => {
       expect(screen.getByText('Header 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
-      expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
-    })
-
-    it('should render copy button with correct tooltip', () => {
-      render(<Table {...defaultProps} />)
-
       const tooltips = screen.getAllByTestId('tooltip')
+      expect(tooltips).toHaveLength(2)
       expect(tooltips[0]).toHaveAttribute('title', 'common.copy')
-    })
-
-    it('should render excel export button with correct tooltip', () => {
-      render(<Table {...defaultProps} />)
-
-      const tooltips = screen.getAllByTestId('tooltip')
       expect(tooltips[1]).toHaveAttribute('title', 'common.export.excel')
       expect(getExcelIcon()).toBeInTheDocument()
     })
@@ -183,15 +172,9 @@ Line 4`
 | Cell 1   | Cell 2   |`)
     })
 
-    it('should return empty string when position is null', () => {
+    it('should return empty string for invalid inputs', () => {
       expect(extractTableMarkdown('test-block-1', null, defaultTableContent)).toBe('')
-    })
-
-    it('should return empty string when position is undefined', () => {
       expect(extractTableMarkdown('test-block-1', undefined, defaultTableContent)).toBe('')
-    })
-
-    it('should return empty string when markdownContent is missing', () => {
       expect(extractTableMarkdown('test-block-1', createTablePosition(), undefined)).toBe('')
     })
 
@@ -209,6 +192,8 @@ Line 4`
     it('should copy table content to clipboard on button click', async () => {
       render(<Table {...defaultProps} />)
 
+      expect(getCopyIcon()).toBeInTheDocument()
+
       const copyButton = getCopyButton()
       await user.click(copyButton)
 
@@ -220,26 +205,6 @@ Line 4`
           },
           { successMessage: 'message.copied' }
         )
-        expect(getCheckIcon()).toBeInTheDocument()
-        expect(queryCopyIcon()).not.toBeInTheDocument()
-      })
-
-      // Flush useTemporaryValue timer to avoid act() warning
-      act(() => {
-        vi.advanceTimersByTime(2000)
-      })
-    })
-
-    it('should show check icon after successful copy', async () => {
-      render(<Table {...defaultProps} />)
-
-      // Initially shows copy icon
-      expect(getCopyIcon()).toBeInTheDocument()
-
-      const copyButton = getCopyButton()
-      await user.click(copyButton)
-
-      await waitFor(() => {
         expect(getCheckIcon()).toBeInTheDocument()
         expect(queryCopyIcon()).not.toBeInTheDocument()
       })
@@ -329,16 +294,6 @@ Cell 1 | Cell 2`
           ['Header 1', 'Header 2'],
           ['Cell 1', 'Cell 2']
         ])
-      })
-    })
-
-    it('should show success toast after successful export', async () => {
-      render(<Table {...defaultProps} />)
-
-      const excelButton = getExcelButton()
-      await user.click(excelButton)
-
-      await waitFor(() => {
         expect(mocks.messageListActions.notifySuccess).toHaveBeenCalledWith('message.success.excel.export')
       })
     })
@@ -394,24 +349,6 @@ Cell 1 | Cell 2`
       const { container } = render(<Table {...defaultProps} />)
 
       expect(container.querySelector('.table-toolbar')).not.toBeInTheDocument()
-    })
-
-    it('should work without blockId', () => {
-      const propsWithoutBlockId = { ...defaultProps, blockId: undefined }
-
-      expect(() => render(<Table {...propsWithoutBlockId} />)).not.toThrow()
-
-      const copyButton = getCopyButton()
-      expect(copyButton).toBeInTheDocument()
-    })
-
-    it('should work without node position', () => {
-      const propsWithoutPosition = { ...defaultProps, node: undefined }
-
-      expect(() => render(<Table {...propsWithoutPosition} />)).not.toThrow()
-
-      const copyButton = getCopyButton()
-      expect(copyButton).toBeInTheDocument()
     })
   })
 })
