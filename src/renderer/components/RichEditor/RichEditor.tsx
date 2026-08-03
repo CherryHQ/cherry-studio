@@ -27,11 +27,9 @@ import { EditorContent as StyledEditorContent, RichEditorWrapper } from './style
 import { ToC } from './TableOfContent'
 import { Toolbar } from './Toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
+import { useExternalSearchHighlight } from './useExternalSearchHighlight'
 import { useRichEditor } from './useRichEditor'
 const logger = loggerService.withContext('RichEditor')
-
-/** Debounce before re-scanning the document for an external highlight after an edit. */
-const EXTERNAL_HIGHLIGHT_RESCAN_DELAY_MS = 300
 
 /**
  * Create fixed-position highlight overlay at element location
@@ -208,35 +206,12 @@ const RichEditor = ({
     []
   )
 
-  // Re-applied whenever the keyword, the editor instance or the rendered content
-  // changes. The editor is remounted on view-mode switches, so an imperative call
-  // from the page would simply be lost; a prop-driven effect restores itself.
-  const appliedSearchKeywordRef = useRef('')
-  useEffect(() => {
-    if (!enableContentSearch || !editor) return
-    const keyword = searchHighlightKeyword ?? ''
-    const keywordChanged = appliedSearchKeywordRef.current !== keyword
-    appliedSearchKeywordRef.current = keyword
-    // With no external keyword there is nothing to project and — unless it was just
-    // retracted — nothing to retract either. Skipping matters: the editor's own find
-    // bar owns the highlight state the rest of the time, and firing an empty apply on
-    // every keystroke would reset the user's Cmd+F results as they type.
-    if (!keyword && !keywordChanged) return
-
-    // Re-scanning means walking every text node in the document, so an edit must not
-    // trigger it per keystroke; only a keyword change is worth applying immediately.
-    const timer = setTimeout(
-      () => {
-        try {
-          contentSearchRef.current?.highlightExternal(keyword)
-        } catch (error) {
-          logger.error('Failed to apply external search highlight:', error as Error)
-        }
-      },
-      keywordChanged ? 0 : EXTERNAL_HIGHLIGHT_RESCAN_DELAY_MS
-    )
-    return () => clearTimeout(timer)
-  }, [enableContentSearch, editor, searchHighlightKeyword, markdown])
+  useExternalSearchHighlight({
+    contentSearchRef,
+    enabled: enableContentSearch && Boolean(editor),
+    keyword: searchHighlightKeyword,
+    content: markdown
+  })
 
   const onKeyDownEditor = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
