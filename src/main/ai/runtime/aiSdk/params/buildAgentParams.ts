@@ -18,9 +18,8 @@ import { isFunctionCallingModel } from '@shared/utils/model'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
-import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
-import { collectPersistedOutputPaths } from '../../../messages/persistedOutputRendering'
+import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
@@ -73,8 +72,8 @@ export interface BuildAgentParamsInput {
     chatId?: string
     messageId?: string
     messages?: UIMessage[]
-    /** Raw-path attachment allow-list from the chat provider (see AiStreamRequest.fileAttachments). */
-    fileAttachments?: FileAttachmentRef[]
+    /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
+    retainedContext?: RetainedContext
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -112,11 +111,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
-  // Prefer the request-carried allow-list: the persistent chat provider computes
-  // it from the RAW message path, so attachments folded away by durable
-  // compaction stay readable via read_file. Scanning `messages` only sees the
-  // served (post-fold) view.
-  const fileAttachments = request.fileAttachments ?? collectFileAttachments(request.messages)
+  // Prefer the request-carried retained context: the persistent chat provider
+  // computes it from the RAW message path, so attachments and persisted tool
+  // outputs folded away by durable compaction stay readable via read_file /
+  // fs_read. Scanning `messages` only sees the served (post-fold) view — the
+  // fallback is for providers that never fold (temporary chat, agent).
+  const retained = request.retainedContext ?? collectRetainedContext(request.messages ?? [])
+  const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
@@ -149,9 +150,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     abortSignal: signal,
     fileAttachments,
     knowledgeBaseIds,
-    // fs_read's exact allow-list: blobs referenced by the history now, plus
-    // whatever the in-flight offload adapter appends mid-turn.
-    persistedOutputPaths: collectPersistedOutputPaths(request.messages ?? [])
+    // fs_read's exact allow-list: blobs referenced by the conversation, plus
+    // whatever the in-flight offload adapter appends mid-turn. Cloned so those
+    // per-turn appends never contaminate the RetainedContext shared across the
+    // models of a multi-model send.
+    persistedOutputPaths: new Set(retained.persistedOutputPaths)
   }
 
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(model)

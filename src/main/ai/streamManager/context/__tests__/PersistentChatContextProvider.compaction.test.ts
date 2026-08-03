@@ -58,7 +58,10 @@ vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
   compactModelMessages: mockCompactModelMessages
 }))
 
-// Override the global @application mock to also handle AiStreamManager lookups.
+// Override the global @application mock to also handle AiStreamManager lookups
+// and give FileManager a deterministic getPhysicalPath (the shared mock lacks
+// one, and collectPersistedOutputPaths swallows lookup errors — without this
+// the persisted-path assertions would silently pass on an empty set).
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')
   const base = mockApplicationFactory()
@@ -66,6 +69,9 @@ vi.mock('@application', async () => {
   base.application.get = vi.fn((name: string) => {
     if (name === 'AiStreamManager') {
       return { broadcastTopicError: vi.fn() }
+    }
+    if (name === 'FileManager') {
+      return { getPhysicalPath: (id: string) => `/blobs/${id}.txt` }
     }
     return originalGet(name)
   })
@@ -292,13 +298,99 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     // Compaction folded u1 (its file part is gone from the served view) …
     expect(messages.map((m) => m.id)).not.toContain('u1')
-    // … but the request carries the raw-path allow-list …
-    expect(prepared.models[0].request.fileAttachments).toEqual([
+    // … but the request carries the raw-path retained context …
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
       { fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }
     ])
+    expect(prepared.models[0].request.retainedContext?.persistedOutputPaths.size).toBe(0)
     // … and the served summary row tells the model the file is still readable.
     const summaryText = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
     expect(summaryText).toContain('readable in full via the read_file tool: log.txt')
+  })
+
+  it('2c. summary-row bytes are a pure function of the boundary — live attachments never rewrite them', async () => {
+    // Marker path (test-3 style, under budget, no summarizer): u1's attachment
+    // is folded behind the marker; u2's is live (still a file part in the
+    // served view). The manifest must list only the folded one, and the
+    // summary-row text must be byte-identical whether or not the live
+    // attachment exists — that is the provider-prefix-cache contract.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    const liveMsg = fakeMsg('u2', 'user', 'new question')
+    ;(liveMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/live.txt',
+      filename: 'live.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-2' } }
+    })
+    const pathWithLive = [foldedMsg, fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'), liveMsg]
+    const pathWithoutLive = [
+      foldedMsg,
+      fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'new question')
+    ]
+    compressionOn()
+
+    mockGetPathToNode.mockReturnValue(pathWithLive)
+    const { messages: withLive, prepared } = await makeHistory('u2')
+    mockGetPathToNode.mockReturnValue(pathWithoutLive)
+    const { messages: withoutLive } = await makeHistory('u2')
+
+    const summaryTextOf = (msgs: typeof withLive) => (msgs[0].parts?.[0] as { text?: string })?.text ?? ''
+    expect(summaryTextOf(withLive)).toContain('readable in full via the read_file tool: folded.txt')
+    expect(summaryTextOf(withLive)).not.toContain('live.txt')
+    expect(summaryTextOf(withLive)).toBe(summaryTextOf(withoutLive))
+    // Capability side still covers BOTH attachments (folded + live).
+    expect(prepared.models[0].request.retainedContext?.fileAttachments.map((a) => a.handle)).toEqual([
+      'folded.txt',
+      'live.txt'
+    ])
+  })
+
+  it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {
+    // a1 carries a persisted tool-output envelope and is folded behind a2's
+    // marker — its blob path must still reach retainedContext (fs_read
+    // allow-list), even though the part is gone from the served view.
+    const toolMsg = fakeMsg('a1', 'assistant', 'ran a tool')
+    ;(toolMsg.data as { parts: unknown[] }).parts.push({
+      type: 'tool-run_cmd',
+      toolCallId: 'call-1',
+      state: 'output-available',
+      input: {},
+      output: {
+        $persistedToolOutput: {
+          fileEntryId: 'fe-blob',
+          vfsFilename: 'vfs_0123456789abcdef.txt',
+          head: 'head',
+          tail: 'tail',
+          totalChars: 100_000,
+          totalLines: 2_000,
+          shape: 'text'
+        }
+      }
+    })
+    const path = [
+      fakeMsg('u1', 'user', 'old question'),
+      toolMsg,
+      fakeMsg('a2', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'latest question')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).not.toContain('a1')
+    expect([...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]).toEqual([
+      '/blobs/fe-blob.txt'
+    ])
   })
 
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {

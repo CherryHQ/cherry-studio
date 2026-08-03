@@ -33,11 +33,12 @@ export interface RequestContext {
   readonly knowledgeBaseIds?: readonly string[]
 
   /**
-   * Absolute paths of persisted tool-output blobs referenced by this request's
-   * prompt — the exact allow-list `fs_read` may serve. Seeded in
-   * `buildAgentParams` from the history's `$persistedToolOutput` envelopes;
-   * the in-flight offload adapter adds paths as it persists new outputs
-   * mid-turn (the Set is shared and mutable by design).
+   * Absolute paths of persisted tool-output blobs this conversation owns — the
+   * exact allow-list `fs_read` may serve. Seeded in `buildAgentParams` from
+   * `RetainedContext.persistedOutputPaths` (RAW path, so blobs of
+   * compacted-away tool messages stay readable) as a per-model clone; the
+   * in-flight offload adapter adds paths to that clone as it persists new
+   * outputs mid-turn (mutable by design, never the shared RetainedContext).
    */
   readonly persistedOutputPaths?: Set<string>
 }

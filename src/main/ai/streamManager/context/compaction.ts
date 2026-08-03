@@ -27,9 +27,12 @@ export function summaryMessageId(boundaryId: string): string {
  * `attachmentHandles` restores the read_file call signal that folding erases:
  * the folded user message's file parts are gone from the served view, so
  * without this line the model has no idea an attachment exists or what name
- * `read_file` accepts (runtime-test finding #2). Handles come from the same
- * `collectFileAttachments` pass that feeds the request's allow-list, and the
- * rendering is a pure function of them — same path, same bytes.
+ * `read_file` accepts (runtime-test finding #2). Callers pass ONLY the
+ * handles of attachments folded behind the boundary (live ones still ride
+ * served messages as file parts), making this row a pure function of the
+ * boundary — attaching a file later never rewrites its bytes, so provider
+ * prefix caches hold. Handle names match the request-level allow-list: dedup
+ * is a left-to-right fold, so a prefix's handles equal the full pass's.
  */
 export function summaryRow(boundaryId: string, summary: string, attachmentHandles?: readonly string[]): CompactionRow {
   const manifest = attachmentHandles?.length

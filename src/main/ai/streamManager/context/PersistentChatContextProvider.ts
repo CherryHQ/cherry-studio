@@ -12,7 +12,7 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
-import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -324,7 +324,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, fileAttachments } = await this.resolveCompactedHistory(
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model)
@@ -341,7 +341,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
           turnOptions.fastMode === true,
-          fileAttachments
+          retainedContext
         ),
         rootSpan
       }))
@@ -427,7 +427,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, fileAttachments } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
       return {
         topicId: req.topicId,
         models: [
@@ -443,7 +443,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               knowledgeBaseIds,
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.fastMode === true,
-              fileAttachments
+              retainedContext
             ),
             rootSpan
           }
@@ -515,7 +515,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, fileAttachments } = await this.resolveCompactedHistory(
+      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model]
@@ -535,7 +535,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
               req.fastMode,
-              fileAttachments
+              retainedContext
             ),
             rootSpan
           }
@@ -605,25 +605,33 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[]
-  ): Promise<{ messages: CherryUIMessage[]; fileAttachments: FileAttachmentRef[] }> {
+  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
-    // Authoritative allow-list from the RAW path: compaction folds file parts
-    // out of the served view, so scanning served messages downstream would
-    // silently drop read_file for folded attachments (finding #2). Handles are
-    // deduped over the whole path here, so the summary-row manifest, the
-    // allow-list, and inline routing all agree on names.
-    const fileAttachments = collectFileAttachments(rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage))
-    const attachmentHandles = fileAttachments.map((a) => a.handle)
+    // Capability state from the RAW path: compaction folds file parts and tool
+    // outputs out of the served view, so scanning served messages downstream
+    // would silently drop read_file for folded attachments (finding #2) and
+    // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
+    // for the manifest prefixes below — handle dedup is a left-to-right fold,
+    // so a slice's handles match the full pass only when both share this array.
+    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const retainedContext = collectRetainedContext(rawUI)
     const rows = rawMsgs.map((m) => this.toRow(m))
-    const effective = applyDeepestMarker(rows, attachmentHandles)
+    // Manifest handles cover ONLY the rows folded behind the boundary: live
+    // attachments still ride served messages as file parts, and scoping the
+    // manifest to the folded prefix makes the summary-row bytes a pure
+    // function of the boundary — attaching a file later never rewrites them
+    // (provider prefix caches hold).
+    const d = findDeepestMarker(rows)
+    const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
+    const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(models[0])
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), fileAttachments })
+    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
 
@@ -634,7 +642,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(effective)
     }
 
-    const d = findDeepestMarker(rows)
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
     const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
@@ -664,7 +671,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
-      return serve([summaryRow(boundary.id, summary, attachmentHandles), ...recent.slice(keepIdx)])
+      // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
+      return serve([summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)])
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
       return serve(effective)
@@ -680,7 +688,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     fastMode: boolean,
-    fileAttachments?: FileAttachmentRef[]
+    retainedContext?: RetainedContext
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -692,7 +700,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       knowledgeBaseIds,
       reasoningEffort,
       fastMode,
-      ...(fileAttachments ? { fileAttachments } : {})
+      ...(retainedContext ? { retainedContext } : {})
     }
   }
 }
