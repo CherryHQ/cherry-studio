@@ -351,16 +351,41 @@ const McpSettings: React.FC = () => {
       if (active) {
         await updateMcpServer({ body: { isActive: true } })
         try {
-          await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
+          const [toolsResult, promptsResult, resourcesResult, versionResult] = await Promise.allSettled([
+            ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id }),
+            ipcApi.request('mcp.server.list_prompts', { serverId: serverForUpdate.id }),
+            ipcApi.request('mcp.server.list_resources', { serverId: serverForUpdate.id }),
+            ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
+          ])
 
-          const localPrompts = await ipcApi.request('mcp.server.list_prompts', { serverId: serverForUpdate.id })
-          setPrompts(localPrompts)
+          if (toolsResult.status === 'rejected') {
+            logger.error('Failed to refresh MCP tools', toolsResult.reason as Error)
+          }
+          if (promptsResult.status === 'fulfilled') {
+            setPrompts(promptsResult.value)
+          } else {
+            logger.error('Failed to list MCP prompts', promptsResult.reason as Error)
+            setPrompts([])
+          }
+          if (resourcesResult.status === 'fulfilled') {
+            setResources(resourcesResult.value)
+          } else {
+            logger.error('Failed to list MCP resources', resourcesResult.reason as Error)
+            setResources([])
+          }
+          if (versionResult.status === 'fulfilled') {
+            setServerVersion(versionResult.value)
+          } else {
+            logger.error('Failed to get MCP server version', versionResult.reason as Error)
+            setServerVersion(null)
+          }
 
-          const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: serverForUpdate.id })
-          setResources(localResources)
-
-          const version = await ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
-          setServerVersion(version)
+          const firstRejection = [toolsResult, promptsResult, resourcesResult, versionResult].find(
+            (r): r is PromiseRejectedResult => r.status === 'rejected'
+          )
+          if (firstRejection) {
+            throw firstRejection.reason
+          }
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
