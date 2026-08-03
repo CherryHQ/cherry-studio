@@ -269,7 +269,6 @@
     {
       "apiModelId": "doubao-seed-1-8-251215",
       "modelId": "doubao-seed-1-8",
-      "name": "doubao-seed-1-8-251215",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -4164,25 +4163,6 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-2.5-pro",
-      "modelId": "gemini-2-5-pro",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
       "apiModelId": "gemini-3.1-pro-preview",
       "modelId": "gemini-3-1-pro-preview",
       "pricing": {
@@ -4221,20 +4201,20 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-3-flash-preview",
-      "modelId": "gemini-3-flash-preview",
+      "apiModelId": "gemini-3.6-flash",
+      "modelId": "gemini-3-6-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 1.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 7.5
         }
       },
       "providerId": "copilot"
@@ -4480,6 +4460,25 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "grok-4.5",
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
       "pricing": {
@@ -4663,6 +4662,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.1",
       "modelId": "glm-5-1",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4705,6 +4705,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5647,6 +5648,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-122b-a10b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-122b-a10b",
       "providerId": "dashscope",
@@ -5762,6 +5764,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-27b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-27b",
       "providerId": "dashscope",
@@ -5877,6 +5880,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-35b-a3b",
       "providerId": "dashscope",
@@ -5992,6 +5996,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-397b-a17b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-397b-a17b",
       "providerId": "dashscope",
@@ -6107,6 +6112,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-9b",
       "modelId": "qwen3-5-9b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6221,6 +6227,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-flash",
       "providerId": "dashscope",
@@ -6336,6 +6343,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-plus",
       "providerId": "dashscope",
@@ -6451,6 +6459,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6565,6 +6574,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-35b-a3b",
       "providerId": "dashscope",
@@ -6680,6 +6690,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-flash",
       "providerId": "dashscope",
@@ -6795,6 +6806,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-max-preview",
       "modelId": "qwen3-6-max-preview",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6909,6 +6921,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-plus",
       "providerId": "dashscope",
@@ -7024,6 +7037,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.7-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-max",
       "providerId": "dashscope",
@@ -7139,6 +7153,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.7-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-plus",
       "providerId": "dashscope",
@@ -9526,11 +9541,13 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v3-2-251201",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3-2",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v4-flash-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "providerId": "doubao",
@@ -9576,6 +9593,7 @@
       }
     },
     {
+      "apiModelId": "deepseek-v4-pro-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-pro",
       "providerId": "doubao",
@@ -9621,21 +9639,25 @@
       }
     },
     {
+      "apiModelId": "doubao-1-5-lite-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-lite-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-256k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-256k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-thinking-pro-250415",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-thinking-pro",
       "providerId": "doubao"
@@ -9651,26 +9673,31 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-ui-tars-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-ui-tars",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-lite-250315",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-lite",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-pro-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-vision-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-seed-1-6-251015",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-1-6",
       "providerId": "doubao",
@@ -9754,18 +9781,21 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-1-6-flash-250828",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-flash",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-seed-1-6-vision-250815",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-vision",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-seed-1-8-251228",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "doubao-seed-2-0-code",
+      "modelId": "doubao-seed-1-8",
       "providerId": "doubao",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -9847,6 +9877,91 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-2-0-code-preview-260215",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "doubao-seed-2-0-code-preview",
+      "providerId": "doubao",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "doubao-seed-2-0-lite-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-lite",
       "providerId": "doubao",
@@ -9930,6 +10045,7 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-2-0-mini-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-mini",
       "providerId": "doubao",
@@ -10013,6 +10129,7 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-2-0-pro-260215",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-pro",
       "providerId": "doubao",
@@ -10276,6 +10393,7 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-character-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-character",
       "providerId": "doubao",
@@ -10359,6 +10477,7 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-code-preview-251028",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-code-preview",
       "providerId": "doubao"
@@ -10453,11 +10572,13 @@
       }
     },
     {
+      "apiModelId": "glm-4-7-251222",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-4-7",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "glm-5-2-260617",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "glm-5-2",
       "providerId": "doubao",
@@ -10544,89 +10665,6 @@
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-14b",
       "providerId": "doubao"
-    },
-    {
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "seed-1-8",
-      "providerId": "doubao",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        },
-        "openai-responses": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
     },
     {
       "apiModelId": "accounts/fireworks/models/deepseek-v4-flash",
@@ -15325,6 +15363,7 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "gemini-2.5-flash",
       "modelId": "gemini-2-5-flash",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15394,6 +15433,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-image",
       "modelId": "gemini-2-5-flash-image",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15463,6 +15503,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-image-preview",
       "modelId": "gemini-2-5-flash-image-preview",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15532,6 +15573,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-lite",
       "modelId": "gemini-2-5-flash-lite",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15601,6 +15643,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro",
       "modelId": "gemini-2-5-pro",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15670,6 +15713,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro-preview",
       "modelId": "gemini-2-5-pro-preview",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15739,6 +15783,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro-preview-05-06",
       "modelId": "gemini-2-5-pro-preview-05-06",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15808,6 +15853,7 @@
       }
     },
     {
+      "apiModelId": "gemini-3.1-flash-lite-image",
       "modelId": "gemini-3-1-flash-lite-image",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -16938,6 +16984,7 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "grok-composer-2.5-fast",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
       },
@@ -16949,7 +16996,7 @@
         "contextWindow": 200000,
         "maxOutputTokens": 30000
       },
-      "modelId": "grok-composer-2.5-fast",
+      "modelId": "grok-composer-2-5-fast",
       "name": "Composer 2.5 Fast",
       "outputModalities": ["text"],
       "ownedBy": "xai",
@@ -18739,6 +18786,7 @@
       "providerId": "modelscope"
     },
     {
+      "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
       "providerId": "moonshot",
       "reasoningContracts": {
@@ -37077,6 +37125,7 @@
       "providerId": "zhipu"
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37126,6 +37175,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2-fast",
       "modelId": "glm-5-2-fast",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37212,5 +37262,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "24b93bc6fd6160eb"
+  "version": "e4503c16860c3912"
 }

@@ -66,6 +66,17 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
+  // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
+  // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
+  // `glm-5.2`) goes out and 404s. Generation derives both from the authored id; this catches a row
+  // that reached the catalog without passing through that split.
+  it('every override either is keyed canonically or carries a wire id', () => {
+    const leaking = overrides
+      .filter((override) => !override.apiModelId && canonOf(override.modelId) !== override.modelId)
+      .map((override) => `${override.providerId}/${override.modelId}`)
+    expect(leaking).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })

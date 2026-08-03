@@ -45,7 +45,8 @@ export default openaiCompatible({
     official: 'https://open.bigmodel.cn/'
   },
   overrides: [
-    ...['glm-5-2', 'glm-5-2-fast'].map((modelId) => ({
+    // BigModel serves these with a dotted version; generation derives the canonical key + apiModelId.
+    ...['glm-5.2', 'glm-5.2-fast'].map((modelId) => ({
       modelId,
       reasoningContracts: {
         'openai-chat-completions': {

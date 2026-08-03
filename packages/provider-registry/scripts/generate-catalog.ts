@@ -31,7 +31,7 @@ import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
-import { canonOf, prefixHit } from './canonicalize'
+import { canonOf, prefixHit, splitOverrideWireId } from './canonicalize'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -478,7 +478,8 @@ function buildProviderModels(
   // Overrides key on `apiModelId` too, so one provider can serve the SAME canonical model under several
   // apiModelIds (e.g. tokenhub's dated 原厂直供 variants alongside the undated id) — `listProviderRegistryModels`
   // turns each surviving row into a distinct selectable model (its unique id derives from apiModelId).
-  const addOverride = (o: any): void => {
+  const addOverride = (raw: any): void => {
+    const o = splitOverrideWireId(raw)
     const k = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
     if (seen.has(k)) return
     seen.add(k)

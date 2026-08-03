@@ -25,7 +25,7 @@ export default openaiCompatible({
     models: 'https://platform.moonshot.cn/docs/',
     official: 'https://www.moonshot.cn/'
   },
-  overrides: ['kimi-k2-6', 'kimi-k3'].map((modelId) => ({
+  overrides: ['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
     modelId,
     reasoningContracts: {
       'openai-chat-completions': { wire: effortWire }

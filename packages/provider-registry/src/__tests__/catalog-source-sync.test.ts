@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf } from '../../scripts/canonicalize'
+import { canonOf, splitOverrideWireId } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
@@ -105,8 +105,10 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     const rowByIdentity = new Map(overrides.map((o) => [overrideIdentity(o), o]))
     const problems: string[] = []
     for (const p of PROVIDERS)
-      for (const ov of p.overrides ?? []) {
-        if (!ov.modelId) continue
+      for (const raw of p.overrides ?? []) {
+        if (!raw.modelId) continue
+        // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
+        const ov = splitOverrideWireId(raw as { modelId: string; apiModelId?: string }) as typeof raw
         if (p.modelsDevProvider && !ov.apiModelId && ov.reasoningContracts) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
           if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/reasoning-template`)

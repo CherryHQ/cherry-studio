@@ -5655,9 +5655,16 @@
       }
     },
     {
+      "capabilities": [],
+      "id": "doubao-seed-1-8",
+      "metadata": {},
+      "name": "doubao-seed-1-8",
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
       "contextWindow": 262144,
-      "id": "doubao-seed-2-0-code",
+      "id": "doubao-seed-2-0-code-preview",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 131072,
       "metadata": {},
@@ -20890,5 +20897,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f770d3c3614dd0e2"
+  "version": "bf3f280a5c2a9d00"
 }

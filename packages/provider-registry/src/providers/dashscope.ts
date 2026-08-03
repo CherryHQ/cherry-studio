@@ -119,20 +119,20 @@ const qwenChatModels = [
   'qwen3-14b',
   'qwen3-32b',
   'qwen3-235b-a22b',
-  'qwen3-5-9b',
-  'qwen3-5-27b',
-  'qwen3-5-35b-a3b',
-  'qwen3-5-122b-a10b',
-  'qwen3-5-397b-a17b',
-  'qwen3-5-flash',
-  'qwen3-5-plus',
-  'qwen3-6-27b',
-  'qwen3-6-35b-a3b',
-  'qwen3-6-flash',
-  'qwen3-6-plus',
-  'qwen3-6-max-preview',
-  'qwen3-7-plus',
-  'qwen3-7-max',
+  'qwen3.5-9b',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
+  'qwen3.5-flash',
+  'qwen3.5-plus',
+  'qwen3.6-27b',
+  'qwen3.6-35b-a3b',
+  'qwen3.6-flash',
+  'qwen3.6-plus',
+  'qwen3.6-max-preview',
+  'qwen3.7-plus',
+  'qwen3.7-max',
   'qwen3-max',
   'qwen3-omni-flash',
   'qwen3-vl',
@@ -149,20 +149,20 @@ const responsesModels = new Set([
   'qwen-plus',
   'qwen-flash',
   'qwen-plus-character',
-  'qwen3-5-27b',
-  'qwen3-5-35b-a3b',
-  'qwen3-5-122b-a10b',
-  'qwen3-5-397b-a17b',
-  'qwen3-5-flash',
-  'qwen3-5-plus',
-  'qwen3-6-35b-a3b',
-  'qwen3-6-flash',
-  'qwen3-6-plus',
-  'qwen3-7-plus',
-  'qwen3-7-max',
+  'qwen3.5-27b',
+  'qwen3.5-35b-a3b',
+  'qwen3.5-122b-a10b',
+  'qwen3.5-397b-a17b',
+  'qwen3.5-flash',
+  'qwen3.5-plus',
+  'qwen3.6-35b-a3b',
+  'qwen3.6-flash',
+  'qwen3.6-plus',
+  'qwen3.7-plus',
+  'qwen3.7-max',
   'qwen3-max',
-  'qwen3-8-max',
-  'qwen3-8-max-preview'
+  'qwen3.8-max',
+  'qwen3.8-max-preview'
 ])
 
 /**
@@ -206,7 +206,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     apiModelId: 'qwen3.8-max',
     modelId: 'qwen3-8-max',
     name: 'Qwen3.8 Max',
-    ...endpointPin('qwen3-8-max'),
+    ...endpointPin('qwen3.8-max'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
       'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
@@ -216,7 +216,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     apiModelId: 'qwen3.8-max-preview',
     modelId: 'qwen3-8-max-preview',
     name: 'Qwen3.8 Max Preview',
-    ...endpointPin('qwen3-8-max-preview'),
+    ...endpointPin('qwen3.8-max-preview'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38PreviewSupport, wire: qwen38PreviewChatWire },
       'openai-responses': { support: qwen38PreviewSupport, wire: qwen38PreviewResponsesWire }
@@ -232,7 +232,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
       }
     }
   },
-  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5-1', 'glm-5-2'].map((modelId) => ({
+  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((modelId) => ({
     modelId,
     ...endpointPin(modelId),
     reasoningContracts: {

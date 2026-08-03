@@ -22,30 +22,24 @@ const effortContracts = {
 /** SKUs accepting reasoning_effort on both APIs (Ark's 调节思考长度 support list). */
 const effortModels = [
   'doubao-seed-evolving',
-  'doubao-seed-2-1-pro',
-  'doubao-seed-2-1-turbo',
-  'doubao-seed-2-0-pro',
-  'doubao-seed-2-0-lite',
-  'doubao-seed-2-0-mini',
-  'doubao-seed-2-0-code',
-  'doubao-seed-1-6',
-  'doubao-seed-character',
-  'seed-1-8',
-  'glm-5-2'
+  'doubao-seed-2-1-pro-260628',
+  'doubao-seed-2-1-turbo-260628',
+  'doubao-seed-2-0-pro-260215',
+  'doubao-seed-2-0-lite-260428',
+  'doubao-seed-2-0-mini-260428',
+  'doubao-seed-2-0-code-preview-260215',
+  'doubao-seed-1-6-251015',
+  'doubao-seed-character-260628',
+  'doubao-seed-1-8-251228',
+  'glm-5-2-260617'
 ]
 
 /** Ark defaults reasoning effort to high (not medium) on the flagship SKUs. */
-const highEffortDefaults = new Set(['doubao-seed-evolving', 'doubao-seed-2-1-pro', 'doubao-seed-2-1-turbo'])
-
-/**
- * Ark serves the Seed 2.1 line under dated snapshot ids only — the undated name is not a callable
- * alias (unlike `doubao-seed-evolving`, Ark's own rolling id). Keep the canonical id undated and
- * pin the wire id here, so a new snapshot is a one-line change.
- */
-const datedApiModelIds: Record<string, string> = {
-  'doubao-seed-2-1-pro': 'doubao-seed-2-1-pro-260628',
-  'doubao-seed-2-1-turbo': 'doubao-seed-2-1-turbo-260628'
-}
+const highEffortDefaults = new Set([
+  'doubao-seed-evolving',
+  'doubao-seed-2-1-pro-260628',
+  'doubao-seed-2-1-turbo-260628'
+])
 
 /**
  * thinking.type on/off-only SKUs (no reasoning_effort). The provider-level chat wire below speaks
@@ -54,29 +48,29 @@ const datedApiModelIds: Record<string, string> = {
  * chat replays only the reasoning summary, not encrypted CoT — valid per Ark docs.)
  */
 const chatOnlyToggleModels = [
-  'doubao-seed-1-6-flash',
-  'doubao-seed-1-6-vision',
-  'doubao-seed-code-preview',
-  'glm-4-7',
-  'deepseek-v3-2'
+  'doubao-seed-1-6-flash-250828',
+  'doubao-seed-1-6-vision-250815',
+  'doubao-seed-code-preview-251028',
+  'glm-4-7-251222',
+  'deepseek-v3-2-251201'
 ]
 
 /** deepseek v4 takes reasoning_effort (incl. max) on chat only (responses 待支持) — pin + effort wire. */
-const chatOnlyEffortModels = ['deepseek-v4-pro', 'deepseek-v4-flash']
+const chatOnlyEffortModels = ['deepseek-v4-pro-260425', 'deepseek-v4-flash-260425']
 
 /** Pre-250615 models are not served by /responses at all (docs/82379/1585128) — pin to chat. */
 const legacyChatModels = [
   // doubao-native 1.5 line (doubao-1-5-pro-32k also covers character-250715, explicitly unsupported)
-  'doubao-1-5-thinking-pro',
+  'doubao-1-5-thinking-pro-250415',
   'doubao-1-5-thinking-pro-m',
   'doubao-1-5-thinking-vision-pro',
-  'doubao-1-5-vision-pro',
-  'doubao-1-5-vision-pro-32k',
-  'doubao-1-5-vision-lite',
-  'doubao-1-5-pro-32k',
-  'doubao-1-5-lite-32k',
-  'doubao-1-5-pro-256k',
-  'doubao-1-5-ui-tars',
+  'doubao-1.5-vision-pro-250328',
+  'doubao-1-5-vision-pro-32k-250115',
+  'doubao-1.5-vision-lite-250315',
+  'doubao-1-5-pro-32k-250115',
+  'doubao-1-5-lite-32k-250115',
+  'doubao-1-5-pro-256k-250115',
+  'doubao-1.5-ui-tars-250328',
   // cross-vendor legacy still listed by Ark (normalized keys cover the dated/size variants)
   'deepseek-v3',
   'deepseek-r1',
@@ -89,7 +83,6 @@ const overrides: Partial<ProviderModelOverride>[] = [
   // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
   ...effortModels.map((modelId) => ({
     modelId,
-    ...(datedApiModelIds[modelId] ? { apiModelId: datedApiModelIds[modelId] } : {}),
     endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
     reasoningContracts: highEffortDefaults.has(modelId)
       ? {
