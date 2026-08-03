@@ -62,6 +62,15 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(model('deepseek/deepseek-v3.2'), cherryin)).toBe(false)
   })
 
+  // Ark's wire ids are dated snapshots (`doubao-seed-2-1-pro-260628`), while the catalog keys the
+  // undated canonical — eligibility must survive the date stamp or built-in search vanishes for
+  // exactly the models that carry it.
+  it('stays eligible when the wire id carries an Ark date snapshot', () => {
+    const dated = model('doubao-seed-2-1-pro-260628', { providerId: 'doubao' })
+
+    expect(isBuiltinWebSearchAvailable(dated, provider('model-dependent'))).toBe(true)
+  })
+
   it('keeps provider-wide tools independent from model-dependent eligibility', () => {
     expect(isBuiltinWebSearchAvailable(model('private-model'), provider('all-chat-models'))).toBe(true)
   })

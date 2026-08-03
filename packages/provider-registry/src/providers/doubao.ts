@@ -38,6 +38,16 @@ const effortModels = [
 const highEffortDefaults = new Set(['doubao-seed-evolving', 'doubao-seed-2-1-pro', 'doubao-seed-2-1-turbo'])
 
 /**
+ * Ark serves the Seed 2.1 line under dated snapshot ids only — the undated name is not a callable
+ * alias (unlike `doubao-seed-evolving`, Ark's own rolling id). Keep the canonical id undated and
+ * pin the wire id here, so a new snapshot is a one-line change.
+ */
+const datedApiModelIds: Record<string, string> = {
+  'doubao-seed-2-1-pro': 'doubao-seed-2-1-pro-260628',
+  'doubao-seed-2-1-turbo': 'doubao-seed-2-1-turbo-260628'
+}
+
+/**
  * thinking.type on/off-only SKUs (no reasoning_effort). The provider-level chat wire below speaks
  * thinking.type, but the native openai responses adapter strips unknown providerOptions keys, so the
  * toggle can't reach /responses — pin these to chat-completions where it demonstrably works. (Trade-off:
@@ -79,6 +89,7 @@ const overrides: Partial<ProviderModelOverride>[] = [
   // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
   ...effortModels.map((modelId) => ({
     modelId,
+    ...(datedApiModelIds[modelId] ? { apiModelId: datedApiModelIds[modelId] } : {}),
     endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
     reasoningContracts: highEffortDefaults.has(modelId)
       ? {
