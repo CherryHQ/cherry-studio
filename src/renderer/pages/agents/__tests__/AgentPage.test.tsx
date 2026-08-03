@@ -303,7 +303,8 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
   }
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => agentPageMocks.invalidateCache
 }))
 
