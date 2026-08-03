@@ -199,6 +199,73 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(mockGetModels).not.toHaveBeenCalled()
   })
 
+  it('backfills builtin_role for a legacy built-in agent missing it', async () => {
+    const database = {
+      select: vi.fn(() =>
+        createSelectQuery([
+          {
+            id: 'cherry-assistant-default',
+            deleted_at: null,
+            // Legacy config as stored before role-based injection existed (issue #17726)
+            configuration: JSON.stringify({
+              avatar: '🍒',
+              permission_mode: 'default',
+              max_turns: 100,
+              env_vars: {}
+            })
+          }
+        ])
+      )
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    vi.spyOn(service as never, 'resolveAccessiblePaths').mockReturnValue(['/mock/workspace'] as never)
+    const updateSpy = vi.spyOn(service, 'updateAgent').mockResolvedValue(null as never)
+
+    const result = await service.initBuiltinAgent({
+      id: 'cherry-assistant-default',
+      builtinRole: 'assistant',
+      provisionWorkspace: vi.fn().mockResolvedValue(undefined)
+    })
+
+    expect(result).toEqual({ agentId: 'cherry-assistant-default' })
+    expect(updateSpy).toHaveBeenCalledWith(
+      'cherry-assistant-default',
+      expect.objectContaining({
+        configuration: expect.objectContaining({ builtin_role: 'assistant', avatar: '🍒' })
+      })
+    )
+    expect(mockGetModels).not.toHaveBeenCalled()
+  })
+
+  it('does not rewrite configuration when builtin_role is already present', async () => {
+    const database = {
+      select: vi.fn(() =>
+        createSelectQuery([
+          {
+            id: 'cherry-assistant-default',
+            deleted_at: null,
+            configuration: JSON.stringify({ builtin_role: 'assistant', permission_mode: 'default' })
+          }
+        ])
+      )
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+    vi.spyOn(service as never, 'resolveAccessiblePaths').mockReturnValue(['/mock/workspace'] as never)
+    const updateSpy = vi.spyOn(service, 'updateAgent').mockResolvedValue(null as never)
+
+    const result = await service.initBuiltinAgent({
+      id: 'cherry-assistant-default',
+      builtinRole: 'assistant',
+      // No localized description/instructions and role already set → nothing to update
+      provisionWorkspace: vi.fn().mockResolvedValue(undefined)
+    })
+
+    expect(result).toEqual({ agentId: 'cherry-assistant-default' })
+    expect(updateSpy).not.toHaveBeenCalled()
+  })
+
   it('soft-deletes built-in agents while preserving the row', async () => {
     const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
     const txDelete = vi.fn(() => ({ where: deleteWhere }))
