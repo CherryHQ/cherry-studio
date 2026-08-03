@@ -6,9 +6,9 @@ import { describe, expect, it } from 'vitest'
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
 const TEMPLATE_PATH = path.join(
   ROOT_DIR,
-  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-assistant-guide/SKILL.zh-CN.template.md'
+  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-assistant-guide/skill-zh-cn-template.md'
 )
-const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent.template.json')
+const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent-template.json')
 const SOUL_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/SOUL.md')
 const USER_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/USER.md')
 const MARKETPLACE_PATH = path.join(

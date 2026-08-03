@@ -22,7 +22,7 @@ interface GeneratedOutput {
 }
 
 function serializeAgentTemplate(): string {
-  const templatePath = path.join(AGENT_DIR, 'agent.template.json')
+  const templatePath = path.join(AGENT_DIR, 'agent-template.json')
   const parsed = JSON.parse(fs.readFileSync(templatePath, 'utf-8')) as Record<string, unknown>
   const agent = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith('_')))
   return `${JSON.stringify(agent, null, 2)}\n`
@@ -36,7 +36,7 @@ const baseOutputs: GeneratedOutput[] = [
   {
     path: path.join(AGENT_DIR, '.claude/skills/cherry-assistant-guide/SKILL.md'),
     content: fs.readFileSync(
-      path.join(AGENT_DIR, '.claude/skills/cherry-assistant-guide/SKILL.zh-CN.template.md'),
+      path.join(AGENT_DIR, '.claude/skills/cherry-assistant-guide/skill-zh-cn-template.md'),
       'utf-8'
     )
   },

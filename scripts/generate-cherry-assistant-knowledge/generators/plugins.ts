@@ -6,7 +6,7 @@ import matter from 'gray-matter'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..')
 const AGENT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant')
-const AGENT_TEMPLATE_FILE = path.join(AGENT_DIR, 'agent.template.json')
+const AGENT_TEMPLATE_FILE = path.join(AGENT_DIR, 'agent-template.json')
 const SKILLS_DIR = path.join(AGENT_DIR, '.claude/skills')
 const PLUGIN_MANIFEST_LAST_UPDATED = 1784791029000
 
@@ -36,10 +36,10 @@ export interface BundledPluginsManifest {
 function readBundledSkillNames(): string[] {
   const template = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_FILE, 'utf-8')) as AgentTemplate
   if (!Array.isArray(template.skills) || template.skills.some((skill) => typeof skill !== 'string')) {
-    throw new Error('agent.template.json skills must be a string array')
+    throw new Error('agent-template.json skills must be a string array')
   }
   if (new Set(template.skills).size !== template.skills.length) {
-    throw new Error('agent.template.json skills must be unique')
+    throw new Error('agent-template.json skills must be unique')
   }
   return template.skills
 }

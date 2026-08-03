@@ -12,7 +12,7 @@ const AGENT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant
 
 describe('generateBundledPluginsManifest', () => {
   it('derives every enabled bundled skill from its current files', () => {
-    const template = JSON.parse(fs.readFileSync(path.join(AGENT_DIR, 'agent.template.json'), 'utf-8')) as {
+    const template = JSON.parse(fs.readFileSync(path.join(AGENT_DIR, 'agent-template.json'), 'utf-8')) as {
       skills: string[]
     }
     const manifest = generateBundledPluginsManifest()

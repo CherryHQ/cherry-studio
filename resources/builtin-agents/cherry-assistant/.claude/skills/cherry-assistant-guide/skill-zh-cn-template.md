@@ -6,7 +6,7 @@ description: 从当前安装包查询 Cherry Studio 产品信息。当用户询�
 # Cherry Studio 产品信息查询
 
 <!--
-This file is GENERATED from SKILL.zh-CN.template.md by
+This file is GENERATED from skill-zh-cn-template.md by
 scripts/generate-cherry-assistant-knowledge. Do not edit the output (SKILL.md)
 directly; edit the template instead, then run `pnpm build:builtin-knowledge`.
 -->
