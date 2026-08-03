@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -22,7 +23,12 @@ type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orde
   appId: string
 }
 
-function toMiniApp(input: MiniAppInput): MiniApp {
+/**
+ * Rebuild a keep-alive entry from a raw descriptor. Exported for `MiniAppPage`,
+ * which resolves transient apps from the shared descriptor registry and must apply
+ * the same convention as the window that opened them.
+ */
+export function toTransientMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
@@ -281,7 +287,21 @@ export const useMiniAppPopup = () => {
         return
       }
 
-      const app = toMiniApp(config)
+      const app = toTransientMiniApp(config)
+
+      // A transient app has no database row, so `/app/mini-app/<id>` is unresolvable
+      // anywhere but here. Publish the descriptor to the shared cache so any window —
+      // one this tab is detached into, or this one after the keep-alive LRU evicted the
+      // entry — can still resolve it. Rewritten on every open: the URL carries live
+      // state (the OpenClaw dashboard's gateway token changes per launch).
+      cacheService.setShared(`mini_app.transient_descriptor.${app.appId}` as const, {
+        appId: app.appId,
+        name: app.name,
+        url: app.url,
+        ...(app.logo !== undefined && { logo: app.logo }),
+        ...(app.logoSrc !== undefined && { logoSrc: app.logoSrc })
+      })
+
       const list = keepAliveRef.current
       const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
       if (!wasCached) {

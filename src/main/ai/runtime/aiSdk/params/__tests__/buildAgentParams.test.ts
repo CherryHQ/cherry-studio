@@ -303,6 +303,33 @@ describe('buildAgentParams assistant-less reasoning', () => {
 
     expect(result.options.providerOptions).toBeUndefined()
   })
+
+  it('does not add citation guidance for a same-named Gateway client tool', async () => {
+    const { provider, model } = makeOffCapableSetup()
+    const entry: ToolEntry = {
+      name: 'web_search',
+      namespace: 'web',
+      description: 'first-party search',
+      defer: 'never',
+      tool: {} as Tool
+    }
+    registry.register(entry)
+
+    try {
+      const customTool = {} as Tool
+      const result = await buildAgentParams({
+        request: { callOverrides: { tools: { web_search: customTool } } },
+        signal: undefined,
+        provider,
+        model: { ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+      })
+
+      expect(result.tools?.web_search).toBe(customTool)
+      expect(result.system ?? '').not.toContain('<citations>')
+    } finally {
+      registry.deregister(entry.name)
+    }
+  })
 })
 
 describe('resolveReasoningMaxTokens', () => {
@@ -546,5 +573,39 @@ describe('resolveTools knowledge-base wiring', () => {
     const { tools } = await resolveTools({}, undefined, makeModel(), false, [])
 
     expect(tools?.[KB_GATED_TOOL_NAME]).toBeUndefined()
+  })
+})
+
+describe('resolveTools citation provenance', () => {
+  const tool = {} as Tool
+  const entry: ToolEntry = {
+    name: 'web_search',
+    namespace: 'web',
+    description: 'first-party search',
+    defer: 'never',
+    tool
+  }
+
+  afterEach(() => registry.deregister(entry.name))
+
+  it('reports citation capability for a selected first-party entry', async () => {
+    registry.register(entry)
+    const result = await resolveTools({}, undefined, makeModel(), false, [])
+    expect(result.hasCitableTools).toBe(true)
+  })
+
+  it('does not report citation capability when a Gateway client tool overrides the name', async () => {
+    registry.register(entry)
+    const customTool = {} as Tool
+    const result = await resolveTools(
+      { callOverrides: { tools: { web_search: customTool } } },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(result.tools?.web_search).toBe(customTool)
+    expect(result.hasCitableTools).toBe(false)
   })
 })

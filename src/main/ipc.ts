@@ -8,6 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
@@ -64,7 +65,11 @@ export async function registerIpc() {
 
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    const sessions = [
+      session.defaultSession,
+      session.fromPartition('persist:webview'),
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    ]
 
     try {
       await Promise.all(
@@ -177,10 +182,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
     searchListDirectoryEntries(dirPath, options)

@@ -151,7 +151,8 @@ describe('ChatAppShell', () => {
     const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
-    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0')
+    expect(navbarWrapper).not.toHaveClass('bg-background')
     expect(navbarWrapper).not.toHaveClass('absolute')
     expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))

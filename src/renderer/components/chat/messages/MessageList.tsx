@@ -85,16 +85,19 @@ function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
 
 type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   groupKey: string
+  isLive: boolean
   narrowMode: boolean
 }
 
 function MessageGroupLayer({
   groupKey,
+  isLive,
   narrowMode,
   messages,
   partsByMessageId,
   ...messageGroupProps
 }: MessageGroupLayerProps) {
+  void isLive
   return (
     <PartsProvider value={partsByMessageId ?? null}>
       <NarrowLayout narrowMode={narrowMode} withSidePadding>
@@ -104,27 +107,40 @@ function MessageGroupLayer({
   )
 }
 
+function groupPartsShallowEqual(
+  previous: MessageGroupLayerProps['partsByMessageId'],
+  next: MessageGroupLayerProps['partsByMessageId'],
+  messages: MessageGroupLayerProps['messages']
+): boolean {
+  if (previous === next) return true
+  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+}
+
 /**
- * A sealed history boundary. It deliberately ignores the per-group layout
- * callback identity; the virtual item key guarantees that callback always
- * closes over the same group.
+ * One component identity owns both sealed history and the mutable live tail.
+ * A boundary transition must update a group without remounting its stateful
+ * markdown and code-block descendants.
+ *
+ * Live groups always update. Historical groups compare only their own parts,
+ * so rebuilding the map container does not invalidate unrelated history.
+ * The per-group layout callback identity is deliberately ignored because the
+ * virtual item key guarantees that it closes over the same group.
  */
-const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
+const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
+  if (previous.isLive || next.isLive) return false
   return (
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
     previous.messages === next.messages &&
-    previous.partsByMessageId === next.partsByMessageId &&
+    groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.topic === next.topic &&
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
-    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    previous.messageTail === next.messageTail
   )
 })
-
-/** Mutable tail boundary; only this layer receives per-frame stream snapshots. */
-const MessageLiveLayer = MessageGroupLayer
 
 const MessageList = () => {
   const data = useMessageListData()
@@ -135,7 +151,7 @@ const MessageList = () => {
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
-  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -177,13 +193,9 @@ const MessageList = () => {
     const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
       groupMessages.some((message) => liveMessageIdSet.has(message.id))
     )
-    if (liveIndex >= 0) return liveIndex
-
-    const latestAssistantIndex = latestAssistantGroupKey
-      ? groupedMessages.findIndex(([key]) => key === latestAssistantGroupKey)
-      : -1
-    return latestAssistantIndex >= 0 ? latestAssistantIndex : groupedMessages.length
-  }, [groupedMessages, latestAssistantGroupKey, liveMessageIdSet, liveMessageIds.length, streamingLayers])
+    // Stream status can arrive before its placeholder joins the visible list.
+    return liveIndex >= 0 ? liveIndex : groupedMessages.length
+  }, [groupedMessages, liveMessageIdSet, liveMessageIds.length, streamingLayers])
   const { bindRuntime, copyImage, loadOlder, saveImage } = actions
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -592,11 +604,17 @@ const MessageList = () => {
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
             renderItem={([key, groupMessages], index) => {
+              const groupMessageTail =
+                messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
+                  ? messageTail
+                  : undefined
               const props: MessageGroupLayerProps = {
                 groupKey: key,
+                isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
+                messageTail: groupMessageTail,
                 messages: groupMessages,
                 partsByMessageId:
                   index < firstLiveGroupIndex && streamingLayers
@@ -611,7 +629,7 @@ const MessageList = () => {
                 }
               }
 
-              return index < firstLiveGroupIndex ? <MessageHistoryLayer {...props} /> : <MessageLiveLayer {...props} />
+              return <MessageLayer {...props} />
             }}
             style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
           />
@@ -619,7 +637,7 @@ const MessageList = () => {
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
               style={{ background: 'var(--background)' }}>
-              <LoadingIcon color="color-mix(in oklch, var(--foreground) 66.6667%, transparent)" />
+              <LoadingIcon color="var(--muted-foreground)" />
             </div>
           )}
         </div>

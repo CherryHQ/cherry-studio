@@ -1040,7 +1040,7 @@ Phase 1a ──→ Phase 1b.1 ──→ Phase 1b.2 ──→ Phase 1b.3 ──�
 
 - `FileEntryService` / `FileRefService` CRUD 实现（纯 DB；read 路径完整，write 可保留 stub）
 - `ops/fs.ts` 的 `read` / `stat` / `exists` / `metadata` / `contentHash`（xxhash-128）
-- `ops/path.ts` 的 `resolvePhysicalPath`（已存在）+ `isUnderInternalStorage` guard
+- `ops/path.ts` 的 `resolvePhysicalPath`（已存在）
 - `canonicalizeAbsolutePath` 真实现（`path.resolve` + NFC + trailing-sep strip）+ 8-10 条边界测试（NFC/NFD / trailing / `./a/../a` / Windows `\\` / 盘符大小写）
 - `FileManager.get*` / `read*` / `getMetadata` / `getUrl` / `findByExternalPath` / `ensureExternalEntry`（upsert-only，不写 FS）
 - `internal/content/read.ts` / `internal/content/hash.ts`（含 `*ByPath` 变体）

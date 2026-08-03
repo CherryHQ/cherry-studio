@@ -18,7 +18,6 @@ import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -842,13 +841,8 @@ export class CherryAutonomyTools {
   }
 
   private configCompleteBootstrap() {
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration
-    agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: true } as AgentConfiguration
-    })
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: true } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     logger.info('Bootstrap marked as completed', { agentId: this.agentId })
     return {
@@ -859,13 +853,8 @@ export class CherryAutonomyTools {
   }
 
   private configResetBootstrap() {
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration
-    agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: false } as AgentConfiguration
-    })
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: false } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     logger.info('Bootstrap reset', { agentId: this.agentId })
     return {

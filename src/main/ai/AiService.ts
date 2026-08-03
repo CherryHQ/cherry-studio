@@ -15,6 +15,7 @@ import {
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
+import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
@@ -27,11 +28,11 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { Base64String, UrlString } from '@shared/types/file'
+import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -204,6 +205,14 @@ export interface AiImageRequest extends AiBaseRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /**
+   * Cleanup policy stamped on the generated **output** FileEntries. AiService is
+   * infrastructure — the calling business feature decides the policy
+   * (file-entry-cleanup.md §4.1). It deliberately does NOT reach the job path's
+   * input / mask copies: those are transport scratch owned by the job, not a
+   * caller-visible artifact (see `imageInputEntryParams`).
+   */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -216,13 +225,19 @@ export interface AiImageResult {
  * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
  * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
  * become downloaded url entries. Either way the handler later reads the bytes by id.
+ *
+ * The policy is fixed here, NOT taken from the request: these copies are job-transport
+ * scratch (they exist only to keep bytes out of the size-capped payload and to survive a
+ * restart), never a caller-visible artifact. Their lifetime is already modelled by
+ * `job_file_ref` — pruning the job row cascades the ref and releases them. Letting the
+ * caller's output policy through would leak one copy per job forever whenever it is
+ * `'manual'`: nothing else deletes them (`findCleanupCandidates` skips manual entries and
+ * the orphan sweep only reports them).
  */
-export function imageInputEntryParams(
-  value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
+export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
   return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as UrlString }
+    ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
+    : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
 }
 
 /**
@@ -315,12 +330,17 @@ export class AiService extends BaseService {
     payload: AiToolApprovalRespondRequest,
     senderWc: Electron.WebContents | undefined
   ): Promise<AiToolApprovalRespondResponse> {
-    // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
-      approved: payload.approved,
-      reason: payload.reason,
-      updatedInput: payload.updatedInput
-    })
+    // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
+    // the exact `canUseTool` invocation that issued this approval id.
+    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+      payload.approvalId,
+      {
+        approved: payload.approved,
+        reason: payload.reason,
+        updatedInput: payload.updatedInput
+      },
+      payload.anchorId
+    )
     if (dispatched) return { ok: true }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
@@ -698,17 +718,26 @@ export class AiService extends BaseService {
       })
     }
     const fileManager = application.get('FileManager')
-    const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
+    const files = await Promise.all(
+      dataUrls.map((data) =>
+        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+      )
+    )
 
     return { files }
   }
 
   /**
    * Run an async custom-provider image generation through the job system. The
-   * handler owns submit/poll/download/persist and survives a restart; here we
-   * enqueue, bridge the existing IPC abort signal to job cancellation, and
-   * await the terminal snapshot. Input images / mask are persisted as
-   * FileEntries up front and referenced by id so the payload stays small.
+   * handler owns submit/poll/download/persist; here we enqueue, bridge the
+   * existing IPC abort signal to job cancellation, and await the terminal
+   * snapshot. Input images / mask are persisted as FileEntries up front and
+   * referenced by id so the payload stays small.
+   *
+   * The `await handle.finished` below is the job's ONLY consumer — which is why
+   * the handler declares `recovery: 'abandon'`: a job resumed after a restart
+   * would have nobody to hand its result to. See the handler's doc comment for
+   * what it would take to make results restart-durable.
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
@@ -723,9 +752,6 @@ export class AiService extends BaseService {
     const fileManager = application.get('FileManager')
     const jobManager = application.get('JobManager')
 
-    // Track every temp entry as it is created so a failure anywhere in setup
-    // (a later input download, the mask create, or enqueue itself) cleans up the
-    // entries already made — they aren't in any payload yet, so no handler would.
     const createdEntryIds: string[] = []
     const persistInputImage = async (value: string): Promise<string> => {
       const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
@@ -745,8 +771,8 @@ export class AiService extends BaseService {
       const requestSize = resolveImageRequestSize(structured.size)
 
       // Per-model transport routing, derived from the registry (main hosts it) —
-      // NOT laundered through paramValues. Persisted in the payload so a restart-
-      // resume reaches the right endpoint / response family.
+      // NOT laundered through paramValues. Carried in the payload so the handler
+      // reaches the right endpoint / response family without re-resolving it.
       const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
       const mode = request.mode ?? 'generate'
       const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
@@ -765,9 +791,25 @@ export class AiService extends BaseService {
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
         ...(source && { source }),
-        providerParams
+        providerParams,
+        cleanupPolicy: request.cleanupPolicy
       }
-      handle = jobManager.enqueue('image-generation.generate', payload)
+      // Image generation owns the resource contract for its scratch inputs:
+      // their ids live in `job.input` JSON, which the file cleanup anti-join
+      // cannot see. Persist the job and its file refs in one transaction so a
+      // queued/running job never observes an input reclaimed as unreferenced.
+      handle = application.get('DbService').withWriteTx((tx) => {
+        const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
+        jobService.addFileRefsTx(tx, [
+          ...(inputFileIds ?? []).map((fileEntryId) => ({
+            fileEntryId,
+            sourceId: jobHandle.id,
+            role: 'input' as const
+          })),
+          ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
+        ])
+        return jobHandle
+      })
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
@@ -785,9 +827,6 @@ export class AiService extends BaseService {
       snapshot = await handle.finished
     } finally {
       signal?.removeEventListener('abort', onAbort)
-      // Backstop cleanup (the handler is the primary owner once it runs); also
-      // covers the in-process case where the job is cancelled while still pending.
-      await deleteImageInputEntries(createdEntryIds)
     }
 
     if (snapshot.status === 'completed') {

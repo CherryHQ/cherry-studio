@@ -392,11 +392,12 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime?.wrappedRenderItem(item!, 0).key).toBe('message-a')
   })
 
-  it('enables shift only for renders that prepend existing items', () => {
+  it('enables shift only for renders that add or remove items at the start', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     const initialItems = ['message-a', 'message-b']
     const prependedItems = ['message-old', 'message-a', 'message-b']
-    const appendedItems = ['message-old', 'message-a', 'message-b', 'message-new']
+    const removedFromStartItems = ['message-a', 'message-b']
+    const appendedItems = ['message-a', 'message-b', 'message-new']
     const view = render(<RuntimeProbe items={initialItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
     expect(runtime?.shift).toBe(false)
@@ -409,7 +410,60 @@ describe('useChatVirtualizerRuntime', () => {
 
     expect(runtime?.shift).toBe(false)
 
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(true)
+
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
     view.rerender(<RuntimeProbe items={appendedItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={removedFromStartItems} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+
+    view.rerender(<RuntimeProbe items={['message-first']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not claim shift support for an equal-length sliding window', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    expect(runtime?.shift).toBe(false)
+  })
+
+  it('does not treat mixed removals as a start shift', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    view.rerender(
+      <RuntimeProbe items={['message-b', 'message-c']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
 
     expect(runtime?.shift).toBe(false)
   })

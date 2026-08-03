@@ -1,4 +1,5 @@
-import { atomicWriteIfUnchanged, read as fsRead, stat as fsStat } from '@main/utils/file'
+import { atomicWriteIfUnchanged, read as fsRead, readChunk as fsReadChunk, stat as fsStat } from '@main/utils/file'
+import type { ContentHash } from '@shared/data/types/file'
 import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
 import mime from 'mime'
 
@@ -59,11 +60,33 @@ export async function readByPath(
   throw new Error(`File changed while reading: ${target}`)
 }
 
+/** Read at most `length` bytes from an absolute path without FileEntry coordination. */
+export async function readChunkByPath(
+  target: AbsoluteFilePath,
+  offset: number,
+  length: number
+): Promise<ReadResult<Uint8Array>> {
+  for (let attempt = 0; attempt < CONSISTENT_READ_MAX_ATTEMPTS; attempt += 1) {
+    const beforeStat = await fsStat(target)
+    const before: FileVersion = { mtime: beforeStat.modifiedAt, size: beforeStat.size }
+    const content = await fsReadChunk(target, offset, length)
+    const afterStat = await fsStat(target)
+    const after: FileVersion = { mtime: afterStat.modifiedAt, size: afterStat.size }
+
+    if (isSameVersion(before, after)) {
+      return { content, mime: mime.getType(target) ?? 'application/octet-stream', version: after }
+    }
+  }
+
+  throw new Error(`File changed while reading: ${target}`)
+}
+
 /** Atomically write bytes only when the current on-disk version still matches. */
 export async function writeIfUnchangedByPath(
   target: AbsoluteFilePath,
   data: Uint8Array,
-  expected: FileVersion
+  expected: FileVersion,
+  expectedContentHash?: ContentHash
 ): Promise<FileVersion> {
-  return atomicWriteIfUnchanged(target, data, expected)
+  return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
 }
