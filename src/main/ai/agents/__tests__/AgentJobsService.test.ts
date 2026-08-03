@@ -36,6 +36,9 @@ vi.mock('@application', async () => {
   return mod.mockApplicationFactory()
 })
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 // The real handler pulls in the whole runAgentTask execution chain; the
 // service under test only needs SOME registered handler for 'agent.task'.
 vi.mock('../agentTaskJobHandler', () => ({
@@ -139,6 +142,10 @@ describe('AgentJobsService', () => {
         return {}
       }
     })
+  })
+
+  beforeEach(() => {
+    notifyDataApiDataChangeMock.mockClear()
   })
 
   afterAll(async () => {
@@ -383,6 +390,12 @@ describe('AgentJobsService', () => {
 
       expect(updated?.reuseSession).toBe(false)
       expect(updated?.reuseSessionId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+      ])
     })
 
     // A bound session keeps its own workspace, so without this the user would

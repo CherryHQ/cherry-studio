@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService, writeTaskSessionReuse } from '@data/services/AgentTaskService'
@@ -16,6 +17,15 @@ const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const DEFAULT_TIMEOUT_MINUTES = 2
+
+function publishTaskReadModelChange(taskId: string): void {
+  notifyDataApiDataChange([
+    { endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: [taskId] },
+    { endpoint: '/agents/:agentId/tasks', kind: 'projection' as const, entityIds: [taskId] },
+    { endpoint: '/agent-tasks/:taskId', entityIds: [taskId] },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [taskId] }
+  ])
+}
 
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
   if (a.type !== b.type) return false
@@ -136,6 +146,7 @@ export class AgentJobsService extends BaseService {
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
+    if (reuseChanged || workspaceChanged) publishTaskReadModelChange(taskId)
 
     logger.info('Task updated', { taskId, agentId })
     return agentTaskService.getTask(agentId, taskId)

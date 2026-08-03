@@ -34,13 +34,8 @@ const logger = loggerService.withContext('agentTaskJobHandler')
 const RECENT_TERMINAL_WINDOW = 3
 
 export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
-  /**
-   * 'retry': non-terminal jobs from a previous run are re-pended on startup
-   * so the recovered job dispatches against the latest agent configuration.
-   * This matches the legacy poll-loop semantics where a task missed by a
-   * crash was simply picked up on the next 60s tick.
-   */
-  recovery: 'retry',
+  /** A crashed LLM task is not replay-safe: leave it abandoned for the next scheduled fire. */
+  recovery: 'abandon',
 
   /**
    * Per-agent serialization queue: a single agent never runs two scheduled

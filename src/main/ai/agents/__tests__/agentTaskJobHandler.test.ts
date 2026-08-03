@@ -86,8 +86,8 @@ describe('AgentTaskJobHandler', () => {
   })
 
   describe('metadata', () => {
-    it('declares per-agent queue + concurrency 1 + retry-once policy', () => {
-      expect(agentTaskJobHandler.recovery).toBe('retry')
+    it('declares per-agent queue + concurrency 1 + abandon-on-restart policy', () => {
+      expect(agentTaskJobHandler.recovery).toBe('abandon')
       expect(agentTaskJobHandler.defaultConcurrency).toBe(1)
       expect(agentTaskJobHandler.defaultRetryPolicy).toEqual({
         maxAttempts: 1,

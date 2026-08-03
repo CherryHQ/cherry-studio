@@ -14,8 +14,8 @@
  * automatically only if unbounded growth turns out to bite in practice.
  *
  * Because a sticky session is reachable by the user (the run log links to it),
- * a reusing fire stands down when that session already has a turn in flight —
- * see the gate in `resolveTaskSession`.
+ * a reusing fire stands down when that session already has a turn in flight.
+ * Admission is enforced under the stream manager's per-topic dispatch lock.
  *
  * Either way the session used by a fire is recorded in `job.output.sessionId`
  * for the run log; the reuse pointer is read from the schedule, never from
@@ -23,6 +23,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -100,22 +101,26 @@ function loadReusableSession(sessionId: string, agentId: string) {
 
 /** Bind a newly created session as the schedule's sticky session. */
 function bindReuseSession(scheduleId: string, sessionId: string): void {
-  application.get('DbService').withWriteTx((tx) => {
+  const bound = application.get('DbService').withWriteTx((tx) => {
     const snapshot = jobScheduleService.getByIdTx(tx, scheduleId)
-    if (!snapshot) return
+    if (!snapshot) return false
     // Re-read under the tx: the user may have turned reuse off (which clears
     // the pointer) while this fire was running. Writing here would resurrect it.
-    if (!readTaskSessionReuse(snapshot.metadata).enabled) return
+    if (!readTaskSessionReuse(snapshot.metadata).enabled) return false
     application.get('JobManager').updateJobScheduleTx(tx, scheduleId, {
       metadata: writeTaskSessionReuse(snapshot.metadata, { enabled: true, sessionId })
     })
+    return true
   })
+  if (bound) {
+    notifyDataApiDataChange([
+      { endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: [scheduleId] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection' as const, entityIds: [scheduleId] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [scheduleId] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [scheduleId] }
+    ])
+  }
 }
-
-type TaskSessionResolution =
-  | { kind: 'session'; session: ReturnType<typeof agentSessionService.create> }
-  /** The sticky session has a turn in flight — this fire must stand down. */
-  | { kind: 'busy'; sessionId: string }
 
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
@@ -123,7 +128,8 @@ type TaskSessionResolution =
  * system for regular tasks (the picker defaults there), the validated user
  * workspace for heartbeats.
  *
- * A freshly created session can never be busy, so only the reuse branch gates.
+ * Admission is checked atomically under `startAgentSessionRun`'s topic lock, after this
+ * read-side resolution step, so an interactive turn cannot slip through between check and start.
  */
 function resolveTaskSession(params: {
   reuse: TaskSessionReuse
@@ -131,27 +137,13 @@ function resolveTaskSession(params: {
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
-}): TaskSessionResolution {
+}): ReturnType<typeof agentSessionService.create> {
   const { reuse, scheduleId, agentId, name, workspace } = params
 
   if (reuse.enabled && reuse.sessionId) {
     const existing = loadReusableSession(reuse.sessionId, agentId)
     if (existing) {
-      // Never dispatch onto a session that already has a turn running. The
-      // stream manager would attach this fire's sentinel to the LIVE turn
-      // (AiStreamManager.send injects when `models` is empty), so the job would
-      // settle on someone else's `onDone` and a task timeout would abort THEIR
-      // turn. Reuse is the only way a task can meet a busy session — a user can
-      // open the sticky session from the task's run log and chat in it.
-      //
-      // KNOWN GAP: this check is outside the per-topic dispatch lock, so a
-      // message sent between here and `startAgentSessionRun` still races.
-      // Closing it needs a turn-scoped completion handle from
-      // `startAgentSessionRun` instead of topic-level listeners.
-      if (application.get('AgentSessionRuntimeService').isSessionBusy(existing.id)) {
-        return { kind: 'busy', sessionId: existing.id }
-      }
-      return { kind: 'session', session: existing }
+      return existing
     }
     logger.info('Reuse session unavailable — creating a new one', { scheduleId, sessionId: reuse.sessionId })
   }
@@ -160,7 +152,7 @@ function resolveTaskSession(params: {
   // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a
   // pointer — they simply run in a one-off session.
   if (reuse.enabled && scheduleId) bindReuseSession(scheduleId, session.id)
-  return { kind: 'session', session }
+  return session
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -237,27 +229,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
-  const resolution = resolveTaskSession({
+  let session = resolveTaskSession({
     reuse: readTaskSessionReuse(scheduleSnapshot?.metadata),
     scheduleId,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
   })
-  if (resolution.kind === 'busy') {
-    // Skip, don't fail: `onSettled`'s breaker pauses the whole schedule after
-    // three consecutive failures, and a user chatting in the sticky session
-    // must never disable their own task. The fire is simply forfeited — the
-    // next one runs normally.
-    logger.info('Task skipped — reused session has a turn in flight', {
-      agentId,
-      scheduleId,
-      sessionId: resolution.sessionId
-    })
-    return { sessionId: resolution.sessionId, result: 'Skipped (session busy)' }
-  }
-  const session = resolution.session
-
   // Guards legacy rows and races that data hygiene cannot catch.
   const subscribedChannels = scheduleId
     ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
@@ -281,7 +259,30 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resolveExecution = resolve
     rejectExecution = reject
   })
+  let topicId = buildAgentSessionTopicId(session.id)
   let accumulatedText = ''
+  let completionActive = true
+  const complete = (settle: () => void) => {
+    if (!completionActive) return
+    completionActive = false
+    // `startRuntimeTurn` carries ordinary listeners into a queued successor. Remove this fire's
+    // task/channel listeners synchronously, before the later runtime terminal listener can launch it.
+    for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
+    settle()
+  }
+  const fanOutTerminalToChannels = (invoke: (listener: StreamListener) => void | Promise<void>) => {
+    for (const listener of channelListeners) {
+      if (!listener.isAlive()) continue
+      try {
+        void Promise.resolve(invoke(listener)).catch((error) => {
+          logger.warn('Task channel terminal listener failed', { scheduleId, error })
+        })
+      } catch (error) {
+        logger.warn('Task channel terminal listener threw', { scheduleId, error })
+      }
+    }
+  }
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     onChunk(chunk) {
@@ -290,58 +291,82 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // result was always the `'Completed'` fallback.
       if (chunk.type === 'text-delta') accumulatedText += chunk.delta
     },
-    onDone() {
-      resolveExecution(accumulatedText.trim())
+    onDone(result) {
+      complete(() => resolveExecution(accumulatedText.trim()))
+      fanOutTerminalToChannels((listener) => listener.onDone(result))
     },
-    onPaused() {
+    onPaused(result) {
       if (runSignal.aborted) {
         const reason = runSignal.reason
-        rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+        complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
+        fanOutTerminalToChannels((listener) => listener.onPaused(result))
         return
       }
-      resolveExecution(accumulatedText.trim())
+      complete(() => resolveExecution(accumulatedText.trim()))
+      fanOutTerminalToChannels((listener) => listener.onPaused(result))
     },
     onError(result) {
-      rejectExecution(new Error(result.error.message ?? 'Execution failed'))
+      complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
+      fanOutTerminalToChannels((listener) => listener.onError(result))
     },
-    // Keep `true`: the manager prunes a listener whose `isAlive()` is false BEFORE
-    // firing its terminal callback, so gating on `runSignal` here would make an
-    // aborted run's terminal event never settle `executionDone`. Abort is handled
-    // explicitly via `onRunAbort` below.
-    isAlive: () => true
+    // Terminal dispatch calls this before every event. `complete()` is only reached by that
+    // terminal callback, then removes the listener synchronously before a queued successor starts.
+    isAlive: () => completionActive
   }
 
-  const topicId = buildAgentSessionTopicId(session.id)
   // On JobManager cancel or per-task timeout, stop the upstream run: the execution's
   // own controller never sees `runSignal`, so abort the live stream and settle
   // `executionDone` here — otherwise the handler promise leaks until the JobManager's
   // force-finalize timeout.
   const onRunAbort = () => {
+    if (!completionActive) return
+    completionActive = false
+    for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    application.get('AiStreamManager').removeListener(topicId, sentinel.id)
     const reason = runSignal.reason
     application
       .get('AiStreamManager')
       .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
     rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
   }
-  if (runSignal.aborted) onRunAbort()
-  else runSignal.addEventListener('abort', onRunAbort, { once: true })
-
   let runError: Error | null = null
   let resultText = ''
   try {
-    await startAgentSessionRun({
-      sessionId: session.id,
-      userParts: [{ type: 'text', text: effectivePrompt }],
-      listeners: [sentinel, ...channelListeners],
-      headless: true
-    })
+    let rebound = false
+    while (true) {
+      const started = await startAgentSessionRun({
+        sessionId: session.id,
+        userParts: [{ type: 'text', text: effectivePrompt }],
+        listeners: [sentinel, ...channelListeners],
+        headless: true,
+        requireIdle: { expectedAgentId: agentId }
+      })
+      if (started.mode === 'started') break
+      if (runSignal.aborted) {
+        completionActive = false
+        const reason = runSignal.reason
+        throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
+      }
+      if (started.reason === 'busy') {
+        completionActive = false
+        return { sessionId: session.id, result: 'Skipped (session busy)' }
+      }
+      if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
+      rebound = true
+      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace })
+      topicId = buildAgentSessionTopicId(session.id)
+      if (readTaskSessionReuse(scheduleSnapshot?.metadata).enabled && scheduleId) {
+        bindReuseSession(scheduleId, session.id)
+      }
+    }
+
+    // Do not arm topic-level cancellation before admission. While this call waits for the
+    // dispatch lock, the topic may legitimately belong to a user's live turn; aborting there
+    // would kill exactly the stream that `requireIdle` is meant to stand down from.
+    if (runSignal.aborted) onRunAbort()
+    else runSignal.addEventListener('abort', onRunAbort, { once: true })
 
     resultText = await executionDone
-
-    if (runSignal.aborted) {
-      const reason = runSignal.reason
-      throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
-    }
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
     if (!runSignal.aborted && subscribedChannels.length > 0) {

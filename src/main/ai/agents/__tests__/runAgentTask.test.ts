@@ -15,21 +15,32 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAbort, mockGetAdapter, mockStartRun, mockUpdateJobScheduleTx, mockIsSessionBusy, captured } = vi.hoisted(
-  () => {
-    const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
-    return {
-      mockAbort: vi.fn(),
-      mockGetAdapter: vi.fn(() => undefined),
-      mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
-        captured.listeners = opts.listeners
-      }),
-      mockUpdateJobScheduleTx: vi.fn(),
-      mockIsSessionBusy: vi.fn(() => false),
-      captured
-    }
+const {
+  mockAbort,
+  mockRemoveListener,
+  mockGetAdapter,
+  mockStartRun,
+  mockUpdateJobScheduleTx,
+  mockIsSessionBusy,
+  captured
+} = vi.hoisted(() => {
+  const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
+  return {
+    mockAbort: vi.fn(),
+    mockRemoveListener: vi.fn(),
+    mockGetAdapter: vi.fn(() => undefined),
+    mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
+      captured.listeners = opts.listeners
+      return { mode: 'started' as const }
+    }),
+    mockUpdateJobScheduleTx: vi.fn(),
+    mockIsSessionBusy: vi.fn(() => false),
+    captured
   }
-)
+})
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -37,7 +48,7 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort },
+    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     // Session-reuse binding writes the sticky pointer back onto the schedule row.
     JobManager: { updateJobScheduleTx: mockUpdateJobScheduleTx },
     // Gate that keeps a reusing fire off a session with a live turn.
@@ -207,7 +218,9 @@ describe('runAgentTask', () => {
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
+    mockRemoveListener.mockClear()
     mockGetAdapter.mockClear()
+    notifyDataApiDataChangeMock.mockClear()
     captured.listeners = []
   })
 
@@ -395,6 +408,12 @@ describe('runAgentTask', () => {
       expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', {
         metadata: { reuse: { enabled: true, sessionId: 'sess-new' } }
       })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: ['s1'] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: ['s1'] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: ['s1'] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: ['s1'] }
+      ])
     })
 
     it('continues the bound session on a later fire without creating one', async () => {
@@ -453,10 +472,10 @@ describe('runAgentTask', () => {
     // The sticky session is user-reachable (the run log links to it). Dispatching
     // onto a live turn would attach this fire's sentinel to SOMEONE ELSE's stream:
     // the job would settle on their onDone, and a task timeout would abort their turn.
-    it('stands down without dispatching when the reused session has a turn in flight', async () => {
+    it('stands down when the locked start reports a reused session busy', async () => {
       const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
       vi.mocked(agentSessionService.getById).mockReturnValueOnce(bound)
-      mockIsSessionBusy.mockReturnValue(true)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
 
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
@@ -469,9 +488,7 @@ describe('runAgentTask', () => {
       )
 
       expect(out).toEqual({ sessionId: 'sess-sticky', result: 'Skipped (session busy)' })
-      expect(mockIsSessionBusy).toHaveBeenCalledWith('sess-sticky')
-      // The whole point: no dispatch, and no abort of the live turn.
-      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()
       expect(agentSessionService.create).not.toHaveBeenCalled()
     })
@@ -482,7 +499,7 @@ describe('runAgentTask', () => {
     it('reports a busy skip as a completed run, not a throw', async () => {
       const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
       vi.mocked(agentSessionService.getById).mockReturnValueOnce(bound)
-      mockIsSessionBusy.mockReturnValue(true)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
 
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
@@ -497,17 +514,13 @@ describe('runAgentTask', () => {
       ).resolves.toMatchObject({ result: 'Skipped (session busy)' })
     })
 
-    // A brand-new session cannot have a live turn, so the gate must not block
-    // (or even consult the runtime for) the create path.
-    it('does not gate a freshly created session', async () => {
+    it('starts a freshly created session through the locked require-idle path', async () => {
       vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
       vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
-      mockIsSessionBusy.mockReturnValue(true)
-
       const out = await runToCompletion(REUSE_ON)
 
       expect(out.sessionId).toBe('sess-new')
-      expect(mockIsSessionBusy).not.toHaveBeenCalled()
+      expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
     })
 
     // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a pointer.
@@ -636,6 +649,75 @@ describe('runAgentTask', () => {
 
     await expect(promise).rejects.toThrow('cancelled by manager')
     expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
+  })
+
+  it('does not abort a queued successor after this task terminal listener has settled', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    const controller = new AbortController()
+    mockStartRun.mockImplementationOnce(async (opts) => {
+      opts.listeners[0].onDone({ status: 'completed' } as never)
+      // This models the runtime terminal listener scheduling a successor immediately after the
+      // task listener. A late timeout/cancel must no longer abort the topic.
+      controller.abort(new Error('late timeout'))
+      return { mode: 'started' }
+    })
+
+    await expect(
+      runAgentTask(makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    ).resolves.toEqual({ sessionId: 'sess-new', result: 'Completed' })
+
+    expect(mockAbort).not.toHaveBeenCalled()
+    expect(mockRemoveListener).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'agent-task:s1')
+  })
+
+  it('does not abort a user turn when cancellation lands while idle admission is waiting', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    const controller = new AbortController()
+    let finishAdmission!: () => void
+    mockStartRun.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishAdmission = () => resolve({ mode: 'not-started', reason: 'busy' } as never)
+        })
+    )
+
+    const promise = runAgentTask(
+      makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+    )
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    controller.abort(new Error('cancelled while waiting'))
+    finishAdmission()
+
+    await expect(promise).rejects.toThrow('cancelled while waiting')
+    expect(mockAbort).not.toHaveBeenCalled()
+  })
+
+  it('rebinds once after an ownership race and starts only the replacement session', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create)
+      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-stale' })
+      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-rebound' })
+    mockStartRun
+      .mockResolvedValueOnce({ mode: 'not-started', reason: 'session-invalid' } as never)
+      .mockImplementationOnce(async (opts) => {
+        captured.listeners = opts.listeners
+        return { mode: 'started' }
+      })
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(2))
+    captured.listeners[0].onDone({ status: 'completed' })
+
+    await expect(promise).resolves.toMatchObject({ sessionId: 'sess-rebound' })
+    expect(agentSessionService.create).toHaveBeenCalledTimes(2)
   })
 
   // agents-jobs-5: a non-zero `timeoutMinutes` arms a per-task timeout timer in

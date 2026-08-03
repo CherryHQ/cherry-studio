@@ -9,6 +9,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -19,7 +20,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/t
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
-import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
 function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
@@ -45,7 +46,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    ctx?: DispatchContext
+  ): Promise<PreparedDispatch> {
     if (req.trigger !== 'submit-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
@@ -106,6 +111,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // (the settled stream is terminal-in-grace) while the entry is mid-transition, so trusting it
     // would take the begin branch and clobber the in-flight drain's `currentTurn` / `pendingTurns`.
     if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) {
+      if (ctx?.requireIdle) {
+        throw DataApiErrorFactory.resourceLocked('Agent session', sessionId, 'an active turn')
+      }
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
@@ -160,25 +168,34 @@ export class AgentChatContextProvider implements ChatContextProvider {
     )
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    const savedMessages = agentSessionMessageService.saveMessages({
-      sessionId,
-      messages: [
+    let savedMessages: AgentSessionMessageEntity[]
+    try {
+      savedMessages = agentSessionMessageService.saveMessages(
         {
-          id: userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: userMessageParts }
+          sessionId,
+          messages: [
+            {
+              id: userMessageId,
+              role: 'user',
+              status: 'success',
+              data: { parts: userMessageParts }
+            },
+            {
+              id: assistantMessageId,
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] },
+              modelId: uniqueModelId,
+              messageSnapshot
+            }
+          ]
         },
-        {
-          id: assistantMessageId,
-          role: 'assistant',
-          status: 'pending',
-          data: { parts: [] },
-          modelId: uniqueModelId,
-          messageSnapshot
-        }
-      ]
-    })
+        ctx?.expectedAgentId
+      )
+    } catch (error) {
+      turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
+      throw error
+    }
     // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
     topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
 
