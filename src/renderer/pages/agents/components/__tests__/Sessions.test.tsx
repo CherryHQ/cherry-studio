@@ -349,6 +349,7 @@ const dataApiMocks = vi.hoisted(() => ({
   reorderAgent: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
+  useQuery: vi.fn(),
   mutationOptions: new Map<string, { refresh?: string[] }>(),
   workspaces: [] as Array<{
     id: string
@@ -490,6 +491,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
+    dataApiMocks.useQuery(path, options)
     if (options?.enabled === false) {
       return {
         data: undefined,
@@ -980,6 +982,15 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Project A Workspace' }))
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-a')
+  })
+
+  it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+
+    render(<SessionsForTest dataEnabled={false} />)
+
+    expect(dataApiMocks.useQuery).toHaveBeenCalledWith('/agent-channels', { enabled: false })
+    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
   })
 
   it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {

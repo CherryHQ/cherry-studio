@@ -44,6 +44,7 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
   onAddAgent?: () => void | Promise<void>
@@ -59,6 +60,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  dataEnabled = true,
   historyRecordsActive = false,
   agentSessionsSource,
   onAddAgent,
@@ -89,7 +91,7 @@ export function AgentResourceList({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent')
+  } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const deleteAgent = useDeleteAgent()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })

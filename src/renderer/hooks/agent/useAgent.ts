@@ -12,7 +12,6 @@ import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -21,8 +20,6 @@ import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useAgentTools } from './useAgentTools'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
@@ -47,7 +44,6 @@ export const useDeleteAgent = () => {
   return trigger
 }
 
-export type AgentWithTools = AgentEntity & { tools: Tool[] }
 type UpdateAgentModelInput = {
   agentId: string
   modelId: UniqueModelId
@@ -71,16 +67,13 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
-  const { tools } = useAgentTools(data)
-
-  const agent = useMemo((): AgentWithTools | undefined => {
+  const agent = useMemo((): AgentEntity | undefined => {
     if (!data) return undefined
     return {
       ...data,
-      tools: tools ?? [],
       configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
     }
-  }, [data, tools])
+  }, [data])
 
   const revalidate = useCallback(async () => {
     await refetch()

@@ -65,6 +65,15 @@ describe('group hooks', () => {
     expect(result.current.groups).toEqual([cached])
   })
 
+  it('can defer the group list query for a hidden surface', () => {
+    renderHook(() => useGroups('assistant', { enabled: false }))
+
+    expect(mocks.useQuery).toHaveBeenCalledWith('/groups', {
+      enabled: false,
+      query: { entityType: 'assistant' }
+    })
+  })
+
   it('uses the supplied entity type and refresh targets for mutations', async () => {
     const created = group('11111111-1111-4111-8111-111111111111', 'work')
     mocks.createGroup.mockResolvedValue(created)

@@ -98,15 +98,11 @@ const AgentPage = () => {
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
+  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   // Shared session facts plus exact derived lookups for rails, restore, and placeholder reuse.
   const agentSessionsSource = useAgentSessionsSource()
 
   const { stats: sessionStats, loadSession, loadLatestSession, loadReusableSessions } = agentSessionsSource
-  // First-entry selection resumes the most-recently-active session. A dedicated `lastActivityAt DESC LIMIT 1`
-  // query proves the global latest, so it neither waits for the full session history to paginate in nor
-  // depends on either independently paged `/agent-sessions` stream or its visible ordering.
-  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
-  const isLatestSessionReady = isMessageOnlyView || !isLatestSessionLoading
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -127,7 +123,6 @@ const AgentPage = () => {
   )
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
-  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
@@ -165,6 +160,14 @@ const AgentPage = () => {
     isMessageOnlyView || routeActiveSessionId ? null : cacheService.getPersist('ui.agent.last_used_session_id')
   )
   const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
+  // The global most-recently-active query is the final fallback, not a parallel page dependency. An explicit
+  // route/tab target wins outright; a remembered session gets one chance to resolve before we ask for latest.
+  const shouldLoadLatestSession =
+    !isMessageOnlyView && !routeActiveSessionId && !isResumeSessionLoading && !resumeSession
+  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({
+    enabled: shouldLoadLatestSession
+  })
+  const isLatestSessionReady = !shouldLoadLatestSession || !isLatestSessionLoading
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -217,6 +220,9 @@ const AgentPage = () => {
       ? rightPaneAgentScopeId
       : visibleSessionOwnerScope
   const activeResourceAgentId = selectedAgentScope && selectedAgentScope !== 'unlinked' ? selectedAgentScope : null
+  const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
+  // Start the managed model query before agent details resolve; AgentChat shares the same SWR request.
+  useModelById(visibleAgentFromList?.model)
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -876,6 +882,7 @@ const AgentPage = () => {
     isAgentResourceLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
         activeAgentId={activeResourceAgentId}
+        dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
           setAgentCreateOpen(true)
@@ -897,6 +904,7 @@ const AgentPage = () => {
       <AgentSidePanel
         activeSession={visibleSession}
         activeSessionId={activeSessionId}
+        dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
@@ -923,6 +931,7 @@ const AgentPage = () => {
             <Sessions
               activeSession={visibleSession}
               agentSessionsSource={agentSessionsSource}
+              dataEnabled={sessionPaneOpen}
               presentation="right-panel"
               activeSessionId={activeSessionId}
               agentIdFilter={selectedAgentScope}

@@ -95,11 +95,20 @@ const Chat: FC<Props> = (props) => {
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
-  const { providers } = useProviders(undefined, { enabled: Boolean(activeTopic) })
   const [conversationControlsSnapshot, setConversationControlsSnapshot] =
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  // Provider metadata is only used by the selected-model details popover. A normal single-model
+  // conversation already carries everything its trigger needs on the Model entity itself.
+  const shouldLoadProviders = Boolean(
+    activeTopic &&
+      activeConversationControlsSnapshot &&
+      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
+        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
+        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+  )
+  const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 

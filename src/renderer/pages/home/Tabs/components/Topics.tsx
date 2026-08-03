@@ -146,6 +146,7 @@ interface Props {
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
@@ -240,6 +241,7 @@ export function Topics({
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
+  dataEnabled = true,
   historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
@@ -293,7 +295,7 @@ export function Topics({
   const topicSortBy = isAssistantDisplayMode ? ('orderKey' as const) : ('lastActivityAt' as const)
   const [remoteQuery, setRemoteQuery] = useState('')
   const debouncedRemoteQuery = useDebouncedValue(remoteQuery, TOPIC_SEARCH_DEBOUNCE_MS)
-  const isTopicListEnabled = !isRightPanel || assistantIdFilter !== undefined
+  const isTopicListEnabled = dataEnabled && (!isRightPanel || assistantIdFilter !== undefined)
   const rightPanelOwnerScope = isRightPanel ? (assistantIdFilter === null ? 'unlinked' : assistantIdFilter) : undefined
   const topicStatsQuery = useMemo(
     () => ({
@@ -345,7 +347,7 @@ export function Topics({
     isRefreshing: isAssistantPinsRefreshing,
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
-  } = usePins('assistant')
+  } = usePins('assistant', { enabled: dataEnabled })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const { loadLatestTopic, stats: globalTopicStats } = assistantTopicsSource
@@ -360,7 +362,7 @@ export function Topics({
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError,
     refetch: refetchAssistantGroups
-  } = useGroups('assistant')
+  } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)

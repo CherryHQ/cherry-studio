@@ -45,6 +45,7 @@ const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
   onAddAssistant?: () => void | Promise<void>
@@ -60,6 +61,7 @@ type AssistantResourceListProps = {
 
 export function AssistantResourceList({
   activeAssistantId,
+  dataEnabled = true,
   historyRecordsActive = false,
   assistantTopicsSource,
   onAddAssistant,
@@ -96,14 +98,14 @@ export function AssistantResourceList({
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
-  } = useGroups('assistant')
+  } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
     isRefreshing: isAssistantPinsRefreshing,
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
-  } = usePins('assistant')
+  } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()

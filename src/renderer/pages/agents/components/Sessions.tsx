@@ -135,6 +135,7 @@ type SessionsBaseProps = {
   activeSession?: AgentSessionEntity | null
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: AgentSessionOwnerScope | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -336,6 +337,7 @@ const Sessions = ({
   activeSession,
   activeSessionId,
   agentIdFilter,
+  dataEnabled = true,
   historyRecordsActive,
   onActiveAgentDeleted,
   onAddAgent,
@@ -404,7 +406,7 @@ const Sessions = ({
       rejectPendingActions: rejectPendingAgentSessionImageActions
     })
 
-  const { data: channels } = useQuery('/agent-channels')
+  const { data: channels } = useQuery('/agent-channels', { enabled: dataEnabled })
   const channelTypeMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const ch of channels ?? []) {
@@ -436,7 +438,7 @@ const Sessions = ({
 
   const [remoteQuery, setRemoteQuery] = useState('')
   const debouncedRemoteQuery = useDebouncedValue(remoteQuery, SESSION_SEARCH_DEBOUNCE_MS)
-  const isSessionListEnabled = !isRightPanel || !!agentIdFilter
+  const isSessionListEnabled = dataEnabled && (!isRightPanel || !!agentIdFilter)
   const rightPanelAgentScope = isRightPanel && agentIdFilter ? agentIdFilter : undefined
   const sessionStatsQuery = useMemo(
     () => ({
@@ -491,7 +493,7 @@ const Sessions = ({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent', { enabled: displayMode === 'agent' })
+  } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const { updateSession } = useUpdateSession()

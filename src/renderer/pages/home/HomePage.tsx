@@ -137,11 +137,6 @@ const HomePage: FC = () => {
   // Shared topic facts plus exact derived lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource()
   const { stats: topicStats, loadLatestTopic, loadReusableTopic } = assistantTopicsSource
-  // First-entry selection resumes the most-recently-active topic. A dedicated `lastActivityAt DESC LIMIT 1`
-  // query proves the global latest, so it neither waits for the full topic history to paginate in nor
-  // depends on either independently paged `/topics` stream or its visible ordering.
-  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
-  const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -207,6 +202,19 @@ const HomePage: FC = () => {
       : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
+  // The global most-recently-active query is the final fallback, not a parallel page dependency. An explicit
+  // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve before we ask for it.
+  const shouldLoadLatestTopic =
+    shouldAutoCreateTopic &&
+    !isMessageOnlyView &&
+    !routeActiveTopicId &&
+    !routeAssistantId &&
+    !isResumeTopicLoading &&
+    !resumeApiTopic
+  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({
+    enabled: shouldLoadLatestTopic
+  })
+  const isLatestTopicReady = !shouldLoadLatestTopic || !isLatestTopicLoading
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -344,8 +352,9 @@ const HomePage: FC = () => {
       ? rightPaneAssistantScopeId
       : visibleTopicAssistantScopeId
   const { assistant: visibleAssistant } = useAssistantApiById(activeResourceAssistantId ?? undefined)
-  // Start the managed model query before the chat surface asks for the same model.
-  useModelById(visibleAssistant?.modelId)
+  const visibleAssistantFromList = assistants.find((assistant) => assistant.id === activeResourceAssistantId)
+  // Start the managed model query from the list hint before assistant details resolve; Chat shares the request.
+  useModelById(visibleAssistantFromList?.modelId ?? visibleAssistant?.modelId)
   const topicCountByAssistantId = useMemo(
     () => new Map((topicStats?.byAssistant ?? []).map(({ assistantId, count }) => [assistantId, count])),
     [topicStats?.byAssistant]
@@ -829,6 +838,7 @@ const HomePage: FC = () => {
     isAssistantResourceLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={activeResourceAssistantId}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
@@ -849,6 +859,7 @@ const HomePage: FC = () => {
     ) : (
       <HomeTabs
         activeTopic={visibleTopic}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
         onAddAssistant={() => {
@@ -876,6 +887,7 @@ const HomePage: FC = () => {
           node: (
             <Topics
               assistantTopicsSource={assistantTopicsSource}
+              dataEnabled={topicPaneOpen}
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={activeResourceAssistantId}
