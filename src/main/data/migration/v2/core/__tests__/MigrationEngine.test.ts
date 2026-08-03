@@ -47,8 +47,12 @@ const mockPaths: MigrationPaths = {
   claudeProjectsDir: '/tmp/test-userdata/Data/Agents/.claude/projects',
   agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
+  prereleaseDatabaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
+  prereleaseDecisionFile: '/tmp/test-userdata/prerelease-adoption.pending.json',
+  prereleaseStatusFile: '/tmp/test-userdata/prerelease-adoption.status.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
-  migrationsFolder: '/tmp/test-migrations'
+  migrationsFolder: '/tmp/test-migrations',
+  legacyMigrationsFolder: '/tmp/test-migrations-legacy'
 }
 
 function createTestMigrator(id: string, order: number, events: string[]) {

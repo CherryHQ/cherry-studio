@@ -20,6 +20,7 @@ import {
   pinUserDataPath,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  runPrereleaseAdoption,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
@@ -140,6 +141,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       return quitWithDataLocationError(error)
     }
     logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
+  }
+
+  // A database left behind by a v2.0.0 pre-release must be resolved BEFORE the
+  // engine opens anything: initialize() creates the consolidated-path database,
+  // which would make the pre-release one look like a leftover rather than the
+  // user's only copy. Returns 'continue' untouched on every non-pre-release
+  // install.
+  if ((await runPrereleaseAdoption(paths)) === 'quit') {
+    application.quit()
+    return 'handled'
   }
 
   let needsMigration = false

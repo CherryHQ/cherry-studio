@@ -14,10 +14,37 @@ src/main/data/migration/v2/
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
 ├── migrationDiagnosticBundle.ts # Migration diagnostic ZIP builder
+├── prerelease/        # v2.0.0-alpha/beta database adoption (see below)
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports
 ```
+
+## Pre-release Adoption (`prerelease/`)
+
+Separate from the v1→v2 migration below: this handles a **v2** database left by a
+`v2.0.0-alpha.*` / `v2.0.0-beta.*` install. Those builds kept the database at
+`{userData}/cherrystudio.sqlite` on a 28-step schema chain that the storage
+consolidation (#17553) replaced with one regenerated migration. Without this
+module the first rc launch finds the consolidated path empty, treats the
+still-present v1 sources as an upgrade, and silently re-runs the whole v1→v2
+migration — orphaning everything created since the user installed a pre-release.
+
+`runPrereleaseAdoption()` runs in `v2MigrationGate` **before**
+`migrationEngine.initialize()`, because initialize creates the database at the
+consolidated path and would mask the one still to adopt. It replays the frozen
+chain in `migrations/sqlite-drizzle-legacy/` (foreign keys OFF — see that
+folder's README), rewrites `__drizzle_migrations` to the single row the current
+chain expects, then moves the database and copies the Claude config. When both
+databases hold data — the user already lost the pre-release one to a silent
+re-migration on rc.1–rc.4 — it asks which to keep and renames the other aside.
+Nothing is ever deleted, and a failure stops the boot rather than falling through
+to the rebuild it exists to prevent.
+
+**Throwaway.** Delete `prerelease/`, `migrations/sqlite-drizzle-legacy/`, the
+`electron-builder.yml` extraResources entry, `MigrationPaths.prereleaseDatabaseFile`
+/ `.legacyMigrationsFolder`, and the second probe in `hasValidSqlite` together,
+once pre-release installs are no longer supported.
 
 ## Path Safety — Use `MigrationPaths` (Strict Requirement)
 

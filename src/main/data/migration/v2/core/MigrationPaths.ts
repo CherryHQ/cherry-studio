@@ -27,6 +27,7 @@ const logger = loggerService.withContext('MigrationPaths')
 
 const DB_NAME = 'cherrystudio.sqlite'
 const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
+const LEGACY_MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle-legacy'
 
 /**
  * Pre-computed, frozen path object for the entire migration lifecycle.
@@ -70,6 +71,38 @@ export interface MigrationPaths {
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
 
+  // ── Pre-release (v2.0.0-alpha/beta) adoption source ──
+  //    Deleted together with `../prerelease/`.
+
+  /**
+   * {userData}/cherrystudio.sqlite — where alpha/beta kept the v2 database,
+   * before it moved under Data/. Its presence is what identifies a pre-release
+   * install: v1 never wrote a file here (it used Dexie + electron-store).
+   */
+  readonly prereleaseDatabaseFile: string
+
+  /**
+   * {userData}/prerelease-adoption.pending.json — which database the user chose,
+   * when they made that choice somewhere other than the boot dialog.
+   *
+   * The in-app agent cannot perform the adoption itself: the app is holding the
+   * database open by the time a conversation is possible, and moving it then
+   * would pull the floor out from under every running service. So the agent
+   * writes the decision here and the next boot — this module, before anything
+   * opens a connection — carries it out.
+   */
+  readonly prereleaseDecisionFile: string
+
+  /**
+   * {userData}/prerelease-adoption.status.json — what the in-app agent is
+   * allowed to know about this profile.
+   *
+   * Exists so the agent never needs to browse the profile itself. Listing the
+   * folder would mean granting it the user's whole data directory — database
+   * included — to answer a question the boot already knows the answer to.
+   */
+  readonly prereleaseStatusFile: string
+
   // ── Derived from cherryHome ──
 
   /** {cherryHome}/config/config.json — v1 legacy config file. */
@@ -79,6 +112,12 @@ export interface MigrationPaths {
 
   /** Drizzle migration scripts folder (resolved per app.isPackaged). */
   readonly migrationsFolder: string
+  /**
+   * Frozen alpha/beta drizzle chain, replayed to bring a pre-release database
+   * up to the point where the current chain can take over. Deleted together
+   * with `../prerelease/`.
+   */
+  readonly legacyMigrationsFolder: string
 }
 
 export interface MigrationPathsResult {
@@ -229,10 +268,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
     agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
+    prereleaseDatabaseFile: path.join(currentUserData, DB_NAME),
+    prereleaseDecisionFile: path.join(currentUserData, 'prerelease-adoption.pending.json'),
+    prereleaseStatusFile: path.join(currentUserData, 'prerelease-adoption.status.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
-      : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
+      : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH),
+    legacyMigrationsFolder: app.isPackaged
+      ? path.join(process.resourcesPath, LEGACY_MIGRATIONS_BASE_PATH)
+      : path.join(__dirname, '../../', LEGACY_MIGRATIONS_BASE_PATH)
   })
 
   // legacyDataConfirmed is a PURE property of the FINAL userData — not a
@@ -472,8 +517,16 @@ function configHasKeys(configFile: string): boolean {
  * delete the file moments later — locking migration on the empty default.
  */
 function hasValidSqlite(dir: string): boolean {
+  // Both layouts count as already-V2-ized. Data/ is where the database lives
+  // today; the bare root is where alpha/beta kept it, and such a directory must
+  // not be abandoned for a fuzzy v1 guess either — `../prerelease/` adopts it a
+  // few steps later. Drop the second probe together with that module.
+  return isNonEmptyFile(path.join(dir, 'Data', DB_NAME)) || isNonEmptyFile(path.join(dir, DB_NAME))
+}
+
+function isNonEmptyFile(file: string): boolean {
   try {
-    const stat = fs.statSync(path.join(dir, 'Data', DB_NAME))
+    const stat = fs.statSync(file)
     return stat.isFile() && stat.size > 0
   } catch {
     return false

@@ -47,6 +47,8 @@ const setDataLocationNoticeMock = vi.fn()
 const pinUserDataPathMock = vi.fn()
 const evaluateCandidateVersionMock = vi.fn()
 const getBlockMessageMock = vi.fn()
+/** Defaults to the no-pre-release verdict; the gate must be unchanged by it. */
+const runPrereleaseAdoptionMock = vi.fn().mockResolvedValue('continue')
 
 const defaultMigrationPaths = {
   userData: '/mock/userData',
@@ -90,6 +92,7 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
+      runPrereleaseAdoption: runPrereleaseAdoptionMock,
       isSchemaOutOfSyncError
     }
   })
@@ -158,6 +161,7 @@ beforeEach(() => {
   pinUserDataPathMock.mockReset()
   evaluateCandidateVersionMock.mockReset()
   getBlockMessageMock.mockReset()
+  runPrereleaseAdoptionMock.mockReset().mockResolvedValue('continue')
 })
 
 afterEach(() => {
@@ -199,6 +203,42 @@ describe('runV2MigrationGate', () => {
       expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false)
       expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
       expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
+    })
+  })
+
+  describe('pre-release adoption', () => {
+    it('resolves the pre-release database before the engine opens anything', async () => {
+      needsMigrationMock.mockResolvedValue(false)
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      expect(runPrereleaseAdoptionMock).toHaveBeenCalledWith(defaultMigrationPaths)
+      // Ordering is the whole point: initialize() creates the database at the
+      // consolidated path, which would mask a pre-release one still to adopt.
+      expect(runPrereleaseAdoptionMock.mock.invocationCallOrder[0]).toBeLessThan(
+        initializeMock.mock.invocationCallOrder[0]
+      )
+    })
+
+    it("quits without starting the engine when adoption returns 'quit'", async () => {
+      runPrereleaseAdoptionMock.mockResolvedValue('quit')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      // Falling through would re-run the silent v1 re-migration adoption exists
+      // to prevent, on top of a database the user has not chosen.
+      expect(initializeMock).not.toHaveBeenCalled()
+      expect(needsMigrationMock).not.toHaveBeenCalled()
     })
   })
 
