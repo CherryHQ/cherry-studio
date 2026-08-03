@@ -20,14 +20,16 @@ const {
   mockResolveRequestContextSettings,
   mockSummarizeModelMessages,
   mockCompactModelMessages,
-  mockGetAssistantById
+  mockGetAssistantById,
+  mockFindFileEntryById
 } = vi.hoisted(() => ({
   mockGetPathToNode: vi.fn(),
   mockSetCompactionSummary: vi.fn(),
   mockResolveRequestContextSettings: vi.fn(),
   mockSummarizeModelMessages: vi.fn(),
   mockCompactModelMessages: vi.fn(),
-  mockGetAssistantById: vi.fn()
+  mockGetAssistantById: vi.fn(),
+  mockFindFileEntryById: vi.fn()
 }))
 
 // The provider reads assistant.settings.contextSettings for the P2-D override.
@@ -35,6 +37,14 @@ const {
 // the passthrough test overrides it).
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: { getById: mockGetAssistantById }
+}))
+
+// collectPersistedOutputPaths' ownership gate (resolveOwnedBlobPath) verifies the
+// blob's entry is an owned tool-output blob before serving its path — otherwise it
+// skips the path. Default to a valid owned tool-output blob entry so persisted
+// outputs reach the allow-list; foreign/missing cases aren't exercised here.
+vi.mock('@data/services/FileEntryService', () => ({
+  fileEntryService: { findById: mockFindFileEntryById }
 }))
 
 // Mock messageService at the source path used by the provider.
@@ -226,6 +236,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     mockGetAssistantById.mockImplementation(() => {
       throw new Error('NOT_FOUND')
     })
+    // Owned tool-output blob entry → passes resolveOwnedBlobPath's isToolOutputBlobEntry gate.
+    mockFindFileEntryById.mockReturnValue({ origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' })
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {
