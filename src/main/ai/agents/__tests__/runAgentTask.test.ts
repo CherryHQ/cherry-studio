@@ -3,7 +3,8 @@
  * Claude Code subprocess (heartbeat skip + agent-not-found). The full
  * streaming path is exercised by integration tests / Phase 5 manual e2e.
  *
- * Each fire creates a fresh session — there is no cross-fire session reuse.
+ * Each fire creates a fresh session unless the task opts into `reuseSession`,
+ * whose sticky-pointer branches are covered in the 'session reuse' block.
  */
 
 import type { JobContext } from '@main/core/job/types'
@@ -14,7 +15,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAbort, mockGetAdapter, mockStartRun, captured } = vi.hoisted(() => {
+const { mockAbort, mockGetAdapter, mockStartRun, mockUpdateJobScheduleTx, captured } = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
   return {
     mockAbort: vi.fn(),
@@ -22,6 +23,7 @@ const { mockAbort, mockGetAdapter, mockStartRun, captured } = vi.hoisted(() => {
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
     }),
+    mockUpdateJobScheduleTx: vi.fn(),
     captured
   }
 })
@@ -32,7 +34,9 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort }
+    AiStreamManager: { abort: mockAbort },
+    // Session-reuse binding writes the sticky pointer back onto the schedule row.
+    JobManager: { updateJobScheduleTx: mockUpdateJobScheduleTx }
   } as never)
 })
 
@@ -47,13 +51,13 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { create: vi.fn() }
+  agentSessionService: { create: vi.fn(), getById: vi.fn() }
 }))
 vi.mock('@data/services/AgentWorkspaceService', () => ({
   agentWorkspaceService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
   jobService: { getById: vi.fn() }
@@ -166,7 +170,7 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
   } as AgentSessionEntity
 }
 
-function makeSchedule(name: string | null = 'heartbeat') {
+function makeSchedule(name: string | null = 'heartbeat', metadata: Record<string, unknown> = {}) {
   return {
     id: 's1',
     type: 'agent.task',
@@ -177,7 +181,7 @@ function makeSchedule(name: string | null = 'heartbeat') {
     nextRun: null,
     lastRun: null,
     catchUpPolicy: { kind: 'skip-missed' },
-    metadata: {},
+    metadata,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z'
   } as never
@@ -189,6 +193,9 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
+    vi.mocked(agentSessionService.getById).mockReset()
+    vi.mocked(jobScheduleService.getByIdTx).mockReset()
+    mockUpdateJobScheduleTx.mockReset()
     vi.mocked(agentWorkspaceService.getById).mockReset()
     vi.mocked(readHeartbeat).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
@@ -342,6 +349,115 @@ describe('runAgentTask', () => {
       agentId: 'a1',
       name: 'daily-summary',
       workspace: { type: 'system' }
+    })
+  })
+
+  describe('session reuse', () => {
+    const REUSE_ON = { reuse: { enabled: true, sessionId: null } }
+
+    /** Drive one fire of a non-heartbeat task to completion. */
+    async function runToCompletion(scheduleMetadata: Record<string, unknown>) {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', scheduleMetadata))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      return await promise
+    }
+
+    it('creates a fresh session per fire and writes no pointer when reuse is off', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion({})
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(agentSessionService.getById).not.toHaveBeenCalled()
+      expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    })
+
+    it('binds the created session onto the schedule on the first reusing fire', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', {
+        metadata: { reuse: { enabled: true, sessionId: 'sess-new' } }
+      })
+    })
+
+    it('continues the bound session on a later fire without creating one', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getById).mockReturnValueOnce(bound)
+
+      const out = await runToCompletion({ reuse: { enabled: true, sessionId: 'sess-sticky' } })
+
+      expect(out.sessionId).toBe('sess-sticky')
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      // Already bound — no pointer rewrite.
+      expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    })
+
+    // Deleting the session must not break the schedule: the fire rebinds a new one.
+    it('rebinds when the bound session was deleted', async () => {
+      vi.mocked(agentSessionService.getById).mockImplementationOnce(() => {
+        throw DataApiErrorFactory.notFound('Session', 'sess-gone')
+      })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+
+      const out = await runToCompletion({ reuse: { enabled: true, sessionId: 'sess-gone' } })
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', {
+        metadata: { reuse: { enabled: true, sessionId: 'sess-new' } }
+      })
+    })
+
+    it('refuses to resume a session owned by another agent', async () => {
+      vi.mocked(agentSessionService.getById).mockReturnValueOnce({ ...makeSession('/ws/a'), agentId: 'a2' })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+
+      const out = await runToCompletion({ reuse: { enabled: true, sessionId: 'sess-foreign' } })
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(agentSessionService.create).toHaveBeenCalled()
+    })
+
+    // The user can flip reuse off mid-fire; that clears the pointer, and the
+    // in-flight fire must not resurrect it.
+    it('skips the pointer write when reuse was turned off during the fire', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: false, sessionId: null } })
+      )
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    })
+
+    // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a pointer.
+    it('does not attempt a pointer write for a schedule-less job', async () => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot(null))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const promise = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await promise
+
+      expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     })
   })
 

@@ -758,6 +758,12 @@
         "placeholder": "What should the agent do when this task runs?"
       },
       "resume": "Resume",
+      "reuseSession": {
+        "description": "Continue every run in the same session instead of starting a new one.",
+        "label": "Reuse session",
+        "pending": "Waiting for the first run",
+        "warning": "A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. Toggle it off and on again to rebind a clean session."
+      },
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",

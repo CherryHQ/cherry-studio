@@ -80,6 +80,10 @@ async execute(ctx: JobContext<RemotePollInput>): Promise<RemoteResult> {
 
 Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without signal (delays cancellation by up to N ms).
 
+### Job metadata vs schedule metadata
+
+`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). State that must survive across fires belongs on the **schedule** row's own `metadata` column instead — read it from the snapshot the handler already fetched, and write it back with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s session-reuse pointer (`metadata.reuse`, see `runAgentTask`) is the reference example. Keep such state out of `jobInputTemplate`: that is command-owned input, and writing to it collides with the owning service's template diffing and re-arm logic.
+
 ## Settled event (`onSettled`)
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:

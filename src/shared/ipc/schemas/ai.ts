@@ -71,6 +71,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. Turning it off clears the bound session, so toggling
+   * off→on is also the way to start a clean conversation.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>

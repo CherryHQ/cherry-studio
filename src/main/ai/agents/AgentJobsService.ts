@@ -1,7 +1,8 @@
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, writeTaskSessionReuse } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
@@ -51,6 +52,9 @@ export class AgentJobsService extends BaseService {
           timeoutMinutes: form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES),
           workspace: form.workspace
         },
+        // Reuse state lives in `metadata`, never in the template — see
+        // `TaskSessionReuse`. A fresh schedule has no session bound yet.
+        metadata: writeTaskSessionReuse(undefined, { enabled: form.reuseSession === true, sessionId: null }),
         catchUpPolicy: { kind: 'skip-missed' }
       })
       if (channelIds.length > 0) {
@@ -96,8 +100,21 @@ export class AgentJobsService extends BaseService {
       }
     }
 
+    const reuseChanged = patch.reuseSession !== undefined && patch.reuseSession !== existing.reuseSession
+
     const jobManager = application.get('JobManager')
     application.get('DbService').withWriteTx((tx) => {
+      if (reuseChanged) {
+        // Read-merge-write inside the tx: `updateTx` replaces `metadata`
+        // wholesale, and a fire may be writing `reuse.sessionId` concurrently.
+        // Either direction clears the bound session — so toggling off→on is
+        // also how a user starts a clean conversation.
+        const snapshot = jobScheduleService.getByIdTx(tx, taskId)
+        schedulePatch.metadata = writeTaskSessionReuse(snapshot?.metadata, {
+          enabled: patch.reuseSession === true,
+          sessionId: null
+        })
+      }
       jobManager.updateJobScheduleTx(tx, taskId, schedulePatch)
       if (patch.channelIds !== undefined) {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)

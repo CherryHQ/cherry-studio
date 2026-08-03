@@ -42,6 +42,44 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   }
 }
 
+/**
+ * Session-reuse state for an `agent.task` schedule. Lives in the schedule row's
+ * generic `metadata` JSON column (not `jobInputTemplate`) for two reasons: it is
+ * schedule state rather than handler input, so it stays clear of
+ * `AgentJobsService.updateTask`'s template diff / re-arm logic; and `sessionId`
+ * is written by the handler at fire time, which has no business mutating the
+ * input template.
+ */
+export type TaskSessionReuse = {
+  enabled: boolean
+  /** Sticky session bound on the first fire after `enabled` flips on. */
+  sessionId: string | null
+}
+
+const TASK_REUSE_METADATA_KEY = 'reuse'
+
+export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
+  const raw = metadata?.[TASK_REUSE_METADATA_KEY]
+  if (typeof raw !== 'object' || raw === null) return { enabled: false, sessionId: null }
+  const reuse = raw as Partial<TaskSessionReuse>
+  return {
+    enabled: reuse.enabled === true,
+    sessionId: typeof reuse.sessionId === 'string' ? reuse.sessionId : null
+  }
+}
+
+/**
+ * Merge reuse state back into the full metadata record. Callers must pass the
+ * row's current metadata — `JobScheduleService.update` replaces the column
+ * wholesale, so a partial write would drop unrelated keys.
+ */
+export function writeTaskSessionReuse(
+  metadata: Record<string, unknown> | undefined,
+  reuse: TaskSessionReuse
+): Record<string, unknown> {
+  return { ...metadata, [TASK_REUSE_METADATA_KEY]: reuse }
+}
+
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
   if (!snapshot.enabled) return 'paused'
   if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
@@ -138,6 +176,7 @@ export class AgentTaskService {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
     }
     const channelRows = agentChannelService.getSubscribedChannels(snapshot.id)
+    const reuse = readTaskSessionReuse(snapshot.metadata)
     return {
       id: snapshot.id,
       agentId: tmpl.agentId,
@@ -149,6 +188,8 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      reuseSession: reuse.enabled,
+      reuseSessionId: reuse.sessionId,
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,

@@ -35,6 +35,8 @@ const taskDataMock = vi.hoisted(() => {
     trigger: { kind: 'interval' as const, ms: 60_000 },
     timeoutMinutes: 10,
     workspace: { type: 'system' as const },
+    reuseSession: false,
+    reuseSessionId: null,
     channelIds: [] as string[],
     nextRun: null,
     lastRun: null,

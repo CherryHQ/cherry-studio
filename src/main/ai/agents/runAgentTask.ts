@@ -1,19 +1,28 @@
 /**
  * Business logic for `agent.task` jobs — owned by `agentTaskJobHandler`.
  *
- * Each fire creates a fresh agent session. Per-fire sessions are recorded in
- * `job.output.sessionId` for audit only — there is no cross-fire session
- * reuse pointer on the schedule. Scheduled tasks are discrete background
- * invocations (heartbeat, periodic summary, polling), not conversations, so
- * carrying context across fires would only stuff the model's window with
- * stale state. Persistent agent memory belongs in workspace files
+ * By default each fire creates a fresh agent session: scheduled tasks are
+ * discrete background invocations (heartbeat, periodic summary, polling), not
+ * conversations, so carrying context across fires would only stuff the model's
+ * window with stale state. Persistent agent memory belongs in workspace files
  * (`heartbeat.md`, agent memory) instead of session history.
+ *
+ * A task may opt into `reuseSession`, which binds one sticky session on the
+ * schedule (`metadata.reuse`, see `TaskSessionReuse`) and continues it on every
+ * fire. That session grows unbounded by design — the user's escape hatch is
+ * toggling reuse off and on again, which rebinds a clean session. Rotate
+ * automatically only if unbounded growth turns out to bite in practice.
+ *
+ * Either way the session used by a fire is recorded in `job.output.sessionId`
+ * for the run log; the reuse pointer is read from the schedule, never from
+ * there (job rows are GC'd).
  */
 
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { readTaskSessionReuse, type TaskSessionReuse, writeTaskSessionReuse } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -38,8 +47,9 @@ export type AgentTaskInput = {
 }
 
 export type AgentTaskOutput = {
-  /** Session created for this fire. Persisted to `jobTable.output` purely as
-   *  an audit trail — the task scheduler never reads this back for continuity. */
+  /** Session this fire ran in — created fresh, or the sticky one under
+   *  `reuseSession`. Persisted to `jobTable.output` purely as an audit trail;
+   *  continuity is driven by the schedule's reuse pointer, never by this. */
   sessionId: string | null
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
@@ -62,6 +72,68 @@ function makeRunSignal(
   )
   const signal = AbortSignal.any([outerSignal, timeoutController.signal])
   return { signal, dispose: () => clearTimeout(timer) }
+}
+
+/**
+ * Load the sticky session for a reusing task, or `null` when it can no longer
+ * be used — deleted, or (defensively) re-owned by a different agent. Callers
+ * treat `null` as "rebind a fresh one" rather than an error: a user deleting
+ * the session must not break the schedule.
+ */
+function loadReusableSession(sessionId: string, agentId: string) {
+  try {
+    const session = agentSessionService.getById(sessionId)
+    if (session.agentId !== agentId) {
+      logger.warn('Reuse session belongs to another agent — rebinding', { sessionId, agentId })
+      return null
+    }
+    return session
+  } catch (error) {
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
+    throw error
+  }
+}
+
+/** Bind a newly created session as the schedule's sticky session. */
+function bindReuseSession(scheduleId: string, sessionId: string): void {
+  application.get('DbService').withWriteTx((tx) => {
+    const snapshot = jobScheduleService.getByIdTx(tx, scheduleId)
+    if (!snapshot) return
+    // Re-read under the tx: the user may have turned reuse off (which clears
+    // the pointer) while this fire was running. Writing here would resurrect it.
+    if (!readTaskSessionReuse(snapshot.metadata).enabled) return
+    application.get('JobManager').updateJobScheduleTx(tx, scheduleId, {
+      metadata: writeTaskSessionReuse(snapshot.metadata, { enabled: true, sessionId })
+    })
+  })
+}
+
+/**
+ * Resolve the session this fire runs in. A reused session keeps its own
+ * workspace, so the task's `workspace` field only applies when creating one —
+ * system for regular tasks (the picker defaults there), the validated user
+ * workspace for heartbeats.
+ */
+function resolveTaskSession(params: {
+  reuse: TaskSessionReuse
+  scheduleId: string | null
+  agentId: string
+  name: string
+  workspace: AgentSessionWorkspaceSource
+}) {
+  const { reuse, scheduleId, agentId, name, workspace } = params
+
+  if (reuse.enabled && reuse.sessionId) {
+    const existing = loadReusableSession(reuse.sessionId, agentId)
+    if (existing) return existing
+    logger.info('Reuse session unavailable — creating a new one', { scheduleId, sessionId: reuse.sessionId })
+  }
+
+  const session = agentSessionService.create({ agentId, name, workspace })
+  // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a
+  // pointer — they simply run in a one-off session.
+  if (reuse.enabled && scheduleId) bindReuseSession(scheduleId, session.id)
+  return session
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -138,13 +210,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
-  // Always create a fresh session per fire. Scheduled tasks are discrete
-  // invocations; cross-fire session reuse would only carry stale model
-  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  // The session inherits the workspace bound on the task at creation time —
-  // system for regular tasks (the picker defaults there), the validated user
-  // workspace for heartbeats.
-  const session = agentSessionService.create({
+  const session = resolveTaskSession({
+    reuse: readTaskSessionReuse(scheduleSnapshot?.metadata),
+    scheduleId,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
