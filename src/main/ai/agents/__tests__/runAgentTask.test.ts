@@ -15,18 +15,21 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAbort, mockGetAdapter, mockStartRun, mockUpdateJobScheduleTx, captured } = vi.hoisted(() => {
-  const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
-  return {
-    mockAbort: vi.fn(),
-    mockGetAdapter: vi.fn(() => undefined),
-    mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
-      captured.listeners = opts.listeners
-    }),
-    mockUpdateJobScheduleTx: vi.fn(),
-    captured
+const { mockAbort, mockGetAdapter, mockStartRun, mockUpdateJobScheduleTx, mockIsSessionBusy, captured } = vi.hoisted(
+  () => {
+    const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
+    return {
+      mockAbort: vi.fn(),
+      mockGetAdapter: vi.fn(() => undefined),
+      mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
+        captured.listeners = opts.listeners
+      }),
+      mockUpdateJobScheduleTx: vi.fn(),
+      mockIsSessionBusy: vi.fn(() => false),
+      captured
+    }
   }
-})
+)
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -36,7 +39,9 @@ vi.mock('@application', async () => {
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort },
     // Session-reuse binding writes the sticky pointer back onto the schedule row.
-    JobManager: { updateJobScheduleTx: mockUpdateJobScheduleTx }
+    JobManager: { updateJobScheduleTx: mockUpdateJobScheduleTx },
+    // Gate that keeps a reusing fire off a session with a live turn.
+    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy }
   } as never)
 })
 
@@ -196,6 +201,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentSessionService.getById).mockReset()
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockUpdateJobScheduleTx.mockReset()
+    mockIsSessionBusy.mockReset().mockReturnValue(false)
     vi.mocked(agentWorkspaceService.getById).mockReset()
     vi.mocked(readHeartbeat).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
@@ -442,6 +448,66 @@ describe('runAgentTask', () => {
 
       expect(out.sessionId).toBe('sess-new')
       expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    })
+
+    // The sticky session is user-reachable (the run log links to it). Dispatching
+    // onto a live turn would attach this fire's sentinel to SOMEONE ELSE's stream:
+    // the job would settle on their onDone, and a task timeout would abort their turn.
+    it('stands down without dispatching when the reused session has a turn in flight', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getById).mockReturnValueOnce(bound)
+      mockIsSessionBusy.mockReturnValue(true)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: true, sessionId: 'sess-sticky' } })
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      const out = await runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+
+      expect(out).toEqual({ sessionId: 'sess-sticky', result: 'Skipped (session busy)' })
+      expect(mockIsSessionBusy).toHaveBeenCalledWith('sess-sticky')
+      // The whole point: no dispatch, and no abort of the live turn.
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(mockAbort).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+    })
+
+    // Skipping must not look like a failure: agentTaskJobHandler.onSettled pauses
+    // the schedule after three consecutive failed runs, so a user chatting in the
+    // sticky session could otherwise disable their own task.
+    it('reports a busy skip as a completed run, not a throw', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getById).mockReturnValueOnce(bound)
+      mockIsSessionBusy.mockReturnValue(true)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: true, sessionId: 'sess-sticky' } })
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      await expect(
+        runAgentTask(
+          makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+        )
+      ).resolves.toMatchObject({ result: 'Skipped (session busy)' })
+    })
+
+    // A brand-new session cannot have a live turn, so the gate must not block
+    // (or even consult the runtime for) the create path.
+    it('does not gate a freshly created session', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(jobScheduleService.getByIdTx).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      mockIsSessionBusy.mockReturnValue(true)
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockIsSessionBusy).not.toHaveBeenCalled()
     })
 
     // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a pointer.

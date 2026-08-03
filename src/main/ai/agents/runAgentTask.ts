@@ -13,6 +13,10 @@
  * toggling reuse off and on again, which rebinds a clean session. Rotate
  * automatically only if unbounded growth turns out to bite in practice.
  *
+ * Because a sticky session is reachable by the user (the run log links to it),
+ * a reusing fire stands down when that session already has a turn in flight —
+ * see the gate in `resolveTaskSession`.
+ *
  * Either way the session used by a fire is recorded in `job.output.sessionId`
  * for the run log; the reuse pointer is read from the schedule, never from
  * there (job rows are GC'd).
@@ -108,11 +112,18 @@ function bindReuseSession(scheduleId: string, sessionId: string): void {
   })
 }
 
+type TaskSessionResolution =
+  | { kind: 'session'; session: ReturnType<typeof agentSessionService.create> }
+  /** The sticky session has a turn in flight — this fire must stand down. */
+  | { kind: 'busy'; sessionId: string }
+
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
  * workspace, so the task's `workspace` field only applies when creating one —
  * system for regular tasks (the picker defaults there), the validated user
  * workspace for heartbeats.
+ *
+ * A freshly created session can never be busy, so only the reuse branch gates.
  */
 function resolveTaskSession(params: {
   reuse: TaskSessionReuse
@@ -120,12 +131,28 @@ function resolveTaskSession(params: {
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
-}) {
+}): TaskSessionResolution {
   const { reuse, scheduleId, agentId, name, workspace } = params
 
   if (reuse.enabled && reuse.sessionId) {
     const existing = loadReusableSession(reuse.sessionId, agentId)
-    if (existing) return existing
+    if (existing) {
+      // Never dispatch onto a session that already has a turn running. The
+      // stream manager would attach this fire's sentinel to the LIVE turn
+      // (AiStreamManager.send injects when `models` is empty), so the job would
+      // settle on someone else's `onDone` and a task timeout would abort THEIR
+      // turn. Reuse is the only way a task can meet a busy session — a user can
+      // open the sticky session from the task's run log and chat in it.
+      //
+      // KNOWN GAP: this check is outside the per-topic dispatch lock, so a
+      // message sent between here and `startAgentSessionRun` still races.
+      // Closing it needs a turn-scoped completion handle from
+      // `startAgentSessionRun` instead of topic-level listeners.
+      if (application.get('AgentSessionRuntimeService').isSessionBusy(existing.id)) {
+        return { kind: 'busy', sessionId: existing.id }
+      }
+      return { kind: 'session', session: existing }
+    }
     logger.info('Reuse session unavailable — creating a new one', { scheduleId, sessionId: reuse.sessionId })
   }
 
@@ -133,7 +160,7 @@ function resolveTaskSession(params: {
   // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a
   // pointer — they simply run in a one-off session.
   if (reuse.enabled && scheduleId) bindReuseSession(scheduleId, session.id)
-  return session
+  return { kind: 'session', session }
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -210,13 +237,26 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
-  const session = resolveTaskSession({
+  const resolution = resolveTaskSession({
     reuse: readTaskSessionReuse(scheduleSnapshot?.metadata),
     scheduleId,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
   })
+  if (resolution.kind === 'busy') {
+    // Skip, don't fail: `onSettled`'s breaker pauses the whole schedule after
+    // three consecutive failures, and a user chatting in the sticky session
+    // must never disable their own task. The fire is simply forfeited — the
+    // next one runs normally.
+    logger.info('Task skipped — reused session has a turn in flight', {
+      agentId,
+      scheduleId,
+      sessionId: resolution.sessionId
+    })
+    return { sessionId: resolution.sessionId, result: 'Skipped (session busy)' }
+  }
+  const session = resolution.session
 
   // Guards legacy rows and races that data hygiene cannot catch.
   const subscribedChannels = scheduleId
