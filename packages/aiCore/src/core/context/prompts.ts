@@ -5,9 +5,10 @@
  *
  * Vendored from @context-chef/core 3.8.0 (MIT, same author). The output
  * formats here are load-bearing contracts: `getVFSOffloadReminder` must stay
- * in sync with the fs_read system-prompt section (persistedOutput.ts in the
- * main process), and `getCompactSummaryWrapper` is the framing persisted into
- * `message.compaction_summary` rows.
+ * in sync with the fs_read tool description (FsReadTool.ts in the main
+ * process — the marker's in-band retrieval line and the tool's paging
+ * contract teach the same protocol), and `getCompactSummaryWrapper` is the
+ * framing persisted into `message.compaction_summary` rows.
  */
 /**
  * Opening tag of the truncation marker. Exported so the truncator can
@@ -64,8 +65,12 @@ export const ContextPrompts = {
       descriptor = '; preview omitted'
     }
 
+    // The in-band retrieval affordance: protocol teaching rides the marker
+    // itself (point of need, zero cost in conversations that never truncate)
+    // instead of a standing system-prompt section. Paging details and the
+    // coverage contract live in the fs_read tool description.
     const handleLines = physicalPath
-      ? `Full output saved to: ${physicalPath}\nURI (alternative): ${uri}`
+      ? `Full output saved to: ${physicalPath}\nURI (alternative): ${uri}\nRead the full content with the fs_read tool (pass the path above; page with offset/limit).`
       : `Full output: ${uri}`
 
     parts.push(

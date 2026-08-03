@@ -261,9 +261,13 @@ export async function executeFsRead(
 const fsReadTool = tool({
   description: `Read a text file by absolute path.
 
-Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Only paths from this conversation's markers are readable; reads elsewhere return access-denied.
+Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Markers from earlier turns work too (persisted outputs live as long as their message does). Only paths from this conversation's markers are readable; reads elsewhere return access-denied.
 
-Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Lines are returned in full (never truncated mid-line); the per-call output is bounded as a whole, and oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. The one input it can't subdivide is a single physical line larger than that cap (e.g. heavily minified JSON) — line paging can't split one line and there is no byte-range read, so that case is reported as \`output-too-large\`; reason from the inline head/tail excerpt for such inputs.`,
+Pagination is line-based: pass \`offset\` (1-indexed line) + \`limit\` for large files; results include \`totalLines\`. Lines are returned in full (never truncated mid-line); the per-call output is bounded as a whole, and oversized pages return an \`output-too-large\` error with a file-specific recommended \`limit\`. The one input it can't subdivide is a single physical line larger than that cap (e.g. heavily minified JSON) — line paging can't split one line and there is no byte-range read, so that case is reported as \`output-too-large\`; reason from the inline head/tail excerpt for such inputs.
+
+When reading a persisted output to summarize, analyze, or act on it, read sequential pages (advance \`offset\` to the returned \`endLine\` + 1) until you have covered 100% of the content. Before summarizing or drawing conclusions, state what fraction you actually read — and if you did not read all of it (including the single-oversized-line case), say so explicitly rather than implying full coverage.
+
+The persistence layer applies to non-read tools only; this tool never persists its own output — narrow the read (smaller \`limit\`) instead.`,
   inputSchema,
   outputSchema,
   toModelOutput: ({ output }) => {

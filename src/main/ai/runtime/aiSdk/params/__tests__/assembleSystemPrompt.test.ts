@@ -107,25 +107,14 @@ describe('assembleSystemPrompt', () => {
     expect(out).toBe('base')
   })
 
-  it('includes the persisted-output protocol when fs_read is active', async () => {
+  it('never emits a persisted-output section — that protocol is taught in-band (marker + fs_read description)', async () => {
     const result = await assembleSystemPrompt({
       assistant: undefined,
       model,
       tools: { [FS_READ_TOOL_NAME]: {} as never },
       deferredEntries: []
     })
-    expect(result).toContain('<context-persistence>')
-    expect(result).toContain('fs_read')
-  })
-
-  it('omits the persisted-output protocol without fs_read', async () => {
-    const result = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { other_tool: {} as never },
-      deferredEntries: []
-    })
-    expect(result).not.toContain('<context-persistence>')
+    expect(result).toBeUndefined()
   })
 
   it('appends citation guidance when web_search is an inline tool', async () => {

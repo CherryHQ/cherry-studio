@@ -3,7 +3,6 @@
  */
 
 import { replacePromptVariables } from '@main/utils/prompt'
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -12,7 +11,6 @@ import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSe
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
-import { PERSISTED_OUTPUT_SYSTEM_PROMPT } from '../prompts/persistedOutput'
 
 export interface AssembleSystemPromptInput {
   assistant?: Assistant
@@ -40,9 +38,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
     sections.push(getDeferredToolsSystemPrompt(deferredEntries))
   }
 
-  if (tools && FS_READ_TOOL_NAME in tools) {
-    sections.push(PERSISTED_OUTPUT_SYSTEM_PROMPT)
-  }
+  // No persisted-output section here: that protocol is taught in-band — the
+  // marker itself carries the retrieval line (getVFSOffloadReminder) and the
+  // fs_read tool description carries the paging + coverage contract — so
+  // conversations that never truncate pay nothing for it.
 
   if (hasCitableTools) {
     sections.push(CITATIONS_SYSTEM_PROMPT)
