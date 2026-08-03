@@ -298,9 +298,8 @@ export const modelListClasses = {
     'min-w-0 max-w-[50%] shrink truncate rounded-md bg-background-subtle px-1.5 py-[1px] font-mono text-xs text-foreground-tertiary leading-tight',
   rowBadges: 'mt-1 flex min-h-[18px] min-w-0 max-w-full flex-wrap items-center gap-1.5',
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
-  rowCapabilityStrip:
-    'flex h-7 min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-  rowCapabilityTagCluster: 'flex min-w-0 shrink items-center',
+  rowCapabilityStrip: 'flex min-h-7 min-w-0 max-w-full shrink items-center gap-1.5',
+  rowCapabilityTagCluster: 'flex min-w-0 shrink items-center flex-wrap',
   rowMeta: 'mt-[3px] block min-w-0 max-w-full truncate text-xs leading-tight text-foreground-tertiary',
   healthStatusSlot: 'shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
