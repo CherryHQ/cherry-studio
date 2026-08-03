@@ -202,6 +202,26 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
+  it('pins the rebuild baseline to the context window used to materialize settings', async () => {
+    const model = { id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 }
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options).toEqual(expect.objectContaining({ contextWindow: 128_000 }))
+      model.contextWindow = 1_000_000
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    model.contextWindow = 128_000
+    const current = await deriveConnectionConfig('session-1')
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+    expect(request.connectionConfig.rebuildFactFingerprints.contextWindow).toBe(
+      current.config.rebuildFactFingerprints.contextWindow
+    )
+  })
+
   it('uses the Agent static binding instead of the per-turn selection', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -980,6 +1000,29 @@ describe('deriveConnectionConfig', () => {
         (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
       )
     ).toEqual(['language'])
+  })
+
+  it('changes the rebuild signature when model context metadata changes', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 128_000
+    }))
+    const original = await deriveSignature()
+
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 256_000
+    }))
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(
+      Object.keys(original.rebuildFactFingerprints).filter(
+        (name) => original.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['contextWindow'])
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

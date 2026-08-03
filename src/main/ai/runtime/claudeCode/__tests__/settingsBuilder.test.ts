@@ -349,7 +349,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 128_000 })
   })
 
-  it('omits automatic compaction windows outside Claude Code limits', async () => {
+  it('clamps model context windows above Claude Code limits', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -357,11 +357,42 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      { contextWindow: 2_000_000 }
+      { contextWindow: 1_048_576 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
-    expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 1_000_000 })
+  })
+
+  it.each([undefined, 64_000, 99_999])(
+    'omits a model context window below Claude Code limits (%s)',
+    async (contextWindow) => {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never,
+        { contextWindow }
+      )
+
+      expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+      expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+    }
+  )
+
+  it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow }
+    )
+
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: contextWindow })
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {

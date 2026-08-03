@@ -88,6 +88,7 @@ interface ConnectionMaterializationFacts {
   mcp: unknown[]
   skills: string[]
   linkedChannelId: string | null
+  contextWindow: number | null
 }
 
 /**
@@ -298,6 +299,7 @@ async function deriveConnectionConfigFromSnapshot(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -320,7 +322,7 @@ async function deriveConnectionConfigFromSnapshot(
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const rebuildFacts = {
     modelId: uniqueModelId,
-    contextWindow: model.contextWindow ?? null,
+    contextWindow,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -412,6 +414,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
+  // settings, and skill materialization can otherwise make the baseline describe a different
+  // compaction window from the one actually passed to Claude Code.
+  const contextWindow = model.contextWindow
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -447,7 +453,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
-        contextWindow: model.contextWindow,
+        contextWindow,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -474,7 +480,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null
+      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      contextWindow: contextWindow ?? null
     }
   )
   const sdkModelId = route.modelIds.primary
