@@ -5146,6 +5146,7 @@
     "reset": "Restablecer",
     "rotate_left": "Rotar a la izquierda",
     "rotate_right": "Rotar a la derecha",
+    "save_as": "Guardar como",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
@@ -5202,7 +5203,7 @@
     "jina": "Jina",
     "lanyun": "Tecnología Lanyun",
     "lmstudio": "Estudio LM",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modelos locales",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6781,6 +6782,7 @@
         "allStatuses": "Todos los estados",
         "allTypes": "Todos los tipos",
         "builtinOnly": "Solo integrado",
+        "label": "Filtro",
         "status": "Filtrar por estado",
         "type": "Filtrar por tipo"
       },
@@ -6847,6 +6849,9 @@
         "loadError": "Fallo al cargar la indicación",
         "noPromptsAvailable": "No hay indicaciones disponibles",
         "requiredField": "Campo obligatorio"
+      },
+      "protocolInstall": {
+        "title": "Instalar MCP"
       },
       "protocolInstallWarning": {
         "command": "Comando de inicio",

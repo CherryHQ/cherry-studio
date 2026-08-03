@@ -1,9 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { focusOrOpenMock, openRouteInMainWindowMock, reportOwnershipMock, loggerMock } = vi.hoisted(() => ({
-  focusOrOpenMock: vi.fn(),
+const {
+  acknowledgeMainWindowNavigationMock,
+  conversationNavigationServiceMock,
+  openRouteInMainWindowMock,
+  protocolServiceMock,
+  loggerMock
+} = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
+  conversationNavigationServiceMock: {
+    focusOrOpen: vi.fn(),
+    reportOwnership: vi.fn()
+  },
   openRouteInMainWindowMock: vi.fn(),
-  reportOwnershipMock: vi.fn(),
+  protocolServiceMock: {
+    onMainRendererReady: vi.fn()
+  },
   loggerMock: {
     warn: vi.fn()
   }
@@ -11,12 +23,17 @@ const { focusOrOpenMock, openRouteInMainWindowMock, reportOwnershipMock, loggerM
 
 vi.mock('@application', () => ({
   application: {
-    get: () => ({ focusOrOpen: focusOrOpenMock, reportOwnership: reportOwnershipMock })
+    get: (name: string) => {
+      if (name === 'ProtocolService') return protocolServiceMock
+      if (name === 'ConversationNavigationService') return conversationNavigationServiceMock
+      throw new Error(`unexpected service: ${name}`)
+    }
   }
 }))
 
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
   openRouteInMainWindow: openRouteInMainWindowMock
 }))
 
@@ -54,12 +71,30 @@ describe('navigationHandlers', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
+  it('notifies the protocol service when the main renderer is ready', async () => {
+    await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, ctx)
+
+    expect(protocolServiceMock.onMainRendererReady).toHaveBeenCalledWith('w1')
+  })
+
+  it('ignores renderer readiness from an untracked caller', async () => {
+    await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, { senderId: null })
+
+    expect(protocolServiceMock.onMainRendererReady).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges navigation init data for the caller window', async () => {
+    await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, ctx)
+
+    expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
+  })
+
   it('delegates conversation focus-or-open with the trusted caller window id', async () => {
     const target = { conversationType: 'assistant' as const, conversationId: 'topic-1' }
 
     await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Research notes' }, ctx)
 
-    expect(focusOrOpenMock).toHaveBeenCalledWith(target, 'Research notes', 'w1')
+    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Research notes', 'w1')
   })
 
   it('reports conversation ownership against the trusted caller window id', async () => {
@@ -68,6 +103,6 @@ describe('navigationHandlers', () => {
       ctx
     )
 
-    expect(reportOwnershipMock).toHaveBeenCalledWith('request-1', 'w1', true)
+    expect(conversationNavigationServiceMock.reportOwnership).toHaveBeenCalledWith('request-1', 'w1', true)
   })
 })

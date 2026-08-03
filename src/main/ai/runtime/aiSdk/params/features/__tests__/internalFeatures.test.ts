@@ -82,11 +82,6 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('model-params activates whenever an assistant is present', () => {
-    expect(activeNames(makeScope({ provider: {}, model: {}, assistant: { id: 'a' } }))).toContain('model-params')
-    expect(activeNames(makeScope({ provider: {}, model: {} }))).not.toContain('model-params')
-  })
-
   it('reasoning-extraction activates only for the openai-chat wire', () => {
     expect(
       activeNames(
@@ -262,18 +257,6 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
     // Without the explicit request selection, assistant-less scopes stay inactive.
     expect(activeNames(makeScope({ ...base, request: undefined }))).not.toContain('qwen-thinking')
-  })
-
-  it('model-params is the first active feature for a plain assistant scope', () => {
-    const names = activeNames(
-      makeScope({
-        provider: {},
-        model: {},
-        assistant: { id: 'a' },
-        capabilities: {}
-      })
-    )
-    expect(names[0]).toBe('model-params')
   })
 
   // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.

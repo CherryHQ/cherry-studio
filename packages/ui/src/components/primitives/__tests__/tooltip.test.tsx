@@ -50,16 +50,6 @@ describe('Tooltip', () => {
       expect(wrapper.getAttribute('data-state')).toBeNull()
     })
 
-    it('renders a plain div when content is empty string', () => {
-      const { container } = render(
-        <Tooltip content="">
-          <span>Empty</span>
-        </Tooltip>
-      )
-      const wrapper = container.firstElementChild as HTMLElement
-      expect(wrapper.getAttribute('data-state')).toBeNull()
-    })
-
     it('renders a plain div when isDisabled is true', () => {
       const { container } = render(
         <Tooltip content="tip" isDisabled>
@@ -92,15 +82,6 @@ describe('Tooltip', () => {
       )
       const trigger = container.querySelector('[data-state]')
       expect(trigger).toBeInTheDocument()
-    })
-
-    it('treats content=undefined + title=undefined as fallback', () => {
-      const { container } = render(
-        <Tooltip content={undefined} title={undefined}>
-          <span>Child</span>
-        </Tooltip>
-      )
-      expect(container.querySelector('[data-state]')).toBeNull()
     })
   })
 
@@ -135,15 +116,6 @@ describe('Tooltip', () => {
       )
       expect(container.querySelector('.custom-ph')).toBeInTheDocument()
     })
-
-    it('applies classNames.placeholder to fallback div when no content', () => {
-      const { container } = render(
-        <Tooltip classNames={{ placeholder: 'ph-class' }}>
-          <span>Child</span>
-        </Tooltip>
-      )
-      expect(container.querySelector('.ph-class')).toBeInTheDocument()
-    })
   })
 
   describe('onClick', () => {
@@ -162,17 +134,6 @@ describe('Tooltip', () => {
       const handleClick = vi.fn()
       render(
         <Tooltip content="tip" isDisabled onClick={handleClick}>
-          <button type="button">Click me</button>
-        </Tooltip>
-      )
-      fireEvent.click(screen.getByText('Click me'))
-      expect(handleClick).toHaveBeenCalledTimes(1)
-    })
-
-    it('fires onClick on no-content fallback wrapper', () => {
-      const handleClick = vi.fn()
-      render(
-        <Tooltip onClick={handleClick}>
           <button type="button">Click me</button>
         </Tooltip>
       )

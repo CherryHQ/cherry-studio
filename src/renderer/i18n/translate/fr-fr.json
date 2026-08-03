@@ -5146,6 +5146,7 @@
     "reset": "Réinitialiser",
     "rotate_left": "Rotation vers la gauche",
     "rotate_right": "Rotation vers la droite",
+    "save_as": "Enregistrer sous",
     "source": "Voir le code source",
     "zoom_in": "agrandir",
     "zoom_out": "réduire"
@@ -5202,7 +5203,7 @@
     "jina": "Jina",
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modèles locaux",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6781,6 +6782,7 @@
         "allStatuses": "Tous les statuts",
         "allTypes": "Tous les types",
         "builtinOnly": "Intégré uniquement",
+        "label": "Filtre",
         "status": "Filtrer par statut",
         "type": "Filtrer par type"
       },
@@ -6847,6 +6849,9 @@
         "loadError": "Échec de la récupération des invites",
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
+      },
+      "protocolInstall": {
+        "title": "Installer MCP"
       },
       "protocolInstallWarning": {
         "command": "Commande de démarrage",

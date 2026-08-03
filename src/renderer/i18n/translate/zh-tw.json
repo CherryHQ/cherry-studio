@@ -5146,6 +5146,7 @@
     "reset": "重設",
     "rotate_left": "向左旋轉",
     "rotate_right": "向右旋轉",
+    "save_as": "另存新檔",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
@@ -5202,7 +5203,7 @@
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "本地模型",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
     "mineru": "MinerU",
@@ -6781,6 +6782,7 @@
         "allStatuses": "所有狀態",
         "allTypes": "所有類型",
         "builtinOnly": "內建 only",
+        "label": "篩選",
         "status": "按狀態篩選",
         "type": "按類型篩選"
       },
@@ -6847,6 +6849,9 @@
         "loadError": "取得提示失敗",
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
+      },
+      "protocolInstall": {
+        "title": "安裝 MCP"
       },
       "protocolInstallWarning": {
         "command": "啟動命令",

@@ -34,6 +34,16 @@ export const navigationRequestSchemas = {
     }),
     output: z.void()
   }),
+  'navigation.protocol_dispatch_ready': defineRoute({
+    input: z.void(),
+    output: z.void()
+  }),
+  'navigation.ack_open_route': defineRoute({
+    input: z.object({
+      requestId: z.number().int().nonnegative()
+    }),
+    output: z.void()
+  }),
   // Main serializes this operation per conversation and chooses one full-chrome
   // destination after the on-demand ownership responses below.
   'navigation.focus_or_open_conversation': defineRoute({

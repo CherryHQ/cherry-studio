@@ -48,7 +48,7 @@ describe('useModels', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -58,24 +58,11 @@ describe('useModels', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useModels())
+    const { result, rerender } = renderHook(() => useModels())
+    const firstModels = result.current.models
 
     expect(result.current.models).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useModels())
-    const firstModels = result.current.models
 
     rerender()
 
