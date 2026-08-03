@@ -276,6 +276,14 @@ function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESS
   return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
 }
 
+function isLegacyDefaultCompressionConfig(config: WebSearchCompressionConfigSource): boolean {
+  return (
+    (config.method === undefined || config.method === 'none') &&
+    config.cutoffLimit == null &&
+    (config.cutoffUnit === undefined || config.cutoffUnit === 'char')
+  )
+}
+
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
@@ -296,10 +304,12 @@ export function flattenCompressionConfig(sources: {
 }): TransformResult {
   const config = sources.compressionConfig
 
-  // If no config, return defaults
-  if (!config) {
+  // V1 persisted its uncompressed default as `{ method: 'none', cutoffUnit: 'char' }`.
+  // Move only that default-shaped value to the safer V2 default; configurations with
+  // an explicit cutoff limit or another unit remain user-owned and are preserved.
+  if (!config || isLegacyDefaultCompressionConfig(config)) {
     return {
-      'chat.web_search.compression.method': 'none',
+      'chat.web_search.compression.method': 'cutoff',
       'chat.web_search.compression.cutoff_limit': DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
     }
   }

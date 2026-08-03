@@ -49,7 +49,7 @@ describe('webSearch config utils', () => {
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')
-    expect(runtime.compression.cutoffLimit).toBe(2000)
+    expect(runtime.compression.cutoffLimit).toBe(10000)
   })
 
   it('defaults stale empty cutoff limit in runtime config', async () => {
@@ -63,7 +63,7 @@ describe('webSearch config utils', () => {
       }
     })
 
-    expect(runtime.compression.cutoffLimit).toBe(2000)
+    expect(runtime.compression.cutoffLimit).toBe(10000)
   })
 
   it('normalizes maxResults to at least 1 in runtime config', async () => {

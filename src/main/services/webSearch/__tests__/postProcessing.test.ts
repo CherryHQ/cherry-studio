@@ -101,4 +101,18 @@ describe('postProcessWebSearchResponse', () => {
 
     expect(result.response.results[0].content).toBe('one two three four five six seven')
   })
+
+  it('returns the original results when their total character count is within the token cutoff', async () => {
+    const result = await postProcessWebSearchResponse(response, {
+      ...runtimeConfig,
+      compression: {
+        method: 'cutoff',
+        cutoffLimit: 100
+      }
+    })
+
+    // Character count is a conservative upper bound for tokenx's estimator,
+    // so this fast path can safely avoid tokenization for short results.
+    expect(result.response.results).toBe(response.results)
+  })
 })

@@ -164,8 +164,32 @@ describe('PreferenceTransformers', () => {
   describe('flattenCompressionConfig', () => {
     it('should return defaults when no config provided', () => {
       const result = flattenCompressionConfig({})
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(10000)
+    })
+
+    it('should upgrade the v1 uncompressed default', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'none',
+          cutoffUnit: 'char'
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(10000)
+    })
+
+    it('should preserve an explicitly configured none method', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'none',
+          cutoffLimit: 1000
+        }
+      })
+
       expect(result['chat.web_search.compression.method']).toBe('none')
-      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
     })
 
     it('should flatten compression config while dropping v1 cutoff unit', () => {
@@ -203,7 +227,7 @@ describe('PreferenceTransformers', () => {
       })
 
       expect(result['chat.web_search.compression.method']).toBe('cutoff')
-      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(10000)
     })
 
     it('should fallback to default method when method is invalid', () => {
