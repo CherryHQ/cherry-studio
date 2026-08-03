@@ -235,17 +235,27 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
+  // SWR Infinite revalidates only the first page by default. A load-all source
+  // must refresh every loaded page before publishing its complete snapshot — but
+  // only once the chain is complete. Leaving `revalidateAll` on while the chain
+  // is still growing makes each `setSize` re-fetch every previously loaded page
+  // before fetching the next, producing 1+2+...+n IPC reads. Keep it off during
+  // growth and flip it on only when fully loaded so mutations/passive
+  // revalidation still refresh every loaded page.
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
     enabled: opts?.enabled,
-    // SWR Infinite revalidates only the first page by default. A load-all source
-    // must refresh every loaded page before publishing its complete snapshot.
-    swrOptions: { revalidateAll: loadAll }
+    swrOptions: { revalidateAll: revalidateAllPages }
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
+
+  useEffect(() => {
+    setRevalidateAllPages(loadAll && isFullyLoaded)
+  }, [loadAll, isFullyLoaded])
 
   // Auto-paginate to completion when the caller wants the full list. The
   // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
