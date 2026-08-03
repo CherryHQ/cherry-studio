@@ -77,11 +77,12 @@ export async function findCommandInShellEnv(
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
           // Prefer .exe files, but also accept .cmd/.bat files.
-          // Node.js spawn() on Windows automatically detects .cmd/.bat files and
-          // uses cmd.exe /c to execute them (see Node.js child_process source: uv_spawn).
-          // Previously only .exe was accepted, which caused npx (typically npx.cmd on
-          // Windows) to be missed, triggering a bun fallback that could resolve to
-          // wrong packages (e.g., Perplexity MCP server showing calculator tools). (#12623)
+          // The MCP SDK's StdioClientTransport uses cross-spawn (not raw spawn()),
+          // which correctly wraps .cmd/.bat with cmd.exe /c and handles argument
+          // escaping on Windows. Previously only .exe was accepted, which caused
+          // npx (typically npx.cmd on Windows) to be missed, triggering a bun
+          // fallback that could resolve to wrong packages (e.g., Perplexity MCP
+          // server showing calculator tools). (#12623)
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
           const cmdPath = paths.find((p) => /\.(cmd|bat)$/i.test(p))
           if (exePath) {
@@ -253,12 +254,10 @@ const MISE_TIMEOUT_MS = 5000
 /**
  * Find an executable via `mise which <name>` on Windows.
  *
- * When Node.js is installed through mise, the shims are `.cmd` files that
- * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
- * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
- *
- * This function locates `mise.exe` via `where.exe` and asks it directly for
- * the real binary path, bypassing shim/PATH issues entirely.
+ * When Node.js is installed through mise, the shims may not be visible in the
+ * registry-based PATH used by `getWindowsEnvironment`. This function locates
+ * `mise.exe` via `where.exe` and asks it directly for the real binary path,
+ * bypassing shim/PATH issues entirely.
  *
  * @param name - Tool name to resolve (e.g. 'node', 'npm')
  * @param env  - Environment variables for subprocess
