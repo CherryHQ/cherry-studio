@@ -2,7 +2,7 @@
 title: Cherry Assistant gains attachment and Office workflows
 category: other
 severity: notice
-introduced_in_pr: "#17557"
+introduced_in_pr: "#17398"
 date: 2026-07-27
 ---
 

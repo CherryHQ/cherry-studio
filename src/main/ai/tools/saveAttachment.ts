@@ -6,7 +6,7 @@ import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { isAbortError } from '@main/utils/error'
 import { getPathStatus } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import {
@@ -63,7 +63,7 @@ export async function saveAttachmentToWorkspace(
   }
 
   const resolvedWorkspacePath = await validatePath('.', workspacePath)
-  const outputPath = (await validatePath(validatedInput.output_path, resolvedWorkspacePath)) as FilePath
+  const outputPath = AbsoluteFilePathSchema.parse(await validatePath(validatedInput.output_path, resolvedWorkspacePath))
   signal.throwIfAborted()
   const outputDirectory = path.dirname(outputPath)
   const outputDirectoryStatus = await getPathStatus(outputDirectory)
@@ -84,7 +84,7 @@ export async function saveAttachmentToWorkspace(
   try {
     await application.get('FileManager').withTempCopy(attachment.fileEntryId, async (tempPath) => {
       signal.throwIfAborted()
-      await publishFileNoClobber(tempPath as FilePath, outputPath, {
+      await publishFileNoClobber(AbsoluteFilePathSchema.parse(tempPath), outputPath, {
         signal,
         validateTarget: () =>
           assertWorkspacePathUnchanged(

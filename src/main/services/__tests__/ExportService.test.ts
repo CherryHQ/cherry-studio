@@ -1,3 +1,4 @@
+import type { AbsoluteFilePath } from '@shared/types/file'
 import AdmZip from 'adm-zip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +21,7 @@ describe('ExportService', () => {
   it('exports directly to a provided path through the atomic file writer', async () => {
     const service = new ExportService()
 
-    await service.exportToWordPath('# Weekly report', '/tmp/report.docx')
+    await service.exportToWordPath('# Weekly report', '/tmp/report.docx' as AbsoluteFilePath)
 
     expect(atomicWriteFile).toHaveBeenCalledOnce()
     const [target, data] = atomicWriteFile.mock.calls[0]
@@ -34,7 +35,7 @@ describe('ExportService', () => {
     controller.abort()
 
     await expect(
-      service.exportToWordPath('# Weekly report', '/tmp/report.docx', controller.signal)
+      service.exportToWordPath('# Weekly report', '/tmp/report.docx' as AbsoluteFilePath, controller.signal)
     ).rejects.toMatchObject({ name: 'AbortError' })
 
     expect(atomicWriteFile).not.toHaveBeenCalled()
@@ -44,7 +45,7 @@ describe('ExportService', () => {
     const service = new ExportService()
     const controller = new AbortController()
 
-    await service.exportToWordPath('# Weekly report', '/tmp/report.docx', controller.signal)
+    await service.exportToWordPath('# Weekly report', '/tmp/report.docx' as AbsoluteFilePath, controller.signal)
 
     expect(atomicWriteFile).toHaveBeenCalledWith('/tmp/report.docx', expect.any(Uint8Array), {
       signal: controller.signal
@@ -56,7 +57,7 @@ describe('ExportService', () => {
 
     await service.exportToWordPath(
       'Before ![Quarterly revenue chart](chart.png "Q2 revenue") after',
-      '/tmp/report.docx'
+      '/tmp/report.docx' as AbsoluteFilePath
     )
 
     const [, data] = atomicWriteFile.mock.calls[0]

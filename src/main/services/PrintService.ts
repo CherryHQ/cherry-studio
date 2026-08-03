@@ -7,7 +7,7 @@ import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { atomicWriteFile } from '@main/utils/file'
 import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { sanitizeFilename } from '@shared/utils/file'
 import { type BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
@@ -352,7 +352,7 @@ export class PrintService {
 
   async exportToPdfPath(
     payload: PrintableDocumentPayload,
-    filePath: FilePath,
+    filePath: AbsoluteFilePath,
     options: { signal?: AbortSignal; allowImages?: boolean } = {}
   ): Promise<void> {
     try {
@@ -376,7 +376,7 @@ export class PrintService {
       return false
     }
 
-    await this.exportToPdfPath(payload, filePath as FilePath)
+    await this.exportToPdfPath(payload, AbsoluteFilePathSchema.parse(filePath))
     return true
   }
 

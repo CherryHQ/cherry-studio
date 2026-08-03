@@ -1395,13 +1395,13 @@ export async function buildSystemPrompt(
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${runtimeGuardBlock}${channelSecurityBlock}${citationsBlock}`
-        : `${memoriesBlock}${context}${workspaceContextBlock}${runtimeGuardBlock}${channelSecurityBlock}${citationsBlock}`
+        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+        : `${memoriesBlock}${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${memoriesBlock}${instructions}${workspaceContextBlock}${runtimeGuardBlock}${channelSecurityBlock}${citationsBlock}`
+      return `${memoriesBlock}${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
     }
   }
 
