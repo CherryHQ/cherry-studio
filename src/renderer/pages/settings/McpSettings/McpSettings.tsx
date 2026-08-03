@@ -21,9 +21,9 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -56,6 +56,7 @@ type McpTabItem = {
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
+type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
@@ -65,6 +66,7 @@ const EMPTY_MCP_TOOLS: McpTool[] = []
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
   const params = useParams({ strict: false })
+  const search = useSearch({ strict: false }) as McpSettingsSearch
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
 
@@ -93,6 +95,7 @@ const McpSettings: React.FC = () => {
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
   const fetchServerLogsRequestRef = useRef(0)
+  const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
   const { theme } = useTheme()
 
@@ -387,6 +390,28 @@ const McpSettings: React.FC = () => {
       setLoadingServer(null)
     }
   }
+
+  const autoEnableProtocolServer = useEffectEvent(() => {
+    if (server && !server.isActive) {
+      void onToggleActive(true)
+    }
+  })
+
+  useEffect(() => {
+    if (search.autoEnable !== 'true' || !server || isServerLoading) return
+    if (handledAutoEnableServerIdRef.current === server.id) return
+
+    handledAutoEnableServerIdRef.current = server.id
+    void navigate({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: server.id },
+      search: {},
+      replace: true
+    })
+
+    autoEnableProtocolServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
+  }, [isServerLoading, navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(

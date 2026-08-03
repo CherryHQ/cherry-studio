@@ -2,8 +2,9 @@
  * Per-topic / per-session scroll position memory for the message list.
  *
  * Switching topics (regular chat keys `ChatMain` by `topic.id`) and switching
- * agent sessions (the list keys by the session-derived topic id) both REMOUNT
- * the virtualizer. Without memory, every remount lands on the first message.
+ * agent sessions (`AgentChatSessionCenter` is keyed by `sessionSnapshot.id`)
+ * both REMOUNT the virtualizer. Without memory, every remount lands on the
+ * first message.
  *
  * Design (kept declarative): the heavy lifting is two pure functions —
  *   - `computeScrollAnchor` derives WHAT to persist from the scroll state;

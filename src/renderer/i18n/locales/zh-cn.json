@@ -6783,6 +6783,7 @@
         "allStatuses": "全部状态",
         "allTypes": "全部类型",
         "builtinOnly": "仅内置",
+        "label": "筛选",
         "status": "按状态筛选",
         "type": "按类型筛选"
       },
@@ -6849,6 +6850,9 @@
         "loadError": "获取提示失败",
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
+      },
+      "protocolInstall": {
+        "title": "安装 MCP"
       },
       "protocolInstallWarning": {
         "command": "启动命令",
