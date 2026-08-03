@@ -228,7 +228,7 @@ describe('LocalEmbeddingDownloadService', () => {
     const pending = localEmbeddingDownloadService.download()
     localEmbeddingDownloadService.cancel()
 
-    await expect(pending).rejects.toThrow()
+    await expect(pending).resolves.toBe('cancelled')
     expect(terminate).toHaveBeenCalled()
     // A user cancel is not a failure — no error broadcast.
     expect(broadcastSpy()).not.toHaveBeenCalledWith(

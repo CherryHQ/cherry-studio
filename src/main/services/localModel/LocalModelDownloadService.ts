@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDarwinX64 } from '@main/core/platform'
-import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
+import type { LocalModelDownloadResult, LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalModelDownloadService')
 
@@ -26,8 +26,8 @@ export interface LocalModelDownloadProgress {
 export abstract class LocalModelDownloadService {
   protected downloading = false
   protected abortController: AbortController | null = null
-  /** The single active download; concurrent callers await this same promise. */
-  private inFlight: Promise<void> | null = null
+  /** The single active download; concurrent callers await the same terminal result. */
+  private inFlight: Promise<LocalModelDownloadResult> | null = null
   private lastDownloadFailed = false
 
   /** Tags broadcasts + error logs; selects which renderer card this drives. */
@@ -70,7 +70,7 @@ export abstract class LocalModelDownloadService {
     return this.isReady() ? 'ready' : 'not_downloaded'
   }
 
-  async download(): Promise<void> {
+  async download(): Promise<LocalModelDownloadResult> {
     // Guard here too, not just in getStatus(): the settings/KB cards hide on
     // Intel Mac, but OCR's performDownload is a plain file fetch that never
     // touches the inference worker, so without this it would happily write
@@ -91,14 +91,15 @@ export abstract class LocalModelDownloadService {
     this.inFlight = (async () => {
       try {
         await this.performDownload(signal)
+        return 'ready'
       } catch (error) {
         if (signal.aborted) {
           // User-initiated cancel — not a failure. Drop partials, but stay quiet:
           // no error log and no `status: 'error'` broadcast (the cards render that
-          // as "download failed"). Still rethrow so awaiting callers unwind.
+          // as "download failed"). Every coalesced caller receives the same result.
           await this.safeCleanupAfterError()
           this.broadcast({ status: 'not_downloaded', percent: 0 })
-          throw error
+          return 'cancelled'
         }
         logger.error(`local ${this.kind} model download failed`, error as Error)
         await this.safeCleanupAfterError()

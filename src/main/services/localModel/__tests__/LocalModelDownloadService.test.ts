@@ -57,7 +57,7 @@ describe('LocalModelDownloadService', () => {
   it('reports not_downloaded → ready across a successful download', async () => {
     expect(service.getStatus()).toBe('not_downloaded')
 
-    await service.download()
+    await expect(service.download()).resolves.toBe('ready')
 
     expect(service.getStatus()).toBe('ready')
   })
@@ -127,13 +127,13 @@ describe('LocalModelDownloadService', () => {
     expect(secondSettled).toBe(false)
 
     release()
-    await Promise.all([first, second])
+    await expect(Promise.all([first, second])).resolves.toEqual(['ready', 'ready'])
     expect(secondSettled).toBe(true)
     // Still only one real download despite two callers.
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('treats an aborted download as a cancel: cleans up and rethrows, no error log/broadcast', async () => {
+  it('treats an aborted download as a cancel: cleans up and resolves cancelled, no error log/broadcast', async () => {
     vi.spyOn(
       service as unknown as { performDownload: (s: AbortSignal) => Promise<void> },
       'performDownload'
@@ -150,7 +150,7 @@ describe('LocalModelDownloadService', () => {
 
     const pending = service.download()
     service.cancel()
-    await expect(pending).rejects.toThrow()
+    await expect(pending).resolves.toBe('cancelled')
 
     // Partials are still cleaned up...
     expect(service.cleanupCalls).toBe(1)

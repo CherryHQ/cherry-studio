@@ -7,7 +7,6 @@ export function useLocalModel(model: LocalModelKind) {
   const [isStatusResolved, setIsStatusResolved] = useState(false)
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)
-  const cancellingRef = useRef(false)
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -50,22 +49,26 @@ export function useLocalModel(model: LocalModelKind) {
   })
 
   const download = useCallback(async () => {
-    cancellingRef.current = false
     if (mountedRef.current) {
       setStatus('downloading')
       setPercent(0)
     }
 
     try {
-      await ipcApi.request('local_model.download', { model })
+      const result = await ipcApi.request('local_model.download', { model })
       if (!mountedRef.current) {
+        return false
+      }
+      if (result.result === 'cancelled') {
+        setStatus('not_downloaded')
+        setPercent(0)
         return false
       }
       setStatus('ready')
       setPercent(100)
       return true
     } catch (error) {
-      if (cancellingRef.current || !mountedRef.current) {
+      if (!mountedRef.current) {
         return false
       }
       setStatus('error')
@@ -74,7 +77,6 @@ export function useLocalModel(model: LocalModelKind) {
   }, [model])
 
   const cancel = useCallback(async () => {
-    cancellingRef.current = true
     try {
       await ipcApi.request('local_model.cancel', { model })
     } finally {

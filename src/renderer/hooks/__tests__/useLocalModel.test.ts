@@ -72,7 +72,7 @@ describe('useLocalModel', () => {
   it('reports a successful embedding download', async () => {
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download') return Promise.resolve()
+      if (route === 'local_model.download') return Promise.resolve({ result: 'ready' })
       return Promise.resolve()
     })
     const { result } = renderHook(() => useLocalModel('embedding'))
@@ -88,33 +88,39 @@ describe('useLocalModel', () => {
     expect(result.current.percent).toBe(100)
   })
 
-  it('returns to idle without surfacing cancellation as a download failure', async () => {
-    let rejectDownload: ((error: Error) => void) | undefined
+  it('returns to idle when another hook instance cancels the shared download', async () => {
+    let resolveDownload: ((result: { result: 'cancelled' }) => void) | undefined
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
       if (route === 'local_model.download') {
-        return new Promise<void>((_resolve, reject) => {
-          rejectDownload = reject
+        return new Promise<{ result: 'cancelled' }>((resolve) => {
+          resolveDownload = resolve
         })
+      }
+      if (route === 'local_model.cancel') {
+        resolveDownload?.({ result: 'cancelled' })
       }
       return Promise.resolve()
     })
-    const { result } = renderHook(() => useLocalModel('embedding'))
-    await waitFor(() => expect(result.current.status).toBe('not_downloaded'))
+    const downloader = renderHook(() => useLocalModel('embedding'))
+    const canceller = renderHook(() => useLocalModel('embedding'))
+    await waitFor(() => expect(downloader.result.current.status).toBe('not_downloaded'))
+    await waitFor(() => expect(canceller.result.current.status).toBe('not_downloaded'))
 
     let downloadPromise: Promise<boolean>
     act(() => {
-      downloadPromise = result.current.download()
+      downloadPromise = downloader.result.current.download()
     })
-    await waitFor(() => expect(result.current.status).toBe('downloading'))
+    await waitFor(() => expect(downloader.result.current.status).toBe('downloading'))
 
     await act(async () => {
-      await result.current.cancel()
+      await canceller.result.current.cancel()
+      await downloadPromise
     })
-    act(() => rejectDownload?.(new Error('download cancelled')))
 
     await expect(downloadPromise!).resolves.toBe(false)
-    expect(result.current.status).toBe('not_downloaded')
+    expect(downloader.result.current.status).toBe('not_downloaded')
+    expect(canceller.result.current.status).toBe('not_downloaded')
   })
 
   it('keeps a genuine download failure retryable and rethrows it to the caller', async () => {
