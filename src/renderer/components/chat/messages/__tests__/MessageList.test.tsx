@@ -27,9 +27,15 @@ const messageVirtualListMocks = vi.hoisted(() => ({
   scrollElement: null as HTMLDivElement | null
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
+const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const chatLayoutModeMock = vi.hoisted(() => ({
+  railGutterPx: 0,
+  setForceWideLayout: () => {},
+  setRailGutterPx: () => {}
+}))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
+  useChatLayoutMode: () => chatLayoutModeMock
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
@@ -112,7 +118,8 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', () => {
+vi.mock('../list/MessageGroup', async () => {
+  const React = await import('react')
   const MockMessageGroup = ({
     messages,
     registerMessageElement
@@ -122,6 +129,11 @@ vi.mock('../list/MessageGroup', () => {
   }) => {
     const groupId = messages.map((message) => message.id).join(',')
     messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
+    const mountGroupIdRef = React.useRef(groupId)
+    React.useEffect(() => {
+      const mountGroupId = mountGroupIdRef.current
+      messageGroupMountCounts.set(mountGroupId, (messageGroupMountCounts.get(mountGroupId) ?? 0) + 1)
+    }, [])
 
     return (
       <div data-testid="message-group">
@@ -274,12 +286,26 @@ describe('MessageList', () => {
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
+    messageGroupMountCounts.clear()
+    chatLayoutModeMock.railGutterPx = 0
   })
 
   it('exposes a stable message-list boundary', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('pads the message column with the rail gutter from the chat layout context', () => {
+    chatLayoutModeMock.railGutterPx = 24
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    // Base side padding (24) + context gutter (24) on both sides.
+    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
+      paddingLeft: '48px',
+      paddingRight: '48px'
+    })
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {
@@ -327,6 +353,115 @@ describe('MessageList', () => {
     expect(messageGroupRenderCounts.get('user-history')).toBe(1)
     expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
     expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
+  })
+
+  it('keeps historical groups sealed when the history parts map is rebuilt with unchanged entries', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
+    const userParts = [{ type: 'text', text: 'question' }]
+    const assistantParts = [{ type: 'text', text: 'sealed answer' }]
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = () => {
+      const historyParts = {
+        'user-history': userParts,
+        'assistant-history': assistantParts
+      } as MessageListProviderValue['state']['partsByMessageId']
+      return createValue(
+        [historyUser, historyAssistant, liveAssistant],
+        {
+          topic,
+          streamingLayers: {
+            historyPartsByMessageId: historyParts,
+            liveMessageIds: ['assistant-live']
+          } as NonNullable<MessageListProviderValue['state']['streamingLayers']>,
+          partsByMessageId: {
+            ...historyParts,
+            'assistant-live': [{ type: 'text', text: 'streaming' }]
+          } as MessageListProviderValue['state']['partsByMessageId']
+        },
+        actions
+      )
+    }
+
+    const view = render(
+      <MessageListProvider value={buildValue()}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    view.rerender(
+      <MessageListProvider value={buildValue()}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-live')).toBe(2)
+  })
+
+  it('does not rerender or remount history while a new live id is waiting to join the list', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const historyParts = {
+      'user-history': [{ type: 'text', text: 'question' }],
+      'assistant-history': [{ type: 'text', text: 'answer with code' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = (liveMessageIds: string[]) =>
+      createValue(
+        [historyUser, historyAssistant],
+        {
+          topic,
+          streamingLayers: { historyPartsByMessageId: historyParts, liveMessageIds },
+          partsByMessageId: historyParts
+        },
+        actions
+      )
+
+    const view = render(
+      <MessageListProvider value={buildValue([])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    view.rerender(
+      <MessageListProvider value={buildValue(['assistant-future'])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupMountCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupMountCounts.get('user-history')).toBe(1)
+  })
+
+  it('does not remount a group when it crosses from the live tail into history', () => {
+    const historyUser = createMessage('user-history', 'user')
+    const assistantParts = {
+      'assistant-1': [{ type: 'text', text: 'answer' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const buildValue = (liveMessageIds: string[], status: MessageListItem['status']) =>
+      createValue([historyUser, createMessage('assistant-1', 'assistant', status)], {
+        streamingLayers: { historyPartsByMessageId: assistantParts, liveMessageIds },
+        partsByMessageId: assistantParts
+      })
+
+    const view = render(
+      <MessageListProvider value={buildValue(['assistant-1'], 'pending')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    view.rerender(
+      <MessageListProvider value={buildValue([], 'success')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(messageGroupMountCounts.get('assistant-1')).toBe(1)
+    expect(messageGroupMountCounts.get('user-history')).toBe(1)
   })
 
   it('forwards the explicit local-send generation independently of message topology', () => {

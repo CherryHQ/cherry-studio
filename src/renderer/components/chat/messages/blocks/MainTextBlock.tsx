@@ -227,7 +227,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (

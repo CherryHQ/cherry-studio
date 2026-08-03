@@ -326,7 +326,7 @@ export function ChatAppShell({
                 rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
               )}>
               {topBar && (
-                <div className="relative z-10 shrink-0 bg-background">
+                <div className="relative z-10 shrink-0">
                   <ErrorBoundary>{topBar}</ErrorBoundary>
                 </div>
               )}

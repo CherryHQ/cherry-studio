@@ -25,9 +25,8 @@ interface Props {
   [key: string]: any
 }
 
-const INLINE_CODE_CLASS =
-  'inline-flex items-center whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
-const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middle break-all! [&>span]:translate-y-px`
+const INLINE_CODE_CLASS = 'whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
+const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} inline-flex max-w-full items-center align-middle break-all! [&>span]:translate-y-px`
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 

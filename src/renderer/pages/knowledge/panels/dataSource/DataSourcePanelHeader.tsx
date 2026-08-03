@@ -46,7 +46,7 @@ const DataSourcePanelHeader = ({
   if (selectedCount > 0) {
     return (
       <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-baseline gap-2">
+        <span className="flex min-w-0 items-baseline gap-2 pl-2">
           <span className="truncate text-foreground text-sm">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
           </span>
@@ -74,7 +74,7 @@ const DataSourcePanelHeader = ({
 
   return (
     <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-2">
-      <span className="min-w-0 truncate pl-1 text-foreground-tertiary text-xs leading-4">
+      <span className="min-w-0 truncate pl-2 text-foreground-tertiary text-xs leading-4">
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">

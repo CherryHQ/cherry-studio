@@ -1884,7 +1884,7 @@ describe('Topics', () => {
   it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
@@ -2708,7 +2708,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic } = renderTopicList()
+    const { onNewTopic, rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
@@ -2761,6 +2761,15 @@ describe('Topics', () => {
         within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
       ).not.toBeInTheDocument()
     }
+
+    const defaultTopic = createRendererTopic({ id: 'topic-c', name: 'Default topic', assistantId: undefined })
+    rerenderTopicList(undefined, defaultTopic)
+    fireEvent.click(screen.getByRole('button', { name: 'Unlinked Assistant' }))
+    rerenderTopicList(undefined, defaultTopic)
+    expect(screen.getByText('Default topic').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+      'data-resource-list-group-header-icon-visible',
+      'true'
+    )
   })
 
   it('keeps pinned assistants ahead of group order when assistant topics move back to the left panel', () => {

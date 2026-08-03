@@ -85,11 +85,6 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should render the path as text', () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
-    expect(screen.getByRole('link', { name: '/Users/foo/bar.tsx' })).toBeInTheDocument()
-  })
-
   it('should render displayName when provided', () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" displayName="bar.tsx" />, {
       openArtifactFile: mockOpenArtifactFile
@@ -99,20 +94,13 @@ describe('ClickableFilePath', () => {
     expect(link).toHaveTextContent('bar.tsx')
   })
 
-  it('should call openArtifactFile on click (no existence preflight)', async () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
-    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
-    await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
-    })
-    expect(mockGetMetadata).not.toHaveBeenCalled()
-  })
-
   it('should open relative paths directly', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/index.tsx" />, {
       openArtifactFile: mockOpenArtifactFile
     })
-    fireEvent.click(screen.getByRole('link', { name: 'src/renderer/index.tsx' }))
+    const link = screen.getByRole('link', { name: 'src/renderer/index.tsx' })
+    expect(link).toHaveAttribute('tabindex', '0')
+    fireEvent.click(link)
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
@@ -153,18 +141,7 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/essays/')
     })
-    expect(mockOpenPath).not.toHaveBeenCalled()
-  })
-
-  it('should open a non-directory path in the preview pane', async () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
-      openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath
-    })
-    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
-    await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
-    })
+    expect(mockGetMetadata).not.toHaveBeenCalled()
     expect(mockOpenPath).not.toHaveBeenCalled()
   })
 
@@ -222,13 +199,6 @@ describe('ClickableFilePath', () => {
     expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
     expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()
     expect(container.querySelector('[role="separator"], hr')).toBeNull()
-  })
-
-  it('should have role="link" and tabIndex for keyboard accessibility', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveAttribute('role', 'link')
-    expect(span).toHaveAttribute('tabindex', '0')
   })
 
   it('should call openArtifactFile on Enter key', async () => {

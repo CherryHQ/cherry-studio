@@ -136,9 +136,9 @@ No dedicated public glass or overlay product role is exported today. `--color-*`
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
 - QuickPanel is a design-approved exception: its composer-attached surface may derive a component-local translucent
-  background from `--popover` while retaining `--popover-foreground`. It exposes
-  `data-slot="quick-panel-content"` so Custom CSS themes that change the popover pairing can override the
-  QuickPanel background and foreground together. Keep this treatment local to QuickPanel; it is not a reusable
+  background from `--card` while retaining `--card-foreground`, keeping it independent from generic floating panels.
+  It exposes `data-slot="quick-panel-content"` so Custom CSS themes can override the QuickPanel background and
+  foreground together. Keep this treatment local to QuickPanel; it is not a reusable
   glass token or a precedent for other floating panels.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
@@ -701,7 +701,7 @@ This mirrors the model service (Provider Settings) detail column (`providerDetai
 Do **not**:
 - Use `p-4` or `px-5 py-4` on a settings page's outermost content container — they were the old, divergent paddings and are banned for new pages.
 - Apply `max-w-3xl` directly on a child component to "fix" centering on one page — fix the page container so every page is consistent.
-- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, WebSearch, FileProcessing, Channels, Skills) whose right pane is further subdivided.
+- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, Channels, Skills) whose right pane is further subdivided.
 
 When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
 
