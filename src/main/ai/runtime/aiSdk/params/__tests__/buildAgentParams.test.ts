@@ -101,32 +101,32 @@ describe('buildAgentParams provider resolution', () => {
   })
 
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
-    const assistantCustomParameterSets = [
-      [
-        { name: 'enable_search', type: 'json' as const, value: 'true' },
-        {
-          name: 'chat_template_kwargs',
-          type: 'json' as const,
-          value: JSON.stringify({ enable_thinking: true })
-        },
-        { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 1 }) },
-        { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['one', 'two']) }
-      ],
-      [
-        { name: 'enable_search', type: 'json' as const, value: 'false' },
-        {
-          name: 'chat_template_kwargs',
-          type: 'json' as const,
-          value: JSON.stringify({ enable_thinking: false })
-        },
-        { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 2 }) },
-        { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['three']) }
-      ]
+    const firstCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'true' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: true })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 1 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['one', 'two']) }
     ]
+    const secondCustomParameters = [
+      { name: 'enable_search', type: 'json' as const, value: 'false' },
+      {
+        name: 'chat_template_kwargs',
+        type: 'json' as const,
+        value: JSON.stringify({ enable_thinking: false })
+      },
+      { name: 'customCamelCase', type: 'json' as const, value: JSON.stringify({ nestedValue: 2 }) },
+      { name: 'custom_snake_case', type: 'json' as const, value: JSON.stringify(['three']) }
+    ]
+    const assistantCustomParameterSets = [firstCustomParameters, secondCustomParameters, firstCustomParameters]
     const expectedCustomParameterSets = assistantCustomParameterSets.map((customParameters) =>
       Object.fromEntries(customParameters.map(({ name, value }) => [name, JSON.parse(value)]))
     )
     const receivedBodies: Record<string, unknown>[] = []
+    const requestFetches: Array<typeof globalThis.fetch> = []
     const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       receivedBodies.push(JSON.parse(init?.body as string))
       return new Response(
@@ -172,6 +172,7 @@ describe('buildAgentParams provider resolution', () => {
         model,
         assistant: makeAssistant({ settings: { customParameters } })
       })
+      requestFetches.push(result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)
       await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
         model: result.sdkConfig.modelId,
         prompt: 'hello',
@@ -183,6 +184,8 @@ describe('buildAgentParams provider resolution', () => {
       Object.fromEntries(Object.keys(expectedCustomParameters).map((name) => [name, receivedBodies[index]?.[name]]))
     )
     expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
+    expect(requestFetches[2]).toBe(requestFetches[0])
+    expect(requestFetches[1]).not.toBe(requestFetches[0])
   })
 })
 

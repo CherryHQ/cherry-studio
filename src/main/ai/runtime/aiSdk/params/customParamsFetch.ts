@@ -1,3 +1,8 @@
+import { isCustomProviderNamespace } from '../../../utils/options'
+
+const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
+const customParamsFetchCache = new WeakMap<typeof globalThis.fetch, Map<string, typeof globalThis.fetch>>()
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -11,9 +16,8 @@ export function selectCustomBodyParameters(
   providerOptions: Record<string, Record<string, unknown>>,
   rawProviderId: string
 ): Record<string, unknown> {
-  const providerNamespaces = new Set([...Object.keys(providerOptions), rawProviderId])
   return Object.fromEntries(
-    Object.entries(providerParams).filter(([key, value]) => !(providerNamespaces.has(key) && isRecord(value)))
+    Object.entries(providerParams).filter(([key]) => !isCustomProviderNamespace(key, providerOptions, rawProviderId))
   )
 }
 
@@ -27,7 +31,22 @@ export function createCustomParamsFetch(
 ): typeof globalThis.fetch {
   if (Object.keys(customParams).length === 0) return innerFetch
 
-  return async (input: RequestInfo | URL, init?: RequestInit) => {
+  const serializedCustomParams = JSON.stringify(customParams) ?? '{}'
+  let cachedByParams = customParamsFetchCache.get(innerFetch)
+  if (!cachedByParams) {
+    cachedByParams = new Map()
+    customParamsFetchCache.set(innerFetch, cachedByParams)
+  }
+
+  const cachedFetch = cachedByParams.get(serializedCustomParams)
+  if (cachedFetch) {
+    cachedByParams.delete(serializedCustomParams)
+    cachedByParams.set(serializedCustomParams, cachedFetch)
+    return cachedFetch
+  }
+
+  const customParamsSnapshot = JSON.parse(serializedCustomParams) as Record<string, unknown>
+  const wrappedFetch: typeof globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method?.toUpperCase() === 'POST' && typeof init.body === 'string') {
       let body: unknown
       try {
@@ -39,11 +58,18 @@ export function createCustomParamsFetch(
       if (isRecord(body)) {
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify({ ...customParams, ...body })
+          body: JSON.stringify({ ...customParamsSnapshot, ...body })
         })
       }
     }
 
     return innerFetch(input, init)
   }
+
+  if (cachedByParams.size >= CUSTOM_PARAMS_FETCH_CACHE_SIZE) {
+    const oldestKey = cachedByParams.keys().next().value
+    if (oldestKey !== undefined) cachedByParams.delete(oldestKey)
+  }
+  cachedByParams.set(serializedCustomParams, wrappedFetch)
+  return wrappedFetch
 }
