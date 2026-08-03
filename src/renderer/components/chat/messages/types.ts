@@ -306,6 +306,14 @@ export interface MessageListState {
   ) => string | undefined
 }
 
+/** Shared list mechanics; page adapters provide data and capabilities, not separate geometry or loading timing. */
+export const DEFAULT_MESSAGE_LIST_CONFIG = {
+  estimateSize: 400,
+  overscan: 6,
+  loadOlderDelayMs: 0,
+  loadingResetDelayMs: 600
+} as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
+
 export interface MessageListActions {
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
