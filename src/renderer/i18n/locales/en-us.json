@@ -5786,7 +5786,25 @@
         "title": "Enterprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Chat with Cherry Assistant to share feedback.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Choose how to share feedback and help us make Cherry Studio better.",
+          "title": "Choose a feedback channel"
+        },
+        "github": {
+          "description": "Create a bug report or feature request on GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Recommended",
+        "survey": {
+          "description": "Share feedback through our Feishu survey.",
+          "title": "Feedback survey"
+        },
         "title": "Feedback"
       },
       "label": "About & Feedback",

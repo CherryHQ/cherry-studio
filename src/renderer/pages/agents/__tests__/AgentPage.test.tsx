@@ -81,6 +81,8 @@ const agentPageMocks = vi.hoisted(() => ({
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
+  navigate: vi.fn(),
+  composerLaunchOptions: undefined as any,
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
   dataApiDelete: vi.fn(),
@@ -312,6 +314,7 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => agentPageMocks.navigate,
   useSearch: () => agentPageMocks.routeSearch
 }))
 
@@ -392,7 +395,8 @@ vi.mock('../AgentChat', () => ({
     onPaneCollapse,
     onPaneAutoCollapseChange,
     onFileNavigationRequestChange,
-    paneManualToggle
+    paneManualToggle,
+    composerLaunchOptions
   }: {
     centerSurface?: { content?: ReactNode } | null
     activeSession?: { id: string } | null
@@ -421,10 +425,14 @@ vi.mock('../AgentChat', () => ({
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
     onFileNavigationRequestChange?: (request: ((transition: () => void) => void) | null) => void
     paneManualToggle?: { seq: number; open: boolean }
+    composerLaunchOptions?: unknown
   }) => (
     <section
       data-testid="agent-chat"
-      ref={(node) => onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)}>
+      ref={(node) => {
+        agentPageMocks.composerLaunchOptions = composerLaunchOptions
+        onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)
+      }}>
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
@@ -695,6 +703,9 @@ describe('AgentPage', () => {
     vi.clearAllMocks()
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
+    agentPageMocks.navigate.mockReset()
+    agentPageMocks.navigate.mockResolvedValue(undefined)
+    agentPageMocks.composerLaunchOptions = undefined
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.classicLayoutSessions = []
     agentPageMocks.sessionsFirstPageLoading = false
@@ -741,7 +752,107 @@ describe('AgentPage', () => {
     activeSessionMocks.isLoading = false
     activeSessionMocks.sessionSource = 'none'
 
-    ipcMocks.request.mockClear()
+    ipcMocks.request.mockReset()
+    ipcMocks.request.mockResolvedValue(undefined)
+  })
+
+  it('consumes feedback intent once, skips resume, and creates an isolated system task', async () => {
+    const previousSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-previous',
+      agentId: 'cherry-assistant',
+      name: '',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    const feedbackSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-feedback',
+      agentId: 'cherry-assistant',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'feedback' }
+    agentPageMocks.lastUsedSessionId = previousSession.id
+    agentPageMocks.sessionsById.set(previousSession.id, previousSession)
+    agentPageMocks.classicLayoutSessions = [previousSession]
+    agentPageMocks.latestSessionOverride = previousSession
+    agentPageMocks.dataApiPost.mockResolvedValue(feedbackSession)
+    ipcMocks.request.mockImplementation(async (route: string) => {
+      if (route === 'ai.agent.builtin_assistant.ensure') {
+        return { id: 'cherry-assistant', name: 'Cherry Assistant' }
+      }
+      return undefined
+    })
+
+    const view = render(<AgentPage />)
+
+    await waitFor(() => {
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'cherry-assistant',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    })
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-feedback')
+    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalledWith(
+      `/agent-sessions/${previousSession.id}/messages`,
+      expect.anything()
+    )
+    expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
+    expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+      draftCacheKey: 'agent-feedback-draft-session-feedback',
+      initialDraft: {
+        text: 'Use the issue-reporter skill.',
+        tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
+      }
+    })
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
+    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(true)
+    expect(cacheService.hasCasual('agent-feedback-draft-session-feedback')).toBe(true)
+
+    agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
+    view.unmount()
+    agentPageMocks.composerLaunchOptions = undefined
+    render(<AgentPage />)
+
+    await waitFor(() => {
+      expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+        draftCacheKey: 'agent-feedback-draft-session-feedback',
+        initialDraft: { text: 'Use the issue-reporter skill.' }
+      })
+    })
+    expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'ai.agent.builtin_assistant.ensure')).toHaveLength(
+      1
+    )
+
+    act(() => {
+      agentPageMocks.composerLaunchOptions.onSent()
+    })
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
+  })
+
+  it('stays on the Agent page without selecting another Agent when feedback setup fails', async () => {
+    agentPageMocks.routeSearch = { intent: 'feedback' }
+    agentPageMocks.latestSessionOverride = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-previous'
+    }
+    ipcMocks.request.mockImplementation(async (route: string) => {
+      if (route === 'ai.agent.builtin_assistant.ensure') throw new Error('restore failed')
+      return undefined
+    })
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('true'))
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.about.feedback.agent_error')
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
   })
 
   it('warms the visible agent model from the agent list', () => {

@@ -77,6 +77,18 @@ describe('AgentComposerSlot', () => {
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
   })
 
+  it('forwards one-shot launch options to the real composer', () => {
+    const launchOptions = {
+      draftCacheKey: 'agent-feedback-draft-session-1',
+      initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+      onSent: vi.fn()
+    }
+
+    render(<AgentComposerSlot {...baseProps} composerLaunchOptions={launchOptions} />)
+
+    expect(agentComposerPropsMock.last?.launchOptions).toBe(launchOptions)
+  })
+
   it('does not leave an orphan session in a permanent loading state', () => {
     const { container } = render(<AgentComposerSlot {...baseProps} agentId={undefined} />)
 

@@ -111,7 +111,7 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 
 ## 反馈渠道
 
-**Bug/需求提交**(推荐): 飞书表单 https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnkR1s45VDuFnV3GbD6VhnIJ
+**Bug/需求提交**(推荐): 飞书表单 https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnsjfFkx4gy6wx9LQ70tMaKe
 
 **GitHub**: Issues https://github.com/CherryHQ/cherry-studio/issues | Discussions https://github.com/CherryHQ/cherry-studio/discussions | 看板 https://github.com/orgs/CherryHQ/projects/7
 

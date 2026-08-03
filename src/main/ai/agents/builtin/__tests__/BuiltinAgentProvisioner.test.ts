@@ -21,6 +21,7 @@ vi.mock('fs', async (importOriginal) => {
 import { loadBuiltinAgentDefinition } from '../BuiltinAgentProvisioner'
 
 const localizedDefinition = JSON.stringify({
+  name: { 'en-US': 'Cherry Assistant', 'zh-CN': 'Cherry 小助手' },
   instructions: { 'en-US': 'English instructions', 'zh-CN': '中文指令' },
   configuration: {}
 })
@@ -41,6 +42,7 @@ describe('loadBuiltinAgentDefinition', () => {
     vi.mocked(app.getLocale).mockReturnValue('zh-CN')
 
     expect(loadBuiltinAgentDefinition('assistant')).toMatchObject({
+      name: 'Cherry 小助手',
       instructions: '中文指令'
     })
   })
@@ -50,6 +52,7 @@ describe('loadBuiltinAgentDefinition', () => {
     vi.mocked(app.getLocale).mockReturnValue('zh-CN')
 
     expect(loadBuiltinAgentDefinition('assistant')).toMatchObject({
+      name: 'Cherry Assistant',
       instructions: 'English instructions'
     })
   })

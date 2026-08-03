@@ -82,7 +82,7 @@ export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentCon
   try {
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
     return {
-      name: agentConfig.name,
+      name: resolveLocalizedField(agentConfig.name),
       instructions: resolveLocalizedField(agentConfig.instructions),
       configuration: agentConfig.configuration
     } as BuiltinAgentConfig

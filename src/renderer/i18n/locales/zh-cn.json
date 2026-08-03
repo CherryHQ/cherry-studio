@@ -5786,7 +5786,25 @@
         "title": "企业版"
       },
       "feedback": {
+        "agent": {
+          "description": "通过与 Cherry Assistant 对话反馈问题。",
+          "title": "使用 Agent 提交"
+        },
+        "agent_error": "无法为反馈打开 Cherry Assistant，请重试。",
         "button": "反馈",
+        "dialog": {
+          "description": "选择一种方式反馈问题，帮助我们把 Cherry Studio 做得更好。",
+          "title": "选择反馈方式"
+        },
+        "github": {
+          "description": "前往 GitHub 创建 Bug 报告或功能建议。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "推荐",
+        "survey": {
+          "description": "通过飞书问卷提交反馈。",
+          "title": "反馈问卷"
+        },
         "title": "意见反馈"
       },
       "label": "关于我们",
