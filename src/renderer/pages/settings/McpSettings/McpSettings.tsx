@@ -20,6 +20,7 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -37,6 +38,8 @@ import {
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
+  resolveMcpConfigInstallSource,
+  resolveMcpConfigTransportType,
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
@@ -101,7 +104,7 @@ const McpSettings: React.FC = () => {
   // Initialize form values whenever the server changes
   useEffect(() => {
     if (!server) return
-    const serverType: McpServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
+    const serverType = resolveMcpConfigTransportType(server.type || (server.baseUrl ? 'sse' : 'stdio'), server.name)
     setServerType(serverType)
 
     syncRegistryFromServer(server)
@@ -268,6 +271,7 @@ const McpSettings: React.FC = () => {
       const mcpServer: McpServer = {
         ...server,
         ...toMcpServerFields(values),
+        installSource: resolveMcpConfigInstallSource(server),
         isActive: values.isActive ?? server.isActive,
         timeout: values.timeout || server.timeout,
         // Use nullish coalescing to allow empty strings (for deletion)
@@ -470,7 +474,7 @@ const McpSettings: React.FC = () => {
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isInMemory: server.type === 'inMemory'
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
   }
 
   const tabs: McpTabItem[] = [

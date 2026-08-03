@@ -19,6 +19,7 @@ import {
 import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
@@ -49,13 +50,27 @@ export const buildMcpSchema = (t: (key: string) => string) =>
       if ((value.serverType === 'sse' || value.serverType === 'streamableHttp') && !value.baseUrl?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['baseUrl'], message: t('settings.mcp.url') })
       }
-      if (value.serverType === 'stdio' && !value.command?.trim()) {
+      if (resolveMcpConfigTransportType(value.serverType, value.name) === 'stdio' && !value.command?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: t('settings.mcp.command') })
       }
     })
 
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 export type McpForm = UseFormReturn<McpFormValues>
+
+export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
+  return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
+}
+
+export function resolveMcpConfigInstallSource(
+  server: Pick<McpServer, 'installSource' | 'name' | 'type'>
+): McpServer['installSource'] {
+  if (server.installSource) return server.installSource
+
+  return server.type === 'inMemory' && server.name === BuiltinMcpServerNames.mcpAutoInstall
+    ? 'builtin'
+    : server.installSource
+}
 
 export const MCP_FORM_DEFAULT_VALUES: McpFormValues = {
   name: '',
@@ -227,8 +242,8 @@ interface FieldsProps {
   serverType: McpServer['type']
   onServerTypeChange: (type: McpServer['type']) => void
   registryState: McpRegistryState
-  /** Built-in servers only expose a subset of the fields. */
-  isInMemory?: boolean
+  /** Built-in servers keep their identity while exposing transport-specific configuration. */
+  isBuiltin?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
   /** Allows quick-create to render args before the advanced section. */
@@ -238,7 +253,7 @@ interface FieldsProps {
 }
 
 /** Name / type / description — always visible. */
-export function McpIdentityFields({ form, onServerTypeChange, isInMemory, singleColumn }: FieldsProps) {
+export function McpIdentityFields({ form, onServerTypeChange, isBuiltin, singleColumn }: FieldsProps) {
   const { t } = useTranslation()
 
   return (
@@ -250,13 +265,13 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
           <FormItem className="min-w-0 gap-3">
             <FormLabel required>{t('settings.mcp.name')}</FormLabel>
             <FormControl>
-              <Input required placeholder={t('common.name')} disabled={isInMemory} {...field} />
+              <Input required placeholder={t('common.name')} disabled={isBuiltin} {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
-      {!isInMemory && (
+      {!isBuiltin && (
         <FormField
           control={form.control}
           name="serverType"
