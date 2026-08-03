@@ -59,7 +59,8 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   gateway: { 'web-search': { kind: 'gateway-mapped' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   'new-api': { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
-  'claude-code': { 'url-context': { kind: 'gateway-mapped' } }
+  // Anthropic-direct (anthropic-messages endpoint, adapterFamily 'anthropic').
+  'claude-code': { 'url-context': factories('anthropic') }
 }
 
 const CAPABILITY: Record<string, ToolCapability> = {
@@ -67,13 +68,15 @@ const CAPABILITY: Record<string, ToolCapability> = {
   'url-context': 'urlContext'
 }
 
-const providers: Array<{ id: string; serverTools?: Array<{ id: string }> }> = JSON.parse(
+const providers: Array<{ id: string; serverTools?: Array<{ id: string; vendors?: string[] }> }> = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'packages/provider-registry/data/providers.json'), 'utf8')
 ).providers
 
 const declared = providers
   .filter((provider) => provider.serverTools?.length)
-  .flatMap((provider) => provider.serverTools!.map((tool) => ({ providerId: provider.id, toolId: tool.id })))
+  .flatMap((provider) =>
+    provider.serverTools!.map((tool) => ({ providerId: provider.id, toolId: tool.id, vendors: tool.vendors }))
+  )
 
 describe('registry serverTools declarations have a runtime delivery path', () => {
   it('covers every declared (provider, tool) pair in the delivery table', () => {
@@ -97,5 +100,16 @@ describe('registry serverTools declarations have a runtime delivery path', () =>
     )
   )('$providerId $toolId resolves a $extensionName toolFactory', ({ toolId, extensionName }) => {
     expect(extensionRegistry.getToolFactory(extensionName, CAPABILITY[toolId])).toBeDefined()
+  })
+
+  // A gateway delivers the underlying vendor's native tool, so a model whose
+  // vendor owns no factory injects nothing while the client tools stay withheld.
+  // `vendors` is what keeps such a model off the server route (and off the tag).
+  it('narrows every gateway-mapped declaration to servable vendors', () => {
+    const unnarrowed = declared
+      .filter(({ providerId, toolId }) => DELIVERY[providerId]?.[toolId]?.kind === 'gateway-mapped')
+      .filter(({ vendors }) => !vendors?.length)
+      .map(({ providerId, toolId }) => `${providerId}/${toolId}`)
+    expect(unnarrowed).toEqual([])
   })
 })

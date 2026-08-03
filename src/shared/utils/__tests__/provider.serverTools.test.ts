@@ -121,6 +121,19 @@ describe('web-tool routing', () => {
     expect(isBuiltinWebFetchAvailable(claude, vertexLike)).toBe(false)
   })
 
+  // A gateway serves the underlying vendor's native tool; a model whose vendor
+  // owns no tool factory must not claim the capability (it would route to the
+  // server side and inject nothing while the client tools stay withheld).
+  it('keeps unservable vendors off a gateway declaration', () => {
+    const gatewayLike = {
+      serverTools: [
+        { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] }
+      ]
+    } as Provider
+    expect(isBuiltinWebSearchAvailable(claude, gatewayLike)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(model('deepseek-v4-pro'), gatewayLike)).toBe(false)
+  })
+
   it('reports model-unsupported when only client backends exist for a non-function-calling model', () => {
     expect(
       resolveWebToolRoutes(model('private-model'), { serverTools: [] } as unknown as Provider, {

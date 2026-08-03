@@ -10,7 +10,13 @@ export default defineProvider({
       baseUrl: 'https://ai-gateway.vercel.sh/v1/ai'
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  // Gateway-mapped delivery: the native tool comes from the underlying vendor's
+  // extension, so only vendors with a web-search toolFactory are servable. A
+  // deepseek/glm/kimi model here would route to the server side and inject
+  // nothing (mapVertexAIGatewayModelToProviderId returns undefined).
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai', 'grok'] }
+  ],
   metadata: {
     website: {
       apiKey: 'https://vercel.com/',

@@ -33,11 +33,13 @@
       "serverTools": [
         {
           "id": "web-search",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
         },
         {
           "id": "url-context",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
         }
       ]
     },
@@ -650,11 +652,13 @@
       "serverTools": [
         {
           "id": "web-search",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
         },
         {
           "id": "url-context",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
         }
       ]
     },
@@ -1889,7 +1893,8 @@
       "serverTools": [
         {
           "id": "web-search",
-          "modelScope": "model-dependent"
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai", "grok"]
         }
       ]
     },
@@ -2017,5 +2022,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "696b7f71a7c55675"
+  "version": "0963cc63960f2d91"
 }
