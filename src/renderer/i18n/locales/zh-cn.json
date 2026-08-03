@@ -3414,7 +3414,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自动压缩",
+        "context_compress_model": "压缩模型",
+        "context_compress_model_follow": "默认",
         "context_count": "上下文数",
+        "context_management": "上下文管理",
+        "context_truncate_threshold": "工具输出截断阈值(字符)",
         "creative": "创意",
         "custom_params": "自定义参数",
         "custom_params_add": "添加参数",
@@ -3426,8 +3431,17 @@
           "avatar": {
             "hint": "用于在资源库和对话中识别助手"
           },
+          "context_compress_enabled": {
+            "hint": "接近上下文窗口上限时自动摘要较早的对话"
+          },
           "context_count": {
             "hint": "保留为上下文的最近消息数量"
+          },
+          "context_management": {
+            "hint": "开启后此助手使用自定义的上下文管理设置,关闭时跟随全局设置"
+          },
+          "context_truncate_threshold": {
+            "hint": "超过该字符数的工具输出会被转存并截断"
           },
           "custom_params": {
             "hint": "随请求发送给模型服务商的额外参数"

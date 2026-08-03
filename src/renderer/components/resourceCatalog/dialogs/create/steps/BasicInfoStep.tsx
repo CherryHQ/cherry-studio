@@ -11,7 +11,12 @@ import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
-const EMPTY_MODEL_LABELS: ModelLabels = { modelId: null, planModelId: null, smallModelId: null }
+const EMPTY_MODEL_LABELS: ModelLabels = {
+  modelId: null,
+  planModelId: null,
+  smallModelId: null,
+  contextCompressModelId: null
+}
 
 type BasicInfoStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>

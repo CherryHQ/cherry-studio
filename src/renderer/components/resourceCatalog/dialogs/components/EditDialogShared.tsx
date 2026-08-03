@@ -49,7 +49,7 @@ const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shad
 
 const logger = loggerService.withContext('EditDialogShared')
 
-export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
+export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
 
 export type EditDialogBaseProps = {
@@ -653,6 +653,7 @@ export function CompactModelField({
   label,
   description,
   allowClear = false,
+  emptyLabel,
   filter,
   portalContainer,
   modelLabels,
@@ -665,6 +666,8 @@ export function CompactModelField({
   label: string
   description?: string
   allowClear?: boolean
+  /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
+  emptyLabel?: string
   filter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -682,6 +685,7 @@ export function CompactModelField({
   const displayLabel =
     selectedModel?.name ??
     (labelFromState && labelFromState !== selectorValue ? labelFromState : parsedModelId?.modelId) ??
+    emptyLabel ??
     t('library.config.basic.model_pick')
   const triggerModel =
     selectedModel ??
