@@ -70,6 +70,7 @@ export interface MessageMenuBarActionContext {
   isSelectedForContext: boolean
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditingMessage?: (messageId: string) => void
   onSelectContext?: (messageId: string) => void
@@ -585,12 +586,21 @@ export function resolveMessageMenuBarTranslationItems(
     : []
 
   if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
-    items.push({
-      key: 'translate-loading',
-      label: t('common.loading'),
-      enabled: false,
-      onSelect: () => undefined
-    })
+    const retryTranslationLanguages = actions.retryTranslationLanguages
+    if (context.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
+      items.push({
+        key: 'translate-retry',
+        label: t('common.retry'),
+        onSelect: () => retryTranslationLanguages()
+      })
+    } else {
+      items.push({
+        key: 'translate-loading',
+        label: t('common.loading'),
+        enabled: false,
+        onSelect: () => undefined
+      })
+    }
   }
 
   if (!hasTranslationBlocks) return items

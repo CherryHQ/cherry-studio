@@ -108,7 +108,12 @@ export function useHomeMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
-  const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages({
+  const {
+    languages: translationLanguages,
+    getLabel: getTranslationLanguageLabel,
+    status: translationLanguagesStatus,
+    refetch: refetchTranslationLanguages
+  } = useLanguages({
     enabled: normalInteractionsEnabled && translationLanguagesRequested
   })
   const chatWrite = useChatWrite()
@@ -175,6 +180,10 @@ export function useHomeMessageListProviderValue({
   const requestTranslationLanguages = useCallback(() => {
     setTranslationLanguagesRequested(true)
   }, [])
+
+  const retryTranslationLanguages = useCallback(() => {
+    void refetchTranslationLanguages()
+  }, [refetchTranslationLanguages])
 
   useEffect(() => {
     messagesRef.current = messageItems
@@ -777,6 +786,7 @@ export function useHomeMessageListProviderValue({
       selection: selectionController.selection,
       editingMessageId,
       translationLanguages: translationLanguages ?? [],
+      translationLanguagesStatus,
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
       getMessageActivityState,
@@ -805,7 +815,8 @@ export function useHomeMessageListProviderValue({
       selectionController.selection,
       streamingLayers,
       topic,
-      translationLanguages
+      translationLanguages,
+      translationLanguagesStatus
     ]
   )
 
@@ -841,6 +852,7 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroupWithConfirm,
       regenerateMessage,
       requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
+      retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
       abortMessageTranslation,
       removeMessageTranslation,
@@ -871,6 +883,7 @@ export function useHomeMessageListProviderValue({
       openPath,
       regenerateMessage,
       requestTranslationLanguages,
+      retryTranslationLanguages,
       renderRegenerateModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,

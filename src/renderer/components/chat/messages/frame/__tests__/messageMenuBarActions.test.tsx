@@ -576,6 +576,41 @@ describe('messageMenuBarActions', () => {
     expect(screen.getByRole('menu')).toHaveTextContent('common.loading')
   })
 
+  it('offers an actionable retry item when the language load failed, then recovers', async () => {
+    const retryTranslationLanguages = vi.fn()
+    const failedContext = createActionContext({
+      translationLanguagesStatus: 'error',
+      actions: {
+        requestTranslationLanguages: vi.fn(),
+        retryTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    const failedItems = resolveMessageMenuBarTranslationItems(failedContext)
+    expect(failedItems).toEqual([expect.objectContaining({ key: 'translate-retry', label: 'common.retry' })])
+
+    const retryItem = failedItems[0]
+    expect('onSelect' in retryItem).toBe(true)
+    if ('onSelect' in retryItem) {
+      await retryItem.onSelect()
+    }
+    expect(retryTranslationLanguages).toHaveBeenCalledOnce()
+
+    const recoveredItems = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        translationLanguagesStatus: 'ready',
+        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
+        actions: {
+          requestTranslationLanguages: vi.fn(),
+          retryTranslationLanguages,
+          translateMessage: vi.fn()
+        } as MessageListActions
+      })
+    )
+    expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
+  })
+
   it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
     tooltipOpenValues.length = 0
 

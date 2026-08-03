@@ -35,12 +35,18 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
-const useLanguagesMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    languages: [],
-    getLabel: vi.fn(() => '')
-  }))
-)
+const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
+  const refetchTranslationLanguagesMock = vi.fn(async () => undefined)
+  return {
+    refetchTranslationLanguagesMock,
+    useLanguagesMock: vi.fn(() => ({
+      languages: [],
+      getLabel: vi.fn(() => ''),
+      status: 'ready' as const,
+      refetch: refetchTranslationLanguagesMock
+    }))
+  }
+})
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 
 vi.mock('@data/DataApiService', () => ({
@@ -335,6 +341,18 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => value?.actions.requestTranslationLanguages?.())
 
     await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
+  })
+
+  it('exposes the language load status and retries through the shared refetch', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.state.translationLanguagesStatus).toBe('ready')
+
+    act(() => value?.actions.retryTranslationLanguages?.())
+
+    expect(refetchTranslationLanguagesMock).toHaveBeenCalledOnce()
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {

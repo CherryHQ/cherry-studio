@@ -19,7 +19,7 @@ export const useTranslateLanguages = (options?: {
   update?: MutationFeedbackOptions
   remove?: MutationFeedbackOptions
 }) => {
-  const { data, error } = useQuery('/translate/languages', { enabled: options?.enabled })
+  const { data, error, refetch } = useQuery('/translate/languages', { enabled: options?.enabled })
   const { t } = useTranslation()
 
   const toastedRef = useRef(false)
@@ -139,7 +139,7 @@ export const useTranslateLanguages = (options?: {
   const status: 'loading' | 'error' | 'ready' =
     languages !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
 
-  return { languages, getLabel, getLanguage, add, update, remove, error, status }
+  return { languages, getLabel, getLanguage, add, update, remove, error, status, refetch }
 }
 
 export const useLanguages = useTranslateLanguages
