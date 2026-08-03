@@ -63,9 +63,17 @@ describe('FileProcessingSection', () => {
   it('shows unavailable processors without allowing selection', () => {
     const onFileProcessorChange = renderSection()
 
-    fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
+    const trigger = screen.getByRole('button', { name: 'File processing' })
+    fireEvent.click(trigger)
 
     expect(screen.getByTestId('file-processor-selector-content')).toHaveStyle({ height: '185px' })
+    // Select triggers must not add border or outer-ring feedback when expanded.
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).not.toHaveClass(
+      'aria-expanded:border-primary',
+      'aria-expanded:ring-3',
+      'aria-expanded:ring-primary/20'
+    )
     expect(screen.getByText('Not configured')).toBeInTheDocument()
     expect(screen.getByTestId('processor-icon-paddleocr').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('processor-icon-doc2x').querySelector('svg')).toBeInTheDocument()

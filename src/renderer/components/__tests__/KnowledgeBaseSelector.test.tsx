@@ -42,12 +42,20 @@ describe('KnowledgeBaseSelector', () => {
   it('opens a trigger-width SelectorShell and filters by name', () => {
     renderSelector()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select knowledge base' }))
+    const trigger = screen.getByRole('button', { name: 'Select knowledge base' })
+    fireEvent.click(trigger)
 
     expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({
       width: 'var(--radix-popover-trigger-width)',
       height: '156px'
     })
+    // Select triggers must not add border or outer-ring feedback when expanded.
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).not.toHaveClass(
+      'aria-expanded:border-primary',
+      'aria-expanded:ring-3',
+      'aria-expanded:ring-primary/20'
+    )
     expect(screen.getByRole('option', { name: 'Alpha Knowledge' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search knowledge bases'), { target: { value: 'beta' } })
