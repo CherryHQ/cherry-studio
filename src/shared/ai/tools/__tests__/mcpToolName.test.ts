@@ -5,8 +5,29 @@ import {
   buildMcpToolName,
   generateMcpToolFunctionName,
   isFunctionCallToolNameForServer,
+  parseFunctionCallToolName,
   toCamelCase
 } from '../mcpToolName'
+
+describe('parseFunctionCallToolName', () => {
+  it('splits a minted MCP id into server and tool parts', () => {
+    expect(parseFunctionCallToolName('mcp__github__searchIssues')).toEqual({
+      serverPart: 'github',
+      toolPart: 'searchIssues'
+    })
+  })
+
+  it('returns null for non-MCP and malformed names', () => {
+    expect(parseFunctionCallToolName('Bash')).toBeNull()
+    expect(parseFunctionCallToolName('mcp__github')).toBeNull()
+    expect(parseFunctionCallToolName('mcp____tool')).toBeNull()
+  })
+
+  it('returns null for a missing name instead of throwing', () => {
+    // Providers can open a tool_use block before the name is known.
+    expect(parseFunctionCallToolName(undefined)).toBeNull()
+  })
+})
 
 describe('isFunctionCallToolNameForServer', () => {
   it('matches a normal minted id back to its server', () => {
