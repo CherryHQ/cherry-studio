@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} εργασία παρασκηνίου σε εκτέλεση",
+      "background_running_other": "{{count}} εργασίες παρασκηνίου σε εκτέλεση"
     },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
@@ -235,7 +235,7 @@
           "discard_and_continue": "Απόρριψη και συνέχεια",
           "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
         },
-        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
+        "metadata_pending": "Το αρχείο αποθηκεύτηκε, αλλά τα μεταδεδομένα του εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτήν την αποθήκευση.",
         "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
         "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
         "unsaved": "Μη αποθηκευμένο",
@@ -326,25 +326,25 @@
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
         "no_subagents": "Καμία υπο-αντιπροσωπεία",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Εντολές παρασκηνίου",
         "subagents": "Υπο-πράκτορες",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Ροές εργασίας"
       },
       "status": {
         "activity": "Δραστηριότητα",
         "agent": "Πράκτορας",
         "context": "Συμφραζόμενα",
         "no_tasks": "Κανένα ενεργό καθήκον",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} ζωντανά",
+        "run_task_live_other": "{{count}} ζωντανά",
+        "run_tasks": "Υποεργασίες",
         "selected_tool": "Επιλεγμένο εργαλείο",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Διακοπή εργασίας",
+        "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
         "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
         "tasks": "Εργασίες",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} κλήση εργαλείου",
+        "tool_uses_other": "{{count}} κλήσεις εργαλείων",
         "tools_active": "Ενεργός",
         "tools_done": "Έγινε",
         "tools_failed": "Απέτυχε",
@@ -2587,8 +2587,8 @@
   },
   "file_preview": {
     "directory": {
-      "description": "[to be translated]:Select a file in this folder to preview it.",
-      "title": "[to be translated]:This is a folder"
+      "description": "Επιλέξτε ένα αρχείο σε αυτόν τον φάκελο για να το προεπισκοπήσετε.",
+      "title": "Αυτός είναι ένας φάκελος"
     },
     "html": {
       "empty": {
@@ -2657,8 +2657,8 @@
       }
     },
     "unavailable": {
-      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
-      "title": "[to be translated]:File unavailable"
+      "description": "Το αρχείο μπορεί να έχει μετακινηθεί, διαγραφεί ή να μην είναι προσβάσιμο.",
+      "title": "Το αρχείο δεν είναι διαθέσιμο"
     },
     "unsupported": {
       "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
@@ -3066,7 +3066,7 @@
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
-        "copying": "[to be translated]:Copying {{percent}}%",
+        "copying": "Αντιγραφή {{percent}}%",
         "embedding": "Ενσωμάτωση",
         "error": "Σφάλμα",
         "pending": "Αναμονή",
@@ -3857,9 +3857,9 @@
       }
     },
     "citation": "{{count}} αναφορές",
-    "citation_source": "[to be translated]:Citation source {{number}}",
+    "citation_source": "Πηγή παραπομπής {{number}}",
     "citations": "Περιεχόμενα αναφοράς",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Δεν ήταν δυνατή η εύρεση του ιστορικού προηγούμενης συνομιλίας — συνέχεια σε νέα συνομιλία",
     "copied": "Αντιγράφηκε",
     "copy": {
       "failed": "Η αντιγραφή απέτυχε",
@@ -4141,7 +4141,7 @@
         "write": "Αποθήκευση",
         "writing": "Αποθήκευση"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Εκτέλεση στο παρασκήνιο",
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
@@ -4173,7 +4173,7 @@
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
         "webSearch": "Αναζήτηση στον Ιστό",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Ροή εργασίας",
         "write": "Γράψε"
       },
       "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
@@ -4233,13 +4233,13 @@
         "result_other": "{{count}} αποτελέσματα"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Οργάνωση ροής εργασιών",
+        "run_id": "Αναγνωριστικό Εκτέλεσης",
+        "script": "Σενάριο ροής εργασίας",
+        "script_path": "Διαδρομή σεναρίου",
+        "started": "Ξεκίνησε η ροή εργασίας",
+        "summary": "Περίληψη",
+        "workflow": "ροή εργασίας"
       }
     },
     "topic": {
@@ -4505,7 +4505,7 @@
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
     "save_failure": {
       "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί.",
-      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
+      "metadata_pending": "Η σημείωση αποθηκεύτηκε, αλλά τα μεταδεδομένα αρχείου της εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτή την αποθήκευση."
     },
     "search": {
       "both": "Όνομα + Περιεχόμενο",
@@ -5231,7 +5231,7 @@
     "ppio": "PPIO Piao Yun",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
-    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "Σιδηρική Παρουσία",
     "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",

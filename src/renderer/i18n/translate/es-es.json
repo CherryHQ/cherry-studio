@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tarea en segundo plano en ejecución",
+      "background_running_other": "{{count}} tareas en segundo plano en ejecución"
     },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
@@ -235,7 +235,7 @@
           "discard_and_continue": "Descartar y continuar",
           "title": "¿Descartar cambios no guardados?"
         },
-        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
+        "metadata_pending": "El archivo se guardó, pero sus metadatos aún se están recuperando. No reintente este guardado.",
         "refresh_failed": "No se puede volver a cargar el contenido más reciente del archivo.",
         "save_failed": "No se puede guardar este archivo. El guardado automático está pausado hasta que reintente o descarte los cambios.",
         "unsaved": "No guardado",
@@ -326,25 +326,25 @@
         "more": "+{{count}} más",
         "no_artifacts": "No se han declarado entregables",
         "no_subagents": "Sin subagentes",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Comandos en segundo plano",
         "subagents": "Subagentes",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Flujos de trabajo"
       },
       "status": {
         "activity": "Actividad",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} en vivo",
+        "run_task_live_other": "{{count}} en directo",
+        "run_tasks": "Subtareas",
         "selected_tool": "Herramienta seleccionada",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Detener tarea",
+        "stop_run_task_failed": "Error al detener la tarea",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} llamada a herramienta",
+        "tool_uses_other": "{{count}} llamadas a herramientas",
         "tools_active": "Activo",
         "tools_done": "Hecho",
         "tools_failed": "Falló",
@@ -2587,8 +2587,8 @@
   },
   "file_preview": {
     "directory": {
-      "description": "[to be translated]:Select a file in this folder to preview it.",
-      "title": "[to be translated]:This is a folder"
+      "description": "Selecciona un archivo en esta carpeta para previsualizarlo.",
+      "title": "Esta es una carpeta"
     },
     "html": {
       "empty": {
@@ -2657,8 +2657,8 @@
       }
     },
     "unavailable": {
-      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
-      "title": "[to be translated]:File unavailable"
+      "description": "El archivo puede haber sido movido, eliminado o no se puede acceder a él.",
+      "title": "Archivo no disponible"
     },
     "unsupported": {
       "action": "Abrir con la aplicación predeterminada",
@@ -3066,7 +3066,7 @@
       "reindex_failed": "Error al reindexar la fuente de datos",
       "status": {
         "chunking": "Fragmentación",
-        "copying": "[to be translated]:Copying {{percent}}%",
+        "copying": "Copiando {{percent}}%",
         "embedding": "Incrustación",
         "error": "Error",
         "pending": "Esperando",
@@ -3857,9 +3857,9 @@
       }
     },
     "citation": "{{count}} contenido citado",
-    "citation_source": "[to be translated]:Citation source {{number}}",
+    "citation_source": "Fuente de citación {{number}}",
     "citations": "Citas",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "No se ha encontrado el historial de conversación anterior — continuando en una nueva conversación",
     "copied": "Copiado",
     "copy": {
       "failed": "Copia fallida",
@@ -4141,7 +4141,7 @@
         "write": "Guardar",
         "writing": "Guardando"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Ejecutándose en segundo plano",
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
@@ -4173,7 +4173,7 @@
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
         "webSearch": "Búsqueda en la web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Flujo de trabajo",
         "write": "Escribir"
       },
       "noData": "No hay datos disponibles para esta herramienta.",
@@ -4233,13 +4233,13 @@
         "result_other": "{{count}} resultados"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orquestando el flujo de trabajo",
+        "run_id": "ID de ejecución",
+        "script": "Script de flujo de trabajo",
+        "script_path": "Ruta del script",
+        "started": "Iniciado flujo de trabajo",
+        "summary": "Resumen",
+        "workflow": "flujo de trabajo"
       }
     },
     "topic": {
@@ -4505,7 +4505,7 @@
     "save_failed": "Error al guardar la nota",
     "save_failure": {
       "description": "Esta nota no se pudo guardar. Tus ediciones permanecen en el editor y el guardado automático está pausado.",
-      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
+      "metadata_pending": "La nota se guardó, pero sus metadatos de archivo aún se están recuperando. No vuelva a intentar este guardado."
     },
     "search": {
       "both": "Nombre + Contenido",
@@ -5231,7 +5231,7 @@
     "ppio": "PPIO Cloud Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
-    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
+    "radeon-cloud": "Nube de GPU AMD",
     "silicon": "Silicio Fluido",
     "sophnet": "SophNet",
     "stepfun": "Función Salto",
