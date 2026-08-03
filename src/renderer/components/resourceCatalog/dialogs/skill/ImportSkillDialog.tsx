@@ -1,4 +1,5 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -113,9 +114,9 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
           }
         }
 
-        if (preErrorCount === nextItems.length) {
-          setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
-        } else if (failedCount > 0) {
+        if (preErrorCount === nextItems.length) return
+
+        if (failedCount > 0) {
           setStatus({
             kind: 'error',
             message: t('settings.skills.batchInstallPartialFailed', {
@@ -336,16 +337,18 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
             <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
               <ImportItemStatusIcon status={item.status} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-foreground" title={displayName}>
-                  {displayName}
+                <div className="min-w-0 text-foreground" title={displayName}>
+                  <MarqueeText>{displayName}</MarqueeText>
                 </div>
                 {item.status !== 'success' ? (
                   <div
-                    className="mt-0.5 truncate text-foreground-tertiary"
+                    className="mt-0.5 min-w-0 text-foreground-tertiary"
                     title={item.status === 'error' ? item.error : undefined}>
-                    {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                    {item.status === 'installing' ? t('common.loading') : null}
-                    {item.status === 'error' ? item.error : null}
+                    <MarqueeText>
+                      {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                      {item.status === 'installing' ? t('common.loading') : null}
+                      {item.status === 'error' ? item.error : null}
+                    </MarqueeText>
                   </div>
                 ) : null}
               </div>

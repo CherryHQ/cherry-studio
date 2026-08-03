@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { PropsWithChildren } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const installFromZip = vi.fn()
@@ -42,6 +43,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useSkills', () => ({
   useSkillInstall: () => ({ installFromZip, installFromDirectory })
+}))
+
+vi.mock('@renderer/components/MarqueeText', () => ({
+  default: ({ children }: PropsWithChildren) => <div data-testid="marquee-text">{children}</div>
 }))
 
 import { toast } from '@renderer/services/toast'
@@ -169,7 +174,7 @@ describe('ImportSkillDialog', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('keeps complete long import names and errors available on truncated result text', async () => {
+  it('uses hover marquees for long import names and errors while preserving their titles', async () => {
     const user = userEvent.setup()
     const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
     const localizedError = `settings.skills.zipImportFailed:${longName}`
@@ -182,6 +187,10 @@ describe('ImportSkillDialog', () => {
 
     expect(await screen.findByTitle(longName)).toHaveTextContent(longName)
     expect(screen.getByTitle(localizedError)).toHaveTextContent(localizedError)
+    const marquees = screen.getAllByTestId('marquee-text')
+    expect(marquees).toHaveLength(2)
+    expect(marquees[0]).toHaveTextContent(longName)
+    expect(marquees[1]).toHaveTextContent(localizedError)
   })
 
   it('uses the marketplace success toast without a duplicate success banner', async () => {
@@ -306,7 +315,7 @@ describe('ImportSkillDialog', () => {
     expect(screen.getByText('settings.skills.batchInstallPartialFailed:2:3:1')).toBeInTheDocument()
   })
 
-  it('shows invalid format status for invalid-only dropped files without installing', async () => {
+  it('shows invalid-only dropped files once per item without a duplicate status banner', async () => {
     const files = [
       new File(['one'], 'one.txt', { type: 'text/plain' }),
       new File(['two'], 'two.txt', { type: 'text/plain' }),
@@ -322,7 +331,7 @@ describe('ImportSkillDialog', () => {
     expect(installFromDirectory).not.toHaveBeenCalled()
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('two.txt')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('three.txt')
-    expect(screen.getAllByText('settings.skills.invalidFormat')).toHaveLength(4)
+    expect(screen.getAllByText('settings.skills.invalidFormat')).toHaveLength(3)
     expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:3:3')).not.toBeInTheDocument()
   })
 })
