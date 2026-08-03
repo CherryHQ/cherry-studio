@@ -1,5 +1,5 @@
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
+import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
@@ -39,7 +39,6 @@ export const AppShell = () => {
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
-  useMainWindowNavigation()
 
   useEffect(() => {
     if (!isMac) return

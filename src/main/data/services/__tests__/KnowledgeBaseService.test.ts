@@ -1054,4 +1054,41 @@ describe('KnowledgeBaseService', () => {
       })
     })
   })
+
+  describe('embedding model removal guard', () => {
+    const embeddingModelId = createUniqueModelId('openai', 'embed-model')
+
+    it('does not acquire the guard while a knowledge base references the model', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.acquireEmbeddingModelRemovalGuard(embeddingModelId)).toBeUndefined()
+    })
+
+    it('rejects writes that add the model until the removal guard is released', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+      const releaseGuard = service.acquireEmbeddingModelRemovalGuard(embeddingModelId)
+      expect(releaseGuard).toBeTypeOf('function')
+
+      let createError: unknown
+      try {
+        service.create({ name: 'Concurrent Base', embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        createError = error
+      }
+      expect(createError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      let updateError: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        updateError = error
+      }
+      expect(updateError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      releaseGuard?.()
+      expect(service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 }).embeddingModelId).toBe(
+        embeddingModelId
+      )
+    })
+  })
 })

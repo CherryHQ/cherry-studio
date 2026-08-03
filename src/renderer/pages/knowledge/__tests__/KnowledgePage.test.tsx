@@ -1,6 +1,7 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type {
   KnowledgeBase,
@@ -236,6 +237,7 @@ vi.mock('../components/DetailHeader', () => ({
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
   default: ({
+    embeddingModelId,
     items,
     isLoading,
     onAdd,
@@ -248,6 +250,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onReindex,
     onReindexItems
   }: {
+    embeddingModelId?: string | null
     items: KnowledgeItem[]
     isLoading: boolean
     onAdd: () => void
@@ -260,7 +263,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onReindex: (item: { id: string }) => void | Promise<void>
     onReindexItems: (itemIds: string[]) => void | Promise<void>
   }) => {
-    mockDataSourcePanelRender({ onPreviewFile })
+    mockDataSourcePanelRender({ embeddingModelId, onPreviewFile })
 
     return (
       <div>
@@ -657,7 +660,11 @@ describe('KnowledgePage', () => {
   it('auto-selects the first knowledge base after bases load', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [
-        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({
+          id: 'base-1',
+          name: 'Base 1',
+          embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+        }),
         createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
       ],
       isLoading: false,
@@ -683,6 +690,9 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
+    expect(mockDataSourcePanelRender).toHaveBeenLastCalledWith(
+      expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
+    )
   })
 
   it('keeps a global search knowledge selection until cold-start bases load', async () => {

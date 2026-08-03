@@ -5,6 +5,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -71,7 +72,7 @@ const homeMocks = vi.hoisted(() => ({
   // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestTopicOverride: undefined as Topic | null | undefined,
-  assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
+  assistants: [{ id: 'assistant-default' }] as Array<{ id: string; modelId?: string | null; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
   assistantsLoading: false,
@@ -734,6 +735,19 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('warms the visible assistant model from the assistant list', () => {
+    homeMocks.assistants = [{ id: 'assistant-1', modelId: 'provider-a::model-a' }]
+
+    render(<HomePage />)
+
+    // Chat is mocked in this suite, so the enabled model query can only come from HomePage's list hint.
+    expect(
+      mockUseQuery.mock.calls.some(
+        ([path, options]) => path === '/models/provider-a::model-a' && options?.enabled !== false
+      )
+    ).toBe(true)
   })
 
   it('shows both assistant and topic panes by default when topics are on the right', () => {

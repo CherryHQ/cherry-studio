@@ -46,11 +46,27 @@ vi.mock('@renderer/types/file', () => ({
 }))
 
 vi.mock('motion/react', () => {
-  const Div = ({ ref, children, ...props }: any) => (
-    <div ref={ref} {...props}>
-      {children}
-    </div>
-  )
+  const Div = ({ ref, children, variants, initial, animate, style, ...props }: any) => {
+    void initial
+    const target = typeof animate === 'string' ? variants?.[animate] : animate
+    const opacity = target?.opacity
+    const x = target?.x
+    const duration = target?.transition?.duration
+    return (
+      <div
+        ref={ref}
+        data-motion-state={typeof animate === 'string' ? animate : undefined}
+        data-motion-duration={duration}
+        style={{
+          ...style,
+          ...(opacity === undefined ? {} : { opacity }),
+          ...(x === undefined ? {} : { transform: x === 0 ? 'none' : `translateX(${x}px)` })
+        }}
+        {...props}>
+        {children}
+      </div>
+    )
+  }
   const proxy = new Proxy(
     { div: Div, create: (Component: any) => Component },
     { get: (target, key) => (target as any)[key] ?? Div }
@@ -1479,6 +1495,28 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
+    })
+
+    it('settles a quickly failed live error block into the visible motion state', () => {
+      activateTurn('streaming')
+      const parts = [
+        { type: 'data-error', data: { name: 'ProviderError', message: 'failed immediately' } }
+      ] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }))
+      const activeErrorNode = screen.getByTestId('mock-error-block')
+      const animatedWrapper = activeErrorNode.closest('.block-wrapper')
+
+      expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
+
+      mockIsActiveTurnTarget.mockReturnValue(false)
+      mockTopicStreamState.status = 'error'
+      rerender(renderPartsTree(parts, msg({ status: 'error' })))
+
+      expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)
+      // The explicit static target prevents Motion from freezing an interrupted entrance at opacity 0..1.
+      expect(animatedWrapper).toHaveAttribute('data-motion-state', 'static')
+      expect(animatedWrapper).toHaveAttribute('data-motion-duration', '0')
+      expect(animatedWrapper).toHaveStyle({ opacity: '1', transform: 'none' })
     })
 
     it('preserves completed process expansion when the same message metadata updates', () => {

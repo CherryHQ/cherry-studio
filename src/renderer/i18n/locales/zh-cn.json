@@ -3167,6 +3167,7 @@
         "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
       "processor": "处理服务商",
+      "processor_not_configured": "未配置",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -5203,7 +5204,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "本地模型",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6782,6 +6783,7 @@
         "allStatuses": "全部状态",
         "allTypes": "全部类型",
         "builtinOnly": "仅内置",
+        "label": "筛选",
         "status": "按状态筛选",
         "type": "按类型筛选"
       },
@@ -6848,6 +6850,9 @@
         "loadError": "获取提示失败",
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
+      },
+      "protocolInstall": {
+        "title": "安装 MCP"
       },
       "protocolInstallWarning": {
         "command": "启动命令",

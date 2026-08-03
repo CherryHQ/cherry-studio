@@ -1,7 +1,6 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
@@ -36,7 +35,6 @@ const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
 interface Props {
   message: MessageListItem
   messageParts?: CherryMessagePart[]
-  topic: Topic
   index?: number
   total?: number
   hideMenuBar?: boolean
@@ -54,7 +52,6 @@ interface Props {
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   message,
-  topic,
   // assistant,
   index,
   hideMenuBar = false,
@@ -222,7 +219,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
-          topic={topic}
           isLastMessage={isLastMessage}
           isAssistantMessage={false}
           isGrouped={isGrouped}
@@ -249,7 +245,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         }}>
         <MessageMenuBar
           message={message}
-          topic={topic}
           isLastMessage={isLatestAssistantMessage}
           forceVisible={isMessageMenuOpen}
           isAssistantMessage={isAssistantMessage}
@@ -283,7 +278,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       {isUserBubbleMessage ? (
         <UserBubbleMessage
           message={message}
-          topic={topic}
           isLastMessage={isLastMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
@@ -324,7 +318,6 @@ export default memo(MessageItem)
 
 const UserBubbleMessage = ({
   message,
-  topic,
   isLastMessage,
   isGrouped,
   isProcessing,
@@ -336,7 +329,6 @@ const UserBubbleMessage = ({
   isEditing
 }: {
   message: MessageListItem
-  topic: Topic
   isLastMessage: boolean
   isGrouped?: boolean
   isProcessing: boolean
@@ -380,7 +372,6 @@ const UserBubbleMessage = ({
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar
               message={message}
-              topic={topic}
               isLastMessage={isLastMessage}
               isAssistantMessage={false}
               isGrouped={isGrouped}
