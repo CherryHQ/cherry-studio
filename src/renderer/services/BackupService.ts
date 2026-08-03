@@ -12,6 +12,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import dayjs from 'dayjs'
@@ -131,7 +132,7 @@ export async function restore() {
       logger.error('restore: Error restoring backup file:', error as Error)
       void popup.error({
         title: i18n.t('error.backup.file_format'),
-        content: (error as Error).message,
+        content: getLocalizedBackupErrorMessage(error, 'error.backup.file_format'),
         centered: true
       })
     }
@@ -269,30 +270,32 @@ export async function backupToWebdav({
         }
       }
     } else {
+      const message = i18n.t('message.backup.failed')
       // if auto backup process, throw error
       if (autoBackupProcess) {
-        throw new Error(i18n.t('message.backup.failed'))
+        throw new Error(message)
       }
 
-      setWebDAVSyncState({ lastSyncError: 'Backup failed' })
-      showMessage && toast.error(i18n.t('message.backup.failed'))
+      setWebDAVSyncState({ lastSyncError: message })
+      showMessage && toast.error(message)
     }
   } catch (error: any) {
     // if auto backup process, throw error
     if (autoBackupProcess) {
       throw error
     }
+    const message = getLocalizedBackupErrorMessage(error)
     void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
-      message: error.message,
+      message,
       silent: false,
       timestamp: Date.now(),
       source: 'backup'
     })
-    setWebDAVSyncState({ lastSyncError: error.message })
-    showMessage && toast.error(i18n.t('message.backup.failed'))
+    setWebDAVSyncState({ lastSyncError: message })
+    showMessage && toast.error(message)
     logger.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
     throw error
   } finally {
@@ -425,29 +428,31 @@ export async function backupToS3({
         }
       }
     } else {
+      const message = i18n.t('message.backup.failed')
       if (autoBackupProcess) {
-        throw new Error(i18n.t('message.backup.failed'))
+        throw new Error(message)
       }
 
-      setS3SyncState({ lastSyncError: 'Backup failed' })
-      showMessage && toast.error(i18n.t('message.backup.failed'))
+      setS3SyncState({ lastSyncError: message })
+      showMessage && toast.error(message)
     }
   } catch (error: any) {
     if (autoBackupProcess) {
       throw error
     }
+    const message = getLocalizedBackupErrorMessage(error)
     void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
-      message: error.message,
+      message,
       silent: false,
       timestamp: Date.now(),
       source: 'backup'
     })
-    setS3SyncState({ lastSyncError: error.message })
+    setS3SyncState({ lastSyncError: message })
     logger.error('backupToS3: Error uploading file to S3:', error)
-    showMessage && toast.error(i18n.t('message.backup.failed'))
+    showMessage && toast.error(message)
     throw error
   } finally {
     if (!autoBackupProcess) {
@@ -745,28 +750,29 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         retryCount++
         if (retryCount === maxRetries) {
           logger.error(`${logPrefix} Auto backup failed after all retries:`, error)
+          const message = getLocalizedBackupErrorMessage(error)
 
           if (backupType === 'webdav') {
             setWebDAVSyncState({
-              lastSyncError: 'Auto backup failed',
+              lastSyncError: message,
               lastSyncTime: Date.now(),
               syncing: false
             })
           } else if (backupType === 's3') {
             setS3SyncState({
-              lastSyncError: 'Auto backup failed',
+              lastSyncError: message,
               lastSyncTime: Date.now(),
               syncing: false
             })
           } else if (backupType === 'local') {
             setLocalBackupSyncState({
-              lastSyncError: 'Auto backup failed',
+              lastSyncError: message,
               lastSyncTime: Date.now(),
               syncing: false
             })
           }
 
-          toast.error(i18n.t('message.backup.failed'))
+          toast.error(message)
 
           void scheduleNextBackup('fromNow', backupType)
 
@@ -948,18 +954,19 @@ export async function backupToLocal({
         }
       }
     } else {
+      const message = i18n.t('message.backup.failed')
       if (autoBackupProcess) {
-        throw new Error(i18n.t('message.backup.failed'))
+        throw new Error(message)
       }
 
       setLocalBackupSyncState({
-        lastSyncError: 'Backup failed'
+        lastSyncError: message
       })
 
       if (showMessage) {
         void popup.error({
-          title: i18n.t('message.backup.failed'),
-          content: 'Backup failed'
+          title: message,
+          content: message
         })
       }
     }
@@ -971,15 +978,16 @@ export async function backupToLocal({
     }
 
     logger.error('[LocalBackup] Backup failed:', error)
+    const message = getLocalizedBackupErrorMessage(error)
 
     setLocalBackupSyncState({
-      lastSyncError: error.message || 'Unknown error'
+      lastSyncError: message
     })
 
     if (showMessage) {
       void popup.error({
         title: i18n.t('message.backup.failed'),
-        content: error.message || 'Unknown error'
+        content: message
       })
     }
 
@@ -1005,7 +1013,6 @@ export async function restoreFromLocal(fileName: string) {
     return true
   } catch (error) {
     logger.error('[LocalBackup] Restore failed:', error as Error)
-    toast.error(i18n.t('error.backup.file_format'))
     throw error
   }
 }

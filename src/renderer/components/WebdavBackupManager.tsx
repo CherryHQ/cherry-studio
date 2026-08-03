@@ -13,6 +13,7 @@ import {
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
@@ -85,8 +86,8 @@ export function WebdavBackupManager({
         webdavPath
       } as WebdavConfig)
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.fetch.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.fetch.error'))
     } finally {
       setLoading(false)
     }
@@ -162,8 +163,8 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -195,8 +196,8 @@ export function WebdavBackupManager({
       } as WebdavConfig)
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -223,8 +224,8 @@ export function WebdavBackupManager({
       await (restoreMethod || restoreFromWebdav)(fileName)
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.restore.error'))
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error'))
     } finally {
       setRestoring(false)
     }

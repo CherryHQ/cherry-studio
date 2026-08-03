@@ -6121,6 +6121,7 @@
         },
         "pathSelector": {
           "currentPath": "Current Path",
+          "fetchError": "Failed to load the Nutstore folder list",
           "return": "Return",
           "title": "Nutstore Storage Path"
         },

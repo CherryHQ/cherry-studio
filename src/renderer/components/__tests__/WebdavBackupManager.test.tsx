@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { preferenceService } from '@data/PreferenceService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -143,6 +144,9 @@ describe('WebdavBackupManager', () => {
 
   it('shows one failure toast after Nutstore automatic backup retries are exhausted', async () => {
     vi.useFakeTimers()
+    mocks.backupToWebdav.mockRejectedValue(
+      new Error(`${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
+    )
 
     await startNutstoreAutoSync()
     await vi.advanceTimersByTimeAsync(60_000)
@@ -151,7 +155,7 @@ describe('WebdavBackupManager', () => {
     await vi.advanceTimersByTimeAsync(37_000)
 
     expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
-    expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.backup.failed')
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('backup.error.active_data_writers')
     expect(popup.error).not.toHaveBeenCalled()
   })
 })

@@ -12,8 +12,8 @@ import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -49,11 +49,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       await backup(skipBackupFile)
       resolve({})
     } catch (error) {
-      const message =
-        error instanceof Error && error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
-          ? t('backup.error.active_data_writers')
-          : t('message.backup.failed')
-      toast.error(message)
+      toast.error(getLocalizedBackupErrorMessage(error))
       setProgressData(undefined)
       setSubmitting(false)
     }

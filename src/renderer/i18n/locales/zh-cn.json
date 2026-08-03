@@ -6121,6 +6121,7 @@
         },
         "pathSelector": {
           "currentPath": "当前路径",
+          "fetchError": "获取坚果云文件夹列表失败",
           "return": "返回",
           "title": "坚果云存储路径"
         },

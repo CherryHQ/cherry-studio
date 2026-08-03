@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
@@ -190,8 +191,9 @@ export async function backupToNutstore({
     if (autoBackupProcess) {
       throw error
     }
-    setNutstoreSyncState({ lastSyncError: 'Backup failed' })
-    showMessage && toast.error(i18n.t('message.backup.failed'))
+    const message = getLocalizedBackupErrorMessage(error)
+    setNutstoreSyncState({ lastSyncError: message })
+    showMessage && toast.error(message)
   } finally {
     if (!autoBackupProcess) {
       setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
@@ -291,12 +293,13 @@ export async function startNutstoreAutoSync() {
           retryCount++
           if (retryCount === maxRetries) {
             logger.error('[Nutstore AutoSync] Auto backup failed after all retries:', error as Error)
+            const message = getLocalizedBackupErrorMessage(error)
             setNutstoreSyncState({
-              lastSyncError: 'Auto backup failed',
+              lastSyncError: message,
               lastSyncTime: Date.now(),
               syncing: false
             })
-            toast.error(i18n.t('message.backup.failed'))
+            toast.error(message)
           } else {
             const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
             logger.warn(`[Nutstore AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
