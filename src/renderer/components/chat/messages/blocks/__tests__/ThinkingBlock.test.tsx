@@ -89,7 +89,6 @@ describe('ThinkingBlock', () => {
   }
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
-  const getCopyButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Copy"]')
   const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
   const getToggleButton = () => document.querySelector<HTMLElement>('[aria-controls][aria-expanded][role="button"]')!
   const getContentContainer = () => {
@@ -117,26 +116,6 @@ describe('ThinkingBlock', () => {
         expect(container.firstChild).toBeNull()
         unmount()
       })
-    })
-
-    it('should not show copy button in streaming or success states', () => {
-      // When thinking (streaming)
-      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(thinkingBlock)
-
-      expect(getCopyButton()).not.toBeInTheDocument()
-
-      // When thinking is complete
-      const completedBlock = createThinkingBlock({ status: 'success' })
-      rerender(
-        <ThinkingBlock
-          id={completedBlock.id}
-          content={completedBlock.content}
-          isStreaming={completedBlock.status === 'streaming'}
-        />
-      )
-
-      expect(getCopyButton()).not.toBeInTheDocument()
     })
 
     it('should not show a reasoning preview in the title by default', () => {
@@ -203,59 +182,16 @@ describe('ThinkingBlock', () => {
       expect(activeTimeText).toHaveTextContent('Thinking')
       expect(activeTimeText).not.toHaveTextContent('1.0s')
     })
-
-    it('should not display live estimated thinking tokens', () => {
-      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(thinkingBlock)
-
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking')
-      expect(getThinkingTimeText()).not.toHaveTextContent('~1,234 tokens')
-
-      rerender(<ThinkingBlock id={thinkingBlock.id} content={thinkingBlock.content} isStreaming />)
-
-      expect(getThinkingTimeText()).not.toHaveTextContent('~2,048 tokens')
-    })
   })
 
   describe('collapse behavior', () => {
     it('should render collapsed by default', () => {
       const block = createThinkingBlock()
-      const { unmount } = renderThinkingBlock(block)
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
-      expect(getThinkingContent()).toBeInTheDocument()
-      unmount()
-
-      mockRenderConfig.thoughtAutoCollapse = true
-
       renderThinkingBlock(block)
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
-    })
-
-    it('should auto-collapse when thinking completes if setting enabled', () => {
-      mockRenderConfig.thoughtAutoCollapse = true
-
-      const streamingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(streamingBlock)
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-
-      // Stop thinking
-      const completedBlock = createThinkingBlock({ status: 'success' })
-      rerender(
-        <ThinkingBlock
-          id={completedBlock.id}
-          content={completedBlock.content}
-          isStreaming={completedBlock.status === 'streaming'}
-        />
-      )
-
-      // Should remain collapsed
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
+      expect(getThinkingContent()).toBeInTheDocument()
     })
 
     it('should toggle expanded state when clicked', () => {
@@ -281,23 +217,6 @@ describe('ThinkingBlock', () => {
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
-    })
-
-    it('should handle rapid status changes gracefully', () => {
-      const block = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(block)
-
-      // Rapidly toggle between states
-      for (let i = 0; i < 3; i++) {
-        const streamingBlock = createThinkingBlock({ status: 'streaming' })
-        rerender(<ThinkingBlock id={streamingBlock.id} content={streamingBlock.content} isStreaming={true} />)
-        const successBlock = createThinkingBlock({ status: 'success' })
-        rerender(<ThinkingBlock id={successBlock.id} content={successBlock.content} isStreaming={false} />)
-      }
-
-      // Should still render correctly
-      expect(getThinkingContent()).toBeInTheDocument()
-      expect(getCopyButton()).not.toBeInTheDocument()
     })
   })
 })

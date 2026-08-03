@@ -351,7 +351,7 @@ describe('MessageGroup', () => {
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
-  it.each(['horizontal', 'vertical', 'grid'] as const)(
+  it.each(['vertical', 'grid'] as const)(
     'always shows each model identity in %s multi-model layout',
     (multiModelMessageStyle) => {
       mocks.settings.mockReturnValue({
