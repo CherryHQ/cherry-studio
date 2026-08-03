@@ -71,6 +71,7 @@ const homeMocks = vi.hoisted(() => ({
   // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestTopicOverride: undefined as Topic | null | undefined,
+  latestTopicOptions: [] as Array<{ enabled?: boolean }>,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
@@ -243,6 +244,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   return {
     mapApiTopicToRendererTopic: (topic: Topic) => topic,
     useLatestTopic: (options: { enabled?: boolean } = {}) => {
+      homeMocks.latestTopicOptions.push(options)
       const derived = findLatestUpdated(homeMocks.classicLayoutTopics) as Topic | undefined
       const latest =
         homeMocks.latestTopicOverride === undefined ? derived : (homeMocks.latestTopicOverride ?? undefined)
@@ -700,6 +702,7 @@ describe('HomePage', () => {
     homeMocks.isTopicsFullyLoaded = true
     homeMocks.isLatestTopicLoading = false
     homeMocks.latestTopicOverride = undefined
+    homeMocks.latestTopicOptions = []
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false
@@ -1234,6 +1237,7 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-url'))
+    expect(homeMocks.latestTopicOptions.at(-1)).toEqual({ enabled: false })
   })
 
   it('creates an empty topic on modern first entry only when the topic library is empty', async () => {

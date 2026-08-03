@@ -124,7 +124,7 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
-  const { defaultModel } = useDefaultModel()
+  const { defaultModel } = useDefaultModel({ enabled: open })
   const selectableDefaultModelId =
     open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)

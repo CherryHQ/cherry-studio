@@ -21,7 +21,7 @@ import {
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -447,10 +447,6 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
-  const { models: allModels } = useModels({ enabled: true })
-  const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
-  const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const {
@@ -484,6 +480,20 @@ const ChatComposerInner = ({
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
+    Boolean(editingMessageForCurrentTopic) ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -665,6 +675,11 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
       ? editingMessageForCurrentTopic.lockedMentionedModels
       : EMPTY_MODELS
+  const shouldLoadProviders =
+    !externalContextControls &&
+    (mentionedModels.length > 1 || mentionedModelSelectorValue.length > 1 || lockedMentionedModels.length > 1)
+  const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const providers = resolvedProviders ?? loadedProviders
   const effectiveSubmittedModels =
     lockedMentionedModels.length > 1
       ? lockedMentionedModels
@@ -1176,6 +1191,10 @@ const ChatComposerInner = ({
     onDrain: sendQueuedPayload,
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
+  const queuedFollowupModelsDataEnabled = queuedFollowups.some(
+    (item) => (item.payload.mentionedModels?.length ?? 0) > 0
+  )
+  const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
   // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
   // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.

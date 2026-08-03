@@ -35,6 +35,12 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const useLanguagesMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    languages: [],
+    getLabel: vi.fn(() => '')
+  }))
+)
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 
 vi.mock('@data/DataApiService', () => ({
@@ -96,10 +102,7 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
-  useLanguages: () => ({
-    languages: [],
-    getLabel: vi.fn(() => '')
-  })
+  useLanguages: useLanguagesMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
@@ -320,6 +323,18 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     expect(value?.state.localSendGeneration).toBe(3)
+  })
+
+  it('loads translation languages only after the message menu requests them', async () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: false })
+
+    act(() => value?.actions.requestTranslationLanguages?.())
+
+    await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {

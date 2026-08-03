@@ -541,6 +541,41 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues).not.toContain(undefined)
   })
 
+  it('keeps translate available and requests languages when its menu first opens', () => {
+    const requestTranslationLanguages = vi.fn()
+    const context = createActionContext({
+      actions: {
+        requestTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
+    const translationItems = resolveMessageMenuBarTranslationItems(context)
+
+    expect(action).toBeTruthy()
+    expect(translationItems).toEqual([
+      expect.objectContaining({ key: 'translate-loading', label: 'common.loading', enabled: false })
+    ])
+
+    render(
+      renderTranslateToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems
+      })
+    )
+
+    expect(requestTranslationLanguages).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.translate' }))
+
+    expect(requestTranslationLanguages).toHaveBeenCalledOnce()
+    expect(screen.getByRole('menu')).toHaveTextContent('common.loading')
+  })
+
   it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
     tooltipOpenValues.length = 0
 

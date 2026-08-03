@@ -98,6 +98,7 @@ export type MessageMenuBarTranslationItem =
   | {
       key: string
       label: string
+      enabled?: boolean
       onSelect: () => void | Promise<void>
     }
   | {
@@ -332,7 +333,9 @@ registerToolbarAction({
   label: ({ t }) => t('chat.translate'),
   icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
   availability: (context) => {
-    const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
+    const canTranslate =
+      !!context.actions.translateMessage &&
+      (context.translateLanguages.length > 0 || !!context.actions.requestTranslationLanguages)
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
@@ -580,6 +583,15 @@ export function resolveMessageMenuBarTranslationItems(
         }
       }))
     : []
+
+  if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
+    items.push({
+      key: 'translate-loading',
+      label: t('common.loading'),
+      enabled: false,
+      onSelect: () => undefined
+    })
+  }
 
   if (!hasTranslationBlocks) return items
 
