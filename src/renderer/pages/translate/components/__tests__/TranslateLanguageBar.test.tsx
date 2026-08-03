@@ -199,14 +199,16 @@ describe('TranslateLanguageBar', () => {
     expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
   })
 
-  it('adds visible focus rings to language trigger buttons', () => {
+  it('uses contained focus feedback on language trigger buttons', () => {
     render(<TranslateLanguageBar {...baseProps()} />)
 
     const sourceButton = screen.getByRole('button', { name: sourceLanguageButtonName })
     const targetButton = screen.getByRole('button', { name: targetLanguageButtonName })
 
-    expect(sourceButton?.className).toContain('focus-visible:ring')
-    expect(targetButton?.className).toContain('focus-visible:ring')
+    expect(sourceButton).toHaveClass('focus-visible:bg-accent')
+    expect(targetButton).toHaveClass('focus-visible:bg-accent')
+    expect(sourceButton?.className).not.toContain('focus-visible:ring')
+    expect(targetButton?.className).not.toContain('focus-visible:ring')
   })
 
   it('opens target dropdown and calls onTargetChange on select', () => {

@@ -374,6 +374,30 @@ describe('OnboardingPage', () => {
     )
   })
 
+  it('does not rewrite an already-current privacy agreement before leaving onboarding', async () => {
+    const updatePreferences = vi.fn((updates: Record<string, unknown>) => {
+      if (updates.policyVersion !== undefined) {
+        return Promise.reject(new Error('privacy write unavailable'))
+      }
+      return Promise.resolve()
+    })
+    mockUseMultiplePreferences.mockReturnValueOnce([
+      {
+        providerSetupStatus: 'pending',
+        dataCollectionEnabled: true,
+        policyVersion: LATEST_PRIVACY_POLICY_VERSION
+      },
+      updatePreferences
+    ])
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith({ providerSetupStatus: 'skipped' }))
+    expect(updatePreferences).toHaveBeenCalledTimes(1)
+    expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
   it('shows the privacy control only on the welcome step', async () => {
     render(<OnboardingPage />)
 
@@ -531,7 +555,7 @@ describe('OnboardingPage', () => {
       {
         providerSetupStatus: 'pending',
         dataCollectionEnabled: true,
-        policyVersion: LATEST_PRIVACY_POLICY_VERSION
+        policyVersion: ''
       },
       updatePreferences
     ])
@@ -596,10 +620,9 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage />)
 
     const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
-    fireEvent.click(loginButton)
+    await act(async () => fireEvent.click(loginButton))
 
     expect(loginButton).toBeDisabled()
-    await act(() => vi.advanceTimersByTimeAsync(10))
     expect(loginButton.querySelector('.lucide-log-in')).not.toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTime(9_999))

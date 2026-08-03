@@ -169,6 +169,10 @@ const FREEZE_REASSERT_TOLERANCE_PX = 2
 const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
   'button,[role="button"],a,input,textarea,select,h1,h2,h3,h4,h5,h6,.block-wrapper,[data-message-id],p,pre,li,table'
 
+function keysMatchAt(container: readonly string[], candidate: readonly string[], offset: number): boolean {
+  return candidate.every((key, index) => container[index + offset] === key)
+}
+
 export function useChatVirtualizerRuntime<T>({
   items,
   getItemKey,
@@ -511,12 +515,14 @@ export function useChatVirtualizerRuntime<T>({
   // ---- wrap items with stable DOM identity -----------------------------
 
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
-  const previousDataKeysRef = useRef<string[]>([])
+  const previousDataKeysRef = useRef(dataKeys)
   const previousDataKeys = previousDataKeysRef.current
-  const shift =
-    previousDataKeys.length > 0 &&
-    dataKeys.length > previousDataKeys.length &&
-    dataKeys.indexOf(previousDataKeys[0]) > 0
+  const lengthDelta = dataKeys.length - previousDataKeys.length
+  const addedAtStart =
+    previousDataKeys.length > 0 && lengthDelta > 0 && keysMatchAt(dataKeys, previousDataKeys, lengthDelta)
+  const removedFromStart =
+    dataKeys.length > 0 && lengthDelta < 0 && keysMatchAt(previousDataKeys, dataKeys, -lengthDelta)
+  const shift = addedAtStart || removedFromStart
 
   useEffect(() => {
     previousDataKeysRef.current = dataKeys

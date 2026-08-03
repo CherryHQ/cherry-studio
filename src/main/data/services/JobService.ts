@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertJobRow, type JobRow, jobTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -39,8 +40,9 @@ export interface JobListFilter {
 }
 
 /**
- * Owning entity service for `jobTable`. JobManager and DataApi handlers reach
- * the table through this service — no direct Drizzle access elsewhere.
+ * Owning entity service for `jobTable` and its `job_file_ref` association rows.
+ * JobManager, DataApi handlers, and the async-job enqueue paths reach both tables
+ * through this service — no direct Drizzle access elsewhere.
  *
  * Tx-scoped methods (suffix `Tx`) accept a `DbOrTx` so JobManager can call them
  * inside its dispatch transaction (Layer 0 + Layer 1 mutex protect the section).
@@ -212,6 +214,30 @@ export class JobService {
       if (!snapshot) throw new Error(`jobService.createManyTx returned no row for ${dto.id}`)
       return snapshot
     })
+  }
+
+  /**
+   * Register the `job_file_ref` rows for the file entries an enqueued job reads
+   * (today: the async image-generation job's input images / mask). The ids also
+   * live in the job's `input` JSON, but the cleanup anti-join cannot see JSON —
+   * these rows are what keep `delete_when_unreferenced` inputs alive for the
+   * job's lifetime, and deleting the job row cascades them away, releasing the
+   * inputs for reclaim (file-entry-cleanup.md §5.1).
+   *
+   * Tx-scoped so the caller can compose it with `JobManager.enqueueTx` in one
+   * transaction: the job row and its refs must land or roll back together, or a
+   * recoverable job could run with unprotected inputs.
+   *
+   * A plain insert, deliberately: unlike painting refs — re-registered wholesale
+   * on every update, hence their `onConflictDoNothing` — a job's refs are written
+   * once at enqueue against a freshly-created job id. A `(fileEntryId, sourceId,
+   * role)` collision would mean the caller built duplicate rows for one job, which
+   * is a caller bug worth surfacing as a rolled-back enqueue rather than silently
+   * coalescing.
+   */
+  addFileRefsTx(tx: DbOrTx, rows: InsertJobFileRefRow[]): void {
+    if (rows.length === 0) return
+    tx.insert(jobFileRefTable).values(rows).run()
   }
 
   /**

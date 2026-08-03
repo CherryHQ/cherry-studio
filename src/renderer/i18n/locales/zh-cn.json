@@ -235,6 +235,7 @@
           "discard_and_continue": "放弃并继续",
           "title": "放弃未保存的修改？"
         },
+        "metadata_pending": "文件已保存，但文件元数据仍在恢复中。请勿重试本次保存。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
@@ -3362,7 +3363,7 @@
             "label": "Small 模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "最大轮次与环境变量",
@@ -4503,7 +4504,8 @@
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
     "save_failure": {
-      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
+      "metadata_pending": "笔记已保存，但文件元数据仍在恢复中。请勿重试本次保存。"
     },
     "search": {
       "both": "名称+内容",
@@ -8088,7 +8090,7 @@
           "save_failed": "保存失败",
           "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
-        "fetch_urls_provider": "默认 URL 获取服务商",
+        "fetch_urls_provider": "URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {

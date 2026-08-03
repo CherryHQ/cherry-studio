@@ -134,6 +134,11 @@ const modelBWithFunctionCall = {
   capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+// Send-time attachment metadata (buildFileParts) resolves through IpcApi.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
@@ -751,13 +756,16 @@ describe('ChatComposer', () => {
         }
       }
     })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
+    )
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
           createInternalEntry: vi.fn(async () => ({ id: 'fe-1', ext: 'pdf' })),
-          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf'),
-          getMetadata: vi.fn(async () => ({ kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 }))
+          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf')
         }
       }
     })
@@ -2583,8 +2591,13 @@ describe('ChatComposer', () => {
     })
 
     // The FileEntry is created at send time: the sent file part carries both file identities,
-    // a file:// URL, and a real MIME instead of the raw path / literal extension.
-    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/doc.pdf' })
+    // a file:// URL, a real MIME, and the auto-reclaim cleanup policy instead of the raw path /
+    // literal extension.
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/doc.pdf',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     const sentOptions = onSend.mock.calls[0]?.[1]
     expect(sentOptions?.userMessageParts).toEqual([
       expect.objectContaining({ type: 'text', text: 'quoted text follow up' }),
