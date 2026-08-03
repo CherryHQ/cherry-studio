@@ -1,3 +1,4 @@
+// v1 compatibility island: these definitions back the Claude Agent SDK server only.
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'

@@ -12,7 +12,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -111,9 +111,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
-    : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds } =
+    !request.disableTools && canModelConsumeTools(model)
+      ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
+      : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
   const { endpointType } = resolvedEndpoint
@@ -137,6 +138,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
+    windowId: request.interactionWindowId,
+    model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
     abortSignal: signal,
     fileAttachments,

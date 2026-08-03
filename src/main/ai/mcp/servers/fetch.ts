@@ -1,8 +1,7 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
 import { fetchRemoteText } from '@main/utils/remoteFetch'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import * as z from 'zod'
@@ -42,7 +41,7 @@ export class Fetcher {
     }
   }
 
-  static async html(requestPayload: RequestPayload) {
+  static async html(requestPayload: RequestPayload): Promise<CallToolResult> {
     try {
       const html = await this._fetchText(requestPayload)
       return { content: [{ type: 'text', text: html }], isError: false }
@@ -54,7 +53,7 @@ export class Fetcher {
     }
   }
 
-  static async json(requestPayload: RequestPayload) {
+  static async json(requestPayload: RequestPayload): Promise<CallToolResult> {
     try {
       const text = await this._fetchText(requestPayload)
       const json = JSON.parse(text)
@@ -70,7 +69,7 @@ export class Fetcher {
     }
   }
 
-  static async txt(requestPayload: RequestPayload) {
+  static async txt(requestPayload: RequestPayload): Promise<CallToolResult> {
     try {
       const html = await this._fetchText(requestPayload)
 
@@ -98,7 +97,7 @@ export class Fetcher {
     }
   }
 
-  static async markdown(requestPayload: RequestPayload) {
+  static async markdown(requestPayload: RequestPayload): Promise<CallToolResult> {
     try {
       const html = await this._fetchText(requestPayload)
       const turndownService = new TurndownService()
@@ -113,122 +112,120 @@ export class Fetcher {
   }
 }
 
-const server = new Server(
-  {
-    name: 'zcaceres/fetch',
-    version: '0.1.0'
-  },
-  {
-    capabilities: {
-      resources: {},
-      tools: {}
-    }
-  }
-)
-
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
+class FetchServer {
+  public createServer(): Server {
+    const server = new Server(
       {
-        name: 'fetch_html',
-        description: 'Fetch a website and return the content as HTML',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'URL of the website to fetch'
-            },
-            headers: {
-              type: 'object',
-              description: 'Optional headers to include in the request'
-            }
-          },
-          required: ['url']
-        }
+        name: 'zcaceres/fetch',
+        version: '0.1.0'
       },
       {
-        name: 'fetch_markdown',
-        description: 'Fetch a website and return the content as Markdown',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'URL of the website to fetch'
-            },
-            headers: {
-              type: 'object',
-              description: 'Optional headers to include in the request'
-            }
-          },
-          required: ['url']
-        }
-      },
-      {
-        name: 'fetch_txt',
-        description: 'Fetch a website, return the content as plain text (no HTML)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'URL of the website to fetch'
-            },
-            headers: {
-              type: 'object',
-              description: 'Optional headers to include in the request'
-            }
-          },
-          required: ['url']
-        }
-      },
-      {
-        name: 'fetch_json',
-        description: 'Fetch a JSON file from a URL',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'URL of the JSON to fetch'
-            },
-            headers: {
-              type: 'object',
-              description: 'Optional headers to include in the request'
-            }
-          },
-          required: ['url']
+        capabilities: {
+          resources: {},
+          tools: {}
         }
       }
-    ]
-  }
-})
+    )
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { arguments: args } = request.params
+    server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
+      return {
+        tools: [
+          {
+            name: 'fetch_html',
+            description: 'Fetch a website and return the content as HTML',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL of the website to fetch'
+                },
+                headers: {
+                  type: 'object',
+                  description: 'Optional headers to include in the request'
+                }
+              },
+              required: ['url']
+            }
+          },
+          {
+            name: 'fetch_markdown',
+            description: 'Fetch a website and return the content as Markdown',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL of the website to fetch'
+                },
+                headers: {
+                  type: 'object',
+                  description: 'Optional headers to include in the request'
+                }
+              },
+              required: ['url']
+            }
+          },
+          {
+            name: 'fetch_txt',
+            description: 'Fetch a website, return the content as plain text (no HTML)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL of the website to fetch'
+                },
+                headers: {
+                  type: 'object',
+                  description: 'Optional headers to include in the request'
+                }
+              },
+              required: ['url']
+            }
+          },
+          {
+            name: 'fetch_json',
+            description: 'Fetch a JSON file from a URL',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL of the JSON to fetch'
+                },
+                headers: {
+                  type: 'object',
+                  description: 'Optional headers to include in the request'
+                }
+              },
+              required: ['url']
+            }
+          }
+        ]
+      }
+    })
 
-  const validatedArgs = RequestPayloadSchema.parse(args)
+    server.setRequestHandler('tools/call', async (request) => {
+      const { arguments: args } = request.params
+      const validatedArgs = RequestPayloadSchema.parse(args)
 
-  if (request.params.name === 'fetch_html') {
-    return await Fetcher.html(validatedArgs)
-  }
-  if (request.params.name === 'fetch_json') {
-    return await Fetcher.json(validatedArgs)
-  }
-  if (request.params.name === 'fetch_txt') {
-    return await Fetcher.txt(validatedArgs)
-  }
-  if (request.params.name === 'fetch_markdown') {
-    return await Fetcher.markdown(validatedArgs)
-  }
-  throw new Error('Tool not found')
-})
+      if (request.params.name === 'fetch_html') {
+        return await Fetcher.html(validatedArgs)
+      }
+      if (request.params.name === 'fetch_json') {
+        return await Fetcher.json(validatedArgs)
+      }
+      if (request.params.name === 'fetch_txt') {
+        return await Fetcher.txt(validatedArgs)
+      }
+      if (request.params.name === 'fetch_markdown') {
+        return await Fetcher.markdown(validatedArgs)
+      }
+      throw new Error('Tool not found')
+    })
 
-class FetchServer {
-  public server: Server
-  constructor() {
-    this.server = server
+    return server
   }
 }
 export default FetchServer

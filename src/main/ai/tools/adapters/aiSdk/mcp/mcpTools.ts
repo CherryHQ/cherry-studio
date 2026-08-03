@@ -1,13 +1,16 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
+import { ElicitResultSchema } from '@modelcontextprotocol/core'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
+import { getToolCallContext } from '../context'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
@@ -26,13 +29,55 @@ function resolveActiveServerById(serverId: string): McpServer | undefined {
 }
 
 /** Build the AI SDK Tool wrapper around a single McpTool. */
+function interactionContext(options: Parameters<NonNullable<Tool['execute']>>[1]): McpInteractionContext | undefined {
+  const { request } = getToolCallContext(options)
+  if (!request.windowId || !request.topicId) return undefined
+
+  const runtime = application.get('McpRuntimeService')
+  const authorize = (kind: 'elicitation' | 'sampling' | 'roots', payload: unknown, signal: AbortSignal) =>
+    runtime.requestInteraction({
+      windowId: request.windowId!,
+      topicId: request.topicId!,
+      kind,
+      payload,
+      signal
+    })
+
+  return {
+    windowId: request.windowId,
+    topicId: request.topicId,
+    model: request.model,
+    roots: request.roots,
+    requestElicitation: async (embeddedRequest, signal) => {
+      const response = await authorize('elicitation', embeddedRequest, signal)
+      if (response.decision !== 'accept') return ElicitResultSchema.parse({ action: response.decision })
+      return ElicitResultSchema.parse(
+        embeddedRequest.params.mode === 'url'
+          ? { action: 'accept' }
+          : { action: 'accept', content: response.value ?? {} }
+      )
+    },
+    sample: async (samplingRequest, signal) => {
+      const response = await authorize('sampling', samplingRequest, signal)
+      if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
+      if (!request.model) throw new Error('MCP sampling rejected: no current request model is available')
+      return application.get('AiService').generateMcpSampling(request.model, samplingRequest, signal)
+    },
+    requestRoots: async (roots, signal) => {
+      const response = await authorize('roots', { roots }, signal)
+      return response.decision === 'accept'
+    }
+  }
+}
+
 function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
-    execute: async (args: Record<string, unknown>, { toolCallId }) => {
+    execute: async (args: Record<string, unknown>, options) => {
+      const { toolCallId } = options
       const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
@@ -41,7 +86,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         serverId: server.id,
         name: mcpTool.name,
         args,
-        callId: toolCallId
+        callId: toolCallId,
+        interactionContext: interactionContext(options)
       })
 
       if (result.isError) {

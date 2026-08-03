@@ -8,7 +8,7 @@
  * the renderer against the message's own tool results.
  */
 
-import { toCherryBuiltinRuntimeName } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { toCherryBuiltinRuntimeName } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinNames'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,

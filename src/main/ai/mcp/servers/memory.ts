@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { type ListToolsResult, ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
 import { Mutex } from 'async-mutex' // 引入 Mutex
 import { promises as fs } from 'fs'
 import path from 'path'
@@ -67,8 +66,8 @@ class KnowledgeGraphManager {
     } catch (error) {
       logger.error('Failed to ensure memory path exists:', error as Error)
       // Propagate the error or handle it more gracefully depending on requirements
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to ensure memory path: ${error instanceof Error ? error.message : String(error)}`
       )
     }
@@ -105,8 +104,8 @@ class KnowledgeGraphManager {
         await this._persistGraph()
       } else {
         logger.error('Failed to load knowledge graph from disk:', error as Error)
-        throw new McpError(
-          ErrorCode.InternalError,
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
           `Failed to load graph: ${error instanceof Error ? error.message : String(error)}`
         )
       }
@@ -125,8 +124,8 @@ class KnowledgeGraphManager {
     } catch (error) {
       logger.error('Failed to save knowledge graph:', error as Error)
       // Decide how to handle write errors - potentially retry or notify
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to save graph: ${error instanceof Error ? error.message : String(error)}`
       )
     } finally {
@@ -193,7 +192,7 @@ class KnowledgeGraphManager {
       const entity = this.entities.get(o.entityName)
       if (!entity) {
         // Option 1: Throw error
-        throw new McpError(ErrorCode.InvalidParams, `Entity with name ${o.entityName} not found`)
+        throw new ProtocolError(ProtocolErrorCode.InvalidParams, `Entity with name ${o.entityName} not found`)
         // Option 2: Skip and warn
         // logger.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
         // return;
@@ -337,7 +336,6 @@ class KnowledgeGraphManager {
 }
 
 class MemoryServer {
-  public server: Server
   // Hold the manager instance, initialized asynchronously
   private knowledgeGraphManager: KnowledgeGraphManager | null = null
   private initializationPromise: Promise<void> // To track initialization
@@ -349,7 +347,13 @@ class MemoryServer {
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
 
-    this.server = new Server(
+    // Start initialization once for the whole endpoint activation. Every HTTP
+    // request gets a fresh protocol shell, but all shells share this manager.
+    this.initializationPromise = this._initializeManager(memoryPath)
+  }
+
+  public createServer(): Server {
+    const server = new Server(
       {
         name: 'memory-server',
         version: '1.1.0' // Incremented version for changes
@@ -360,9 +364,8 @@ class MemoryServer {
         }
       }
     )
-    // Start initialization, but don't block constructor
-    this.initializationPromise = this._initializeManager(memoryPath)
-    this.setupRequestHandlers() // Setup handlers immediately
+    this.setupRequestHandlers(server)
+    return server
   }
 
   // Private async method to handle manager initialization
@@ -382,15 +385,18 @@ class MemoryServer {
   private async _getManager(): Promise<KnowledgeGraphManager> {
     await this.initializationPromise // Wait for initialization to complete
     if (!this.knowledgeGraphManager) {
-      throw new McpError(ErrorCode.InternalError, 'Memory server failed to initialize. Cannot process requests.')
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
+        'Memory server failed to initialize. Cannot process requests.'
+      )
     }
     return this.knowledgeGraphManager
   }
 
   // Setup handlers (can be called from constructor)
-  setupRequestHandlers() {
+  private setupRequestHandlers(server: Server) {
     // ListTools remains largely the same, descriptions might be updated if needed
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
       // Ensure manager is ready before listing tools that depend on it
       // Although ListTools itself doesn't *call* the manager, it implies the
       // manager is ready to handle calls for those tools.
@@ -584,13 +590,12 @@ class MemoryServer {
     })
 
     // CallTool handler needs to await the manager and the async methods
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request) => {
       const manager = await this._getManager() // Ensure manager is ready
       const { name, arguments: args } = request.params
 
       if (!args) {
-        // Use McpError for standard errors
-        throw new McpError(ErrorCode.InvalidParams, `No arguments provided for tool: ${name}`)
+        throw new ProtocolError(ProtocolErrorCode.InvalidParams, `No arguments provided for tool: ${name}`)
       }
 
       try {
@@ -598,8 +603,8 @@ class MemoryServer {
           case 'create_entities':
             // Validate args structure if necessary, though SDK might do basic validation
             if (!args.entities || !Array.isArray(args.entities)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'entities' array is required.`
               )
             }
@@ -610,8 +615,8 @@ class MemoryServer {
             }
           case 'create_relations':
             if (!args.relations || !Array.isArray(args.relations)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'relations' array is required.`
               )
             }
@@ -625,8 +630,8 @@ class MemoryServer {
             }
           case 'add_observations':
             if (!args.observations || !Array.isArray(args.observations)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'observations' array is required.`
               )
             }
@@ -644,8 +649,8 @@ class MemoryServer {
             }
           case 'delete_entities':
             if (!args.entityNames || !Array.isArray(args.entityNames)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'entityNames' array is required.`
               )
             }
@@ -653,8 +658,8 @@ class MemoryServer {
             return { content: [{ type: 'text', text: 'Entities deleted successfully' }] }
           case 'delete_observations':
             if (!args.deletions || !Array.isArray(args.deletions)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'deletions' array is required.`
               )
             }
@@ -662,8 +667,8 @@ class MemoryServer {
             return { content: [{ type: 'text', text: 'Observations deleted successfully' }] }
           case 'delete_relations':
             if (!args.relations || !Array.isArray(args.relations)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
                 `Invalid arguments for ${name}: 'relations' array is required.`
               )
             }
@@ -676,14 +681,20 @@ class MemoryServer {
             }
           case 'search_nodes':
             if (typeof args.query !== 'string') {
-              throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for ${name}: 'query' string is required.`)
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
+                `Invalid arguments for ${name}: 'query' string is required.`
+              )
             }
             return {
               content: [{ type: 'text', text: JSON.stringify(await manager.searchNodes(args.query), null, 2) }]
             }
           case 'open_nodes':
             if (!args.names || !Array.isArray(args.names)) {
-              throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for ${name}: 'names' array is required.`)
+              throw new ProtocolError(
+                ProtocolErrorCode.InvalidParams,
+                `Invalid arguments for ${name}: 'names' array is required.`
+              )
             }
             return {
               content: [
@@ -691,17 +702,17 @@ class MemoryServer {
               ]
             }
           default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
+            throw new ProtocolError(ProtocolErrorCode.MethodNotFound, `Unknown tool: ${name}`)
         }
       } catch (error) {
         // Catch errors from manager methods (like entity not found) or other issues
-        if (error instanceof McpError) {
-          throw error // Re-throw McpErrors directly
+        if (error instanceof ProtocolError) {
+          throw error
         }
         logger.error(`Error executing tool ${name}:`, error as Error)
         // Throw a generic internal error for unexpected issues
-        throw new McpError(
-          ErrorCode.InternalError,
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
           `Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`
         )
       }

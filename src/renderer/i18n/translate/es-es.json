@@ -6789,6 +6789,19 @@
       "installError": "Fallo al instalar dependencias",
       "installHelp": "Obtener ayuda de instalación",
       "installSuccess": "Dependencias instaladas exitosamente",
+      "interaction": {
+        "elicitation": {
+          "title": "[to be translated]:MCP server requests input"
+        },
+        "roots": {
+          "description": "[to be translated]:The MCP server requests access to the listed workspace roots.",
+          "title": "[to be translated]:Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "[to be translated]:The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "[to be translated]:Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "Error de formato JSON",
       "jsonModeHint": "Edite la representación JSON de la configuración del servidor MCP. Asegúrese de que el formato sea correcto antes de guardar.",
       "jsonSaveError": "Fallo al guardar la configuración JSON",

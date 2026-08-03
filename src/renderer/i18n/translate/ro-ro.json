@@ -6789,6 +6789,19 @@
       "installError": "Instalarea dependențelor a eșuat",
       "installHelp": "Obține ajutor pentru instalare",
       "installSuccess": "Dependențe instalate cu succes",
+      "interaction": {
+        "elicitation": {
+          "title": "[to be translated]:MCP server requests input"
+        },
+        "roots": {
+          "description": "[to be translated]:The MCP server requests access to the listed workspace roots.",
+          "title": "[to be translated]:Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "[to be translated]:The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "[to be translated]:Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "Eroare formatare JSON",
       "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
       "jsonSaveError": "Nu s-a putut salva configurația JSON.",

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', () => ({
   default: {
@@ -115,9 +115,10 @@ vi.mock('electron', () => {
   }
 })
 
-import { beforeEach } from 'vitest'
-
+import { createInProcessMcpConnection } from '../../connections/InProcessMcpConnection'
+import type { McpConnectionEvents } from '../../connections/McpConnection'
 import { CdpBrowserController } from '../browser'
+import { BrowserServer } from '../browser/server'
 
 describe('CdpBrowserController', () => {
   // Reset mock state before each test to prevent state leakage
@@ -376,5 +377,41 @@ describe('CdpBrowserController', () => {
       const normalTabs = await controller.listTabs(false)
       expect(normalTabs.length).toBe(0)
     })
+  })
+})
+
+describe('BrowserServer modern in-process lifecycle', () => {
+  it('reuses its controller across handler requests and resets only when the endpoint closes', async () => {
+    const backend = new BrowserServer()
+    const closeBackend = vi.spyOn(backend, 'close')
+    const events: McpConnectionEvents = {
+      toolsChanged: vi.fn(),
+      promptsChanged: vi.fn(),
+      resourcesChanged: vi.fn(),
+      resourceUpdated: vi.fn(),
+      log: vi.fn()
+    }
+    const connection = await createInProcessMcpConnection({
+      appVersion: 'test',
+      endpoint: {
+        createServer: () => backend.createServer(),
+        close: () => backend.close()
+      },
+      events,
+      connectTimeoutMs: 10_000
+    })
+    const options = { signal: new AbortController().signal, timeoutMs: 10_000 }
+
+    await connection.callTool('open', { url: 'https://example.com/' }, options)
+    const tabs = await connection.callTool('list_tabs', {}, options)
+
+    expect(tabs.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'text', text: expect.stringContaining('Example Title') })
+      ])
+    )
+    expect(closeBackend).not.toHaveBeenCalled()
+    await connection.close()
+    expect(closeBackend).toHaveBeenCalledOnce()
   })
 })

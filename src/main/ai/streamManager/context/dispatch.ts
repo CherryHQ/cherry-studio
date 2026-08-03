@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
@@ -55,6 +56,8 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
+  /** Trusted main-process sender identity for targeted MCP interaction requests. */
+  interactionWindowId?: WindowId
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
@@ -113,6 +116,9 @@ export async function dispatchStreamRequest(
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
+  }
+  for (const model of prepared.models) {
+    model.request.interactionWindowId = req.interactionWindowId
   }
 
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an

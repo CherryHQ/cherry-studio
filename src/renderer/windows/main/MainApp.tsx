@@ -5,6 +5,7 @@ import { CommandContextKeyProvider, CommandProvider } from '@renderer/components
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
@@ -62,6 +63,7 @@ export function MainWindowContent(): React.ReactElement {
       <>
         <OnboardingPage />
         <MainWindowRuntime />
+        <McpInteractionHost />
         <PopupHost />
         <ToastHost />
       </>
@@ -72,6 +74,7 @@ export function MainWindowContent(): React.ReactElement {
     <TabsProvider>
       <AppShell />
       <MainWindowRuntime />
+      <McpInteractionHost />
       <PopupHost />
       <ToastHost />
       <PrivacyPolicyUpdateGate />

@@ -20,6 +20,7 @@ import { defineRoute } from '../define'
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
 const uploadInput = z.object({ buffer: z.instanceof(ArrayBuffer), fileName: z.string() })
+const interactionDecision = z.enum(['accept', 'decline', 'cancel'])
 
 export const mcpRequestSchemas = {
   // Server lifecycle + per-server queries.
@@ -34,6 +35,14 @@ export const mcpRequestSchemas = {
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
   // In-flight tool-call control.
   'mcp.tool.abort_call': defineRoute({ input: z.object({ callId: z.string().min(1) }), output: z.boolean() }),
+  'mcp.interaction.respond': defineRoute({
+    input: z.object({
+      requestId: z.string().min(1),
+      decision: interactionDecision,
+      value: z.unknown().optional()
+    }),
+    output: z.boolean()
+  }),
   // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`
   // type lives in src/main): matches the legacy preload's `Promise<any>` and avoids hoisting
   // the manifest type into @shared for this transport migration.
@@ -45,4 +54,10 @@ export type McpEventSchemas = {
   'mcp.server.added': McpServer
   'mcp.server.log': McpServerLogEntry & { serverId: string }
   'mcp.tool.call_progress': McpProgressEvent
+  'mcp.interaction.requested': {
+    requestId: string
+    topicId: string
+    kind: 'elicitation' | 'sampling' | 'roots'
+    payload: unknown
+  }
 }

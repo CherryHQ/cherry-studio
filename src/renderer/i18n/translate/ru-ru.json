@@ -6789,6 +6789,19 @@
       "installError": "Не удалось установить зависимости",
       "installHelp": "Получить помощь по установке",
       "installSuccess": "Зависимости успешно установлены",
+      "interaction": {
+        "elicitation": {
+          "title": "[to be translated]:MCP server requests input"
+        },
+        "roots": {
+          "description": "[to be translated]:The MCP server requests access to the listed workspace roots.",
+          "title": "[to be translated]:Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "[to be translated]:The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "[to be translated]:Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "Ошибка форматирования JSON",
       "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
       "jsonSaveError": "Не удалось сохранить конфигурацию JSON",

@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import Spinner from '@renderer/components/Spinner'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { generateImageOutputSchema } from '@shared/ai/builtinTools'

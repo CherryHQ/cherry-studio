@@ -7,10 +7,19 @@ const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
+const interactionMocks = vi.hoisted(() => ({
+  getWindow: vi.fn<() => object | undefined>(() => ({})),
+  send: vi.fn(),
+  broadcastToType: vi.fn()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ McpCatalogService: mcpCatalogMock } as Record<string, unknown>)
+  return mockApplicationFactory({
+    McpCatalogService: mcpCatalogMock,
+    WindowManager: { getWindow: interactionMocks.getWindow },
+    IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType }
+  } as Record<string, unknown>)
 })
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
@@ -18,91 +27,6 @@ vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     getById: (id: string) => getByIdMock(id)
   }
-}))
-
-// Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
-// a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
-const mcpSdkMock = vi.hoisted(() => {
-  class SseError extends Error {
-    code: number
-    constructor(code: number, message: string) {
-      super(`SSE error: ${message}`)
-      this.code = code
-    }
-  }
-  class SSEClientTransport {
-    kind = 'sse' as const
-    close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
-    }
-  }
-  class StreamableHTTPClientTransport {
-    kind = 'streamableHttp' as const
-    close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
-    }
-  }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
-  class Client {
-    setNotificationHandler = vi.fn()
-    _transport: { kind: string } | undefined = undefined
-    close = vi.fn().mockImplementation(async () => {
-      this._transport = undefined
-    })
-    ping = vi.fn().mockResolvedValue(true)
-    connectCalls: Array<{ kind: string }> = []
-    constructor() {
-      clients.push(this)
-    }
-    async connect(transport: { kind: string }) {
-      // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
-      // start() leaves it set. This is what makes the fallback retry fail unless client.close()
-      // resets it — the test would not catch that regression otherwise.
-      if (this._transport) {
-        throw new Error('Already connected to a transport. Call close() before connecting to a new transport')
-      }
-      this._transport = transport
-      this.connectCalls.push({ kind: transport.kind })
-      if (transport.kind === 'sse') {
-        throw new SseError(405, 'Non-200 status code (405)')
-      }
-      if (mcpSdkMock.state.failStreamable) {
-        throw new StreamableHTTPError(mcpSdkMock.state.failStreamableCode ?? 503, 'boom')
-      }
-    }
-  }
-  class StreamableHTTPError extends Error {
-    code: number
-    constructor(code: number, message?: string) {
-      super(message ?? 'boom')
-      this.code = code
-    }
-  }
-  return {
-    SseError,
-    SSEClientTransport,
-    StreamableHTTPClientTransport,
-    Client,
-    StreamableHTTPError,
-    clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
-  }
-})
-
-vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
-  SseError: mcpSdkMock.SseError,
-  SSEClientTransport: mcpSdkMock.SSEClientTransport
-}))
-vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: mcpSdkMock.StreamableHTTPClientTransport,
-  StreamableHTTPError: mcpSdkMock.StreamableHTTPError
-}))
-vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: mcpSdkMock.Client
 }))
 
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
@@ -122,7 +46,7 @@ function serverKeyFor(id: string): string {
   })
 }
 
-/** A deferred whose resolution mirrors the real connect: it lands the client in `this.clients`. */
+/** A deferred whose resolution mirrors the real connect: it lands the connection in the table. */
 function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((res) => {
@@ -175,73 +99,127 @@ describe('McpRuntimeService.setServerStatus', () => {
   })
 })
 
-describe('McpRuntimeService.closeClientsForServer', () => {
+describe('McpRuntimeService embedded interaction authorization', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    interactionMocks.getWindow.mockReset().mockReturnValue({})
+    interactionMocks.send.mockReset()
+  })
+
+  it('targets the originating window and accepts a response only from that window', async () => {
+    const service = new McpRuntimeService()
+    const pending = service.requestInteraction({
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'sampling',
+      payload: { maxTokens: 20 },
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0]?.[2].requestId as string
+
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-2')).resolves.toBe(false)
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')).resolves.toBe(true)
+    await expect(pending).resolves.toMatchObject({ requestId, decision: 'accept' })
+    expect(interactionMocks.send).toHaveBeenCalledWith(
+      'window-1',
+      'mcp.interaction.requested',
+      expect.objectContaining({ requestId, topicId: 'topic-1', kind: 'sampling' })
+    )
+  })
+
+  it('rejects without an active window and cancels a pending authorization with its tool call', async () => {
+    const service = new McpRuntimeService()
+    interactionMocks.getWindow.mockReturnValueOnce(undefined)
+    await expect(
+      service.requestInteraction({
+        windowId: 'missing',
+        topicId: 'topic-1',
+        kind: 'roots',
+        payload: {},
+        signal: new AbortController().signal
+      })
+    ).rejects.toThrow(/originating window is unavailable/)
+
+    const controller = new AbortController()
+    const pending = service.requestInteraction({
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload: {},
+      signal: controller.signal
+    })
+    controller.abort(new Error('tool call cancelled'))
+    await expect(pending).rejects.toThrow('tool call cancelled')
+  })
+})
+
+describe('McpRuntimeService.closeConnectionsForServer', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
   })
 
-  it('closes a client that is already connected for the server', async () => {
+  it('closes a connection that is already connected for the server', async () => {
     const service = new McpRuntimeService()
     const close = vi.fn().mockResolvedValue(undefined)
     const key = serverKeyFor('server-1')
-    ;(service as any).clients.set(key, { close })
+    ;(service as any).connections.set(key, { close })
 
-    await (service as any).closeClientsForServer('server-1')
+    await (service as any).closeConnectionsForServer('server-1')
 
     expect(close).toHaveBeenCalledTimes(1)
-    expect((service as any).clients.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
   })
 
-  it('awaits an in-flight connect and closes the client it resolves into clients', async () => {
+  it('awaits an in-flight connect and closes the connection it resolves into the table', async () => {
     const service = new McpRuntimeService()
     const close = vi.fn().mockResolvedValue(undefined)
     const key = serverKeyFor('server-1')
-    const client = { close }
+    const connection = { close }
 
     // Mirror the real connect path: the pending promise, once awaited, lands the
-    // client in `this.clients` so the subsequent close loop can find and close it.
+    // connection in `this.connections` so the subsequent close loop can find and close it.
     const deferred = createDeferred<{ close: typeof close }>()
     const pending = deferred.promise.then((c) => {
-      ;(service as any).clients.set(key, c)
+      ;(service as any).connections.set(key, c)
       return c
     })
-    ;(service as any).pendingClients.set(key, pending)
+    ;(service as any).pendingConnections.set(key, pending)
 
-    const closePromise = (service as any).closeClientsForServer('server-1')
+    const closePromise = (service as any).closeConnectionsForServer('server-1')
 
     // The close must not have happened yet — it is still awaiting the in-flight connect.
     expect(close).not.toHaveBeenCalled()
 
-    deferred.resolve(client)
+    deferred.resolve(connection)
     await closePromise
 
     expect(close).toHaveBeenCalledTimes(1)
-    expect((service as any).clients.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
   })
 
   it('does not throw when an in-flight connect rejects', async () => {
     const service = new McpRuntimeService()
     const key = serverKeyFor('server-1')
     const pending = Promise.reject(new Error('connect failed'))
-    ;(service as any).pendingClients.set(key, pending)
+    ;(service as any).pendingConnections.set(key, pending)
 
-    await expect((service as any).closeClientsForServer('server-1')).resolves.toBeUndefined()
-    expect((service as any).clients.size).toBe(0)
+    await expect((service as any).closeConnectionsForServer('server-1')).resolves.toBeUndefined()
+    expect((service as any).connections.size).toBe(0)
   })
 
-  it('only closes clients whose key matches the target server id', async () => {
+  it('only closes connections whose key matches the target server id', async () => {
     const service = new McpRuntimeService()
     const closeA = vi.fn().mockResolvedValue(undefined)
     const closeB = vi.fn().mockResolvedValue(undefined)
-    ;(service as any).clients.set(serverKeyFor('server-1'), { close: closeA })
-    ;(service as any).clients.set(serverKeyFor('server-2'), { close: closeB })
+    ;(service as any).connections.set(serverKeyFor('server-1'), { close: closeA })
+    ;(service as any).connections.set(serverKeyFor('server-2'), { close: closeB })
 
-    await (service as any).closeClientsForServer('server-1')
+    await (service as any).closeConnectionsForServer('server-1')
 
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
-    expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+    expect((service as any).connections.has(serverKeyFor('server-2'))).toBe(true)
   })
 })
 
@@ -303,9 +281,15 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
 
 describe('redactSensitive (mcp-services-3)', () => {
   it('redacts sensitive keys', () => {
-    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
+    const out = redactSensitive({
+      authorization: 'Bearer x',
+      apiKey: 'k',
+      requestState: 'opaque-state',
+      keep: 'ok'
+    }) as Record<string, unknown>
     expect(out.authorization).toBe('<redacted>')
     expect(out.apiKey).toBe('<redacted>')
+    expect(out.requestState).toBe('<redacted>')
     expect(out.keep).toBe('ok')
   })
 
@@ -332,7 +316,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
   // otherwise the old config's tools would stay visible to agents/chat forever.
   it('clears the shared tools cache and does not refresh when restart fails', async () => {
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockRejectedValue(new Error('bad config'))
+    vi.spyOn(service as any, 'getOrCreateConnection').mockRejectedValue(new Error('bad config'))
 
     await expect(service.restartServer('server-1')).rejects.toThrow('bad config')
 
@@ -342,69 +326,11 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
   it('clears then repopulates the shared tools cache on a successful restart', async () => {
     const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({})
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue({})
 
     await service.restartServer('server-1')
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
-  })
-})
-
-describe('McpRuntimeService transport fallback (issue #16891)', () => {
-  beforeEach(() => {
-    BaseService.resetInstances()
-    MockMainCacheServiceUtils.resetMocks()
-    mcpSdkMock.state.failStreamable = false
-    mcpSdkMock.state.failStreamableCode = 503
-  })
-
-  function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
-    return {
-      id: 'sse-server',
-      name: 'actuarymcp',
-      type,
-      baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
-      isActive: true
-    } as unknown as McpServer
-  }
-
-  type MockClient = InstanceType<typeof mcpSdkMock.Client>
-
-  it('falls back to Streamable HTTP when an sse-typed server rejects the SSE GET with 405', async () => {
-    const service = new McpRuntimeService()
-    const client = (await (service as any).getOrCreateClient(urlServer('sse'))) as unknown as MockClient
-
-    // SSE attempt (405) then Streamable HTTP attempt (success) — exactly two connect calls.
-    expect(client.connectCalls.map((c) => c.kind)).toEqual(['sse', 'streamableHttp'])
-  })
-
-  it('connects on the first try for a correctly configured streamableHttp server (no fallback)', async () => {
-    const service = new McpRuntimeService()
-    const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
-
-    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp'])
-  })
-
-  it('propagates the error when both transports fail', async () => {
-    // Force the Streamable HTTP attempt to also fail (5xx) so the fallback exhausts both candidates.
-    mcpSdkMock.state.failStreamable = true
-    mcpSdkMock.state.failStreamableCode = 503
-
-    const service = new McpRuntimeService()
-    await expect((service as any).getOrCreateClient(urlServer('sse'))).rejects.toThrow()
-  })
-
-  it('does NOT fall back when a streamableHttp server returns 401 (auth must surface, not SSE)', async () => {
-    // A 401 from the Streamable HTTP transport is an auth/permission error, not a transport
-    // mismatch — it must not be masked by falling back to the SSE transport.
-    mcpSdkMock.state.failStreamable = true
-    mcpSdkMock.state.failStreamableCode = 401
-
-    const service = new McpRuntimeService()
-    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
-
-    // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
-    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
 })

@@ -1,3 +1,4 @@
+// v1 compatibility island: this server is consumed only by the Claude Agent SDK.
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

@@ -1,11 +1,13 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import type {
-  OAuthClientInformation,
-  OAuthClientInformationMixed,
-  OAuthTokens
-} from '@modelcontextprotocol/sdk/shared/auth'
+  OAuthClientInformationContext,
+  OAuthClientProvider,
+  OAuthDiscoveryState,
+  StoredOAuthClientInformation,
+  StoredOAuthTokens
+} from '@modelcontextprotocol/client'
+import { randomUUID } from 'crypto'
 import open from 'open'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
@@ -38,7 +40,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   get clientMetadata() {
     return {
       redirect_uris: [this.redirectUrl],
-      token_endpoint_auth_method: 'none',
+      token_endpoint_auth_method: 'none' as const,
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       client_name: this.config.clientName,
@@ -46,30 +48,44 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     }
   }
 
-  async clientInformation(): Promise<OAuthClientInformation | undefined> {
-    return this.storage.getClientInformation()
+  async state(): Promise<string> {
+    const state = randomUUID()
+    await this.storage.saveState(state)
+    return state
   }
 
-  async saveClientInformation(info: OAuthClientInformationMixed | undefined): Promise<void> {
-    await this.storage.saveClientInformation(info)
+  async validateCallbackState(params: URLSearchParams): Promise<void> {
+    const expected = await this.storage.getState()
+    const actual = params.get('state')
+    await this.storage.saveState(undefined)
+    if (!expected || !actual || expected !== actual) {
+      throw new Error('OAuth callback state mismatch')
+    }
   }
 
-  async tokens(): Promise<OAuthTokens | undefined> {
-    return this.storage.getTokens()
+  async clientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
+    return this.storage.getClientInformation(ctx)
   }
 
-  async saveTokens(tokens: OAuthTokens | undefined): Promise<void> {
-    await this.storage.saveTokens(tokens)
+  async saveClientInformation(info: StoredOAuthClientInformation, ctx?: OAuthClientInformationContext): Promise<void> {
+    await this.storage.saveClientInformation(info, ctx)
+  }
+
+  async tokens(ctx?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined> {
+    return this.storage.getTokens(ctx)
+  }
+
+  async saveTokens(tokens: StoredOAuthTokens, ctx?: OAuthClientInformationContext): Promise<void> {
+    await this.storage.saveTokens(tokens, ctx)
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     try {
-      // Open the browser to the authorization URL
       await open(sanitizeUrl(authorizationUrl.toString()))
       logger.debug('Browser opened automatically.')
     } catch (error) {
       logger.error('Could not open browser automatically.')
-      throw error // Let caller handle the error
+      throw error
     }
   }
 
@@ -81,48 +97,16 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     return this.storage.getCodeVerifier()
   }
 
-  /**
-   * Invalidates stored credentials when the SDK detects they are no longer valid.
-   * This method is called by the MCP SDK when it encounters authentication errors
-   * like InvalidGrantError (expired refresh token) or InvalidClientError.
-   *
-   * @param scope - The scope of credentials to invalidate:
-   *   - 'all': Clear all authentication data (client info, tokens, verifier)
-   *   - 'tokens': Clear only access and refresh tokens
-   *   - 'client': Clear only client registration information
-   *   - 'verifier': Clear only the PKCE code verifier
-   */
-  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier'): Promise<void> {
+  async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
+    await this.storage.saveDiscoveryState(state)
+  }
+
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return this.storage.getDiscoveryState()
+  }
+
+  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
     logger.debug(`Invalidating credentials with scope: ${scope}`)
-
-    switch (scope) {
-      case 'all':
-        // Clear all authentication information
-        await this.storage.clear()
-        logger.info('Cleared all OAuth credentials')
-        break
-
-      case 'tokens':
-        // Clear only tokens, preserve client information for re-authentication
-        await this.storage.saveTokens(undefined)
-        logger.info('Cleared OAuth tokens (access and refresh tokens)')
-        break
-
-      case 'client':
-        // Clear client registration information
-        // Note: This requires re-registration with the authorization server
-        await this.storage.saveClientInformation(undefined)
-        logger.info('Cleared OAuth client information')
-        break
-
-      case 'verifier':
-        // Clear PKCE code verifier
-        await this.storage.saveCodeVerifier('')
-        logger.info('Cleared OAuth code verifier')
-        break
-
-      default:
-        logger.warn(`Unknown invalidation scope: ${scope}`)
-    }
+    await this.storage.clear(scope)
   }
 }

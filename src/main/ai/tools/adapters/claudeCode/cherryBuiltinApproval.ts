@@ -8,7 +8,7 @@
  * reaches the approval policy itself, so it lives in main per the shared-layer boundary.
  */
 
-import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/runtime/claudeCode'
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
@@ -23,11 +23,9 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
-/** The in-process MCP server id that hosts the cherry builtin tools. */
-export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
+import { CHERRY_BUILTIN_MCP_SERVER, toCherryBuiltinRuntimeName } from './cherryBuiltinNames'
 
-/** Build the fully-qualified runtime name the agent SDK uses to invoke a cherry builtin tool. */
-export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${CHERRY_BUILTIN_MCP_SERVER}__${toolName}`
+export { CHERRY_BUILTIN_MCP_SERVER, toCherryBuiltinRuntimeName }
 
 /**
  * cherry-tools that MUST go through per-call user approval — never auto-approved, even for

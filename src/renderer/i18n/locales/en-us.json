@@ -6792,6 +6792,19 @@
       "installError": "Failed to install dependencies",
       "installHelp": "Get Installation Help",
       "installSuccess": "Dependencies installed successfully",
+      "interaction": {
+        "elicitation": {
+          "title": "MCP server requests input"
+        },
+        "roots": {
+          "description": "The MCP server requests access to the listed workspace roots.",
+          "title": "Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "JSON formatting error",
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
       "jsonSaveError": "Failed to save JSON configuration.",

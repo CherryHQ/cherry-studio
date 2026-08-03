@@ -25,6 +25,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -585,6 +586,36 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
+  }
+
+  /**
+   * Restricted host callback for an MCP embedded sampling request. The request
+   * is non-streaming and `disableTools` is enforced in buildAgentParams so an
+   * MCP server cannot recursively reach Cherry or MCP tools.
+   */
+  async generateMcpSampling(
+    model: `${string}::${string}`,
+    request: CreateMessageRequestParamsBase,
+    signal: AbortSignal
+  ): Promise<CreateMessageResult> {
+    const result = await this.generateText({
+      uniqueModelId: model,
+      system: request.systemPrompt,
+      messages: request.messages as ModelMessage[],
+      disableTools: true,
+      callOverrides: {
+        maxOutputTokens: request.maxTokens,
+        ...(typeof request.temperature === 'number' ? { temperature: request.temperature } : {}),
+        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences as string[] } : {})
+      },
+      requestOptions: { signal }
+    })
+    return {
+      model,
+      role: 'assistant',
+      content: { type: 'text', text: result.text },
+      stopReason: 'endTurn'
+    }
   }
 
   // ── Image generation ──

@@ -23,12 +23,11 @@ export class CallBackServer {
       // Only handle requests to the callback path
       if (req.url?.startsWith(path)) {
         try {
-          // Parse the URL to extract the authorization code
+          // Keep every callback parameter so the SDK can validate `iss` and
+          // complete the authorization-server-bound exchange.
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
-          const code = url.searchParams.get('code')
-          if (code) {
-            // Emit the code event
-            this.events.emit('auth-code-received', code)
+          if (url.searchParams.has('code') || url.searchParams.has('error')) {
+            this.events.emit('auth-callback-received', new URLSearchParams(url.searchParams))
             // Send success response to browser
             const title = t('settings.mcp.oauth.callback.title')
             const message = t('settings.mcp.oauth.callback.message')
@@ -77,7 +76,7 @@ export class CallBackServer {
             `)
           } else {
             res.writeHead(400, { 'Content-Type': 'text/plain' })
-            res.end('Missing authorization code')
+            res.end('Missing OAuth callback parameters')
           }
         } catch (error) {
           logger.error('Error processing OAuth callback:', error as Error)
@@ -112,9 +111,14 @@ export class CallBackServer {
     return this.server
   }
 
-  async close() {
+  async close(): Promise<void> {
     const server = await this.server
-    server.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error)
+        else resolve()
+      })
+    })
   }
 
   /**
@@ -122,17 +126,17 @@ export class CallBackServer {
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
-  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+  async waitForAuthCallback(timeoutMs = 300_000): Promise<URLSearchParams> {
     return new Promise((resolve, reject) => {
-      const onCode = (code: string) => {
+      const onCallback = (params: URLSearchParams) => {
         clearTimeout(timer)
-        resolve(code)
+        resolve(params)
       }
       const timer = setTimeout(() => {
-        this.events.off('auth-code-received', onCode)
-        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+        this.events.off('auth-callback-received', onCallback)
+        reject(new Error(`Timed out waiting for OAuth callback after ${Math.round(timeoutMs / 1000)}s`))
       }, timeoutMs)
-      this.events.once('auth-code-received', onCode)
+      this.events.once('auth-callback-received', onCallback)
     })
   }
 }

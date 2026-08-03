@@ -1,3 +1,4 @@
+// v1 compatibility island: this server is consumed only by the Claude Agent SDK.
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, open, readdir, rename, unlink } from 'node:fs/promises'

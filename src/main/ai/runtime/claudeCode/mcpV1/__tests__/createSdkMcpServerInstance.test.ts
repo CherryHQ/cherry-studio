@@ -1,3 +1,4 @@
+// v1 compatibility island regression tests.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'

@@ -1,61 +1,84 @@
 import type {
-  OAuthClientInformation,
-  OAuthClientInformationMixed,
-  OAuthTokens
-} from '@modelcontextprotocol/sdk/shared/auth.js'
+  OAuthClientInformationContext,
+  OAuthDiscoveryState,
+  StoredOAuthClientInformation,
+  StoredOAuthTokens
+} from '@modelcontextprotocol/client'
+import {
+  OAuthClientInformationFullSchema,
+  OAuthClientInformationSchema,
+  OAuthMetadataSchema,
+  OAuthProtectedResourceMetadataSchema,
+  OAuthTokensSchema,
+  OpenIdProviderDiscoveryMetadataSchema
+} from '@modelcontextprotocol/core'
 import type EventEmitter from 'events'
 import * as z from 'zod'
 
-export interface OAuthStorageData {
-  clientInfo?: OAuthClientInformation
-  tokens?: OAuthTokens
-  codeVerifier?: string
-  lastUpdated: number
-}
+const issuerStamp = { issuer: z.string().optional() }
+const StoredOAuthClientInformationSchema = z.union([
+  OAuthClientInformationFullSchema.extend(issuerStamp),
+  OAuthClientInformationSchema.extend(issuerStamp)
+])
+const StoredOAuthTokensSchema = OAuthTokensSchema.extend(issuerStamp)
+const AuthorizationServerMetadataSchema = z.union([OAuthMetadataSchema, OpenIdProviderDiscoveryMetadataSchema])
+const OAuthDiscoveryStateSchema: z.ZodType<OAuthDiscoveryState> = z.object({
+  authorizationServerUrl: z.string(),
+  authorizationServerMetadata: AuthorizationServerMetadataSchema.optional(),
+  resourceMetadata: OAuthProtectedResourceMetadataSchema.optional(),
+  resourceMetadataUrl: z.string().optional()
+})
+
+export const OAuthSecretDataSchema = z.object({
+  clientInfoByIssuer: z.record(z.string(), StoredOAuthClientInformationSchema),
+  tokensByIssuer: z.record(z.string(), StoredOAuthTokensSchema),
+  lastIssuer: z.string().optional(),
+  codeVerifier: z.string().optional(),
+  state: z.string().optional()
+})
+export type OAuthSecretData = z.infer<typeof OAuthSecretDataSchema>
 
 export const OAuthStorageSchema = z.object({
-  clientInfo: z.any().optional(),
-  tokens: z.any().optional(),
-  codeVerifier: z.string().optional(),
+  encryptedCredentials: z.string().optional(),
+  discoveryState: OAuthDiscoveryStateSchema.optional(),
   lastUpdated: z.number()
+})
+export type OAuthStorageData = z.infer<typeof OAuthStorageSchema>
+
+export const LegacyOAuthStorageSchema = z.object({
+  clientInfo: StoredOAuthClientInformationSchema.optional(),
+  tokens: StoredOAuthTokensSchema.optional(),
+  codeVerifier: z.string().optional()
 })
 
 export interface IOAuthStorage {
-  getClientInformation(): Promise<OAuthClientInformation | undefined>
-  saveClientInformation(info: OAuthClientInformationMixed | undefined): Promise<void>
-  getTokens(): Promise<OAuthTokens | undefined>
-  saveTokens(tokens: OAuthTokens | undefined): Promise<void>
+  getClientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined>
+  saveClientInformation(
+    info: StoredOAuthClientInformation | undefined,
+    ctx?: OAuthClientInformationContext
+  ): Promise<void>
+  getTokens(ctx?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined>
+  saveTokens(tokens: StoredOAuthTokens | undefined, ctx?: OAuthClientInformationContext): Promise<void>
   getCodeVerifier(): Promise<string>
   saveCodeVerifier(codeVerifier: string): Promise<void>
-  clear(): Promise<void>
+  getState(): Promise<string | undefined>
+  saveState(state: string | undefined): Promise<void>
+  getDiscoveryState(): Promise<OAuthDiscoveryState | undefined>
+  saveDiscoveryState(state: OAuthDiscoveryState | undefined): Promise<void>
+  clear(scope?: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void>
 }
 
-/**
- * OAuth callback server setup options
- */
 export interface OAuthCallbackServerOptions {
-  /** Port for the callback server */
   port: number
-  /** Path for the callback endpoint */
   path: string
-  /** Event emitter to signal when auth code is received */
   events: EventEmitter
 }
 
-/**
- * Options for creating an OAuth client provider
- */
 export interface OAuthProviderOptions {
-  /** Server URL to connect to */
   serverUrlHash: string
-  /** Port for the OAuth callback server */
   callbackPort?: number
-  /** Path for the OAuth callback endpoint */
   callbackPath?: string
-  /** Directory to store OAuth credentials */
   configDir?: string
-  /** Client name to use for OAuth registration */
   clientName?: string
-  /** Client URI to use for OAuth registration */
   clientUri?: string
 }

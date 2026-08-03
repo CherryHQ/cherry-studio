@@ -111,7 +111,10 @@ describe('filesystem MCP security', () => {
     })
 
     const result = await handleGlobTool({ pattern: '*.txt' }, workspaceRoot)
-    const text = result.content[0].text
+    const content = result.content[0]
+    expect(content.type).toBe('text')
+    if (content.type !== 'text') throw new Error('Expected text content')
+    const text = content.text
 
     expect(text).toContain('legit.txt')
     expect(text).not.toContain('secret.txt')
@@ -129,7 +132,10 @@ describe('filesystem MCP security', () => {
     await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
 
     const result = await handleLsTool({ recursive: true }, workspaceRoot)
-    const text = result.content[0].text
+    const content = result.content[0]
+    expect(content.type).toBe('text')
+    if (content.type !== 'text') throw new Error('Expected text content')
+    const text = content.text
 
     expect(text).toContain('legit.txt')
     // The symlink entry itself may appear, but its children should not be listed
