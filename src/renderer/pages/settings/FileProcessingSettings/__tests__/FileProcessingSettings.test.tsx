@@ -671,12 +671,13 @@ describe('processing settings pages', () => {
   })
 
   it('stores PaddleOCR model changes per feature', async () => {
+    const user = userEvent.setup()
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'PP-OCRv5' }))
+    await user.click(await screen.findByRole('button', { name: 'PP-OCRv5' }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -693,10 +694,7 @@ describe('processing settings pages', () => {
     overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
     rerender(<DocumentProcessingSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'PP-StructureV3' }))
+    await user.click(await screen.findByRole('button', { name: 'PP-StructureV3' }))
 
     await waitFor(() => {
       expect(setOverridesMock).toHaveBeenCalledWith({
@@ -715,6 +713,8 @@ describe('processing settings pages', () => {
   })
 
   it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
     overridesMock.value = {
       paddleocr: {
         capabilities: {
@@ -730,43 +730,37 @@ describe('processing settings pages', () => {
 
     const { rerender } = render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
     expect(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+      await screen.findByRole('button', {
+        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+      })
     ).toHaveTextContent('PP-OCRv5')
 
     rerender(<DocumentProcessingSettings />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
     expect(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+      await screen.findByRole('button', {
+        name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
+      })
     ).toHaveTextContent('PP-StructureV3')
   })
 
   it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    preferencesMock.defaultImageProcessor = 'paddleocr'
+
     render(<OcrSettings />)
 
-    fireEvent.click(
-      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
-    )
-
-    expect(screen.getByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
   })
 
   it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    preferencesMock.defaultDocumentProcessor = 'paddleocr'
+
     render(<DocumentProcessingSettings />)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
-    )
-
-    expect(screen.getByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
