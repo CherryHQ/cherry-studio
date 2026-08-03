@@ -52,9 +52,8 @@ interface UseSmoothScrollAnimationOptions {
 }
 
 /**
- * Smooth-scroll controller bound to `scrollerRef`. Caller is responsible
- * for triggering cancel on user wheel-up (subscribe to wheel events on
- * the same element and call `cancel()` when direction reverses).
+ * Smooth-scroll controller bound to `scrollerRef`. Caller is responsible for
+ * calling `cancel()` when the user interrupts navigation.
  */
 export function useSmoothScrollAnimation(
   scrollerRef: RefObject<HTMLElement | null>,

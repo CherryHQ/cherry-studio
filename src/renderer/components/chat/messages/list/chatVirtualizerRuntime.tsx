@@ -368,7 +368,7 @@ export function useChatVirtualizerRuntime<T>({
       smoothScroll.cancel()
       const wasFollowing = viewportFollow.isFollowing()
       viewportFollow.enterReading(reason)
-      if (wasFollowing) {
+      if (wasFollowing || freezeBaselineScrollHeightRef.current === null) {
         setFreezeSpacerHeight(0)
         freezeBaselineScrollHeightRef.current = getNaturalScrollHeight()
       }
@@ -491,6 +491,7 @@ export function useChatVirtualizerRuntime<T>({
     vlistHandleRef,
     getDataKeyAtIndex,
     findDataIndexByKey,
+    shouldRestore: () => viewportFollow.getState().reason === 'initializing',
     isFollowing: viewportFollow.isFollowing,
     enterFollowingAfterRestore,
     enterReadingForRestore,
@@ -546,6 +547,9 @@ export function useChatVirtualizerRuntime<T>({
       markUserInput()
       const dir: 'up' | 'down' | 'none' = event.deltaY < 0 ? 'up' : event.deltaY > 0 ? 'down' : 'none'
       lastUserInputDirectionRef.current = dir
+      if (readNavigationActiveRef.current && dir !== 'none') {
+        takeUserControl('navigation')
+      }
       if (smoothScroll.isAnimating() && dir === 'up') {
         smoothScroll.cancel()
       }
@@ -555,7 +559,7 @@ export function useChatVirtualizerRuntime<T>({
         lastWheelDirRef.current = 'none'
       }, SCROLL_WHEEL_DEBOUNCE_MS)
     },
-    [markUserInput, smoothScroll]
+    [markUserInput, smoothScroll, takeUserControl]
   )
 
   const onReachTopRef = useRef(onReachTop)
@@ -639,6 +643,7 @@ export function useChatVirtualizerRuntime<T>({
         reassertFreeze()
         updateScrollToBottomButtonVisibility()
         saveScrollPosition()
+        maybeNotifyReachTop(offset)
         return
       }
     } else if (isUserInitiated && direction === 'up') {

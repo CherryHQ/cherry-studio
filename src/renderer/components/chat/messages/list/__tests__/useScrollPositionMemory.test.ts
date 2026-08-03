@@ -121,6 +121,7 @@ describe('useScrollPositionMemory', () => {
       const found = Object.entries(keysByIndex).find(([, k]) => k === key)
       return found ? Number(found[0]) : -1
     },
+    shouldRestore: () => true,
     isFollowing: () => following,
     enterFollowingAfterRestore,
     enterReadingForRestore,

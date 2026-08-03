@@ -102,6 +102,8 @@ export interface ScrollPositionMemoryInputs {
   getDataKeyAtIndex: (index: number) => string | null
   /** Data index for a group key, or `-1` when absent. */
   findDataIndexByKey: (key: string) => number
+  /** Whether the mount-time restore still owns the viewport. */
+  shouldRestore: () => boolean
   isFollowing: () => boolean
   enterFollowingAfterRestore: () => void
   enterReadingForRestore: () => void
@@ -167,6 +169,10 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
 
     let settleRaf = 0
     const raf = requestAnimationFrame(() => {
+      if (!i.shouldRestore()) {
+        suppressSaveRef.current = false
+        return
+      }
       const el = i.scrollerRef.current
       const handle = i.vlistHandleRef.current
       if (target.align === 'end') i.enterFollowingAfterRestore()
