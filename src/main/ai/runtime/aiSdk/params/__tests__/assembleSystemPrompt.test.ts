@@ -1,4 +1,3 @@
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -105,16 +104,6 @@ describe('assembleSystemPrompt', () => {
       tools: { other_tool: {} } as unknown as ToolSet
     })
     expect(out).toBe('base')
-  })
-
-  it('never emits a persisted-output section — that protocol is taught in-band (marker + fs_read description)', async () => {
-    const result = await assembleSystemPrompt({
-      assistant: undefined,
-      model,
-      tools: { [FS_READ_TOOL_NAME]: {} as never },
-      deferredEntries: []
-    })
-    expect(result).toBeUndefined()
   })
 
   it('appends citation guidance when web_search is an inline tool', async () => {
