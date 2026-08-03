@@ -35,9 +35,9 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       case 'memory_search':
         return <MessageMemorySearchToolTitle toolResponse={toolResponse} />
       default:
-        return null
+        return toolType === 'provider' ? <MessageAgentTools toolResponse={toolResponse} /> : null
     }
-  } else if (isAgentTool(toolName as AgentToolsType)) {
+  } else if (isAgentTool(toolName as AgentToolsType) || toolType === 'provider') {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
   return null

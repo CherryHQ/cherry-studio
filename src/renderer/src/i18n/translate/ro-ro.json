@@ -298,16 +298,9 @@
         "button": "Șterge calea personalizată"
       },
       "customPath": "Se folosește calea personalizată: {{path}}",
-      "error": {
-        "description": "Git Bash este necesar pentru a rula agenți pe Windows. Agentul nu poate funcționa fără acesta. Te rugăm să instalezi Git pentru Windows de la",
-        "recheck": "Verifică din nou instalarea Git Bash",
-        "required": "Calea Git Bash este necesară pe Windows",
-        "title": "Git Bash este necesar"
-      },
       "found": {
         "title": "Git Bash configurat"
       },
-      "notFound": "Git Bash nu a fost găsit. Te rugăm să-l instalezi mai întâi.",
       "pick": {
         "button": "Selectează calea Git Bash",
         "failed": "Nu s-a putut seta calea Git Bash",
@@ -316,7 +309,7 @@
       },
       "placeholder": "Selectează calea bash.exe",
       "success": "Git Bash a fost detectat cu succes!",
-      "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
+      "tooltip": "Git Bash este opțional pe Windows. Dacă nu este configurat sau disponibil, agentul folosește PowerShell."
     },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Citește și afișează conținutul notebook-urilor Jupyter"
+        },
+        "PowerShell": {
+          "description": "Execută comenzi PowerShell în mediul dvs."
         },
         "Read": {
           "description": "Citește conținutul fișierelor"
@@ -2506,6 +2502,7 @@
         "mcpServerTool": "Instrument Server MCP",
         "multiEdit": "MultiEdit",
         "notebookEdit": "NotebookEdit",
+        "powerShell": "PowerShell",
         "readFile": "Citește fișier",
         "search": "Căutare",
         "skill": "Abilitate",

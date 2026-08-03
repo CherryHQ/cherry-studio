@@ -74,6 +74,8 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
+  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  - "node_modules/@cherrystudio/ripgrep/vendor/ripgrep/**"
 
 win:
   executableName: Cherry Studio
