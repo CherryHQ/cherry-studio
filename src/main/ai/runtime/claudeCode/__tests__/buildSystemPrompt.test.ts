@@ -255,7 +255,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(result).toContain('Generic requests to submit a problem or bug default to Feishu')
     expect(result).toContain("In a user's message, first-person terms refer to the user")
     expect(result).toContain('`mcp__cherry-tools__config` describes this Agent')
-    expect(result.trim()).toMatch(/不能把一个主体的事实转移给另一个主体。$/)
+    expect(result.trim()).toMatch(/Never transfer facts from one entity to another\.$/)
   })
 
   it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {

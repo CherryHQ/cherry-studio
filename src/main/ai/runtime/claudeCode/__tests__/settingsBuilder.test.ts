@@ -1495,12 +1495,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       continue: true,
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: expect.stringContaining('用户消息中的“我/我的/我们”指用户')
+        additionalContext: expect.stringContaining("In a user's message, first-person terms refer to the user")
       }
     })
     expect(output).toMatchObject({
       hookSpecificOutput: {
-        additionalContext: expect.stringContaining('Agent 配置不能证明用户身份')
+        additionalContext: expect.stringContaining("None establishes the user's identity or preferences")
       }
     })
   })
