@@ -298,16 +298,9 @@
         "button": "Очистить пользовательский путь"
       },
       "customPath": "Используется пользовательский путь: {{path}}",
-      "error": {
-        "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
-        "recheck": "Повторная проверка установки Git Bash",
-        "required": "Требуется путь к Git Bash в Windows",
-        "title": "Требуется Git Bash"
-      },
       "found": {
         "title": "Git Bash настроен"
       },
-      "notFound": "Git Bash не найден. Пожалуйста, сначала установите его.",
       "pick": {
         "button": "Выбрать путь Git Bash",
         "failed": "Не удалось настроить путь Git Bash",
@@ -316,7 +309,7 @@
       },
       "placeholder": "Выберите путь к bash.exe",
       "success": "Git Bash успешно обнаружен!",
-      "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
+      "tooltip": "Git Bash в Windows необязателен. Если он не настроен или недоступен, агент использует PowerShell."
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
@@ -639,6 +632,9 @@
         },
         "NotebookRead": {
           "description": "Читает и отображает содержимое Jupyter-ноутбуков"
+        },
+        "PowerShell": {
+          "description": "Выполняет команды PowerShell в вашей среде"
         },
         "Read": {
           "description": "Читает содержимое файлов"
@@ -2506,6 +2502,7 @@
         "mcpServerTool": "Инструмент сервера MCP",
         "multiEdit": "МультиРедакт",
         "notebookEdit": "РедакторБлокнота",
+        "powerShell": "PowerShell",
         "readFile": "Прочитать файл",
         "search": "Поиск",
         "skill": "Навык",
