@@ -7930,6 +7930,7 @@
       "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",
       "confirmUninstall": "Are you sure you want to uninstall this skill?",
       "directory": "Directory",
+      "directoryImportFailed": "Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Or drag & drop a ZIP file or folder here",
       "emptyDesc": "Install skills from ZIP, directory, or search online registries to extend agent capabilities.",
       "emptyTip": "Tip: You can also ask an agent to install skills for you.",
@@ -7957,7 +7958,8 @@
       "uninstall": "Uninstall",
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "System"

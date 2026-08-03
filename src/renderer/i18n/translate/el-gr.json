@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
       "confirmUninstall": "Είσαι σίγουρος ότι θέλεις να απεγκαταστήσεις αυτή την ικανότητα;",
       "directory": "Κατάλογος",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Ή σύρετε και αφήστε εδώ ένα αρχείο ZIP ή έναν φάκελο",
       "emptyDesc": "Εγκαταστήστε δεξιότητες από ZIP, φάκελο ή αναζητήστε σε διαδικτυακά μητρώα για να επεκτείνετε τις δυνατότητες του πράκτορα.",
       "emptyTip": "Συμβουλή: Μπορείς επίσης να ζητήσεις από έναν πράκτορα να εγκαταστήσει δεξιότητες για εσένα.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Απεγκατάσταση",
       "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
       "viewSource": "Προβολή Πηγής",
-      "zip": "Τ.Κ."
+      "zip": "Τ.Κ.",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "Σύστημα"

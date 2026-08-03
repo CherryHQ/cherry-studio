@@ -69,6 +69,14 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
     [t]
   )
 
+  const getItemInstallErrorMessage = useCallback(
+    (item: ImportItem) =>
+      item.kind === 'directory'
+        ? t('settings.skills.directoryImportFailed', { name: item.name })
+        : t('settings.skills.zipImportFailed', { name: item.name }),
+    [t]
+  )
+
   const updateItem = useCallback((id: string, patch: Partial<ImportItem>) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)))
   }, [])
@@ -99,9 +107,9 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             lastSkill = skill
             successCount += 1
             updateItem(item.id, { status: 'success', skillName: skill.name })
-          } catch (e) {
+          } catch {
             failedCount += 1
-            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(e, item.name) })
+            updateItem(item.id, { status: 'error', error: getItemInstallErrorMessage(item) })
           }
         }
 
@@ -127,7 +135,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
+    [getItemInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
   )
 
   const createImportItem = useCallback(
@@ -252,7 +260,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         </div>
 
         {/* Body */}
-        <div>
+        <div className="min-w-0">
           <Dropzone
             disabled={Boolean(installing)}
             getFilesFromEvent={async (event) => {
@@ -319,25 +327,31 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
   return (
     <Scrollbar
       data-testid="skill-import-results"
-      className="mt-4 max-h-44 rounded-md border border-border-subtle bg-background-subtle/50">
-      <div className="divide-y divide-border-subtle">
-        {items.map((item) => (
-          <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
-            <ImportItemStatusIcon status={item.status} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-foreground">
-                {item.status === 'success' ? (item.skillName ?? item.name) : item.name}
-              </div>
-              {item.status !== 'success' ? (
-                <div className="mt-0.5 truncate text-foreground-tertiary">
-                  {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                  {item.status === 'installing' ? t('common.loading') : null}
-                  {item.status === 'error' ? item.error : null}
+      className="mt-4 max-h-44 w-full min-w-0 max-w-full overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+      <div className="min-w-0 divide-y divide-border-subtle">
+        {items.map((item) => {
+          const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
+
+          return (
+            <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
+              <ImportItemStatusIcon status={item.status} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-foreground" title={displayName}>
+                  {displayName}
                 </div>
-              ) : null}
+                {item.status !== 'success' ? (
+                  <div
+                    className="mt-0.5 truncate text-foreground-tertiary"
+                    title={item.status === 'error' ? item.error : undefined}>
+                    {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                    {item.status === 'installing' ? t('common.loading') : null}
+                    {item.status === 'error' ? item.error : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </Scrollbar>
   )

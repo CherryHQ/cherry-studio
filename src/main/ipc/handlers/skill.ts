@@ -6,6 +6,14 @@ import type { SkillResult } from '@shared/types/skill'
 
 const logger = loggerService.withContext('skillHandlers')
 
+function skillErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return String(error)
+}
+
 /**
  * Skill handlers delegating to the `skillService` direct-import singleton. Legacy routes keep
  * their `SkillResult` envelope until their callers migrate; new routes return data directly so
@@ -16,7 +24,7 @@ async function toSkillResult<T>(op: () => Promise<T>, failMessage: string): Prom
     return { success: true, data: await op() }
   } catch (error) {
     logger.error(failMessage, error as Error)
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: skillErrorMessage(error) }
   }
 }
 

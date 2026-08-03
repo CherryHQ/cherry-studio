@@ -7930,6 +7930,7 @@
       "confirmBatchUninstall": "确定要卸载选中的 {{count}} 个技能吗？",
       "confirmUninstall": "确定要卸载此技能吗？",
       "directory": "文件夹",
+      "directoryImportFailed": "无法安装“{{name}}”，请确认所选文件夹根目录包含可读取的 SKILL.md 文件",
       "dropHint": "或将 ZIP 文件或文件夹拖放到此处",
       "emptyDesc": "通过 ZIP、文件夹安装，或在线搜索注册表来扩展 Agent 的能力。",
       "emptyTip": "提示：你也可以让 Agent 帮你安装技能。",
@@ -7957,7 +7958,8 @@
       "uninstall": "卸载",
       "uninstallSuccess": "技能已卸载：{{name}}",
       "viewSource": "查看源码",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "无法安装“{{name}}”，请确认 ZIP 中包含有效的技能目录"
     },
     "system": {
       "title": "系统"

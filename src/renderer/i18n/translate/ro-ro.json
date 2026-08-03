@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Sigur dorești să dezinstalezi {{count}} competențe selectate?",
       "confirmUninstall": "Ești sigur că vrei să dezinstalezi această abilitate?",
       "directory": "Director",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Sau trageți și plasați aici un fișier ZIP sau un folder",
       "emptyDesc": "Instalează abilități din ZIP, director sau caută în registre online pentru a extinde capabilitățile agentului.",
       "emptyTip": "Sfat: Poți, de asemenea, să ceri unui agent să instaleze abilități pentru tine.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Dezinstalare",
       "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
       "viewSource": "Vezi sursa",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "Sistem"

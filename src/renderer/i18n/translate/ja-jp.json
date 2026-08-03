@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "{{count}}個の選択したスキルをアンインストールしてもよろしいですか？",
       "confirmUninstall": "このスキルをアンインストールしてもよろしいですか？",
       "directory": "ディレクトリ",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "または、ZIPファイルまたはフォルダをここにドラッグ＆ドロップしてください",
       "emptyDesc": "ZIP、ディレクトリからスキルをインストールするか、オンラインのレジストリを検索してエージェントの機能を拡張します。",
       "emptyTip": "ヒント: エージェントにスキルをインストールしてもらうこともできます。",
@@ -7952,7 +7953,8 @@
       "uninstall": "アンインストール",
       "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
       "viewSource": "ソースを表示",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "システム"

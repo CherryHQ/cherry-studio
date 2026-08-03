@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Êtes-vous sûr de vouloir désinstaller les {{count}} compétences sélectionnées ?",
       "confirmUninstall": "Êtes-vous sûr de vouloir désinstaller cette compétence ?",
       "directory": "Répertoire",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Ou glissez-déposez ici un fichier ZIP ou un dossier",
       "emptyDesc": "Installez des compétences à partir d’un fichier ZIP, d’un répertoire ou recherchez dans les registres en ligne pour étendre les capacités de l’agent.",
       "emptyTip": "Astuce : vous pouvez aussi demander à un agent d’installer des compétences pour vous.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Désinstaller",
       "uninstallSuccess": "Compétence désinstallée : {{name}}",
       "viewSource": "Afficher la source",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "Système"

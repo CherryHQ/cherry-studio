@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Êtes-vous certain de vouloir désinstaller {{count}} compétences sélectionnées ?",
       "confirmUninstall": "Bạn có chắc chắn muốn gỡ cài đặt kỹ năng này không?",
       "directory": "Thư mục",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Hoặc kéo và thả tệp ZIP hoặc thư mục vào đây",
       "emptyDesc": "Cài đặt kỹ năng từ tập tin ZIP, thư mục hoặc tìm kiếm trong các registry trực tuyến để mở rộng khả năng của tác nhân.",
       "emptyTip": "Mẹo: Bạn cũng có thể yêu cầu một đại lý cài đặt các kỹ năng cho bạn.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Gỡ cài đặt",
       "uninstallSuccess": "Kỹ năng đã gỡ cài đặt: {{name}}",
       "viewSource": "Ver código fuente",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "Hệ thống"

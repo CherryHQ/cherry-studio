@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
       "confirmUninstall": "Bist du sicher, dass du diese Fähigkeit deinstallieren möchtest?",
       "directory": "Verzeichnis",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Oder ziehen Sie eine ZIP-Datei oder einen Ordner hierher.",
       "emptyDesc": "Installiere Fähigkeiten aus ZIP, Verzeichnis oder suche in Online-Registries, um die Agenten-Fähigkeiten zu erweitern.",
       "emptyTip": "Tipp: Sie können auch einen Agenten bitten, Fähigkeiten für Sie zu installieren.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Deinstallieren",
       "uninstallSuccess": "Skill deinstalliert: {{name}}",
       "viewSource": "Quelltext anzeigen",
-      "zip": "PLZ"
+      "zip": "PLZ",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "System"

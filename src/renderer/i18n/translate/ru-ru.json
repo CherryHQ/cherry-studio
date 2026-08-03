@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "Вы уверены, что хотите удалить выбранные навыки ({{count}})?",
       "confirmUninstall": "Вы уверены, что хотите удалить этот навык?",
       "directory": "Каталог",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Или перетащите сюда ZIP-файл или папку",
       "emptyDesc": "Устанавливайте навыки из ZIP-файла, каталога или ищите в онлайн-реестрах, чтобы расширить возможности агента.",
       "emptyTip": "Совет: вы также можете попросить агента установить навыки за вас.",
@@ -7952,7 +7953,8 @@
       "uninstall": "Удалить",
       "uninstallSuccess": "Навык удалён: {{name}}",
       "viewSource": "Посмотреть исходный код",
-      "zip": "ЗИП"
+      "zip": "ЗИП",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "Система"

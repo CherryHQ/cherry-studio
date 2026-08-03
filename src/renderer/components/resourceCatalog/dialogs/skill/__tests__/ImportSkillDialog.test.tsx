@@ -140,18 +140,48 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('shows the failure inline without a second toast (the install hook already toasts)', async () => {
+  it('shows a localized ZIP failure without exposing the extraction path', async () => {
     const user = userEvent.setup()
+    installFromZip.mockRejectedValue(
+      new Error('No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123')
+    )
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+
+    expect(await screen.findByText('settings.skills.zipImportFailed:broken.zip')).toBeInTheDocument()
+    expect(screen.queryByText(/zip-install-123/)).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows localized skill-root guidance for a directory failure', async () => {
+    const user = userEvent.setup()
+    vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
+    installFromDirectory.mockRejectedValue(new Error('[object Object]'))
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
+
+    expect(await screen.findByText('settings.skills.directoryImportFailed:broken-skill')).toBeInTheDocument()
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps complete long import names and errors available on truncated result text', async () => {
+    const user = userEvent.setup()
+    const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
+    const localizedError = `settings.skills.zipImportFailed:${longName}`
+    vi.mocked(window.api.file.select).mockResolvedValue([{ name: longName, path: `/tmp/${longName}` }] as any)
     installFromZip.mockRejectedValue(new Error('corrupt archive'))
 
     render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    // The dialog surfaces the error inline...
-    await waitFor(() => expect(screen.getByText('corrupt archive')).toBeInTheDocument())
-    // ...and does NOT add its own toast on top of the hook's `reportAndRethrowSkillMutationError`.
-    expect(toast.error).not.toHaveBeenCalled()
+    expect(await screen.findByTitle(longName)).toHaveTextContent(longName)
+    expect(screen.getByTitle(localizedError)).toHaveTextContent(localizedError)
   })
 
   it('uses the marketplace success toast without a duplicate success banner', async () => {

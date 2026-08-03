@@ -59,6 +59,18 @@ describe('skillHandlers', () => {
     })
   })
 
+  it('preserves the message from a structured parser error', async () => {
+    installFromDirectoryMock.mockRejectedValue({
+      type: 'FILE_NOT_FOUND',
+      message: 'SKILL.md or skill.md not found in skill folder'
+    })
+
+    expect(await skillHandlers['skill.install_from_directory']({ directoryPath: '/tmp/not-a-skill' }, ctx)).toEqual({
+      success: false,
+      error: 'SKILL.md or skill.md not found in skill folder'
+    })
+  })
+
   it('uninstall forwards the skillId and returns a void success envelope', async () => {
     uninstallMock.mockResolvedValue(undefined)
     expect(await skillHandlers['skill.uninstall']({ skillId: 's1' }, ctx)).toEqual({ success: true, data: undefined })

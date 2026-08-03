@@ -7925,6 +7925,7 @@
       "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",
       "confirmUninstall": "確定要解除安裝此技能嗎？",
       "directory": "資料夾",
+      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "或將 ZIP 檔案或資料夾拖放到此處",
       "emptyDesc": "透過 ZIP、資料夾安裝，或在線搜尋登錄檔來擴展 Agent 的能力。",
       "emptyTip": "提示：你也可以讓 Agent 幫你安裝技能。",
@@ -7952,7 +7953,8 @@
       "uninstall": "解除安裝",
       "uninstallSuccess": "技能已解除安裝：{{name}}",
       "viewSource": "查看原始碼",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
     },
     "system": {
       "title": "系統"
