@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
@@ -414,6 +414,44 @@ describe('Model drawers', () => {
         outputModalities: [MODALITY.IMAGE]
       })
     )
+  })
+
+  it('does not overwrite the saved chat endpoint when opening the edit drawer', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'new-api',
+        name: 'New API',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="new-api"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'new-api::custom-openai-model',
+            providerId: 'new-api',
+            name: 'Custom OpenAI Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toHaveTextContent(
+        'settings.provider.more_endpoints.openai_chat'
+      )
+    })
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('keeps model type, capabilities, and input modalities independently editable', async () => {
