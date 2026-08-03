@@ -27,7 +27,8 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   },
   {
     reason: 'discarding version-control data',
-    pattern: /\bgit\s+(?:clean\b|reset\s+--hard\b|checkout\s+--\b|restore\b|branch\s+-D\b|stash\s+(?:drop|clear)\b)/i
+    pattern:
+      /\bgit\s+(?:clean\b|reset\s+--hard\b|checkout\s+(?:(?:[^\s;&|]+)\s+)?--(?:\s|$)|checkout\s+\.(?:[\\/][^\s;&|]*)?(?:\s|$)|switch\b[^\r\n;&|]*(?:--discard-changes|--force|-f)(?:\s|$)|restore\b|branch\s+-D\b|stash\s+(?:drop|clear)\b)/i
   },
   {
     reason: 'destructive database operation',

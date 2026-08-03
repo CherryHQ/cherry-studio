@@ -57,16 +57,16 @@ export function getBuiltinAgentPluginDirectory(builtinRole: string): string | un
 }
 
 /**
- * Recursively copy a directory, creating target dirs as needed.
+ * Recursively copy files that do not already exist, creating target dirs as needed.
  */
-function copyDirSync(src: string, dest: string): void {
+function copyMissingDirSync(src: string, dest: string): void {
   fs.mkdirSync(dest, { recursive: true })
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
     if (entry.isDirectory()) {
-      copyDirSync(srcPath, destPath)
-    } else {
+      copyMissingDirSync(srcPath, destPath)
+    } else if (!fs.existsSync(destPath)) {
       fs.copyFileSync(srcPath, destPath)
     }
   }
@@ -156,8 +156,8 @@ export async function provisionBuiltinAgent(
 
     const srcMemoryDir = path.join(templateDir, 'memory')
     const destMemoryDir = path.join(agentDataPath, 'memory')
-    if (fs.existsSync(srcMemoryDir) && !fs.existsSync(destMemoryDir)) {
-      copyDirSync(srcMemoryDir, destMemoryDir)
+    if (fs.existsSync(srcMemoryDir)) {
+      copyMissingDirSync(srcMemoryDir, destMemoryDir)
     }
 
     return definition

@@ -102,6 +102,12 @@ describe('moveWorkspaceItemToTrash', () => {
     expect(getProtectedTrashTargetReason('C:\\Users\\alice', 'C:\\', context)).toContain('profile')
     expect(getProtectedTrashTargetReason('C:\\Users\\alice\\Documents', 'C:\\', context)).toContain('user data')
     expect(getProtectedTrashTargetReason('C:\\Users\\alice\\.ssh\\id_ed25519', 'C:\\', context)).toContain('credential')
+    expect(getProtectedTrashTargetReason('C:\\Users\\alice\\OneDrive', 'C:\\Users\\alice', context)).toContain(
+      'workspace rooted at or above'
+    )
+    expect(getProtectedTrashTargetReason('C:\\Users\\alice\\OneDrive', 'C:\\Users', context)).toContain(
+      'workspace rooted at or above'
+    )
     expect(
       getProtectedTrashTargetReason(
         'C:\\Users\\alice\\Projects\\demo\\draft.txt',

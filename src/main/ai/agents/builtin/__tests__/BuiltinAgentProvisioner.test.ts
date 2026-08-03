@@ -113,6 +113,14 @@ describe('BuiltinAgentProvisioner', () => {
     expect(fs.readFileSync(path.join(agentDataPath, 'USER.md'), 'utf-8')).toBe('TEMPLATE_USER')
   })
 
+  it('initializes missing memory templates after the agent data directory creates memory', async () => {
+    fs.mkdirSync(path.join(agentDataPath, 'memory'), { recursive: true })
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf-8')).toBe('TEMPLATE_FACT')
+  })
+
   it('preserves user-owned persona and memory files across provisioning', async () => {
     await provisionBuiltinAgent(agentDataPath, 'assistant')
     fs.writeFileSync(path.join(agentDataPath, 'SOUL.md'), 'CUSTOM_SOUL')

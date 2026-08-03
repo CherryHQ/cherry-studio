@@ -166,6 +166,10 @@ export function getProtectedTrashTargetReason(
     if (isMountedVolumeRoot) return 'a mounted volume root'
   }
 
+  if (home && isSameOrWithin(home, workspace, platform)) {
+    return 'a workspace rooted at or above the user profile or home directory'
+  }
+
   return undefined
 }
 
