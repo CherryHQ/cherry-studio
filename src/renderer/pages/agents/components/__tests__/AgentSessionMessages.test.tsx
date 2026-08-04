@@ -46,7 +46,6 @@ describe('AgentSessionMessages', () => {
   })
 
   it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
-    const onBindRuntime = vi.fn()
     render(
       <AgentSessionMessages
         agentId="agent-1"
@@ -55,7 +54,6 @@ describe('AgentSessionMessages', () => {
         activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
         partsByMessageId={{}}
         isLoading={false}
-        onBindRuntime={onBindRuntime}
       />
     )
 
@@ -64,8 +62,7 @@ describe('AgentSessionMessages', () => {
         assistantProfile: {
           name: 'Blank avatar agent',
           avatar: '🤖'
-        },
-        onBindRuntime
+        }
       })
     )
   })

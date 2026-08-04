@@ -2,8 +2,9 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { fireEvent, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { type ComponentProps, createContext, use } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListItem } from '../../types'
@@ -11,8 +12,14 @@ import MessageAnchorLine from '../MessageAnchorLine'
 
 const partsMap: Record<string, CherryMessagePart[]> = {}
 
+/** The real `useMessageParts` is a context read, so a chunk reaches the live
+ * preview leaf without the memoized rail re-rendering. Mocking it as a plain
+ * map read would lose exactly that, letting a parent re-render masquerade as
+ * live-leaf isolation — so the stand-in is a real context too. */
+const LivePartsContext = createContext<Record<string, CherryMessagePart[]>>({})
+
 vi.mock('../../blocks/MessagePartsContext', () => ({
-  usePartsMap: () => partsMap
+  useMessageParts: (messageId: string) => use(LivePartsContext)[messageId] ?? []
 }))
 
 vi.mock('react-i18next', () => ({
@@ -120,6 +127,47 @@ function installRailGeometry(metrics: StripMetrics): () => void {
   }
 }
 
+/** Pointer state lands on the next frame, so every hover assertion has to flush
+ * one first. A deterministic queue beats waiting on a real frame: it also
+ * proves the coalescing (one request for many moves) the component relies on. */
+function installDeferredAnimationFrame() {
+  const callbacks: FrameRequestCallback[] = []
+  const request = vi.fn((callback: FrameRequestCallback) => {
+    callbacks.push(callback)
+    return callbacks.length
+  })
+
+  vi.stubGlobal('requestAnimationFrame', request)
+  vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+  return {
+    request,
+    flushNext: () => {
+      const callback = callbacks.shift()
+      expect(callback).toBeDefined()
+      act(() => callback?.(0))
+    }
+  }
+}
+
+type RailProps = ComponentProps<typeof MessageAnchorLine>
+
+const NO_LIVE_MESSAGE_IDS: readonly string[] = []
+
+/** MessageList always hands the rail an explicit history/live split. Tests that
+ * don't exercise streaming treat the shared map as pure history; `liveParts`
+ * stands in for the streaming PartsContext the live preview leaf reads. */
+const rail = (
+  props: Partial<RailProps> & Pick<RailProps, 'messages'>,
+  liveParts: Record<string, CherryMessagePart[]> = partsMap
+) => (
+  <LivePartsContext value={liveParts}>
+    <MessageAnchorLine historyPartsByMessageId={partsMap} liveMessageIds={NO_LIVE_MESSAGE_IDS} {...props} />
+  </LivePartsContext>
+)
+
+const renderRail = (...args: Parameters<typeof rail>) => render(rail(...args))
+
 let restoreGeometry: (() => void) | null = null
 
 /** Center Y of tick `index` with 5 turns, full geometry, and no strip scroll:
@@ -130,11 +178,12 @@ afterEach(() => {
   restoreGeometry?.()
   restoreGeometry = null
   for (const key of Object.keys(partsMap)) delete partsMap[key]
+  vi.unstubAllGlobals()
 })
 
 describe('MessageAnchorLine', () => {
   it('keeps the anchor rail scoped inside the message list layer', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     const anchorRail = container.firstElementChild
     expect(anchorRail).toHaveClass('absolute', 'z-20')
@@ -142,7 +191,7 @@ describe('MessageAnchorLine', () => {
   })
 
   it('renders one tick per conversation turn', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
   })
@@ -150,19 +199,19 @@ describe('MessageAnchorLine', () => {
   it('does not create a tick for a clear-context boundary', () => {
     const boundary = makeMessage({ id: 'clear-context', role: 'user', isContextBoundary: true })
     const messagesWithBoundary = [...messages.slice(0, 5), boundary, ...messages.slice(5)]
-    const { container } = render(<MessageAnchorLine messages={messagesWithBoundary} />)
+    const { container } = renderRail({ messages: messagesWithBoundary })
 
     expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
   })
 
   it('renders nothing with fewer than five turns — no anchoring needed', () => {
-    const { container } = render(<MessageAnchorLine messages={messages.slice(0, 5)} />)
+    const { container } = renderRail({ messages: messages.slice(0, 5) })
 
     expect(container.firstElementChild).toBeNull()
   })
 
   it('marks the turn containing the active message', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} activeMessageId="assistant-1" />)
+    const { container } = renderRail({ messages, activeMessageId: 'assistant-1' })
 
     const ticks = container.querySelectorAll('[data-message-anchor-tick]')
     expect(ticks[0]).toHaveAttribute('data-active', 'true')
@@ -170,7 +219,7 @@ describe('MessageAnchorLine', () => {
   })
 
   it('defaults the active tick to the last turn', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     const ticks = container.querySelectorAll('[data-message-anchor-tick]')
     expect(ticks[4]).toHaveAttribute('data-active', 'true')
@@ -178,7 +227,7 @@ describe('MessageAnchorLine', () => {
 
   it('scrolls to the turn start message on tick click', () => {
     const scrollToMessageId = vi.fn()
-    const { container } = render(<MessageAnchorLine messages={messages} scrollToMessageId={scrollToMessageId} />)
+    const { container } = renderRail({ messages, scrollToMessageId })
 
     const ticks = container.querySelectorAll('[data-message-anchor-tick]')
     fireEvent.click(ticks[1])
@@ -187,7 +236,7 @@ describe('MessageAnchorLine', () => {
   })
 
   it('gives every tick the same constant pitch inside a scrollable rail', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     // Constant pitch (never varies with the turn count) and the rail can scroll
     // once the ticks overflow it.
@@ -198,7 +247,7 @@ describe('MessageAnchorLine', () => {
   })
 
   it('runs the rail the full message-area height rather than insetting above the composer', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     // The rail spans top-to-bottom; the composer sits to the left of this gutter.
     expect(container.firstElementChild).toHaveClass('top-2.5', 'bottom-8')
@@ -206,28 +255,28 @@ describe('MessageAnchorLine', () => {
   })
 
   it('fades the top edge as a hint while older pages remain unloaded', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} hasOlder />)
+    const { container } = renderRail({ messages, hasOlder: true })
 
     const scroll = container.querySelector<HTMLElement>('.overflow-y-auto')
     expect(scroll?.style.maskImage).toContain('transparent 0%')
   })
 
   it('keeps the top edge solid when fully loaded and unscrolled', () => {
-    const { container } = render(<MessageAnchorLine messages={messages} />)
+    const { container } = renderRail({ messages })
 
     const scroll = container.querySelector<HTMLElement>('.overflow-y-auto')
     expect(scroll?.style.maskImage ?? 'black 0%').toContain('black 0%')
   })
 
   it('renders nothing without messages', () => {
-    const { container } = render(<MessageAnchorLine messages={[]} />)
+    const { container } = renderRail({ messages: [] })
 
     expect(container.firstElementChild).toBeNull()
   })
 
   describe('interactivity gating', () => {
     it('stays clickable mid-fade with a hit strip confined to the yielded gutter', () => {
-      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={0.5} />)
+      const { container } = renderRail({ messages, railOpacity: 0.5 })
 
       const rail = container.firstElementChild as HTMLElement
       // Visible means clickable — the strip is never a dead layer…
@@ -245,38 +294,117 @@ describe('MessageAnchorLine', () => {
     })
 
     it('spans the full 32px strip once the gutter has fully yielded', () => {
-      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
+      const { container } = renderRail({ messages, railOpacity: 1 })
 
-      const rail = container.firstElementChild as HTMLElement
-      expect(rail).not.toHaveClass('pointer-events-none')
-      expect(rail.style.width).toBe('32px')
+      const strip = container.firstElementChild as HTMLElement
+      expect(strip).not.toHaveClass('pointer-events-none')
+      expect(strip.style.width).toBe('32px')
     })
 
     it('goes fully inert once the rail fades out', () => {
-      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={0.01} />)
+      const { container } = renderRail({ messages, railOpacity: 0.01 })
 
-      const rail = container.firstElementChild as HTMLElement
-      expect(rail).toHaveClass('pointer-events-none')
-      expect(rail).toHaveAttribute('inert')
-      expect(rail.querySelector<HTMLElement>('.overflow-y-auto')?.style.opacity).toBe('0')
+      const strip = container.firstElementChild as HTMLElement
+      expect(strip).toHaveClass('pointer-events-none')
+      expect(strip).toHaveAttribute('inert')
+      expect(strip.querySelector<HTMLElement>('.overflow-y-auto')?.style.opacity).toBe('0')
     })
 
     it('clears the hover preview when the rail fades out mid-hover', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
-      const { container, rerender, queryByText } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
+      const { container, rerender, queryByText } = renderRail({ messages, railOpacity: 1 })
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
       expect(queryByText('Question two')).toBeInTheDocument()
 
-      rerender(<MessageAnchorLine messages={messages} railOpacity={0.01} />)
+      rerender(rail({ messages, railOpacity: 0.01 }))
       expect(queryByText('Question two')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('update isolation', () => {
+    it('coalesces pointer updates and focuses the tick nearest the latest position', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
+      partsMap['user-1'] = [textPart('Question one')]
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container, getByText, queryByText } = renderRail({ messages })
+      const strip = container.firstElementChild as HTMLElement
+
+      fireEvent.mouseMove(strip, { clientY: tickCenterOf5(0) })
+      fireEvent.mouseMove(strip, { clientY: tickCenterOf5(1) })
+
+      expect(animationFrame.request).toHaveBeenCalledTimes(1)
+      expect(queryByText('Question two')).not.toBeInTheDocument()
+
+      animationFrame.flushNext()
+      expect(getByText('Question two')).toBeInTheDocument()
+      expect(queryByText('Question one')).not.toBeInTheDocument()
+    })
+
+    it('updates a live preview without reading sealed history again', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
+      let historySealed = false
+      const historyParts = [
+        {
+          type: 'text',
+          get text() {
+            if (historySealed) throw new Error('historical preview was read again')
+            return 'Stable question'
+          }
+        }
+      ] as unknown as CherryMessagePart[]
+      const historyPartsByMessageId = { 'user-2': historyParts }
+      const liveMessageIds = ['assistant-2']
+      const railProps = { messages, historyPartsByMessageId, liveMessageIds }
+      const view = renderRail(railProps, { 'assistant-2': [textPart('Live answer one')] })
+
+      fireEvent.mouseMove(view.container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
+      expect(view.getByText('Stable question')).toBeInTheDocument()
+      expect(view.getByText('Live answer one')).toBeInTheDocument()
+
+      // Only the streaming context changes — every rail prop stays referentially
+      // identical, so the chunk must reach the live leaf without re-rendering
+      // the rail (which would throw on the sealed history getter).
+      historySealed = true
+      view.rerender(rail(railProps, { 'assistant-2': [textPart('Live answer two')] }))
+
+      expect(view.getByText('Live answer two')).toBeInTheDocument()
+    })
+
+    it('stops extracting a historical preview at the visible character limit', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
+      const preview = 'x'.repeat(240)
+      const historyPartsByMessageId = {
+        'user-2': [
+          textPart(preview),
+          {
+            type: 'text',
+            get text(): string {
+              throw new Error('preview extraction read past its limit')
+            }
+          }
+        ] as CherryMessagePart[]
+      }
+      const view = renderRail({ messages, historyPartsByMessageId })
+
+      fireEvent.mouseMove(view.container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
+
+      expect(view.getByText(preview)).toBeInTheDocument()
     })
   })
 
   describe('hover preview branch selection', () => {
     it('previews the active-branch assistant rather than an off-path sibling', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
       partsMap['assistant-2'] = [textPart('Off-path sibling reply')]
       partsMap['assistant-2b'] = [textPart('Active branch reply')]
@@ -287,9 +415,10 @@ describe('MessageAnchorLine', () => {
             ? { ...message, isActiveBranch: true }
             : message
       )
-      const { container, getByText, queryByText } = render(<MessageAnchorLine messages={branched} />)
+      const { container, getByText, queryByText } = renderRail({ messages: branched })
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
 
       expect(getByText('Active branch reply')).toBeInTheDocument()
       expect(queryByText('Off-path sibling reply')).not.toBeInTheDocument()
@@ -297,22 +426,26 @@ describe('MessageAnchorLine', () => {
 
     it('falls back to the first assistant when no member carries the branch flag', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
       partsMap['assistant-2'] = [textPart('First reply')]
       partsMap['assistant-2b'] = [textPart('Second reply')]
-      const { container, getByText } = render(<MessageAnchorLine messages={messages} />)
+      const { container, getByText } = renderRail({ messages })
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
 
       expect(getByText('First reply')).toBeInTheDocument()
     })
 
     it('styles the preview card with the semantic popover surface only', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
       partsMap['assistant-2'] = [textPart('Answer two')]
-      const { container, getByText } = render(<MessageAnchorLine messages={messages} />)
+      const { container, getByText } = renderRail({ messages })
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      animationFrame.flushNext()
 
       const card = container.querySelector<HTMLElement>('.bg-popover')
       expect(card).not.toBeNull()
@@ -325,7 +458,7 @@ describe('MessageAnchorLine', () => {
 
   describe('accessibility', () => {
     it('renders ticks as labelled buttons with the active turn marked as current', () => {
-      const { container } = render(<MessageAnchorLine messages={messages} activeMessageId="assistant-1" />)
+      const { container } = renderRail({ messages, activeMessageId: 'assistant-1' })
 
       const ticks = Array.from(container.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
       ticks.forEach((tick, index) => {
@@ -342,7 +475,7 @@ describe('MessageAnchorLine', () => {
     it('reaches a tick with Tab and activates it with Enter', async () => {
       const user = userEvent.setup()
       const scrollToMessageId = vi.fn()
-      const { container } = render(<MessageAnchorLine messages={messages} scrollToMessageId={scrollToMessageId} />)
+      const { container } = renderRail({ messages, scrollToMessageId })
 
       await user.tab()
       const ticks = container.querySelectorAll('[data-message-anchor-tick]')
@@ -357,7 +490,7 @@ describe('MessageAnchorLine', () => {
     it('anchors the strip to the bottom on first entry so the newest turns are visible', () => {
       // 40 turns × 10px = 400px of ticks inside a 352px viewport.
       restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
-      const { container } = render(<MessageAnchorLine messages={makeTurnMessages(40)} hasOlder />)
+      const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
 
       const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
       expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
@@ -367,14 +500,14 @@ describe('MessageAnchorLine', () => {
       const metrics = { scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
       restoreGeometry = installRailGeometry(metrics)
       const initial = makeTurnMessages(40, 100)
-      const { container, rerender } = render(<MessageAnchorLine messages={initial} hasOlder />)
+      const { container, rerender } = renderRail({ messages: initial, hasOlder: true })
 
       const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
       const entryScrollTop = 400 - RAIL_VIEWPORT_PX
       expect(strip.scrollTop).toBe(entryScrollTop)
 
       metrics.scrollHeight = 460
-      rerender(<MessageAnchorLine messages={[...makeTurnMessages(6), ...initial]} hasOlder />)
+      rerender(rail({ messages: [...makeTurnMessages(6), ...initial], hasOlder: true }))
 
       // 6 prepended turns × 10px pitch.
       expect(strip.scrollTop).toBe(entryScrollTop + 60)
@@ -383,13 +516,13 @@ describe('MessageAnchorLine', () => {
     it('keeps the bottom alignment when the last page loads (hasOlder true → false)', () => {
       // 5 turns × 10px fit the 352px viewport with 302px of free space.
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
-      const { container, rerender } = render(<MessageAnchorLine messages={messages} hasOlder />)
+      const { container, rerender } = renderRail({ messages, hasOlder: true })
 
       const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
       // Mounted with unloaded history: the cluster hugs the bottom.
       expect(cluster.style.paddingTop).toBe('302px')
 
-      rerender(<MessageAnchorLine messages={messages} hasOlder={false} />)
+      rerender(rail({ messages, hasOlder: false }))
 
       // The alignment is latched for the rail's lifetime — finishing the last
       // page must not re-centre (151px) and shift every visible tick.
@@ -398,7 +531,7 @@ describe('MessageAnchorLine', () => {
 
     it('centres the cluster when mounted fully loaded', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
-      const { container } = render(<MessageAnchorLine messages={messages} hasOlder={false} />)
+      const { container } = renderRail({ messages, hasOlder: false })
 
       const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
       expect(cluster.style.paddingTop).toBe('151px')
@@ -406,7 +539,7 @@ describe('MessageAnchorLine', () => {
 
     it('fades both ends while the strip is scrolled into the middle', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
-      const { container } = render(<MessageAnchorLine messages={makeTurnMessages(40)} />)
+      const { container } = renderRail({ messages: makeTurnMessages(40) })
 
       const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
       strip.scrollTop = 20

@@ -60,7 +60,7 @@ overrides:
   '@ai-sdk/anthropic': 3.0.103
 
 patchedDependencies:
-  '@ai-sdk/anthropic': 01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6
+  '@ai-sdk/anthropic': b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46
   '@ai-sdk/deepseek@2.0.30': db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790
   '@ai-sdk/google@3.0.64': 8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312
   '@ai-sdk/openai-compatible@2.0.62': d95c024a7f2a5a8c0a82336e78fe757a3a4ba86cf4f9af11bb26fb8b52fd7aee
@@ -186,7 +186,7 @@ importers:
         version: 4.0.96(zod@4.3.4)
       '@ai-sdk/anthropic':
         specifier: 3.0.103
-        version: 3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.3.4)
+        version: 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)
       '@ai-sdk/azure':
         specifier: ^3.0.54
         version: 3.0.54(zod@4.3.4)
@@ -1282,7 +1282,7 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 3.0.103
-        version: 3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.4.3)
+        version: 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.4.3)
       '@ai-sdk/google':
         specifier: ^3.0.64
         version: 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.4.3)
@@ -1313,7 +1313,7 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 3.0.103
-        version: 3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.3.4)
+        version: 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)
       '@ai-sdk/azure':
         specifier: ^3.0.54
         version: 3.0.54(zod@4.3.4)
@@ -1357,6 +1357,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.2.4
         version: 2.2.4
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
       oxlint:
         specifier: ^1.36.0
         version: 1.56.0(oxlint-tsgolint@0.17.4)
@@ -14110,7 +14113,7 @@ snapshots:
 
   '@ai-sdk/amazon-bedrock@4.0.96(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/anthropic': 3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.3.4)
+      '@ai-sdk/anthropic': 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       '@smithy/eventstream-codec': 4.2.14
@@ -14118,13 +14121,13 @@ snapshots:
       aws4fetch: 1.0.20
       zod: 4.3.4
 
-  '@ai-sdk/anthropic@3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.3.4)':
+  '@ai-sdk/anthropic@3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/anthropic@3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.4.3)':
+  '@ai-sdk/anthropic@3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
@@ -14191,7 +14194,7 @@ snapshots:
 
   '@ai-sdk/google-vertex@4.0.112(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/anthropic': 3.0.103(patch_hash=01b84e202625f0f48d13290d1d99d31820fef0b0bead3bb36901c44b4ef26ca6)(zod@4.3.4)
+      '@ai-sdk/anthropic': 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)
       '@ai-sdk/google': 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)
       '@ai-sdk/openai-compatible': 2.0.41(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8

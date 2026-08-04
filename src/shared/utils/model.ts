@@ -41,9 +41,6 @@ export const isRerankModel = (model: { capabilities?: readonly unknown[] | null 
 export const isFunctionCallingModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL)
 
-/** Check if model supports web search */
-export const isWebSearchModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH)
-
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
@@ -315,13 +312,6 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
   return isSupportedThinkingTokenModel(model)
 }
 
-/** Check if model supports OpenRouter built-in web search */
-export const isOpenRouterBuiltInWebSearchModel = (model: Model): boolean => {
-  if (model.providerId !== 'openrouter') return false
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || id.includes('sonar')
-}
-
 /** Check if model is a pure image generation model (no tool use) */
 export const isPureGenerateImageModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false
@@ -428,10 +418,15 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 // ---------------------------------------------------------------------------
-// Internal helper: extract raw model ID from Model
+// Extract the raw (wire) model ID from a Model
 // ---------------------------------------------------------------------------
 
-function getRawModelId(model: Model): string {
+/**
+ * The wire id every id-based predicate must key off. `apiModelId` is optional
+ * on the runtime Model, so reading it alone silently misidentifies models whose
+ * unique id carries the wire name instead.
+ */
+export function getRawModelId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
@@ -445,18 +440,3 @@ function getRawModelId(model: Model): string {
  * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
  */
 export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)
-
-// ---------------------------------------------------------------------------
-// Web search variants
-// ---------------------------------------------------------------------------
-
-/**
- * OpenAI model with native web-search capability.
- *
- * Composition: `isOpenAIModel(model) && isWebSearchModel(model)`. The
- * vendor gate keeps the check from matching Gemini / Claude searches;
- * `isWebSearchModel` reads the `WEB_SEARCH` capability the registry /
- * bridge populates (which encodes the specific SKU exclusions such as
- * `gpt-4o-image`, `gpt-4.1-nano`, `gpt-5-chat`).
- */
-export const isOpenAIWebSearchModel = (model: Model): boolean => isOpenAIModel(model) && isWebSearchModel(model)
