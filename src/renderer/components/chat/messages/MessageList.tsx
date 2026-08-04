@@ -269,11 +269,7 @@ const MessageList = () => {
   const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
 
   const scrollToBottom = useCallback(() => {
-    messageListRef.current?.scrollToBottom('instant')
-  }, [])
-
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRef.current?.captureLocalSendScrollEligibility()
+    messageListRef.current?.scrollToBottom()
   }, [])
 
   // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
@@ -283,7 +279,7 @@ const MessageList = () => {
   }, [])
 
   const navigateToBottom = useCallback(() => {
-    messageListRef.current?.scrollToBottom('smooth')
+    messageListRef.current?.scrollToBottom()
   }, [])
 
   const scrollToMessageById = useCallback((messageId: string) => {
@@ -505,13 +501,11 @@ const MessageList = () => {
   )
   const runtimeActionsRef = useRef({
     scrollToBottom,
-    captureLocalSendScrollEligibility,
     scrollToMessageById,
     runTopicImageAction
   })
   runtimeActionsRef.current = {
     scrollToBottom,
-    captureLocalSendScrollEligibility,
     scrollToMessageById,
     runTopicImageAction
   }
@@ -668,7 +662,6 @@ const MessageList = () => {
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
-      captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
       exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')
@@ -731,7 +724,6 @@ const MessageList = () => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            localSendGeneration={data.localSendGeneration}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}

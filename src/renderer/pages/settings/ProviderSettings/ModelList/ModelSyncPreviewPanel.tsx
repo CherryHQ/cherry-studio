@@ -5,6 +5,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +16,7 @@ import { getModelGroupLabel } from './grouping'
 import type { ModelGroups } from './modelListDerivedState'
 
 interface ModelSyncPreviewPanelProps {
+  provider?: Provider
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
   removableModelIds: Set<UniqueModelId>
@@ -65,6 +67,7 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
 
 const ManageModelRow = memo(function ManageModelRow({
   model,
+  provider,
   isAdded,
   isRemovable,
   isDefaultModel,
@@ -74,6 +77,7 @@ const ManageModelRow = memo(function ManageModelRow({
   onRemoveModels
 }: {
   model: Model
+  provider?: Provider
   isAdded: boolean
   isRemovable: boolean
   isDefaultModel: boolean
@@ -110,7 +114,12 @@ const ManageModelRow = memo(function ManageModelRow({
         </div>
       </div>
       <div className={modelSyncClasses.fetchCapabilityStrip}>
-        <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={12} style={{ flexWrap: 'nowrap' }} />
+        <ModelTagsWithLabel
+          model={model as ModelTagsWithLabelModel}
+          provider={provider}
+          size={12}
+          style={{ flexWrap: 'nowrap' }}
+        />
       </div>
       <Tooltip content={actionTooltip} placement="top">
         <Button
@@ -137,6 +146,7 @@ const ManageModelRow = memo(function ManageModelRow({
 })
 
 export default function ModelSyncPreviewPanel({
+  provider,
   modelGroups,
   localModelIds,
   removableModelIds,
@@ -289,6 +299,7 @@ export default function ModelSyncPreviewPanel({
         return (
           <div className={modelSyncClasses.manageVirtualModelRow}>
             <ManageModelRow
+              provider={provider}
               model={row.model}
               isAdded={localModelIds.has(row.model.id)}
               isRemovable={removableModelIds.has(row.model.id)}

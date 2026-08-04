@@ -27,6 +27,7 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -35,6 +36,7 @@ import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
+import { transformZhipuRequestBody } from './zhipuWebSearch'
 
 interface BaseConfig {
   baseURL: string
@@ -207,6 +209,44 @@ export async function resolveProviderAiSdkConfig(
     {
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: withSelectedApiKey(buildDashScopeConfig)
+    },
+    // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
+    // tools array, which providerOptions cannot reach — the body transform moves the
+    // web_search marker into `tools` (see zhipuWebSearch.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'zhipu'),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = transformZhipuRequestBody
+        return config
+      })
+    },
+    // Moonshot chat routes to its extension so the `$web_search` echo-tool factory
+    // resolves under providerId 'moonshot'; the provider's transformRequestBody
+    // rewrites the declaration to Kimi's builtin_function shape (moonshotProvider.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'moonshot'),
+      build: withSelectedApiKey((ctx) => ({
+        providerId: 'moonshot',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          ...buildCommonOptions(ctx),
+          includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+        }
+      }))
+    },
+    // Doubao's built-in search rides the generic OpenAI Responses adapter, which auto-adds
+    // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
+    // tool but 400s on that include, so strip it on the way out (arkResponses.ts).
+    {
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
+        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
+          customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+        return config
+      })
     },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
