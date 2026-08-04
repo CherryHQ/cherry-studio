@@ -10,7 +10,6 @@ import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
@@ -34,7 +33,6 @@ import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
 
@@ -67,8 +65,6 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
@@ -170,10 +166,7 @@ const api = {
     detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
   },
   nutstore: {
-    getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
-    decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
-    getDirectoryContents: (token: string, path: string) =>
-      ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
+    getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   // setDisableHardwareAcceleration: (isDisable: boolean) =>

@@ -35,8 +35,6 @@ export enum IpcChannel {
 
   // nutstore
   Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
-  Nutstore_DecryptToken = 'nutstore:decrypt-token',
-  Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
 
   //aes
   Aes_Decrypt = 'aes:decrypt',
@@ -83,7 +81,6 @@ export enum IpcChannel {
   File_RunSweep = 'file:runSweep',
 
   // backup
-  Backup_CreateDirectory = 'backup:createDirectory',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
