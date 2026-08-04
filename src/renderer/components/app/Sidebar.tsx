@@ -9,12 +9,16 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
+  buildSidebarAppOpenMetadata,
+  getSidebarApp,
+  getSidebarAppTabInstanceKey,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
+import { clearTabInstanceMetadata, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,9 +49,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, updateTab, openTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
 
   // Sidebar width — persisted across restarts. Dragging through the
   // intermediate 50-120px range uses a local preview width so the UI can
@@ -129,29 +135,61 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleNavigate = useCallback(
     (menuItemId: string) => {
       const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path || activeTab?.url === path) return
+      if (!app || !path) return
 
-      const title = getDefaultRouteTitle(path)
+      const targetInstanceKey = app.instanceKey?.defaultKey({
+        defaultPaintingProvider,
+        lastUsedTopicId,
+        lastUsedSessionId
+      })
+      const activeInstanceKey = activeTab ? getSidebarAppTabInstanceKey(app, activeTab) : undefined
+      const isActiveTarget =
+        !!activeTab &&
+        (app.instanceKey
+          ? tabBelongsToApp(app, activeTab.url) &&
+            (targetInstanceKey
+              ? activeInstanceKey === targetInstanceKey
+              : (hasTabInstanceMetadataForApp(activeTab, app.id) && !activeInstanceKey) || activeTab.url === path)
+          : activeTab.url === path)
+      if (isActiveTarget) return
+
+      const matchingInstanceTab = targetInstanceKey
+        ? tabs.find(
+            (tab) => tabBelongsToApp(app, tab.url) && getSidebarAppTabInstanceKey(app, tab) === targetInstanceKey
+          )
+        : undefined
+      const title = matchingInstanceTab?.title ?? getDefaultRouteTitle(path)
+      const icon = matchingInstanceTab?.icon
+      const openMetadata = buildSidebarAppOpenMetadata(app, targetInstanceKey)
+
+      const openOptions = {
+        forceNew: true,
+        title,
+        ...(icon !== undefined && { icon }),
+        ...(openMetadata && { metadata: openMetadata })
+      }
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
+        openTab(path, openOptions)
         return
       }
 
       if (activeTab) {
+        const clearedMetadata = clearTabInstanceMetadata(activeTab.metadata)
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          icon,
+          metadata: buildSidebarAppOpenMetadata(app, targetInstanceKey, clearedMetadata) ?? clearedMetadata
         })
         return
       }
 
-      openTab(path, { forceNew: true, title })
+      openTab(path, openOptions)
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, defaultPaintingProvider, lastUsedSessionId, lastUsedTopicId, openTab, tabs, updateTab]
   )
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')

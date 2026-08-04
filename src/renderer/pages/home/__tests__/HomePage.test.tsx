@@ -64,7 +64,7 @@ const homeMocks = vi.hoisted(() => ({
     createdAt?: string
     updatedAt: string
   }>,
-  currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
+  currentTab: undefined as { id?: string; metadata?: Record<string, unknown> } | undefined,
   isTopicsFirstPageLoading: false,
   isTopicsLoadingAll: false,
   isTopicsFullyLoaded: true,
@@ -1237,6 +1237,24 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('keeps a named draft tab independent from global topic history', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.currentTab = { id: 'chat-draft', metadata: { instanceAppId: 'assistants' } }
+    homeMocks.persistCacheValues.set('ui.chat.last_used_topic_id', 'topic-last-viewed')
+    homeMocks.topicsById.set('topic-last-viewed', {
+      ...historyTopic,
+      id: 'topic-last-viewed'
+    })
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
+    expect(homeMocks.latestTopicOptions.at(-1)).toEqual({ enabled: false })
+    expect(homeMocks.activeTopicOptions?.activeTopicId).not.toBe('topic-last-viewed')
+  })
+
   it('prefers the route topic over the last-used topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
@@ -2164,7 +2182,8 @@ describe('HomePage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'assistants',
-        instanceKey: 'topic-from-metadata'
+        instanceKey: 'topic-from-metadata',
+        preserveVisuals: true
       })
     )
   })

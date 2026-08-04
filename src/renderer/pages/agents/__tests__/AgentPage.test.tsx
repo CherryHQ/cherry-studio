@@ -54,7 +54,7 @@ const agentPageMocks = vi.hoisted(() => ({
     name: string
     configuration?: Record<string, unknown>
   }>,
-  currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
+  currentTab: undefined as { id?: string; metadata?: Record<string, unknown> } | undefined,
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
   // Sessions resolvable by id through `useSession` (resume-by-last-used reads it); an id
@@ -1389,6 +1389,26 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
+  it('keeps a named draft tab independent from global session history', async () => {
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.currentTab = { id: 'agent-draft', metadata: { instanceAppId: 'agents' } }
+    agentPageMocks.lastUsedSessionId = 'session-last-viewed'
+    agentPageMocks.sessionsById.set('session-last-viewed', {
+      ...agentPageMocks.persistedSession,
+      id: 'session-last-viewed'
+    })
+    agentPageMocks.latestSessionOverride = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-latest'
+    }
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+    expect(agentPageMocks.latestSessionOptions).toHaveBeenLastCalledWith({ enabled: false })
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).not.toBe('session-last-viewed')
+  })
+
   it('prefers the route session over the last-used session', async () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.routeSearch = { sessionId: 'session-from-url' }
@@ -2184,7 +2204,8 @@ describe('AgentPage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'agents',
-        instanceKey: 'session-from-metadata'
+        instanceKey: 'session-from-metadata',
+        preserveVisuals: true
       })
     )
   })

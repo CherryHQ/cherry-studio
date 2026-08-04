@@ -13,6 +13,8 @@ export interface TabSelfMetadata {
   emoji?: string | null
   instanceAppId?: TabInstanceAppId
   instanceKey?: string | null
+  /** Keep the tab's stored title/icon while its existing instance is loading. */
+  preserveVisuals?: boolean
 }
 
 const TAB_INSTANCE_ROUTE_PREFIX: Record<TabInstanceAppId, string> = {
@@ -44,7 +46,13 @@ function isMetadataEqual(
  * the page never touches the tab system or the
  * `Tab` shape. No-op without a TabsProvider / TabIdProvider (tests, detached popups).
  */
-export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }: TabSelfMetadata): void {
+export function useTabSelfMetadata({
+  title,
+  emoji,
+  instanceAppId,
+  instanceKey,
+  preserveVisuals = false
+}: TabSelfMetadata): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -58,6 +66,11 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       appId: instanceAppId,
       key: instanceKey
     })
+    if (preserveVisuals) {
+      if (isMetadataEqual(currentTab.metadata, metadata)) return
+      updateTab(currentTabId, { metadata })
+      return
+    }
     if (currentTab.id === 'home' && !isPageTitledRoute(currentTab.url)) {
       if (isMetadataEqual(currentTab.metadata, metadata)) return
       updateTab(currentTabId, { metadata })
@@ -72,5 +85,5 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       icon,
       metadata
     })
-  }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey])
+  }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey, preserveVisuals])
 }

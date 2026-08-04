@@ -87,6 +87,31 @@ describe('useTabSelfMetadata', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
+  it('preserves the stored title and icon while an instance is loading', async () => {
+    mocks.tabs = [
+      {
+        id: 'tab-1',
+        type: 'route',
+        url: '/app/chat',
+        title: 'Stored topic title',
+        icon: 'icon:stored',
+        metadata: { keep: true }
+      }
+    ]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabMetadataWriter title="Chat" instanceAppId="assistants" instanceKey="topic-1" preserveVisuals />
+      </TabIdProvider>
+    )
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+        metadata: { keep: true, instanceAppId: 'assistants', instanceKey: 'topic-1' }
+      })
+    )
+  })
+
   it('lets page-titled routes update the fixed home tab title', async () => {
     mocks.tabs = [
       {

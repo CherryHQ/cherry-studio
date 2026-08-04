@@ -49,7 +49,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
+import { getTabInstanceKey, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
@@ -156,6 +156,8 @@ const HomePage: FC = () => {
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
+  const canUseGlobalTopicFallback =
+    !currentTab || (currentTab.id === 'home' && !hasTabInstanceMetadataForApp(currentTab, 'assistants'))
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -244,10 +246,12 @@ const HomePage: FC = () => {
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
   // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
-  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
-  // targets and assistant deep links take precedence over resume.
+  // activates, so a reactive read would chase this page's own writes. Only the default bootstrap
+  // tab may use global history; named tabs (including explicit drafts) keep their own identity.
   const [resumeTopicId] = useState<string | null>(() =>
-    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+    shouldAutoCreateTopic && canUseGlobalTopicFallback && !routeActiveTopicId && !routeAssistantId
+      ? lastUsedTopicId
+      : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
   // The global latest query is the final fallback, not a parallel page dependency. An explicit
@@ -255,6 +259,7 @@ const HomePage: FC = () => {
   // before we ask for the globally latest topic.
   const shouldLoadLatestTopic =
     shouldAutoCreateTopic &&
+    canUseGlobalTopicFallback &&
     !isMessageOnlyView &&
     !routeActiveTopicId &&
     !routeAssistantId &&
@@ -399,11 +404,16 @@ const HomePage: FC = () => {
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
+  const preserveTabVisuals =
+    !visibleTopic &&
+    ((isMessageOnlyView && !!routeTopicId && isRouteTopicLoading) ||
+      (!isMessageOnlyView && !!routeActiveTopicId && isActiveTopicLoading))
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
     instanceAppId: 'assistants',
-    instanceKey: tabInstanceTopicId ?? null
+    instanceKey: tabInstanceTopicId ?? null,
+    preserveVisuals: preserveTabVisuals
   })
 
   useEffect(() => {

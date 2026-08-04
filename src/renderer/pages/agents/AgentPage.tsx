@@ -47,7 +47,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
+import { getTabInstanceKey, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -183,6 +183,8 @@ const AgentPage = () => {
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
+  const canUseGlobalSessionFallback =
+    !currentTab || (currentTab.id === 'home' && !hasTabInstanceMetadataForApp(currentTab, 'agents'))
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
@@ -238,16 +240,23 @@ const AgentPage = () => {
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   // Resume target frozen at mount: `last_used_session_id` is rewritten as soon as any session
-  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
-  // targets take precedence over resume.
+  // activates, so a reactive read would chase this page's own writes. Only the default bootstrap
+  // tab may use global history; named tabs (including explicit drafts) keep their own identity.
   const [resumeSessionId] = useState<string | null>(() =>
-    isMessageOnlyView || isFeedbackIntent || routeActiveSessionId ? null : lastUsedSessionId
+    isMessageOnlyView || isFeedbackIntent || routeActiveSessionId || !canUseGlobalSessionFallback
+      ? null
+      : lastUsedSessionId
   )
   const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
   // The global latest query is the final fallback, not a parallel page dependency. An explicit route/tab
   // target wins outright; a remembered session gets one chance to resolve before we ask for latest.
   const shouldLoadLatestSession =
-    !isMessageOnlyView && !isFeedbackIntent && !routeActiveSessionId && !isResumeSessionLoading && !resumeSession
+    canUseGlobalSessionFallback &&
+    !isMessageOnlyView &&
+    !isFeedbackIntent &&
+    !routeActiveSessionId &&
+    !isResumeSessionLoading &&
+    !resumeSession
   const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({
     enabled: shouldLoadLatestSession
   })
@@ -372,11 +381,16 @@ const AgentPage = () => {
   const tabInstanceSessionId = !isMessageOnlyView
     ? (visibleSession?.id ?? routeActiveSessionId ?? undefined)
     : undefined
+  const preserveTabVisuals =
+    !visibleSession &&
+    ((isMessageOnlyView && !!routeSessionId && isRouteSessionLoading) ||
+      (!isMessageOnlyView && !!routeActiveSessionId && isActiveSessionLoading))
   useTabSelfMetadata({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
     emoji: visibleAgent?.configuration?.avatar,
     instanceAppId: 'agents',
-    instanceKey: tabInstanceSessionId ?? null
+    instanceKey: tabInstanceSessionId ?? null,
+    preserveVisuals: preserveTabVisuals
   })
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)

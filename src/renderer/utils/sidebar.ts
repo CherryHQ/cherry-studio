@@ -21,9 +21,9 @@ export interface SidebarNavContext {
 
 /**
  * Apps that hold navigable sub-instances (chat→topic, agent→session) carry an
- * `instanceKey`. Sidebar click then focuses the tab whose key matches the
- * "last focused" key (`defaultKey`) instead of focusing an arbitrary tab.
- * Apps without it (files / notes / paintings / …) are plain focus-or-open.
+ * `instanceKey`. Sidebar click uses `defaultKey` to bind the current tab to the
+ * last-focused instance without activating another existing tab.
+ * Apps without it (files / notes / paintings / …) are plain route entries.
  */
 export interface SidebarInstanceKey {
   /** Extract the instance key (topicId / sessionId) from an existing tab url. */
@@ -172,10 +172,14 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
   return tab.url
 }
 
-export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
-  if (!app.instanceKey || !key) return undefined
+export function buildSidebarAppOpenMetadata(
+  app: SidebarApp,
+  key?: string,
+  currentMetadata?: Tab['metadata']
+): Tab['metadata'] {
+  if (!app.instanceKey) return undefined
   if (app.id !== 'assistants' && app.id !== 'agents') return undefined
-  return buildTabInstanceMetadata(undefined, { appId: app.id, key })
+  return buildTabInstanceMetadata(currentMetadata, { appId: app.id, key: key ?? null })
 }
 
 /**

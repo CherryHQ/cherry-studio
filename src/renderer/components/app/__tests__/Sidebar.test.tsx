@@ -44,6 +44,8 @@ const mocks = vi.hoisted(() => ({
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
+  lastUsedTopicId: null as string | null,
+  lastUsedSessionId: null as string | null,
   tabs: [] as FakeTab[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
@@ -54,13 +56,18 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [
-    mocks.sidebarWidth,
-    (width: number) => {
-      mocks.sidebarWidth = width
-      mocks.setSidebarWidth(width)
-    }
-  ]
+  usePersistCache: (key: string) => {
+    if (key === 'ui.chat.last_used_topic_id') return [mocks.lastUsedTopicId, vi.fn()]
+    if (key === 'ui.agent.last_used_session_id') return [mocks.lastUsedSessionId, vi.fn()]
+
+    return [
+      mocks.sidebarWidth,
+      (width: number) => {
+        mocks.sidebarWidth = width
+        mocks.setSidebarWidth(width)
+      }
+    ]
+  }
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -329,6 +336,8 @@ afterEach(() => {
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
+  mocks.lastUsedTopicId = null
+  mocks.lastUsedSessionId = null
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
@@ -647,9 +656,44 @@ describe('app Sidebar', () => {
       url: '/app/agents',
       title: 'Work',
       icon: undefined,
-      metadata: undefined
+      metadata: { instanceAppId: 'agents' }
     })
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('replaces the active tab with the last-used conversation without activating its existing tab', () => {
+    mocks.sidebarFavorites = [appFavorite('agents')]
+    mocks.lastUsedSessionId = 'session-1'
+    mocks.activeTab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Chat',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', keep: true }
+    }
+    mocks.tabs = [
+      mocks.activeTab,
+      {
+        id: 'agents-1',
+        type: 'route',
+        url: '/app/agents',
+        title: 'Session 1',
+        icon: 'emoji:🤖',
+        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+      }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
+      url: '/app/agents',
+      title: 'Session 1',
+      icon: 'emoji:🤖',
+      metadata: { instanceAppId: 'agents', instanceKey: 'session-1', keep: true }
+    })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
@@ -713,7 +757,11 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', { forceNew: true, title: 'Work' })
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
+      forceNew: true,
+      title: 'Work',
+      metadata: { instanceAppId: 'agents' }
+    })
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
