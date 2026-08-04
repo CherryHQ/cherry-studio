@@ -12,6 +12,7 @@ import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { createContextMiddleware, type VFSStorageAdapter } from '@cherrystudio/ai-core'
+import { MIN_IN_FLIGHT_TRUNCATE_THRESHOLD } from '@main/ai/constants'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { LanguageModelMiddleware } from 'ai'
@@ -27,7 +28,7 @@ vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
 }))
 
 import type { RequestScope } from '../../scope'
-import { buildContextOptions, contextBuildFeature } from '../contextBuild'
+import { buildContextOptions, contextBuildFeature, resolveInFlightTruncateThreshold } from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const BIG = 150_000
@@ -287,6 +288,33 @@ describe('contextBuildFeature', () => {
   })
 })
 
+// The persist lane keeps a plain character threshold (it guards DB size and
+// reload cost, which don't depend on the window). The in-flight lane guards the
+// window itself, so the same character count means wildly different things per
+// model — the 100k default is ~3% of a 1M window but several times a 16k one,
+// where it never fired and one tool result could swamp the request.
+describe('resolveInFlightTruncateThreshold', () => {
+  it('uses the window share when it is below the configured character setting', () => {
+    // 16k window → 16000 * 0.1 * 3 = 4800 chars, far below the 100k setting
+    expect(resolveInFlightTruncateThreshold(100_000, 16_000)).toBe(4800)
+  })
+
+  it('keeps the configured setting when the window share is larger', () => {
+    // 1M window share would be 300k; the explicit setting still caps the top
+    expect(resolveInFlightTruncateThreshold(30_000, 1_000_000)).toBe(30_000)
+  })
+
+  it('never trims below the head+tail the truncator keeps anyway', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 1000)).toBe(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD)
+  })
+
+  it('scales with the window (the point of the change)', () => {
+    const small = resolveInFlightTruncateThreshold(100_000, 16_000)
+    const large = resolveInFlightTruncateThreshold(100_000, 200_000)
+    expect(small).toBeLessThan(large)
+  })
+})
+
 describe('buildContextOptions — compression wiring', () => {
   it('returns null when context settings are disabled', () => {
     const scope = makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } })
@@ -298,7 +326,10 @@ describe('buildContextOptions — compression wiring', () => {
     const opts = buildContextOptions(scope)!
     expect(opts).not.toBeNull()
     expect(opts.compact).toEqual({ reasoning: 'before-last-message', emptyMessages: 'remove' })
-    expect(opts.truncate?.threshold).toBe(DEFAULT_CONTEXT_SETTINGS.truncateThreshold)
+    // In-flight threshold is window-relative: min(setting, window share).
+    expect(opts.truncate?.threshold).toBe(
+      resolveInFlightTruncateThreshold(DEFAULT_CONTEXT_SETTINGS.truncateThreshold, 200_000)
+    )
     expect(typeof opts.contextWindow).toBe('number')
     expect(opts.onBeforeCompress).toBeTypeOf('function')
     expect(opts.logger).toBeDefined()

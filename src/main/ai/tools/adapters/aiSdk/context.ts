@@ -41,6 +41,22 @@ export interface RequestContext {
    * outputs mid-turn (mutable by design, never the shared RetainedContext).
    */
   readonly persistedOutputPaths?: Set<string>
+
+  /**
+   * `fs_read`'s per-call output cap, in characters — the resolved persist-lane
+   * `truncateThreshold` for this request.
+   *
+   * These are one number on purpose (see `CONTEXT_PERSIST_THRESHOLD_CHARS`):
+   * fs_read is `truncatable: false` and must bound its own output, and keeping
+   * its cap at the persist threshold means an fs_read page can never be large
+   * enough for the persist lane to store an echo of it. P2-B made the threshold
+   * a user setting, so the cap has to follow it here rather than stay pinned to
+   * the compile-time default.
+   *
+   * Absent for synthetic / IPC-driven invocations — those fall back to the
+   * shared default constant.
+   */
+  readonly toolOutputCharCap?: number
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

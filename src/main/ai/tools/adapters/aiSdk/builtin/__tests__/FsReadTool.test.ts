@@ -143,6 +143,26 @@ describe('executeFsRead — content handling', () => {
     }
   })
 
+  // P2-B turned the persist threshold into a user setting; fs_read's per-call
+  // cap has to follow it (they are one number by design — see
+  // CONTEXT_PERSIST_THRESHOLD_CHARS) instead of staying pinned to the
+  // compile-time default. The cap rides the request as `toolOutputCharCap`.
+  it('honors a per-request cap below the compile-time default', async () => {
+    // ~20k chars: fine under the 100k default, over a 10k request cap.
+    const p = writeBlob('mid.txt', Array.from({ length: 20 }, () => 'x'.repeat(1000)).join('\n'))
+
+    const withDefault = await executeFsRead({ path: p }, new Set([p]))
+    expect(withDefault).toMatchObject({ kind: 'text' })
+
+    const withLowCap = await executeFsRead({ path: p }, new Set([p]), 10_000)
+    expect(withLowCap).toMatchObject({ kind: 'error', code: 'output-too-large' })
+    if (withLowCap.kind === 'error') {
+      // the reported cap is the request's, not the default
+      expect(withLowCap.message).toContain('10000')
+      expect(withLowCap.message).toMatch(/limit: \d+/)
+    }
+  })
+
   it('honors paging on oversized files instead of erroring', async () => {
     const p = writeBlob('big2.txt', Array.from({ length: 200 }, () => 'x'.repeat(1000)).join('\n'))
     const out = await read({ path: p, offset: 1, limit: 50 })

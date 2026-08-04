@@ -30,12 +30,17 @@ const SIZE_CAP_BYTES = 5 * MB
  *  into memory before slicing, so paging must not unlock unbounded files. */
 const PAGED_SIZE_CAP_BYTES = 50 * MB
 /**
- * Max chars returned per call. Above this the tool returns a structured
+ * Default max chars returned per call. Above this the tool returns a structured
  * error with a file-specific recommended `limit` — fs_read must handle
  * its own oversize natively (it is `truncatable: false`; letting the
  * persistence layer store an fs_read result would loop: persisted file
  * → fs_read → still too large → persist again).
  * See {@link CONTEXT_PERSIST_THRESHOLD_CHARS} for the shared constant rationale.
+ *
+ * P2-B made the persist threshold a user setting, so the effective cap now
+ * rides the request (`RequestContext.toolOutputCharCap`) and this constant is
+ * only the fallback for synthetic / IPC-driven invocations that carry no
+ * request context.
  */
 const READ_OUTPUT_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
 const DEFAULT_READ_LIMIT = 2_000
@@ -50,7 +55,8 @@ const inputSchema = z.object({
     .optional()
     .describe(
       `Maximum number of lines to return. Default: ${DEFAULT_READ_LIMIT}. No schema upper bound — ` +
-        `the per-call output cap (${READ_OUTPUT_CHAR_CAP} chars) is the real gate.`
+        `the per-call output cap (the configured tool-output threshold, ${READ_OUTPUT_CHAR_CAP} chars by ` +
+        `default) is the real gate; an oversized page reports the exact cap and a recommended limit.`
     )
 })
 
@@ -148,7 +154,9 @@ function formatLines(content: string, offset: number | undefined, limit: number 
 /** Exported for direct testing (the tool's execute delegates here). */
 export async function executeFsRead(
   input: { path: string; offset?: number; limit?: number },
-  allowedPaths?: ReadonlySet<string>
+  allowedPaths?: ReadonlySet<string>,
+  /** Resolved persist threshold for the request; falls back to the shared default. */
+  charCap: number = READ_OUTPUT_CHAR_CAP
 ): Promise<FsReadOutput> {
   const { path: requestedPath, offset, limit } = input
 
@@ -222,7 +230,7 @@ export async function executeFsRead(
       }
     }
 
-    if (result.text.length > READ_OUTPUT_CHAR_CAP) {
+    if (result.text.length > charCap) {
       const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
       if (returnedLines === 1) {
         // A single physical line exceeds the per-call cap. Paging is line-based,
@@ -233,20 +241,20 @@ export async function executeFsRead(
           kind: 'error',
           code: 'output-too-large',
           message:
-            `Line ${result.startLine} alone is ${result.text.length} chars — above the per-call cap (${READ_OUTPUT_CHAR_CAP}). ` +
+            `Line ${result.startLine} alone is ${result.text.length} chars — above the per-call cap (${charCap}). ` +
             `It is a single physical line (e.g. heavily minified JSON), so \`offset\`/\`limit\` paging cannot subdivide it ` +
             `and fs_read has no byte-range read. This line can't be retrieved in full here — reason from the inline ` +
             `head/tail excerpt, or narrow the upstream tool's output.`
         }
       }
       const avgPerLine = Math.max(1, Math.round(result.text.length / returnedLines))
-      const safeLimit = Math.max(1, Math.floor((READ_OUTPUT_CHAR_CAP - 200) / avgPerLine))
+      const safeLimit = Math.max(1, Math.floor((charCap - 200) / avgPerLine))
       return {
         kind: 'error',
         code: 'output-too-large',
         message:
           `Output ${result.text.length} chars across lines ${result.startLine}-${result.endLine} of ${result.totalLines} ` +
-          `(avg ~${avgPerLine} chars/line including the line-number prefix) exceeds the per-call cap (${READ_OUTPUT_CHAR_CAP}). ` +
+          `(avg ~${avgPerLine} chars/line including the line-number prefix) exceeds the per-call cap (${charCap}). ` +
           `For THIS file request at most \`limit: ${safeLimit}\` lines per call, stepping with \`offset\` ` +
           `(first \`offset: 1, limit: ${safeLimit}\`, then \`offset: ${safeLimit + 1}\`, …).`
       }
@@ -283,7 +291,7 @@ The persistence layer applies to non-read tools only; this tool never persists i
   },
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return executeFsRead(input, request.persistedOutputPaths)
+    return executeFsRead(input, request.persistedOutputPaths, request.toolOutputCharCap)
   }
 })
 

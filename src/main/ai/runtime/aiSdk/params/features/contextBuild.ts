@@ -26,6 +26,11 @@ import type { ContextMiddlewareOptions, TruncateOptions, VFSStorageAdapter } fro
 import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import {
+  APPROX_CHARS_PER_TOKEN,
+  IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO,
+  MIN_IN_FLIGHT_TRUNCATE_THRESHOLD
+} from '@main/ai/constants'
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
@@ -39,6 +44,24 @@ const HEAD_CHARS = 500
 const TAIL_CHARS = 1_000
 /** Never drop below this many messages in the sliding-window fallback. */
 const MIN_MESSAGES_KEPT = 2
+
+/**
+ * In-flight trim threshold for this request: the smaller of the user's
+ * character setting and a share of the model's context window.
+ *
+ * The two lanes protect different resources and so need different units. The
+ * persist lane guards DB size / reload cost — window-independent, characters
+ * are the honest unit. The in-flight lane guards the window itself, where a
+ * fixed character count means wildly different things per model: the 100k
+ * default is ~3% of a 1M window but several times a 16k one, so on small
+ * windows it never fired and a single tool result could swamp the request.
+ *
+ * Exported for tests.
+ */
+export function resolveInFlightTruncateThreshold(configuredChars: number, contextWindow: number): number {
+  const windowBudget = Math.floor(contextWindow * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
+  return Math.max(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD, Math.min(configuredChars, windowBudget))
+}
 
 /** Exported for direct middleware testing. Returns null when the layer is off. */
 export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptions | null {
@@ -55,7 +78,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     },
 
     truncate: {
-      threshold: settings.truncateThreshold,
+      threshold: resolveInFlightTruncateThreshold(settings.truncateThreshold, scope.model.contextWindow as number),
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),

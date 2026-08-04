@@ -158,6 +158,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
+  // Resolved before the tool context so fs_read's per-call cap can follow the
+  // effective persist threshold instead of the compile-time default.
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+    model,
+    assistant?.settings.contextSettings
+  )
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
@@ -169,13 +176,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // whatever the in-flight offload adapter appends mid-turn. Cloned so those
     // per-turn appends never contaminate the RetainedContext shared across the
     // models of a multi-model send.
-    persistedOutputPaths: new Set(retained.persistedOutputPaths)
+    persistedOutputPaths: new Set(retained.persistedOutputPaths),
+    toolOutputCharCap: contextSettings.truncateThreshold
   }
-
-  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
-    model,
-    assistant?.settings.contextSettings
-  )
 
   const scope: RequestScope = {
     request,

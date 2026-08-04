@@ -25,6 +25,32 @@ export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 export const COMPACTION_INPUT_SAFETY_RATIO = 0.85
 export const COMPACTION_MIN_INPUT_BUDGET = 2000
 
+/**
+ * In-flight tool-output trimming budget, as a share of the model's context
+ * window. The persist lane keeps a plain character threshold (it protects DB
+ * size and reload cost, which are window-independent), but the in-flight lane
+ * protects the window itself, so a fixed character count is the wrong unit:
+ * 100k chars is ~3% of a 1M window and several times a 16k one.
+ */
+export const IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO = 0.1
+
+/**
+ * Chars-per-token used to convert a token window into the truncator's character
+ * budget. Deliberately below the ~3.3–4 of English prose so the budget errs
+ * small. Tool outputs are overwhelmingly code / JSON / logs / paths, so the
+ * English-ish ratio is the right base case; CJK-heavy output (~0.67 chars per
+ * token) therefore gets a larger token share than the nominal ratio implies —
+ * accepted, since the explicit character setting still caps the top.
+ */
+export const APPROX_CHARS_PER_TOKEN = 3
+
+/**
+ * Never trim below this many characters: the truncator keeps head+tail
+ * (500+1000) anyway, so a smaller budget would replace content with a marker of
+ * comparable size for no gain.
+ */
+export const MIN_IN_FLIGHT_TRUNCATE_THRESHOLD = 2000
+
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
 /** Process-local credential proving that a gateway request originated inside Cherry. */
