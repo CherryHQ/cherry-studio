@@ -1,5 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -91,5 +92,13 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
+  /**
+   * Context that must survive durable compaction (attachment allow-list,
+   * persisted-output blob paths), computed from the RAW message path before
+   * folding removes it from `messages`. Main-internal (the renderer sends the
+   * smaller AiStreamOpenRequest, so this never crosses IPC). Absent →
+   * consumers fall back to scanning `messages`.
+   */
+  retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
 }

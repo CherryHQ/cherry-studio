@@ -12,6 +12,12 @@ export default defineProvider({
       adapterFamily: 'google-vertex'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    // Gemini-only: @ai-sdk/google-vertex/anthropic exposes no webFetch tool,
+    // so Claude-on-Vertex cannot serve url-context.
+    { id: 'url-context', modelScope: 'model-dependent', vendors: ['gemini'] }
+  ],
   metadata: {
     website: {
       apiKey: 'https://console.cloud.google.com/apis/credentials',

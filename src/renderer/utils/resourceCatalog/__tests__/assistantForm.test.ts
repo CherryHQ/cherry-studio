@@ -201,6 +201,72 @@ describe('diffAssistantUpdate', () => {
   })
 })
 
+describe('context-management override (P2-D)', () => {
+  it('seeds the override-off state when no contextSettings are stored', () => {
+    const form = initialAssistantFormState(createAssistant())
+    expect(form.contextOverrideEnabled).toBe(false)
+    expect(form.contextCompressModelId).toBeNull()
+  })
+
+  it('seeds the override-on state from a stored contextSettings object', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000, compress: { enabled: false, modelId: 'openai::c' } }
+      } as AssistantSettings
+    })
+    const form = initialAssistantFormState(assistant)
+    expect(form.contextOverrideEnabled).toBe(true)
+    expect(form.contextTruncateThreshold).toBe(4000)
+    expect(form.contextCompressEnabled).toBe(false)
+    expect(form.contextCompressModelId).toBe('openai::c')
+  })
+
+  it('treats a null contextSettings as override-off (inherit)', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: null } as AssistantSettings
+    })
+    expect(initialAssistantFormState(assistant).contextOverrideEnabled).toBe(false)
+  })
+
+  it('writes contextSettings: null when the override is turned off', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000 }
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextOverrideEnabled: false }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toBeNull()
+  })
+
+  it('builds the override object when the switch is on', () => {
+    const baseline = initialAssistantFormState(createAssistant())
+    const form = {
+      ...baseline,
+      contextOverrideEnabled: true,
+      contextCompressEnabled: false,
+      contextTruncateThreshold: 8000,
+      contextCompressModelId: 'anthropic::c'
+    }
+
+    const result = diffAssistantUpdate(form, baseline, createAssistant())
+    expect(result?.dto.settings?.contextSettings).toEqual({
+      truncateThreshold: 8000,
+      compress: { enabled: false, modelId: 'anthropic::c' }
+    })
+  })
+
+  it('does not PATCH when sub-fields change while the override is off', () => {
+    const baseline = initialAssistantFormState(createAssistant())
+    const form = { ...baseline, contextTruncateThreshold: 999 }
+    expect(diffAssistantUpdate(form, baseline, createAssistant())).toBeNull()
+  })
+})
+
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })

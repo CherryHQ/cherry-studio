@@ -35,9 +35,10 @@ function reportSkillMutationError(action: string, error: unknown): string {
   return message
 }
 
-function reportAndRethrowSkillMutationError(action: string, error: unknown): never {
-  reportSkillMutationError(action, error)
-  throw error instanceof Error ? error : new Error(skillErrorMessage(error))
+function logAndRethrowSkillMutationError(action: string, error: unknown): never {
+  const message = skillErrorMessage(error)
+  logger.error(`Failed to ${action}`, { error: message })
+  throw error instanceof Error ? error : new Error(message)
 }
 
 async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
@@ -387,7 +388,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportAndRethrowSkillMutationError('install skill from zip', error)
+        logAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
         finishInstalling('zip')
       }
@@ -403,7 +404,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportAndRethrowSkillMutationError('install skill from directory', error)
+        logAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
         finishInstalling('directory')
       }

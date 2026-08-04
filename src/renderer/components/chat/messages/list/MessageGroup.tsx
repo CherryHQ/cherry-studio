@@ -9,6 +9,7 @@ import type { Model } from '@shared/data/types/model'
 import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useScrollRuntimeNavigation } from '../blocks/ScrollOwnershipContext'
 import MessageItem from '../frame/MessageFrame'
 import {
   useMessageListActions,
@@ -69,6 +70,7 @@ const MessageGroup = ({
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
+  const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -161,13 +163,15 @@ const MessageGroup = ({
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            if (!navigateWithScrollRuntime(messageElement)) {
+              scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            }
           }
         },
         200
       )
     },
-    [actions, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -221,11 +225,13 @@ const MessageGroup = ({
             return
           }
 
-          scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          if (!navigateWithScrollRuntime(element)) {
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          }
         }
       }
     )
-  }, [actions, captureMode, messages, setSelectedMessage])
+  }, [actions, captureMode, messages, navigateWithScrollRuntime, setSelectedMessage])
 
   useEffect(() => {
     if (captureMode) return

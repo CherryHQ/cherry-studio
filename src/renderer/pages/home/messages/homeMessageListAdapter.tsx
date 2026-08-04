@@ -70,7 +70,6 @@ interface HomeMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  localSendGeneration?: number
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -89,7 +88,6 @@ export function useHomeMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
-  localSendGeneration,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -155,6 +153,7 @@ export function useHomeMessageListProviderValue({
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
 
@@ -356,6 +355,10 @@ export function useHomeMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      listRuntimeRef.current = runtime
+      const clearBoundRuntime = () => {
+        if (listRuntimeRef.current === runtime) listRuntimeRef.current = null
+      }
       const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
         const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
@@ -368,6 +371,7 @@ export function useHomeMessageListProviderValue({
         })
         return () => {
           unbindCaptureRuntime()
+          clearBoundRuntime()
           if (typeof unbindExternalRuntime === 'function') {
             unbindExternalRuntime()
           }
@@ -387,6 +391,7 @@ export function useHomeMessageListProviderValue({
 
       return () => {
         unsubscribes.forEach((unsub) => unsub())
+        clearBoundRuntime()
         if (typeof unbindExternalRuntime === 'function') {
           unbindExternalRuntime()
         }
@@ -427,7 +432,16 @@ export function useHomeMessageListProviderValue({
   )
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    const runtime = listRuntimeRef.current
+    if (!runtime) {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+      return
+    }
+
+    runtime.locateMessage(messageId)
+    window.requestAnimationFrame(() => {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    })
   }, [])
 
   const startNewContext = useCallback(() => {
@@ -780,7 +794,6 @@ export function useHomeMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAssistantId,
-      localSendGeneration,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -804,7 +817,6 @@ export function useHomeMessageListProviderValue({
       isInitialLoading,
       isMessagesStale,
       leafCapabilities,
-      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,
