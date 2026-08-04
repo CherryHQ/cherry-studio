@@ -15,6 +15,7 @@ import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } fr
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
@@ -61,35 +62,7 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
 }
 
 export function isAllowedAssistantNavigationPath(path: string, allowedRoutes: readonly string[]): boolean {
-  const pathSegments = getNavigationPathSegments(path)
-  if (!pathSegments) return false
-
-  return allowedRoutes.some((route) => {
-    const routeSegments = getNavigationPathSegments(route)
-    if (!routeSegments) return false
-
-    for (let index = 0; index < routeSegments.length; index++) {
-      const routeSegment = routeSegments[index]
-      if (routeSegment === '$') {
-        return index === routeSegments.length - 1 && pathSegments.length > index
-      }
-      if (routeSegment.startsWith('$')) {
-        if (!pathSegments[index]) return false
-        continue
-      }
-      if (pathSegments[index] !== routeSegment) return false
-    }
-
-    return pathSegments.length === routeSegments.length
-  })
-}
-
-function getNavigationPathSegments(value: string): string[] | undefined {
-  if (!value.startsWith('/') || value.includes('?') || value.includes('#') || value.includes('\\')) return undefined
-
-  const segments = value.slice(1).split('/')
-  if (segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')) return undefined
-  return segments
+  return isAllowedNavigationPath(path, allowedRoutes)
 }
 
 const NAVIGATE_TOOL: Tool = {
