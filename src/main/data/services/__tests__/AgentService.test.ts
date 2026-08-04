@@ -14,7 +14,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
-import { agentService, type EnsureBuiltinAssistantInput } from '@data/services/AgentService'
+import { agentService } from '@data/services/AgentService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -230,10 +230,12 @@ describe('AgentService', () => {
     })
   })
 
-  describe('ensureBuiltinAssistant', () => {
-    const defaults: EnsureBuiltinAssistantInput = {
+  describe('ensureBuiltinAgent', () => {
+    const defaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+      builtinRole: 'assistant',
       name: 'Cherry Assistant',
-      defaultModelId: TEST_MODEL_ID,
+      preferredModelId: TEST_MODEL_ID,
+      type: 'claude-code',
       configuration: {
         avatar: '🍒',
         permission_mode: 'default' as const,
@@ -261,10 +263,12 @@ describe('AgentService', () => {
     }
 
     it('creates one protected assistant and returns it unchanged on repeated calls', () => {
-      const first = agentService.ensureBuiltinAssistant(defaults)
-      const second = agentService.ensureBuiltinAssistant({
+      const first = agentService.ensureBuiltinAgent(defaults)
+      const second = agentService.ensureBuiltinAgent({
+        builtinRole: 'assistant',
         name: 'Replacement Name',
-        defaultModelId: null,
+        preferredModelId: null,
+        type: 'claude-code',
         configuration: { avatar: '🤖' }
       })
 
@@ -284,15 +288,15 @@ describe('AgentService', () => {
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
-      const first = agentService.ensureBuiltinAssistant(defaults)
+      const first = agentService.ensureBuiltinAgent(defaults)
       dbh.db
         .update(agentTable)
         .set({ deletedAt: Date.UTC(2026, 0, 1) })
         .where(eq(agentTable.id, first.id))
         .run()
 
-      const restored = agentService.ensureBuiltinAssistant(defaults)
-      const repeated = agentService.ensureBuiltinAssistant(defaults)
+      const restored = agentService.ensureBuiltinAgent(defaults)
+      const repeated = agentService.ensureBuiltinAgent(defaults)
 
       expect(restored.id).not.toBe(first.id)
       expect(repeated.id).toBe(restored.id)
@@ -301,11 +305,11 @@ describe('AgentService', () => {
     })
 
     it('restores the assistant after the Agent delete endpoint removed its row', () => {
-      const first = agentService.ensureBuiltinAssistant(defaults)
+      const first = agentService.ensureBuiltinAgent(defaults)
 
       expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
 
-      const restored = agentService.ensureBuiltinAssistant(defaults)
+      const restored = agentService.ensureBuiltinAgent(defaults)
 
       expect(restored.id).not.toBe(first.id)
       expect(agentService.getAgent(first.id)).toBeNull()
@@ -330,9 +334,9 @@ describe('AgentService', () => {
         })
         .run()
 
-      const assistant = agentService.ensureBuiltinAssistant({
+      const assistant = agentService.ensureBuiltinAgent({
         ...defaults,
-        defaultModelId: 'embedding::vectors'
+        preferredModelId: 'embedding::vectors'
       })
 
       expect(assistant.model).toBeNull()
