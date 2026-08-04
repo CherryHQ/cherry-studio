@@ -30,7 +30,6 @@ import {
   type ResourcePayload,
   type ResourceRequirement
 } from '../manifest'
-import { validateResourcePathSet } from '../resourcePaths'
 import { stageDirectoryWithDriftCheck, stageFileWithDriftCheck, stagePartialDirectoryTree } from '../sourceDrift'
 import {
   captureModeForKind,
@@ -40,6 +39,7 @@ import {
   type UnitContentRequirement
 } from './adapters'
 import { carriesRequiredContent } from './contentProof'
+import { validateResourcePathSet } from './resourcePaths'
 
 const logger = loggerService.withContext('backupStageResources')
 
