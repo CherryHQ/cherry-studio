@@ -21,7 +21,8 @@ import { CREATORS } from '../src/creators'
 import {
   matchReasoningControls,
   matchReasoningTogglePolicy,
-  matchTokenLimits
+  matchTokenLimits,
+  matchWireDialect
 } from '../src/patterns/reasoning-families'
 import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
@@ -425,7 +426,8 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
     if (!controls?.length) continue
-    m.reasoning = { controls, ...deriveLegacyReasoningFields(controls) }
+    const wireDialect = matchWireDialect(m.id, familyRules)
+    m.reasoning = { controls, ...deriveLegacyReasoningFields(controls), ...(wireDialect ? { wireDialect } : {}) }
   }
   // Tag embedding/rerank — models.dev mislabels these as text. `rerank` in the id wins; else `embed` in
   // the id, or the owning creator's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.
