@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
+import type * as RemoteUrlSafetyModule from '@main/utils/remoteUrlSafety'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -6,11 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as WebSearchProviderFactoryModule from '../providers/factory'
 
-const { createWebSearchProviderMock, loggerWarnMock, loggerErrorMock } = vi.hoisted(() => ({
-  createWebSearchProviderMock: vi.fn(),
-  loggerWarnMock: vi.fn(),
-  loggerErrorMock: vi.fn()
-}))
+const { createWebSearchProviderMock, loggerInfoMock, loggerWarnMock, loggerErrorMock, resolveRemoteFetchUrlMock } =
+  vi.hoisted(() => ({
+    createWebSearchProviderMock: vi.fn(),
+    loggerInfoMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    resolveRemoteFetchUrlMock: vi.fn()
+  }))
 
 vi.mock('../providers/factory', async (importOriginal) => {
   const actual = await importOriginal<typeof WebSearchProviderFactoryModule>()
@@ -25,12 +29,21 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: vi.fn(),
-      info: vi.fn(),
+      info: loggerInfoMock,
       warn: loggerWarnMock,
       error: loggerErrorMock
     })
   }
 }))
+
+vi.mock('@main/utils/remoteUrlSafety', async (importOriginal) => {
+  const actual = await importOriginal<typeof RemoteUrlSafetyModule>()
+
+  return {
+    ...actual,
+    resolveRemoteFetchUrl: resolveRemoteFetchUrlMock
+  }
+})
 
 vi.mock('@main/services/readableContent', () => ({
   readableContentService: { extractReadableMarkdown: vi.fn() }
@@ -437,6 +450,8 @@ describe('WebSearchService', () => {
       expect.any(Object)
     )
     expect(fetchUrls).toHaveBeenCalledWith('https://example.com/first', expect.any(Object), undefined)
+    expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
     expect(result).toEqual({
       query: 'https://example.com/first',
       providerId: 'fetch',
@@ -453,6 +468,155 @@ describe('WebSearchService', () => {
     })
 
     await expect(webSearchService.fetchUrls({ urls: ['not a url'] })).rejects.toThrow('Invalid URL format: not a url')
+  })
+
+  it('falls back from native fetch to Jina after passing the failed URL through the remote safety gate', async () => {
+    const primaryError = new Error('native failed')
+    const nativeFetch = vi.fn().mockRejectedValue(primaryError)
+    const jinaFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('jina', 'fetchUrls', 'https://example.com/article', [
+          { title: 'Recovered', content: 'Jina content', url: 'https://example.com/article' }
+        ])
+      )
+    resolveRemoteFetchUrlMock.mockResolvedValue({
+      url: 'https://example.com/article',
+      address: { address: '93.184.216.34', family: 4 }
+    })
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'fetch' ? { fetchUrls: nativeFetch } : { fetchUrls: jinaFetch }
+    )
+
+    const result = await webSearchService.fetchUrlsUnprocessed({ urls: ['https://example.com/article'] })
+
+    expect(resolveRemoteFetchUrlMock).toHaveBeenCalledWith('https://example.com/article', { signal: undefined })
+    expect(jinaFetch).toHaveBeenCalledWith('https://example.com/article', expect.any(Object), undefined)
+    expect(result.results).toEqual([
+      {
+        title: 'Recovered',
+        content: 'Jina content',
+        url: 'https://example.com/article',
+        sourceInput: 'https://example.com/article'
+      }
+    ])
+    expect(loggerInfoMock).toHaveBeenCalledWith('Web fetch fallback recovered failed inputs', {
+      primaryProviderId: 'fetch',
+      fallbackProviderId: 'jina',
+      recoveredInputs: 1
+    })
+  })
+
+  it('falls back from Jina to native fetch without repeating the Jina safety gate', async () => {
+    const jinaFetch = vi.fn().mockRejectedValue(new Error('Jina failed'))
+    const nativeFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('fetch', 'fetchUrls', 'https://example.com/article', [
+          { title: 'Recovered', content: 'Native content', url: 'https://example.com/article' }
+        ])
+      )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'jina' ? { fetchUrls: jinaFetch } : { fetchUrls: nativeFetch }
+    )
+
+    const result = await webSearchService.fetchUrls({ providerId: 'jina', urls: ['https://example.com/article'] })
+
+    expect(nativeFetch).toHaveBeenCalledWith('https://example.com/article', expect.any(Object), undefined)
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+    expect(result.providerId).toBe('jina')
+    expect(result.results).toHaveLength(1)
+  })
+
+  it('retries only failed inputs and preserves the input result order', async () => {
+    const nativeFetch = vi.fn((input: string) => {
+      if (input === 'https://example.com/first') {
+        return Promise.resolve(
+          response('fetch', 'fetchUrls', input, [{ title: 'First', content: 'native', url: input }])
+        )
+      }
+
+      return Promise.reject(new Error(`native failed: ${input}`))
+    })
+    const jinaFetch = vi.fn((input: string) => {
+      if (input === 'https://example.com/second') {
+        return Promise.resolve(response('jina', 'fetchUrls', input, [{ title: 'Second', content: 'jina', url: input }]))
+      }
+
+      return Promise.reject(new Error(`Jina failed: ${input}`))
+    })
+    resolveRemoteFetchUrlMock.mockImplementation(async (input: string) => ({
+      url: input,
+      address: { address: '93.184.216.34', family: 4 }
+    }))
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'fetch' ? { fetchUrls: nativeFetch } : { fetchUrls: jinaFetch }
+    )
+
+    const result = await webSearchService.fetchUrls({
+      urls: ['https://example.com/first', 'https://example.com/second', 'https://example.com/third']
+    })
+
+    expect(jinaFetch).toHaveBeenCalledTimes(2)
+    expect(jinaFetch).toHaveBeenNthCalledWith(1, 'https://example.com/second', expect.any(Object), undefined)
+    expect(jinaFetch).toHaveBeenNthCalledWith(2, 'https://example.com/third', expect.any(Object), undefined)
+    expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
+  })
+
+  it('propagates caller cancellation immediately without starting fallback', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    const abortController = new AbortController()
+    const nativeFetch = vi.fn(
+      (_input: string, _config: WebSearchExecutionConfig, httpOptions?: RequestInit) =>
+        new Promise<WebSearchResponse>((_resolve, reject) => {
+          httpOptions?.signal?.addEventListener('abort', () => reject(httpOptions.signal?.reason), { once: true })
+        })
+    )
+    createWebSearchProviderMock.mockReturnValue({ fetchUrls: nativeFetch })
+
+    const request = webSearchService.fetchUrls(
+      { urls: ['https://example.com/article'] },
+      { signal: abortController.signal }
+    )
+    await vi.waitFor(() => expect(nativeFetch).toHaveBeenCalledOnce())
+    abortController.abort(abortError)
+
+    await expect(request).rejects.toBe(abortError)
+    expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the native failure when the Jina safety gate rejects the URL', async () => {
+    const primaryError = new Error('native failed')
+    const nativeFetch = vi.fn().mockRejectedValue(primaryError)
+    resolveRemoteFetchUrlMock.mockRejectedValue(new Error('Unsafe remote url'))
+    createWebSearchProviderMock.mockReturnValue({ fetchUrls: nativeFetch })
+
+    await expect(webSearchService.fetchUrls({ urls: ['https://private.example/article'] })).rejects.toBe(primaryError)
+
+    expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains primary and fallback diagnostics when both fetch providers fail', async () => {
+    const primaryError = new Error('native failed')
+    const fallbackError = new Error('Jina failed')
+    const nativeFetch = vi.fn().mockRejectedValue(primaryError)
+    const jinaFetch = vi.fn().mockRejectedValue(fallbackError)
+    resolveRemoteFetchUrlMock.mockResolvedValue({
+      url: 'https://example.com/article',
+      address: { address: '93.184.216.34', family: 4 }
+    })
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'fetch' ? { fetchUrls: nativeFetch } : { fetchUrls: jinaFetch }
+    )
+
+    await expect(webSearchService.fetchUrls({ urls: ['https://example.com/article'] })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof AggregateError &&
+        error.cause === primaryError &&
+        error.errors.includes(primaryError) &&
+        error.errors.includes(fallbackError)
+    )
   })
 
   it('logs and throws when a default provider is not configured', async () => {
