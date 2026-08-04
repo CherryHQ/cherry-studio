@@ -135,6 +135,7 @@ export default class S3Storage {
   async deleteFile(key: string, signal?: AbortSignal) {
     try {
       signal?.throwIfAborted()
+      // Delete only under the configured root; a bare key could hit an unrelated bucket-root object.
       await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }), {
         abortSignal: signal
       })
