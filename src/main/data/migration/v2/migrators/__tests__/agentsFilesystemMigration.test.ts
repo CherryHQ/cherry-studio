@@ -678,9 +678,10 @@ describe('agentsFilesystemMigration', () => {
         path.join(agentDataPath, 'USER.md')
       )
       expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
-      expect(await readFile(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'workspace content'
-      )
+      // The shared v1 workspace is materialized only into the latest session; the
+      // older session keeps an empty system workspace (issue #17830).
+      expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
+      expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
 
       // The complete v1 workspace remains available for downgrade compatibility
       // even after the v2 destinations have been verified and published.
@@ -708,7 +709,7 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
-  it('copies ordinary output for every managed session without an age limit', async () => {
+  it('copies the shared workspace content only into the most recently active managed session', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
     await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
@@ -732,43 +733,46 @@ describe('agentsFilesystemMigration', () => {
       sessions: [oldSession, recentSession]
     })
 
+    // Every managed session still gets its own system workspace directory, but the
+    // shared v1 content lands only in the latest one (issue #17830).
     expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
-    expect(await readFile(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+    expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
     expect(await readFile(path.join(recentSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
       'workspace content'
     )
   })
 
-  it('reuses the first verified private copy for every later managed session', async () => {
+  it('copies a workspace shared by many managed sessions exactly once', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
     await writeFile(sourceFile, 'workspace content')
 
-    const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-      sourceSessionId: 'session_old',
-      finalSessionId: FINAL_OLD_SESSION_ID,
-      createdAt: Date.parse('2026-05-01T00:00:00Z'),
-      updatedAt: Date.parse('2026-05-02T00:00:00Z')
-    })
-    const recentSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-      sourceSessionId: 'session_latest',
-      finalSessionId: FINAL_LATEST_SESSION_ID,
-      createdAt: Date.parse('2026-07-22T00:00:00Z'),
-      updatedAt: Date.parse('2026-07-23T00:00:00Z')
-    })
+    // Many historical sessions sharing one v1 default workspace must not fan the
+    // source out into one full copy per session (issue #17830 → ENOSPC).
+    const sessions = Array.from({ length: 12 }, (_, index) =>
+      sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: `session_${index.toString().padStart(2, '0')}`,
+        finalSessionId: `0000000${index.toString(16).padStart(4, '0')}-34a7-5ff9-994d-bf78596c777c`,
+        createdAt: Date.parse('2026-05-01T00:00:00Z') + index * 86_400_000,
+        updatedAt: Date.parse('2026-05-02T00:00:00Z') + index * 86_400_000
+      })
+    )
+    const latestSession = sessions.at(-1)!
 
     await stageLegacyAgentFiles({
       agentsDataRoot,
       agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-      sessions: [oldSession, recentSession]
+      sessions
     })
 
     expect(copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === sourceFile)).toHaveLength(1)
-    expect(await readFile(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe('workspace content')
-    expect(await readFile(path.join(recentSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
       'workspace content'
     )
+    for (const session of sessions.slice(0, -1)) {
+      expect(await readdir(session.systemWorkspacePath!)).toEqual([])
+    }
   })
 
   it('bounds and continuously refills filesystem work for a high-fan-out workspace', async () => {
@@ -864,7 +868,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'reuses the first ordinary-content copy when a directory contains symlinks',
+    'materializes a directory that contains symlinks into the latest session',
     async () => {
       const { agentsDataRoot, legacyWorkspace } = await createFixture()
       const sourceBundle = path.join(legacyWorkspace, 'bundle')
@@ -873,65 +877,64 @@ describe('agentsFilesystemMigration', () => {
       await symlink('payload.txt', path.join(sourceBundle, 'payload-link'))
       await symlink(path.join(sourceBundle, 'payload.txt'), path.join(sourceBundle, 'absolute-payload-link'))
 
-      const sessions = [
-        sessionPlan(agentsDataRoot, legacyWorkspace, {
-          sourceSessionId: 'session_old',
-          finalSessionId: FINAL_OLD_SESSION_ID,
-          createdAt: Date.parse('2026-05-01T00:00:00Z'),
-          updatedAt: Date.parse('2026-05-02T00:00:00Z')
-        }),
-        sessionPlan(agentsDataRoot, legacyWorkspace, {
-          sourceSessionId: 'session_latest',
-          finalSessionId: FINAL_LATEST_SESSION_ID,
-          createdAt: Date.parse('2026-07-22T00:00:00Z'),
-          updatedAt: Date.parse('2026-07-23T00:00:00Z')
-        })
-      ]
-
-      await stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions
-      })
-
-      expect(
-        copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === path.join(sourceBundle, 'payload.txt'))
-      ).toHaveLength(1)
-      for (const session of sessions) {
-        expect(await readFile(path.join(session.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
-          'workspace content'
-        )
-        expect(await readlink(path.join(session.systemWorkspacePath!, 'bundle', 'payload-link'))).toBe('payload.txt')
-        expect(await readlink(path.join(session.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))).toBe(
-          path.join(session.systemWorkspacePath!, 'bundle', 'payload.txt')
-        )
-      }
-    }
-  )
-
-  it('aborts if a cached workspace source changes while its private copy is reused', async () => {
-    const { agentsDataRoot, legacyWorkspace } = await createFixture()
-    const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
-    await mkdir(legacyWorkspace, { recursive: true })
-    await writeFile(sourceFile, 'original workspace content')
-
-    const sessions = [
-      sessionPlan(agentsDataRoot, legacyWorkspace, {
+      const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
         sourceSessionId: 'session_old',
         finalSessionId: FINAL_OLD_SESSION_ID,
         createdAt: Date.parse('2026-05-01T00:00:00Z'),
         updatedAt: Date.parse('2026-05-02T00:00:00Z')
-      }),
-      sessionPlan(agentsDataRoot, legacyWorkspace, {
+      })
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
         sourceSessionId: 'session_latest',
         finalSessionId: FINAL_LATEST_SESSION_ID,
         createdAt: Date.parse('2026-07-22T00:00:00Z'),
         updatedAt: Date.parse('2026-07-23T00:00:00Z')
       })
-    ]
-    let reusedCopies = 0
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [oldSession, latestSession]
+      })
+
+      expect(
+        copyMutation.copyFileCalls.filter(([sourcePath]) => sourcePath === path.join(sourceBundle, 'payload.txt'))
+      ).toHaveLength(1)
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
+        'workspace content'
+      )
+      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload-link'))).toBe(
+        'payload.txt'
+      )
+      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))).toBe(
+        path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt')
+      )
+      expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
+    }
+  )
+
+  it('aborts if the workspace source changes while its private copy is verified', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceFile, 'original workspace content')
+
+    const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-05-01T00:00:00Z'),
+      updatedAt: Date.parse('2026-05-02T00:00:00Z')
+    })
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    // Mutate the source right after it is cloned into staging so the final
+    // source-metadata re-check detects the change and aborts before publishing.
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
-      if (copiedSourcePath === sourceFile || ++reusedCopies !== 1) return
+      if (copiedSourcePath !== sourceFile) return
+      copyMutation.afterCopyFile = undefined
       await writeFile(sourceFile, 'changed workspace content')
     }
 
@@ -939,12 +942,12 @@ describe('agentsFilesystemMigration', () => {
       stageLegacyAgentFiles({
         agentsDataRoot,
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions
+        sessions: [oldSession, latestSession]
       })
-    ).rejects.toThrow(/changed while being copied/)
+    ).rejects.toThrow(/changed while being (copied|read)/)
 
     expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
-    for (const session of sessions) {
+    for (const session of [oldSession, latestSession]) {
       await expect(access(path.join(session.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
       expect(
         (await readdir(path.dirname(session.systemWorkspacePath!))).every(
@@ -956,14 +959,13 @@ describe('agentsFilesystemMigration', () => {
     await stageLegacyAgentFiles({
       agentsDataRoot,
       agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-      sessions
+      sessions: [oldSession, latestSession]
     })
 
-    for (const session of sessions) {
-      expect(await readFile(path.join(session.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'changed workspace content'
-      )
-    }
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'changed workspace content'
+    )
+    expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
   })
 
   it('keeps the newest identity entry when first-migration sources differ', async () => {
