@@ -1,5 +1,4 @@
 import { Copy, FolderOpen, Loader, SaveIcon } from 'lucide-react'
-import { Copy, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
