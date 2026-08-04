@@ -5,8 +5,8 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { BackupBusyError, BackupCancelledError } from './errors'
-import { exportArchive, type ExportArchiveResult } from './exportArchive'
-import { sweepStaleExportOperations } from './exportOperation'
+import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
+import { sweepStaleExportOperations } from './export/exportOperation'
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
 import { runPostPromotionWork } from './restore/postPromotion'
 import {

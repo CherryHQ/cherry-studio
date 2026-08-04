@@ -24,7 +24,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { exportArchive } from '../../exportArchive'
+import { exportArchive } from '../../export/exportArchive'
 import { presentDegradations } from '../degradationReport'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
 import { restoreStagingDurability } from '../stagingDurability'

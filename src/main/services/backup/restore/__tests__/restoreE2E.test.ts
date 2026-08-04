@@ -45,7 +45,7 @@ import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ArchiveAdmissionError } from '../../errors'
-import { exportArchive } from '../../exportArchive'
+import { exportArchive } from '../../export/exportArchive'
 import { driftHooks } from '../../sourceDrift'
 import { acknowledgeRestore } from '../acknowledgeRestore'
 import { presentJournalDegradations } from '../degradationReport'

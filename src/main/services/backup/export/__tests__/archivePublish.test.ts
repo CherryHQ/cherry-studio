@@ -7,8 +7,6 @@ import path from 'node:path'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { archiveDurability } from '../archiveDurability'
-import { type ProducerCeilings, publishArchive, publishArchiveWithCeilings, publishSeams } from '../archivePublish'
 import {
   BackupCancelledError,
   CeilingExceededError,
@@ -17,10 +15,12 @@ import {
   ManifestPayloadMismatchError,
   NonRegularSourceError,
   OutputPathExistsError
-} from '../errors'
-import { hashStreamHooks } from '../hashing'
-import type { BackupManifest, ResourcePayload } from '../manifest'
-import { BackupManifestSchema } from '../manifest'
+} from '../../errors'
+import { hashStreamHooks } from '../../hashing'
+import type { BackupManifest, ResourcePayload } from '../../manifest'
+import { BackupManifestSchema } from '../../manifest'
+import { archiveDurability } from '../archiveDurability'
+import { type ProducerCeilings, publishArchive, publishArchiveWithCeilings, publishSeams } from '../archivePublish'
 
 const BASE_CEILINGS: ProducerCeilings = {
   maxArchiveEntries: 100_000,
