@@ -1,9 +1,10 @@
+import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
+
 import { loggerService } from '@logger'
 import S3Storage from '@main/services/S3Storage'
 import WebDav from '@main/services/WebDav'
 import fs from 'fs-extra'
-import path from 'node:path'
-import { pipeline } from 'node:stream/promises'
 
 import type { ResolvedDestination } from './destinationConfig'
 
