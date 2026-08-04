@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import { net } from 'electron'
@@ -54,7 +55,52 @@ export async function decryptToken(token: string) {
   }
 }
 
-export async function getDirectoryContents(token: string, target: string): Promise<FileStat[]> {
+/**
+ * The signed-in account, read from the stored token.
+ *
+ * The one place credentials are unwrapped. Everything Nutstore-facing goes
+ * through here rather than taking a token from a caller — a token that travels
+ * as an argument is a token that has already left the process that owns it.
+ */
+export async function resolveNutstoreAccount(): Promise<OAuthResponse | null> {
+  const token = application.get('PreferenceService').get('data.backup.nutstore.token')
+  if (!token) return null
+  return decryptToken(token)
+}
+
+/** Basic-auth value for Nutstore's WebDAV endpoint. */
+function basicAuth({ username, access_token }: OAuthResponse): string {
+  return Buffer.from(`${username}:${access_token}`).toString('base64')
+}
+
+/**
+ * Create `target`, and any missing parent along the way — the path picker lets
+ * the user type a folder that does not exist yet.
+ */
+export async function createDirectory(target: string): Promise<void> {
+  const account = await resolveNutstoreAccount()
+  if (!account) throw new Error('Nutstore is not signed in')
+
+  const segments = target.split('/').filter(Boolean)
+  let current = ''
+  for (const segment of segments) {
+    current += `/${segment}`
+    const response = await net.fetch(`${NUTSTORE_HOST}${current}`, {
+      method: 'MKCOL',
+      headers: { Authorization: `Basic ${basicAuth(account)}` }
+    })
+    // 405 is "already there", which is the normal case for every parent.
+    if (!response.ok && response.status !== 405) {
+      throw new Error(`Nutstore rejected MKCOL ${current}: ${response.status}`)
+    }
+  }
+}
+
+export async function getDirectoryContents(target: string): Promise<FileStat[]> {
+  const account = await resolveNutstoreAccount()
+  if (!account) throw new Error('Nutstore is not signed in')
+  const token = basicAuth(account)
+
   const contents: FileStat[] = []
   if (!target.startsWith('/')) {
     target = '/' + target

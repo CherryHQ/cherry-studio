@@ -1,16 +1,10 @@
 /**
- * @deprecated v2 replacement pending. Only auto-sync scheduling and the path
- * picker's directory helper are still this module's; transport, naming and
- * rotation belong to main's BackupService. Sync status stays session-local until
- * the scheduler moves to JobManager.
+ * @deprecated v2 replacement pending. Only auto-sync scheduling is still this
+ * module's; transport, naming, rotation and the account credentials belong to
+ * main. Sync status stays session-local until the scheduler moves to JobManager.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n/resolver'
-import { toast } from '@renderer/services/toast'
-import type { WebDavConfig } from '@shared/types/backup'
-import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import { type CreateDirectoryOptions } from 'webdav'
 
 import { backupToDestination, checkDestination } from './backupDestination'
 import type { RemoteSyncState } from './BackupService'
@@ -24,34 +18,6 @@ export const getNutstoreSyncState = () => nutstoreSyncState
 
 const setNutstoreSyncState = (patch: Partial<RemoteSyncState>) => {
   Object.assign(nutstoreSyncState, patch)
-}
-
-async function getNutstoreToken() {
-  const nutstoreToken = await preferenceService.get('data.backup.nutstore.token')
-
-  if (!nutstoreToken) {
-    toast.error(i18n.t('message.error.invalid.nutstore_token'))
-    return null
-  }
-  return nutstoreToken
-}
-
-async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig | null> {
-  const result = await window.api.nutstore.decryptToken(nutstoreToken)
-  if (!result) {
-    logger.warn('Invalid nutstore token')
-    return null
-  }
-
-  const nutstorePath = await preferenceService.get('data.backup.nutstore.path')
-
-  const { username, access_token } = result
-  return {
-    webdavHost: NUTSTORE_HOST,
-    webdavUser: username,
-    webdavPass: access_token,
-    webdavPath: nutstorePath
-  }
 }
 
 let autoSyncStarted = false
@@ -87,10 +53,9 @@ export async function startNutstoreAutoSync() {
     return
   }
 
-  const nutstoreToken = await getNutstoreToken()
-
-  if (!nutstoreToken) {
-    logger.warn('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
+  // Presence only — the token itself is never unwrapped here.
+  if (!(await preferenceService.get('data.backup.nutstore.token'))) {
+    logger.warn('[startNutstoreAutoSync] Nutstore is not signed in, auto sync disabled')
     return
   }
 
@@ -159,17 +124,4 @@ export function stopNutstoreAutoSync() {
   }
   isAutoBackupRunning = false
   autoSyncStarted = false
-}
-
-export async function createDirectory(path: string, options?: CreateDirectoryOptions) {
-  const nutstoreToken = await getNutstoreToken()
-  if (!nutstoreToken) {
-    return
-  }
-  const config = await createNutstoreConfig(nutstoreToken)
-  if (!config) {
-    return
-  }
-
-  await window.api.backup.createDirectory(config, path, options)
 }

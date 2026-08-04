@@ -13,10 +13,10 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import {
   backupToNutstore,
   checkConnection,
-  createDirectory,
   getNutstoreSyncState,
   startNutstoreAutoSync,
   stopNutstoreAutoSync
@@ -28,7 +28,6 @@ import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-reac
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
@@ -65,20 +64,17 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreSsoHandler, setNutstoreToken])
 
   useEffect(() => {
-    async function decryptTokenEffect() {
-      if (nutstoreToken) {
-        const decrypted = await window.api.nutstore.decryptToken(nutstoreToken)
+    async function loadAccount() {
+      if (!nutstoreToken) return
+      const account = await ipcApi.request('nutstore.get_account')
+      if (!account) return
 
-        if (decrypted) {
-          setNutstoreUsername(decrypted.username)
-          if (!nutstorePath) {
-            void setNutstorePath('/cherry-studio')
-            // setStoragePath('/cherry-studio')
-          }
-        }
+      setNutstoreUsername(account.username)
+      if (!nutstorePath) {
+        void setNutstorePath('/cherry-studio')
       }
     }
-    void decryptTokenEffect()
+    void loadAccount()
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
@@ -138,21 +134,10 @@ const NutstoreSettings: FC = () => {
       return
     }
 
-    const result = await window.api.nutstore.decryptToken(nutstoreToken)
-
-    if (!result) {
-      return
-    }
-
     const targetPath = await NutstorePathPopup.show({
-      ls: async (target: string) => {
-        const { username, access_token } = result
-        const token = window.btoa(`${username}:${access_token}`)
-        const items = await window.api.nutstore.getDirectoryContents(token, target)
-        return items.map(fileStatToStatModel)
-      },
+      ls: (target: string) => ipcApi.request('nutstore.list_directory', { path: target }),
       mkdirs: async (path) => {
-        await createDirectory(path)
+        await ipcApi.request('nutstore.create_directory', { path })
       }
     })
 
@@ -354,17 +339,6 @@ export interface StatModel {
   isDeleted: boolean
   mtime: number
   size: number
-}
-
-function fileStatToStatModel(from: FileStat): StatModel {
-  return {
-    path: from.filename,
-    basename: from.basename,
-    isDir: from.type === 'directory',
-    isDeleted: false,
-    mtime: new Date(from.lastmod).valueOf(),
-    size: from.size
-  }
 }
 
 export default NutstoreSettings

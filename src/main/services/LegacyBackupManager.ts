@@ -22,14 +22,10 @@ import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { isPathInside } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { WebDavConfig } from '@shared/types/backup'
 import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import * as fs from 'fs-extra'
 import * as path from 'path'
-import type { CreateDirectoryOptions } from 'webdav'
-
-import WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
 
@@ -53,17 +49,6 @@ interface ProgressData {
 
 class BackupManager {
   private readonly operationMutex = new Mutex()
-
-  // Cached instance to avoid recreating
-  private webdavInstance: WebDav | null = null
-
-  // Cached core connection config, used to detect if connection config has changed
-  private cachedWebdavConnectionConfig: {
-    webdavHost: string
-    webdavUser?: string
-    webdavPass?: string
-    webdavPath?: string
-  } | null = null
 
   private get backupDir(): string {
     return application.getPath('feature.backup.temp')
@@ -345,52 +330,6 @@ class BackupManager {
     return size
   }
 
-  /**
-   * Deep compare two WebDAV config objects for equality
-   * Only compares core fields that affect client connection, ignores volatile fields like fileName
-   * @param cachedConfig - The cached WebDAV configuration
-   * @param config - The new WebDAV configuration to compare
-   * @returns True if the configs are equal (connection-related fields only)
-   */
-  private isWebDavConfigEqual(cachedConfig: typeof this.cachedWebdavConnectionConfig, config: WebDavConfig): boolean {
-    if (!cachedConfig) return false
-
-    return (
-      cachedConfig.webdavHost === config.webdavHost &&
-      cachedConfig.webdavUser === config.webdavUser &&
-      cachedConfig.webdavPass === config.webdavPass &&
-      cachedConfig.webdavPath === config.webdavPath
-    )
-  }
-
-  /**
-   * Get WebDav instance, reuses existing instance if connection config hasn't changed
-   * Note: Only connection-related config changes will recreate the instance
-   * Other config changes don't affect instance reuse
-   * @param config - WebDAV configuration
-   * @returns WebDav instance
-   */
-  private getWebDavInstance(config: WebDavConfig): WebDav {
-    // Check if core connection config has changed
-    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConnectionConfig, config)
-
-    if (configChanged || !this.webdavInstance) {
-      this.webdavInstance = new WebDav(config)
-      // Only cache connection-related config fields
-      this.cachedWebdavConnectionConfig = {
-        webdavHost: config.webdavHost,
-        webdavUser: config.webdavUser,
-        webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath
-      }
-      logger.debug('[BackupManager] Created new WebDav instance')
-    } else {
-      logger.debug('[BackupManager] Reusing existing WebDav instance')
-    }
-
-    return this.webdavInstance
-  }
-
   // ==================== WebDAV Methods ====================
   // These methods handle backup operations with WebDAV servers.
 
@@ -522,24 +461,6 @@ class BackupManager {
 
   private logSkippedSymlink(sourcePath: string, error: unknown) {
     logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error })
-  }
-
-  /**
-   * Create a directory on WebDAV server
-   * @param _ - Electron IPC event
-   * @param webdavConfig - WebDAV configuration
-   * @param path - Directory path to create
-   * @param options - Optional directory creation options
-   * @returns Result from WebDAV operation
-   */
-  async createDirectory(
-    _: Electron.IpcMainInvokeEvent,
-    webdavConfig: WebDavConfig,
-    path: string,
-    options?: CreateDirectoryOptions
-  ) {
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    return await webdavClient.createDirectory(path, options)
   }
 
   // ==================== Local Backup Methods ====================
