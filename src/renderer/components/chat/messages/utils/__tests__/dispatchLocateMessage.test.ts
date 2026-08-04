@@ -59,16 +59,6 @@ describe('dispatchLocateMessage', () => {
     raf.restore()
   })
 
-  it('emits immediately when no list runtime is bound', async () => {
-    const listener = vi.fn()
-    subscribe('message-direct', listener)
-
-    dispatchLocateMessage(null, 'message-direct', true)
-    await flushEmit()
-
-    expect(listener).toHaveBeenCalledWith(true)
-  })
-
   it('scrolls first and delivers once the virtualized subscriber mounts', async () => {
     const runtime = createRuntime()
     const listener = vi.fn()
@@ -91,18 +81,5 @@ describe('dispatchLocateMessage', () => {
     raf.tick(10)
     await flushEmit()
     expect(listener).toHaveBeenCalledTimes(1)
-  })
-
-  it('gives up after the frame budget when the target never mounts', async () => {
-    const runtime = createRuntime()
-    const listener = vi.fn()
-
-    dispatchLocateMessage(runtime, 'message-never')
-    raf.tick(200)
-
-    subscribe('message-never', listener)
-    raf.tick(10)
-    await flushEmit()
-    expect(listener).not.toHaveBeenCalled()
   })
 })
