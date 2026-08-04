@@ -549,25 +549,48 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
+    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
+    // Claude's set_permission_mode control request can terminate work already in flight. Keep the
+    // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
+    // reconcile again before admitting the next turn, when the SDK update is safe to apply.
+    const deferPermissionMode = permissionModeChanged && this.adapter?.isTurnActive === true
+    const applicableToolPolicy = deferPermissionMode
+      ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
+      : fresh.live.toolPolicy
     let patched = false
-    // Live-first: apply the tool-policy facts BEFORE the rebuild verdict, so a combined update
-    // (e.g. a wholesale configuration edit touching max_turns AND tightening the permission mode)
-    // can't defer the tighten behind a rebuild that a live turn postpones.
-    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
+    // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
+    // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+        if (permissionModeChanged && !deferPermissionMode) {
           await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
         }
-        // Refresh the entire snapshot only after the SDK confirms the permission mode. update()
-        // itself changes the snapshot mode, so doing it first would make the SDK call look redundant.
-        await this.toolPolicySnapshot?.update(agent)
+        // Refresh only after the SDK confirms an applicable permission change. If the current turn
+        // keeps its old mode, preserve that mode in the snapshot while still applying other policy
+        // changes (for example, disabling a tool).
+        await this.toolPolicySnapshot?.update(
+          deferPermissionMode
+            ? {
+                ...agent,
+                configuration: {
+                  ...agent.configuration,
+                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
+                    | AgentPermissionMode
+                    | undefined
+                }
+              }
+            : agent
+        )
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
-      this.connectionConfig = { ...baseline, live: fresh.live }
+      this.connectionConfig = {
+        ...baseline,
+        live: { ...fresh.live, toolPolicy: applicableToolPolicy }
+      }
       patched = true
     }
 

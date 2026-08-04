@@ -186,10 +186,10 @@ function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
 }
 
 /**
- * Normalized tool-policy facts — the immediately enforceable side of {@link ConnectionConfig}.
- * Permission mode and newly disabled tools can be applied to a running connection; `disabledTools`
- * is also part of the rebuild signature because removing a disabled tool must restore it to the
- * subprocess model context, which the SDK cannot do live.
+ * Normalized tool-policy facts — the boundary-reconcilable side of {@link ConnectionConfig}.
+ * Permission mode can be applied to an idle running connection and newly disabled tools can be
+ * applied mid-turn; `disabledTools` is also part of the rebuild signature because removing a
+ * disabled tool must restore it to the subprocess model context, which the SDK cannot do live.
  */
 export interface ToolPolicyFacts {
   permissionMode: string | null
