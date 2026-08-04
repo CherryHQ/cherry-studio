@@ -13,7 +13,7 @@ import { importService } from '../ImportService'
 
 /**
  * Minimal ChatGPT export shape — enough to pass `validate()` and exercise the
- * importer's root→leaf thread extraction. Two conversations to prove topics are
+ * importer's message-tree conversion. Two conversations to prove topics are
  * created independently and message chains don't bleed across them.
  */
 function chatgptExport() {
@@ -178,6 +178,49 @@ describe('importService.importConversations', () => {
       },
       { type: 'text', text: 'Answer' }
     ])
+  })
+
+  it('persists source branches as sibling groups and selects the imported active leaf', async () => {
+    const messageCalls: Array<{ body: any; returnedId: string }> = []
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
+      if (path === '/assistants') return { id: 'asst_chatgpt', name: 'ChatGPT Import', emoji: '💬' }
+      if (path === '/topics') return { id: 'topic_chatgpt' }
+      const returnedId = `db-${messageCalls.length + 1}`
+      messageCalls.push({ body: options.body, returnedId })
+      return { id: returnedId }
+    })
+
+    const sourceMessage = (role: 'user' | 'assistant', text: string) => ({
+      author: { role },
+      content: { content_type: 'text', parts: [text] }
+    })
+    const fileContent = JSON.stringify([
+      {
+        title: 'Branched chat',
+        create_time: 1,
+        current_node: 'assistant-2b',
+        mapping: {
+          root: { children: ['user-1'] },
+          'user-1': { parent: 'root', message: sourceMessage('user', 'question') },
+          'assistant-1': { parent: 'user-1', message: sourceMessage('assistant', 'answer') },
+          'user-2a': { parent: 'assistant-1', message: sourceMessage('user', 'first follow-up') },
+          'assistant-2a': { parent: 'user-2a', message: sourceMessage('assistant', 'first reply') },
+          'user-2b': { parent: 'assistant-1', message: sourceMessage('user', 'edited follow-up') },
+          'assistant-2b': { parent: 'user-2b', message: sourceMessage('assistant', 'edited reply') }
+        }
+      }
+    ])
+
+    const response = await importService.importConversations(fileContent, 'chatgpt')
+
+    expect(response).toMatchObject({ success: true, topicsCount: 1, messagesCount: 6 })
+    expect(messageCalls.map(({ body }) => body.parentId)).toEqual([null, 'db-1', 'db-2', 'db-3', 'db-2', 'db-5'])
+    expect(messageCalls[2].body.siblingsGroupId).toBe(messageCalls[4].body.siblingsGroupId)
+    expect(messageCalls[2].body.siblingsGroupId).toBeGreaterThan(0)
+    expect(messageCalls.every(({ body }) => body.setAsActive === false)).toBe(true)
+    expect(vi.mocked(dataApiService.put)).toHaveBeenCalledWith('/topics/topic_chatgpt/active-node', {
+      body: { nodeId: 'db-6' }
+    })
   })
 
   it('returns a failure response without creating an assistant for invalid or empty exports', async () => {

@@ -3,7 +3,7 @@ import i18n from '@renderer/i18n/resolver'
 import type { DynamicToolUIPart, ReasoningUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 
-import type { ConversationImporter, ImportConversation, ImportMessage, ImportResult } from '../types'
+import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResult } from '../types'
 
 const logger = loggerService.withContext('AnthropicImporter')
 
@@ -50,6 +50,7 @@ type AnthropicContentBlock =
 
 interface AnthropicMessage {
   uuid: string
+  parent_message_uuid?: string | null
   text: string
   content: AnthropicContentBlock[]
   sender: 'human' | 'assistant'
@@ -142,9 +143,9 @@ export class AnthropicImporter implements ConversationImporter {
    * Create a v2 import message from an Anthropic message.
    * Handles text, thinking, tool_use, and tool_result content blocks.
    */
-  private createMessage(anthropicMessage: AnthropicMessage): ImportMessage {
+  private createMessage(anthropicMessage: AnthropicMessage, parentSourceId?: string): ImportMessageNode {
     const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
-    const parts: ImportMessage['parts'] = []
+    const parts: ImportMessageNode['parts'] = []
     const contentBlocks = anthropicMessage.content
 
     // Index tool_result blocks by their tool_use_id for O(1) lookup
@@ -223,6 +224,8 @@ export class AnthropicImporter implements ConversationImporter {
     }
 
     return {
+      sourceId: anthropicMessage.uuid,
+      ...(parentSourceId ? { parentSourceId } : {}),
       role,
       parts,
       // Anthropic's conversations.json export carries no per-message model field
@@ -256,9 +259,22 @@ export class AnthropicImporter implements ConversationImporter {
     const name =
       conversation.name.trim() || conversation.summary.trim() || i18n.t('import.claude.untitled_conversation')
 
+    const messagesById = new Map(conversation.chat_messages.map((message) => [message.uuid, message]))
+    const usableMessageIds = new Set(usableMessages.map((message) => message.uuid))
+    const resolveParentSourceId = (message: AnthropicMessage): string | undefined => {
+      let parentSourceId = message.parent_message_uuid ?? undefined
+      while (parentSourceId && !usableMessageIds.has(parentSourceId)) {
+        parentSourceId = messagesById.get(parentSourceId)?.parent_message_uuid ?? undefined
+      }
+      return parentSourceId
+    }
+
+    const messages = usableMessages.map((message) => this.createMessage(message, resolveParentSourceId(message)))
+
     return {
       name,
-      messages: usableMessages.map((message) => this.createMessage(message))
+      messages,
+      activeSourceId: messages.at(-1)?.sourceId
     }
   }
 }

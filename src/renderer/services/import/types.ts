@@ -2,7 +2,9 @@ import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ModelSnapshot } from '@shared/data/types/message'
 
-export interface ImportMessage {
+export interface ImportMessageNode {
+  sourceId: string
+  parentSourceId?: string
   role: CreateMessageDto['role']
   parts: NonNullable<CreateMessageDto['data']['parts']>
   model?: ModelSnapshot
@@ -10,7 +12,8 @@ export interface ImportMessage {
 
 export interface ImportConversation {
   name: string
-  messages: ImportMessage[]
+  messages: ImportMessageNode[]
+  activeSourceId?: string
 }
 
 /**

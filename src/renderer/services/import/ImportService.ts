@@ -6,7 +6,7 @@ import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
-import type { ConversationImporter, ImportMessage, ImportResponse, ImportResult } from './types'
+import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -150,15 +150,18 @@ class ImportService {
    * frozen into `messageSnapshot` so the header survives later rename/delete.
    */
   private toMessageDto(
-    message: ImportMessage,
+    message: ImportMessageNode,
     parentId: string | null,
+    siblingsGroupId: number | undefined,
     assistant: { id: string; name: string; emoji: string }
   ): CreateMessageDto {
     const dto: CreateMessageDto = {
       parentId,
       role: message.role,
       data: { parts: message.parts },
-      status: 'success'
+      status: 'success',
+      setAsActive: false,
+      ...(siblingsGroupId ? { siblingsGroupId } : {})
     }
 
     if (message.role === 'assistant' && message.model) {
@@ -179,8 +182,8 @@ class ImportService {
   }
 
   /**
-   * Persists the import result via DataApi. Messages chain by parent id into
-   * a single linear branch under each topic.
+   * Persists each imported conversation as a message tree. Source IDs stay
+   * local to the import contract and are mapped to newly-created database IDs.
    */
   private async persistImport(
     result: ImportResult,
@@ -193,12 +196,56 @@ class ImportService {
         body: { name: conversation.name, assistantId: assistant.id }
       })
 
-      let parentId: string | null = null
+      const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
       for (const message of conversation.messages) {
-        const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-          body: this.toMessageDto(message, parentId, assistant)
-        })
-        parentId = created.id
+        const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
+        const siblings = messagesByRole.get(message.role) ?? []
+        siblings.push(message)
+        messagesByRole.set(message.role, siblings)
+        messagesByParent.set(message.parentSourceId, messagesByRole)
+      }
+
+      const siblingGroupIds = new Map<string, number>()
+      let nextSiblingGroupId = 1
+      for (const messagesByRole of messagesByParent.values()) {
+        for (const siblings of messagesByRole.values()) {
+          if (siblings.length < 2) continue
+          for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
+          nextSiblingGroupId++
+        }
+      }
+
+      const createdIds = new Map<string, string>()
+      const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
+      while (pendingSourceIds.size > 0) {
+        let createdInPass = 0
+        for (const message of conversation.messages) {
+          if (!pendingSourceIds.has(message.sourceId)) continue
+
+          let parentId: string | null = null
+          if (message.parentSourceId) {
+            const createdParentId = createdIds.get(message.parentSourceId)
+            if (!createdParentId) continue
+            parentId = createdParentId
+          }
+
+          const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
+            body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
+          })
+          createdIds.set(message.sourceId, created.id)
+          pendingSourceIds.delete(message.sourceId)
+          createdInPass++
+        }
+
+        if (createdInPass === 0) {
+          throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
+        }
+      }
+
+      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
+      const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
+      if (activeNodeId) {
+        await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
       }
     }
 

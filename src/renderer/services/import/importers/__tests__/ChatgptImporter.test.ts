@@ -64,4 +64,62 @@ describe('ChatgptImporter', () => {
 
     expect(result.conversations[0].messages[0].parts).toEqual([{ type: 'text', text: 'Text' }])
   })
+
+  it('preserves the complete mapping tree while current_node selects the active branch', async () => {
+    const message = (role: 'user' | 'assistant', text: string) => ({
+      author: { role },
+      content: { content_type: 'text', parts: [text] }
+    })
+    const result = await importer.parse(
+      JSON.stringify([
+        {
+          title: 'Branched chat',
+          create_time: 1,
+          current_node: 'assistant-2b',
+          mapping: {
+            root: { children: ['user-1'] },
+            'user-1': { parent: 'root', children: ['assistant-1'], message: message('user', 'question') },
+            'assistant-1': {
+              parent: 'user-1',
+              children: ['user-2a', 'user-2b'],
+              message: message('assistant', 'answer')
+            },
+            'user-2a': {
+              parent: 'assistant-1',
+              children: ['assistant-2a'],
+              message: message('user', 'first follow-up')
+            },
+            'assistant-2a': {
+              parent: 'user-2a',
+              children: [],
+              message: message('assistant', 'first reply')
+            },
+            'user-2b': {
+              parent: 'assistant-1',
+              children: ['assistant-2b'],
+              message: message('user', 'edited follow-up')
+            },
+            'assistant-2b': {
+              parent: 'user-2b',
+              children: [],
+              message: message('assistant', 'edited reply')
+            }
+          }
+        }
+      ])
+    )
+
+    const importedConversation = result.conversations[0]
+    expect(importedConversation.activeSourceId).toBe('assistant-2b')
+    expect(importedConversation.messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))).toEqual(
+      [
+        { sourceId: 'user-1', parentSourceId: undefined },
+        { sourceId: 'assistant-1', parentSourceId: 'user-1' },
+        { sourceId: 'user-2a', parentSourceId: 'assistant-1' },
+        { sourceId: 'assistant-2a', parentSourceId: 'user-2a' },
+        { sourceId: 'user-2b', parentSourceId: 'assistant-1' },
+        { sourceId: 'assistant-2b', parentSourceId: 'user-2b' }
+      ]
+    )
+  })
 })

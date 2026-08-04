@@ -74,7 +74,11 @@ describe('AnthropicImporter', () => {
       expect(importedConversation.messages).toHaveLength(2)
 
       const [userMessage, assistantMessage] = importedConversation.messages
-      expect(userMessage).toEqual({ role: 'user', parts: [{ type: 'text', text: 'Hello' }] })
+      expect(userMessage).toEqual({
+        sourceId: 'msg-human-Hello',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Hello' }]
+      })
       expect(assistantMessage.role).toBe('assistant')
       expect(assistantMessage.parts).toEqual([{ type: 'text', text: 'Hi there' }])
       expect(assistantMessage.model).toMatchObject({ provider: 'anthropic', id: 'claude-sonnet-4-6' })
@@ -220,6 +224,32 @@ describe('AnthropicImporter', () => {
       expect(result.conversations[0].messages.map((message) => message.role)).toEqual(['user', 'user', 'assistant'])
       expect(result.conversations[0].messages[0].parts).toEqual([{ type: 'text', text: 'first' }])
       expect(result.conversations[0].messages[1].parts).toEqual([{ type: 'text', text: 'second' }])
+    })
+
+    it('preserves every branch and selects the latest exported leaf', async () => {
+      const result = await importer.parse(
+        JSON.stringify([
+          conversation({
+            chat_messages: [
+              textMessage('human', 'question', { uuid: 'user-1', parent_message_uuid: 'export-root' }),
+              textMessage('assistant', 'answer', { uuid: 'assistant-1', parent_message_uuid: 'user-1' }),
+              textMessage('human', 'first follow-up', { uuid: 'user-2a', parent_message_uuid: 'assistant-1' }),
+              textMessage('human', 'edited follow-up', { uuid: 'user-2b', parent_message_uuid: 'assistant-1' })
+            ]
+          })
+        ])
+      )
+
+      const importedConversation = result.conversations[0]
+      expect(importedConversation.activeSourceId).toBe('user-2b')
+      expect(
+        importedConversation.messages.map(({ sourceId, parentSourceId }) => ({ sourceId, parentSourceId }))
+      ).toEqual([
+        { sourceId: 'user-1', parentSourceId: undefined },
+        { sourceId: 'assistant-1', parentSourceId: 'user-1' },
+        { sourceId: 'user-2a', parentSourceId: 'assistant-1' },
+        { sourceId: 'user-2b', parentSourceId: 'assistant-1' }
+      ])
     })
 
     it('drops messages with no usable content', async () => {
