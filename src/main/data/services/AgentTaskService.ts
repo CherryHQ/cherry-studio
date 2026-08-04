@@ -47,13 +47,15 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
  * generic `metadata` JSON column (not `jobInputTemplate`) for two reasons: it is
  * schedule state rather than handler input, so it stays clear of
  * `AgentJobsService.updateTask`'s template diff / re-arm logic; and `sessionId`
- * is written by the handler at fire time, which has no business mutating the
- * input template.
+ * is bound by AgentJobsService after a fire, while queued job inputs remain
+ * command-owned snapshots.
  */
 export type TaskSessionReuse = {
   enabled: boolean
   /** Sticky session bound on the first fire after `enabled` flips on. */
   sessionId: string | null
+  /** Monotonic config epoch captured by each queued job. */
+  revision: number
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
@@ -63,9 +65,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+export function normalizeTaskSessionReuseRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
+}
+
 export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
   const raw = metadata?.[TASK_REUSE_METADATA_KEY]
-  if (!isPlainRecord(raw)) return { enabled: false, sessionId: null }
+  if (!isPlainRecord(raw)) return { enabled: false, sessionId: null, revision: 0 }
   const reuse = raw as Partial<TaskSessionReuse>
   const enabled = reuse.enabled === true
   // Normalize rather than mirror: `ScheduledTaskEntity` promises a null
@@ -73,7 +79,7 @@ export function readTaskSessionReuse(metadata: Record<string, unknown> | undefin
   // must not surface a pointer the UI would then present as bound.
   const sessionId =
     enabled && typeof reuse.sessionId === 'string' && reuse.sessionId.length > 0 ? reuse.sessionId : null
-  return { enabled, sessionId }
+  return { enabled, sessionId, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
 }
 
 /**

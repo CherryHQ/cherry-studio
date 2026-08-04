@@ -73,8 +73,8 @@ const agentTaskFormSchema = z.strictObject({
   timeoutMinutes: TimeoutMinutesAtomSchema,
   /**
    * Continue one sticky session across fires instead of creating a fresh one.
-   * Defaults to off. Turning it off clears the bound session, so toggling
-   * off→on is also the way to start a clean conversation.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
    */
   reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()

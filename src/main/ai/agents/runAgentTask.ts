@@ -9,9 +9,9 @@
  *
  * A task may opt into `reuseSession`, which binds one sticky session on the
  * schedule (`metadata.reuse`, see `TaskSessionReuse`) and continues it on every
- * fire. That session grows unbounded by design — the user's escape hatch is
- * toggling reuse off and on again, which rebinds a clean session. Rotate
- * automatically only if unbounded growth turns out to bite in practice.
+ * fire. That session grows unbounded by design — reset it by disabling and
+ * saving, then enabling and saving. Rotate automatically only if unbounded
+ * growth turns out to bite in practice.
  *
  * Because a sticky session is reachable by the user (the run log links to it),
  * a reusing fire stands down when that session already has a turn in flight.
@@ -23,11 +23,14 @@
  */
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { readTaskSessionReuse, type TaskSessionReuse, writeTaskSessionReuse } from '@data/services/AgentTaskService'
+import {
+  normalizeTaskSessionReuseRevision,
+  readTaskSessionReuse,
+  type TaskSessionReuse
+} from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -49,6 +52,8 @@ export type AgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  /** Reuse-config epoch captured when this job was enqueued. */
+  reuseRevision: number
 }
 
 export type AgentTaskOutput = {
@@ -99,29 +104,6 @@ function loadReusableSession(sessionId: string, agentId: string) {
   }
 }
 
-/** Bind a newly created session as the schedule's sticky session. */
-function bindReuseSession(scheduleId: string, sessionId: string): void {
-  const bound = application.get('DbService').withWriteTx((tx) => {
-    const snapshot = jobScheduleService.getByIdTx(tx, scheduleId)
-    if (!snapshot) return false
-    // Re-read under the tx: the user may have turned reuse off (which clears
-    // the pointer) while this fire was running. Writing here would resurrect it.
-    if (!readTaskSessionReuse(snapshot.metadata).enabled) return false
-    application.get('JobManager').updateJobScheduleTx(tx, scheduleId, {
-      metadata: writeTaskSessionReuse(snapshot.metadata, { enabled: true, sessionId })
-    })
-    return true
-  })
-  if (bound) {
-    notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: [scheduleId] },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection' as const, entityIds: [scheduleId] },
-      { endpoint: '/agent-tasks/:taskId', entityIds: [scheduleId] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [scheduleId] }
-    ])
-  }
-}
-
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
  * workspace, so the task's `workspace` field only applies when creating one —
@@ -133,25 +115,33 @@ function bindReuseSession(scheduleId: string, sessionId: string): void {
  */
 function resolveTaskSession(params: {
   reuse: TaskSessionReuse
-  scheduleId: string | null
+  reuseBinding: { scheduleId: string; reuseRevision: number } | null
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
 }): ReturnType<typeof agentSessionService.create> {
-  const { reuse, scheduleId, agentId, name, workspace } = params
+  const { reuse, reuseBinding, agentId, name, workspace } = params
 
   if (reuse.enabled && reuse.sessionId) {
     const existing = loadReusableSession(reuse.sessionId, agentId)
     if (existing) {
       return existing
     }
-    logger.info('Reuse session unavailable — creating a new one', { scheduleId, sessionId: reuse.sessionId })
+    logger.info('Reuse session unavailable — creating a new one', {
+      scheduleId: reuseBinding?.scheduleId,
+      sessionId: reuse.sessionId
+    })
   }
 
   const session = agentSessionService.create({ agentId, name, workspace })
-  // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a
-  // pointer — they simply run in a one-off session.
-  if (reuse.enabled && scheduleId) bindReuseSession(scheduleId, session.id)
+  if (reuse.enabled && reuseBinding) {
+    application.get('AgentJobsService').bindTaskSessionReuse({
+      ...reuseBinding,
+      sessionId: session.id,
+      agentId,
+      workspace
+    })
+  }
   return session
 }
 
@@ -229,9 +219,16 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
+  const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
+  const currentReuse = readTaskSessionReuse(scheduleSnapshot?.metadata)
+  // A queued job captures the reuse epoch at enqueue time. It must not attach
+  // to a sticky session selected by a newer task configuration.
+  const reuseIsCurrent =
+    scheduleSnapshot?.type === 'agent.task' && currentReuse.enabled && currentReuse.revision === expectedReuseRevision
+  const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
   let session = resolveTaskSession({
-    reuse: readTaskSessionReuse(scheduleSnapshot?.metadata),
-    scheduleId,
+    reuse: reuseIsCurrent ? currentReuse : { enabled: false, sessionId: null, revision: expectedReuseRevision },
+    reuseBinding,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
@@ -355,8 +352,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       rebound = true
       session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace })
       topicId = buildAgentSessionTopicId(session.id)
-      if (readTaskSessionReuse(scheduleSnapshot?.metadata).enabled && scheduleId) {
-        bindReuseSession(scheduleId, session.id)
+      if (reuseBinding) {
+        application.get('AgentJobsService').bindTaskSessionReuse({
+          ...reuseBinding,
+          sessionId: session.id,
+          agentId,
+          workspace
+        })
       }
     }
 

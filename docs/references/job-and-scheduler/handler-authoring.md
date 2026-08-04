@@ -82,7 +82,7 @@ Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without sig
 
 ### Job metadata vs schedule metadata
 
-`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). State that must survive across fires belongs on the **schedule** row's own `metadata` column instead — read it from the snapshot the handler already fetched, and write it back with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s session-reuse pointer (`metadata.reuse`, see `runAgentTask`) is the reference example. Keep such state out of `jobInputTemplate`: that is command-owned input, and writing to it collides with the owning service's template diffing and re-arm logic.
+`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). State that must survive across fires belongs on the **schedule** row's own `metadata` column instead — ask the schedule's command owner to write it with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s session-reuse pointer (`metadata.reuse`, see `AgentJobsService.bindTaskSessionReuse`) is the reference example. Keep runtime-produced state out of `jobInputTemplate`: that is command-owned input; only the owner may update its configuration snapshots.
 
 ## Settled event (`onSettled`)
 
@@ -206,4 +206,3 @@ src/main/services/knowledge/tasks/IndexLeafJobHandler.ts
 | All new handlers added later | ✅ Yes |
 | Experimental handlers (not in `JobRegistry`) | ⚠ Recommended, not blocking |
 | Pre-existing handlers, if any | Migrate opportunistically when touching nearby code |
-

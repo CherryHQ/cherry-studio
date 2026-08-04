@@ -43,7 +43,7 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 // service under test only needs SOME registered handler for 'agent.task'.
 vi.mock('../agentTaskJobHandler', () => ({
   agentTaskJobHandler: {
-    recovery: 'abandon',
+    recovery: 'retry',
     defaultConcurrency: 1,
     async execute() {
       return {}
@@ -356,7 +356,7 @@ describe('AgentJobsService', () => {
     function bindSession(taskId: string, sessionId: string): void {
       const current = jobScheduleService.getById(taskId)?.metadata ?? {}
       jobScheduleService.update(taskId, {
-        metadata: { ...current, reuse: { enabled: true, sessionId }, unrelated: 'keep-me' }
+        metadata: { ...current, reuse: { enabled: true, sessionId, revision: 0 }, unrelated: 'keep-me' }
       })
     }
 
@@ -369,7 +369,8 @@ describe('AgentJobsService', () => {
 
       expect(task.reuseSession).toBe(false)
       expect(task.reuseSessionId).toBeNull()
-      expect(readReuse(task.id)).toEqual({ enabled: false, sessionId: null })
+      expect(readReuse(task.id)).toEqual({ enabled: false, sessionId: null, revision: 0 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
     })
 
     it('enables reuse without binding a session up front', () => {
@@ -379,6 +380,8 @@ describe('AgentJobsService', () => {
 
       expect(updated?.reuseSession).toBe(true)
       expect(updated?.reuseSessionId).toBeNull()
+      expect(readReuse(task.id)).toEqual({ enabled: true, sessionId: null, revision: 1 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 1 })
     })
 
     it('clears the bound session when reuse is turned off', () => {
@@ -435,9 +438,68 @@ describe('AgentJobsService', () => {
       service.updateTask(AGENT_ID, task.id, { reuseSession: false })
 
       expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
-        reuse: { enabled: false, sessionId: null },
+        reuse: { enabled: false, sessionId: null, revision: 1 },
         unrelated: 'keep-me'
       })
+    })
+
+    it('bumps the reuse revision only for reuse or effective workspace changes', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+
+      service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+      expect(readReuse(task.id)).toMatchObject({ revision: 0 })
+
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      expect(readReuse(task.id)).toMatchObject({ enabled: true, sessionId: null, revision: 1 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 1 })
+
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      expect(readReuse(task.id)).toMatchObject({ revision: 1 })
+
+      service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+      expect(readReuse(task.id)).toMatchObject({ enabled: false, sessionId: null, revision: 2 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 2 })
+    })
+
+    it('binds only matching current reuse config and preserves unrelated metadata', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      jobScheduleService.update(task.id, {
+        metadata: { reuse: { enabled: true, sessionId: null, revision: 0 }, unrelated: 'keep-me' }
+      })
+
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: 'sess-1',
+          agentId: AGENT_ID,
+          workspace: { type: 'user', workspaceId: 'wrong' },
+          reuseRevision: 0
+        })
+      ).toBe(false)
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: 'sess-1',
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 1
+        })
+      ).toBe(false)
+
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: 'sess-1',
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 0
+        })
+      ).toBe(true)
+      expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
+        reuse: { enabled: true, sessionId: 'sess-1', revision: 0 },
+        unrelated: 'keep-me'
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -22,6 +22,7 @@ declare module '@main/core/job/jobRegistry' {
       agentId: string
       prompt: string
       workspace: AgentTaskInput['workspace']
+      reuseRevision: number
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
@@ -34,8 +35,8 @@ const logger = loggerService.withContext('agentTaskJobHandler')
 const RECENT_TERMINAL_WINDOW = 3
 
 export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
-  /** A crashed LLM task is not replay-safe: leave it abandoned for the next scheduled fire. */
-  recovery: 'abandon',
+  /** Preserve the existing at-least-once recovery contract; reuse mode inherits its crash-replay limitation. */
+  recovery: 'retry',
 
   /**
    * Per-agent serialization queue: a single agent never runs two scheduled
