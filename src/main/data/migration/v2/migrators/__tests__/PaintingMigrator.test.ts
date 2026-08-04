@@ -43,6 +43,12 @@ async function seedUserModel(dbh: Dbh, id: string, providerId: string): Promise<
     providerId,
     modelId: id.split('::')[1] ?? id,
     name: id,
+    // Custom (non-preset) model shape — `presetModelId IS NULL` requires
+    // `name`, `capabilities` and `supportsStreaming` to satisfy the
+    // `user_model_custom_config_check` CHECK constraint.
+    presetModelId: null,
+    capabilities: [],
+    supportsStreaming: false,
     orderKey: generateOrderKeyBetween(null, null)
   })
 }
