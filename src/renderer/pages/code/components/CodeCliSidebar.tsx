@@ -57,7 +57,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   const { t } = useTranslation()
 
   return (
-    <div className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border-subtle border-r">
+    <div data-ui="code.navigation" className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border-subtle border-r">
       <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2.5">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>

@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
+    "@types/node": "^24.10.4",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",

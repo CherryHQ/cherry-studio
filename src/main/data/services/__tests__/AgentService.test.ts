@@ -23,7 +23,7 @@ import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
@@ -227,6 +227,119 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('ensureBuiltinAgent', () => {
+    const defaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+      builtinRole: 'assistant',
+      name: 'Cherry Assistant',
+      preferredModelId: TEST_MODEL_ID,
+      type: 'claude-code',
+      configuration: {
+        avatar: '🍒',
+        permission_mode: 'default' as const,
+        max_turns: 100,
+        env_vars: {}
+      }
+    }
+
+    function builtinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
+        .all()
+    }
+
+    function activeBuiltinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(
+          sql`${agentTable.deletedAt} IS NULL AND json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`
+        )
+        .all()
+    }
+
+    it('creates one protected assistant and returns it unchanged on repeated calls', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      const second = agentService.ensureBuiltinAgent({
+        builtinRole: 'assistant',
+        name: 'Replacement Name',
+        preferredModelId: null,
+        type: 'claude-code',
+        configuration: { avatar: '🤖' }
+      })
+
+      expect(second).toEqual(first)
+      expect(first).toMatchObject({
+        name: 'Cherry Assistant',
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🍒',
+          permission_mode: 'default',
+          max_turns: 100,
+          env_vars: {},
+          builtin_role: 'assistant'
+        }
+      })
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores exactly one active assistant after the previous row was soft-deleted', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+      const repeated = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(repeated.id).toBe(restored.id)
+      expect(builtinRows()).toHaveLength(2)
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(agentService.getAgent(first.id)).toBeNull()
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('leaves the model unset when the default cannot run the Agent runtime', () => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'embedding', name: 'Embedding', orderKey: generateOrderKeyBetween(null, null) })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'embedding::vectors',
+          providerId: 'embedding',
+          modelId: 'vectors',
+          name: 'Vectors',
+          capabilities: ['embedding'],
+          supportsStreaming: false,
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .run()
+
+      const assistant = agentService.ensureBuiltinAgent({
+        ...defaults,
+        preferredModelId: 'embedding::vectors'
+      })
+
+      expect(assistant.model).toBeNull()
     })
   })
 

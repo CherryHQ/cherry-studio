@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
+  surfaceFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['composer:new-session', 'skills'] as string[],
   pinnedLauncherIds: [] as readonly string[],
@@ -189,6 +190,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
+    hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
     subscribe: vi.fn(() => () => {})
   }
@@ -206,7 +208,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
-        focus: vi.fn(),
+        focus: mocks.surfaceFocus,
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -747,6 +749,8 @@ describe('AgentComposer', () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.hasCasual).mockReset()
+    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
@@ -801,6 +805,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
+    mocks.surfaceFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['composer:new-session', 'skills']
     mocks.pinnedLauncherIds = []
@@ -2805,6 +2810,199 @@ describe('AgentComposer', () => {
     ])
   })
 
+  it('uses an isolated launch draft, selects its skill, and focuses without sending', async () => {
+    const issueReporter = { name: 'issue-reporter', filename: 'issue-reporter' }
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: issueReporter,
+      index: 0,
+      textOffset: 0
+    }
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: {
+            text: 'Use the issue-reporter skill.',
+            tokens: [issueReporterToken]
+          }
+        }}
+      />
+    )
+
+    expect(cacheService.getCasual).toHaveBeenCalledWith('agent-feedback-draft-feedback-session')
+    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-agent-1')
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] },
+      expect.any(Number)
+    )
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('adopts launch options that arrive after the restored session first renders', async () => {
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    const defaultProps = {
+      agentId: 'restored-assistant',
+      sessionId: 'feedback-session',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    view.rerender(
+      <AgentComposer
+        {...defaultProps}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+
+    view.rerender(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+  })
+
+  it('does not restore the launch template after the isolated draft was intentionally cleared', () => {
+    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
+    vi.mocked(cacheService.getCasual).mockReturnValue({ text: '', tokens: [] })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
+  it('consumes the launch state only after the user successfully sends the editable draft', async () => {
+    const onSent = vi.fn()
+    const token = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [token] },
+          onSent
+        }}
+      />
+    )
+
+    expect(onSent).not.toHaveBeenCalled()
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the issue-reporter skill. The settings page is unresponsive.',
+        tokens: [token]
+      })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(onSent).toHaveBeenCalledTimes(1)
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: '', tokens: [] },
+      expect.any(Number)
+    )
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-session-draft-agent-1',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('keeps the launch state when sending fails', async () => {
+    const onSent = vi.fn()
+    mocks.sendMessage.mockRejectedValue(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+          onSent
+        }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Use the issue-reporter skill.', tokens: [] })
+    })
+
+    expect(onSent).not.toHaveBeenCalled()
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
   it('drops a cached knowledge chip together with its prompt text', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
@@ -3225,69 +3423,6 @@ describe('AgentComposer', () => {
         }
       }
     )
-  })
-
-  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
-    const workspaceFile = {
-      id: 'workspace-file-1',
-      fileTokenSourceId: 'source-workspace-file-1',
-      name: 'notes.md',
-      origin_name: 'notes.md',
-      path: '/workspace/docs/notes.md'
-    } as FileMetadata
-    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    mocks.draftText = 'long line\n'.repeat(80)
-    mocks.files = [workspaceFile]
-    mocks.draftTokens = [
-      {
-        id: `file:${workspaceFile.fileTokenSourceId}`,
-        kind: 'file',
-        label: workspaceFile.name,
-        payload: workspaceFile,
-        index: 0,
-        textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
-    ]
-    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    fireEvent.click(screen.getByText('send'))
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    // Anchor on the send-time batch specifically. `ipcApiRequest` is shared with
-    // the mount-time workspace probe (`useAgentWorkspaceWarning` reads
-    // `file.get_metadata`), so `invocationCallOrder[0]` is that earlier render
-    // call, not the one this test is ordering against.
-    const batchMetadataOrder =
-      mocks.ipcApiRequest.mock.invocationCallOrder[
-        mocks.ipcApiRequest.mock.calls.findIndex(([route]) => route === 'file.batch_get_metadata')
-      ]
-    expect(batchMetadataOrder).toBeDefined()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(batchMetadataOrder)
-
-    await act(async () => {
-      metadata.resolve({
-        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
-      })
-    })
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
   })
 
   it('batches workspace attachment metadata while preserving attachment order', async () => {

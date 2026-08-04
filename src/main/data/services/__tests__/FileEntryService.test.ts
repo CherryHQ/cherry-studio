@@ -1620,7 +1620,10 @@ describe('FileEntryService', () => {
     })
   }
 
-  async function seedChatRef(fileEntryId: FileEntryId): Promise<void> {
+  async function seedChatRef(
+    fileEntryId: FileEntryId,
+    role: 'attachment' | 'tool_output' = 'attachment'
+  ): Promise<void> {
     const now = Date.now()
     const suffix = fileEntryId.slice(-12)
     const topicId = `topic-${suffix}`
@@ -1655,7 +1658,7 @@ describe('FileEntryService', () => {
       id: `33333333-3333-4333-8333-${suffix}`,
       fileEntryId,
       sourceId: messageId,
-      role: 'attachment',
+      role,
       createdAt: now,
       updatedAt: now
     })
@@ -1983,6 +1986,17 @@ describe('FileEntryService', () => {
 
       const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
       expect(ids).toEqual([orphan])
+    })
+
+    it('a tool_output chat ref keeps a persisted tool-output blob out of the candidate set', async () => {
+      const held = '019606a0-0000-7000-8000-0000000cf001' as FileEntryId
+      const free = '019606a0-0000-7000-8000-0000000cf002' as FileEntryId
+      await seedEntry(held, 'delete_when_unreferenced', 2 * HOUR)
+      await seedEntry(free, 'delete_when_unreferenced', 2 * HOUR)
+      await seedChatRef(held, 'tool_output')
+
+      const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
+      expect(ids).toEqual([free])
     })
 
     it('every table with an FK to file_entry is registered in the anti-join (fail-open guard)', () => {

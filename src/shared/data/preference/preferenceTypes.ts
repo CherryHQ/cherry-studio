@@ -247,6 +247,10 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Whether this capability requires a configured HTTP(S) endpoint. */
+    requiresApiHost?: boolean
+    /** Whether this capability requires at least one configured API key. */
+    requiresApiKey?: boolean
     /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>

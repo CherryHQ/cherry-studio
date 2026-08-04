@@ -157,7 +157,7 @@ const PaintingPage: FC = () => {
   }, [])
 
   return (
-    <div className={paintingClasses.page}>
+    <div data-ui="paintings.view" className={paintingClasses.page}>
       <div id="content-container" className={paintingClasses.content}>
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>

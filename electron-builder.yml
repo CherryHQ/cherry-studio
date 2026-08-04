@@ -155,58 +155,104 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.4 - Providers, Files & Polish
+    Cherry Studio 2.0.0-rc.5 - Conversations, Agents & Context
 
     ✨ New Features
-    - [Files] Files exclusively owned by deleted chats, topics, or paintings are now cleaned up automatically after a grace period instead of accumulating forever. Files you upload from the Files page are kept permanently; v1-migrated files are preserved unless they belonged to migrated chats or paintings.
-    - [Providers] Add AMD GPU Cloud as a built-in model provider and mini app, including Token Factory API key setup and source attribution.
-    - [Providers] Add official DeepSeek V4 Flash Responses API support while retaining Chat Completions fallback.
-    - [Providers] Provider request settings now allow changing the default chat endpoint.
-    - [Knowledge] Show live copy progress for folder imports and list folders before files in knowledge bases.
+    - [Chat] Long conversations and oversized tool results are now managed automatically. Large tool results are saved to a temporary file and summarized in the prompt, and history compression summarizes older turns when the context window fills up. Knowledge, web-search, and web-fetch results are never truncated.
+    - [Chat] Refined the "Message Anchor" navigation into a minimal tick rail: one tick per turn, current position highlighted, hover preview cards, and instant long jumps.
+    - [Agent] Cherry Assistant is now available in new and existing Agent libraries, with product knowledge, scoped attachments, guarded file operations, and a privacy-aware feedback flow. New instances use automatic edit approval.
+    - [Agent] Added built-in guidance that helps agents choose and safely sequence Cherry Studio's first-party web, knowledge, memory, scheduling, channel, image, CLI, artifact, and skill tools.
+    - [Web Search] Provider-native web search now actually reaches the model: Gemini, Claude, GPT, and Grok search/URL-context tools were previously dropped from chat requests. Web search and URL context are now a single switch. Action required: re-check assistants whose Temperature / Top-P / Max Tokens were tuned while those settings had no effect.
+    - [Web Search] Web Fetch now automatically retries failed URL reads with the alternate native or Jina provider.
+    - [Image Preview] Added Save As actions to image context menus and the shared image preview toolbar.
+    - [Knowledge] Local embedding models now download in the background.
+    - [Providers] Added provider-native search capabilities.
 
     🐛 Bug Fixes
-    - [Chat] Fixed multi-model context selection so the indicator matches the branch used for subsequent messages, and selecting context no longer jumps the conversation to the latest message.
-    - [Paintings] Fixed the Paintings page opening the latest generated image instead of a fresh empty draft.
-    - [Agent] Claude Code Agent sessions no longer fail when SDK usage messages omit a model identifier.
-    - [Agent] Fixed the agent permission-mode switcher in the composer, where the "Approve for Me" and "Full Access" model-support warnings overflowed their rows and overlapped neighbouring options. The same warning no longer pushes the channel permission-mode selector onto two lines.
-    - [Agent] New agents now start in the "Ask Before Acting" permission mode instead of "Approve for Me". "Approve for Me" relies on model-side classification that not every model supports, so it is now an explicit choice and warns about model support when selected. Existing agents keep their current mode.
-    - [Agent] Fixed Agent v2 migration retries failing on stale Agent, workspace, or Claude Session cache targets.
-    - [Migration] Fixed model metadata (capabilities, context window, token limits) not being resolved from the provider registry after migrating from Cherry Studio v1 for models under user-defined custom providers.
-    - [Onboarding] Fixed onboarding blocking migrated users whose current privacy agreement was already saved.
-    - [Providers] Prevented API keys with non-ByteString characters from causing request encoding failures. Action required: replace any existing affected API key in provider settings.
-    - [Files] Agent file outputs now open in the appropriate Files pane view, with consistent previews and interactive HTML artifact support.
-    - [Mini Apps] Use a distinct grid icon for the mini-app launchpad action so it is easier to distinguish from the detached window always-on-top control.
+    - [Chat] Fixed message-list jitter during streaming and preserved the reader's position while viewing earlier content.
+    - [Chat] Fixed the chat history flashing blank when sending a message, and fixed long streaming replies rendering with stuck faded paragraphs while CPU usage climbed.
+    - [Chat] Kept streamed code blocks mounted when generation finishes, preserving scroll position, selection, toolbar state, and syntax highlighting.
+    - [Chat] Fixed GitHub-style Markdown alerts rendering without their expected styling.
+    - [Chat] Fixed message error cards that could remain faint or invisible until the conversation was scrolled.
+    - [Chat] Prevented image and diagram previews from scrolling the conversation while zooming with Command or Control plus the mouse wheel.
+    - [Agent] Fixed agent sessions never returning to idle after background tasks complete: task chips no longer spin forever and background subagent output is now persisted.
+    - [Agent] Changing a Claude Code agent's permission mode during a response no longer stops the active run; the new mode applies on the next turn.
+    - [Agent] Fixed a crash in the Claude Code runtime when a provider streams a tool call whose name arrives after the block opens, which aborted the entire response.
+    - [Agent] Fixed an incorrect failure notification that could appear after successfully pinning an agent.
+    - [Agent] Fixed local skill imports to preserve actionable ZIP and directory errors, avoid duplicate failure notifications, close after full success, and keep long result content inside the import dialog.
+    - [Models] Fixed a 400 error with Gemini 2.5 models through gateway providers (CherryIN, New API, Vertex AI) that were sent the Gemini 3-only `thinking_level` parameter. The same class of failure is also fixed for Claude 4.5 and earlier served through Claude Code and Vertex AI.
+    - [Models] Fixed Gemma 4 thinking controls so Ollama can correctly enable and disable reasoning.
+    - [Models] Fixed Anthropic-compatible non-Claude models being unexpectedly truncated by an implicit 4,096-token output limit.
+    - [Models] Fixed assistant custom parameters with snake_case names being omitted from AI provider requests.
+    - [Models] Fixed DeepSeek V4 Flash reasoning when using the Responses endpoint.
+    - [Models] Fixed assistant and agent model selectors so they consistently hide models unsupported by their runtimes.
+    - [Chat] Chat images attached to models without declared vision support now fall back to being sent as native images when OCR finds no text, instead of degrading to an unreadable-file note.
+    - [MCP] Fixed MCP deeplink installation so users can preview server configurations before installing and confirm execution afterward.
+    - [MCP] Fixed MCP settings to show command and package registry details for the built-in online package installer.
+    - [MCP] Fixed an issue where cleared MCP marketplace API tokens could reappear after leaving the provider settings.
+    - [MCP] Fixed garbled characters (black triangles) in MCP server stderr logs caused by incomplete UTF-8 decoding across buffer chunk boundaries.
+    - [MCP] Fixed a memory leak in the built-in Browser MCP server: its theme listener was never released and accumulated on every server reconnect.
+    - [MCP] Fixed alphaXiv MCP OAuth failing with "client_id is required" after its auth server migration — Cherry Studio now re-registers the OAuth client automatically.
+    - [Mini Apps] Fixed MiniApp refresh so it reloads the current page instead of returning to the configured home page.
+    - [Windows] Fixed startup and settings persistence when Cherry Studio is launched through a symlinked or junctioned installation path.
+    - [Windows] Fixed clipboard image attachments so models can read them after pasting into the composer.
+    - [Misc] Fixed renamed topics and agent sessions on later pages of the list not updating immediately without an app restart.
+    - [Misc] Fixed OpenClaw startup failures when the legacy `/health` route returns HTML instead of health JSON.
+    - [Misc] BinaryManager now removes obsolete managed CLI versions after successful updates.
 
     💄 Improvements
-    - [UI] Improved visual consistency and usability across settings, chat, Markdown, resource dialogs, and related navigation surfaces.
-    - [UI] Improved focus feedback so controls no longer draw an extra outer frame or change selector borders on pointer open.
-    - [Themes] Improved the consistency and readability of secondary text, links, focus outlines, selected borders, and feedback surfaces across light and dark themes.
+    - [Chat] Improved anchor navigation responsiveness while streaming and while hovering the rail in long conversations.
+    - [Chat] Improved assistant and agent conversation startup by loading the active model in parallel with conversation data.
+    - [Agent] Improved Agent chat streaming performance and aligned Assistant and Agent message-list behavior.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.4 - 服务商、文件与界面打磨
+    Cherry Studio 2.0.0-rc.5 - 对话、智能体与上下文
 
     ✨ 新功能
-    - [文件] 已删除对话、话题或绘画面板专属的文件现会在宽限期后自动清理，而非永久堆积。从”文件”页上传的文件将永久保留；从 v1 迁移过来的文件除非属于已迁移的对话或绘画面板，否则也会保留。
-    - [服务商] 新增 AMD GPU Cloud 作为内置模型服务商与小程序，包含 Token Factory API 密钥设置与来源标注。
-    - [服务商] 新增 DeepSeek V4 Flash Responses API 官方支持，并保留 Chat Completions 作为回退。
-    - [服务商] 服务商请求设置现允许更改默认聊天端点。
-    - [知识库] 文件夹导入现显示实时复制进度，并在知识库中将文件夹排在文件之前。
+    - [聊天] 长对话与超长工具结果现会自动管理。大体积工具结果会保存到临时文件并在提示词中摘要，历史压缩会在上下文窗口将满时总结较早的对话轮次。知识库、网页搜索与网页抓取结果不会被截断。
+    - [聊天] 将“消息锚点”导航精简为极简刻度轨道：每轮一个刻度，高亮当前位置，悬停预览卡片，支持瞬间长距离跳转。
+    - [智能体] Cherry Assistant 现已在新建与现有智能体库中可用，自带产品知识、范围化附件处理、受保护的文件操作与隐私优先的反馈流程。新建实例默认自动批准编辑。
+    - [智能体] 新增内置指引，帮助智能体选择并安全串联 Cherry Studio 自带的网页、知识库、记忆、定时、频道、图像、命令行、工件与技能工具。
+    - [网页搜索] 服务商原生网页搜索现在能真正送达模型：此前 Gemini、Claude、GPT 与 Grok 的搜索/URL 上下文工具被静默丢弃。网页搜索与 URL 上下文现合并为一个开关。需要操作：重新检查在此前设置无效时调整过 Temperature / Top-P / Max Tokens 的助手。
+    - [网页搜索] 网页抓取现会在失败时自动用另一个原生或 Jina 服务商重试。
+    - [图片预览] 在图片右键菜单与共享图片预览工具栏中新增“另存为”操作。
+    - [知识库] 本地嵌入模型现支持后台下载。
+    - [服务商] 新增服务商原生搜索能力。
 
     🐛 问题修复
-    - [聊天] 修复多模型上下文选择：指示器现与后续消息所用分支一致，选择上下文不再让对话跳转到最新消息。
-    - [绘画面板] 修复绘画面板打开时显示最近生成图片而非空白草稿的问题。
-    - [智能体] Claude Code 智能体会话在 SDK 用量消息缺少模型标识时不再失败。
-    - [智能体] 修复输入框中智能体权限模式切换器的”为我审批”与”完全访问”模型支持警告溢出行、与相邻选项重叠的问题；该警告也不再使频道权限模式选择器折成两行。
-    - [智能体] 新建智能体现以”操作前询问”权限模式启动，而非”为我审批”。”为我审批”依赖并非所有模型都支持的模型端分类，因此现为显式选择，并在选中时提示模型支持情况。已有智能体保持当前模式不变。
-    - [智能体] 修复智能体 v2 迁移在遇到陈旧的智能体、工作区或 Claude Session 缓存目标时重试失败的问题。
-    - [迁移] 修复从 Cherry Studio v1 迁移后，用户自定义服务商下模型的元数据（能力、上下文窗口、token 上限）无法从服务商注册表解析的问题。
-    - [引导] 修复引导流程卡住已保存过隐私协议的迁移用户的问题。
-    - [服务商] 阻止包含非 ByteString 字符的 API 密钥导致请求编码失败。需要操作：在服务商设置中替换任何已存在的受影响 API 密钥。
-    - [文件] 智能体文件输出现可在相应的”文件”窗格视图中打开，预览一致并支持交互式 HTML 工件。
-    - [小程序] 为小程序启动台操作使用独立的网格图标，使其更易与分离窗口的置顶控件区分。
+    - [聊天] 修复流式输出时消息列表抖动，并保留查看较早内容时的阅读位置。
+    - [聊天] 修复发送消息时聊天历史短暂空白，以及长流式回复出现卡顿淡白段落且 CPU 占用攀升的问题。
+    - [聊天] 生成结束时保持流式代码块挂载，保留滚动位置、选择、工具栏状态与语法高亮。
+    - [聊天] 修复 GitHub 风格 Markdown 提示块未应用预期样式的问题。
+    - [聊天] 修复消息错误卡片在对话滚动或重绘前可能过淡或不可见的问题。
+    - [聊天] 使用 Command 或 Control 加滚轮缩放图片/图表预览时，不再让外层对话随之滚动。
+    - [智能体] 修复后台任务完成后智能体会话永不回到空闲状态的问题：任务标签不再无限旋转，后台子智能体输出现已持久化到会话。
+    - [智能体] 在响应过程中更改 Claude Code 智能体的权限模式不再中断当前运行，新模式在下一轮生效。
+    - [智能体] 修复 Claude Code 运行时在服务商流式返回的工具调用 name 在块开始之后才到达时崩溃、并中止整条响应的问题。
+    - [智能体] 修复成功固定智能体后可能弹出错误失败通知的问题。
+    - [智能体] 改进本地技能导入：保留可操作的 ZIP 与目录错误信息，避免重复失败通知，全部成功后再关闭，长结果内容保留在导入对话框内。
+    - [模型] 修复通过网关服务商（CherryIN、New API、Vertex AI）使用 Gemini 2.5 模型时的 400 错误：此前发送了仅 Gemini 3 支持的 `thinking_level` 参数。Claude 4.5 及更早版本通过 Claude Code 与 Vertex AI 服务的同类故障也已修复。
+    - [模型] 修复 Gemma 4 思考 controls，Ollama 现可正确启用与关闭推理。
+    - [模型] 修复 Anthropic 兼容的非 Claude 模型被隐式 4096 token 输出上限意外截断的问题。
+    - [模型] 修复助手自定义参数中以 snake_case 命名的字段被遗漏、未发送给 AI 服务商的问题。
+    - [模型] 修复使用 Responses 端点时 DeepSeek V4 Flash 的推理输出。
+    - [模型] 修复助手与智能体模型选择器，使其一致地隐藏各自运行时不支持的模型。
+    - [聊天] 附带给未声明视觉能力的模型的聊天图片，在 OCR 找不到文字时会回退为原生图片发送，而非降级为不可读文件提示。
+    - [MCP] 修复 MCP deeplink 安装：用户可在安装前预览服务器配置，并在冷热启动期间安装后确认执行。
+    - [MCP] 修复 MCP 设置，使其显示内置在线包安装器的命令与包注册表详情。
+    - [MCP] 修复离开服务商设置后已清除的 MCP 市场令牌可能再次出现的问题。
+    - [MCP] 修复跨缓冲块边界的不完整 UTF-8 解码导致 MCP 服务器 stderr 日志出现乱码（黑色三角）的问题。
+    - [MCP] 修复内置浏览器 MCP 服务器的内存泄漏：其主题监听器从未释放，并在每次重连时累积。
+    - [MCP] 修复 alphaXiv MCP OAuth 在其授权服务器迁移后报“client_id is required”的问题——Cherry Studio 现会自动检测授权服务器变更并重新注册 OAuth 客户端。
+    - [小程序] 修复小程序刷新，使其重新加载当前页而非返回配置的首页。
+    - [Windows] 修复通过符号链接或 junction 安装路径启动 Cherry Studio 时的启动与设置持久化问题。
+    - [Windows] 修复 Windows 剪贴板图片附件，使粘贴到输入框后模型可读取。
+    - [其他] 修复列表后续页面上重命名的话题与智能体会话不立即更新、需重启应用才刷新的问题。
+    - [其他] 修复 OpenClaw 在旧版 `/health` 路由返回 HTML 而非健康检查 JSON 时启动失败的问题。
+    - [其他] BinaryManager 现会在更新成功后清理过期的托管 CLI 版本。
 
     💄 改进
-    - [界面] 改进设置、聊天、Markdown、资源对话框及相关导航界面的视觉一致性与可用性。
-    - [界面] 改进焦点反馈，控件不再在指针打开时绘制多余外框或更改选择器边框。
-    - [主题] 改进亮色与暗色主题下辅助文本、链接、焦点轮廓、选中边框与反馈界面的一致性与可读性。
+    - [聊天] 改进长对话中流式输出与悬停轨道时的锚点导航响应速度。
+    - [聊天] 通过并行加载当前模型与对话数据，加快助手与智能体对话启动。
+    - [智能体] 提升智能体聊天流式性能，并对齐助手与智能体的消息列表行为。
     <!--LANG:END-->

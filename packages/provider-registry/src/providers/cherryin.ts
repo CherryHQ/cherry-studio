@@ -28,6 +28,14 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     }
   },
+  // Gateway-mapped delivery: `resolveToolCapability` falls back to the vendor
+  // segment of the model provider id (`cherryin.gemini` → google's factory), so
+  // only vendors owning a native tool factory are servable — a deepseek/glm/kimi
+  // model would resolve no factory and inject nothing.
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] },
+    { id: 'url-context', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini'] }
+  ],
   metadata: {
     website: {
       apiKey: 'https://open.cherryin.ai/console/token',

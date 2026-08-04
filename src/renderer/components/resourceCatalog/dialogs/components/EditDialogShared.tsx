@@ -58,7 +58,7 @@ export const resourceDialogHeaderClassName =
   'flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3.5 pr-12'
 export const resourceDialogTitleClassName = 'truncate text-sm'
 
-export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
+export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
 
 export type EditDialogBaseProps = {
@@ -676,6 +676,7 @@ export function CompactModelField({
   label,
   description,
   allowClear = false,
+  emptyLabel,
   filter,
   portalContainer,
   modelLabels,
@@ -690,6 +691,8 @@ export function CompactModelField({
   label: string
   description?: string
   allowClear?: boolean
+  /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
+  emptyLabel?: string
   filter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -709,6 +712,7 @@ export function CompactModelField({
   const displayLabel =
     selectedModel?.name ??
     (labelFromState && labelFromState !== selectorValue ? labelFromState : parsedModelId?.modelId) ??
+    emptyLabel ??
     t('library.config.basic.model_pick')
   const triggerModel =
     selectedModel ??

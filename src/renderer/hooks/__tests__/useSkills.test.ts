@@ -340,20 +340,20 @@ describe('useSkillInstall', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
-  it('logs, toasts, and rethrows local ZIP and directory install failures', async () => {
+  it('logs and rethrows local ZIP and directory install failures without duplicate toasts', async () => {
     const { result } = renderHook(() => useSkillInstall())
 
     installSkillFromZipMock.mockRejectedValueOnce(new Error('zip failed'))
     await act(async () => {
       await expect(result.current.installFromZip('/tmp/bad.zip')).rejects.toThrow('zip failed')
     })
-    expect(toast.error).toHaveBeenCalledWith('zip failed')
+    expect(toast.error).not.toHaveBeenCalled()
 
     installSkillFromDirectoryMock.mockResolvedValueOnce({ success: false, error: 'directory failed' })
     await act(async () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
-    expect(toast.error).toHaveBeenCalledWith('directory failed')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })
 
