@@ -21,9 +21,9 @@ import type {
  *   subscribers that only care about, say, `estimateSize`.
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
- * - `MessageListUiStaticContext` — preference-driven static config (readonly,
- *   menuConfig, translationLanguages, externalCodeEditors). Changes when the
- *   user flips a setting.
+ * - `MessageListUiStaticContext` — preference-driven static config (menuConfig,
+ *   translationLanguages, externalCodeEditors). Changes when the user flips a
+ *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
  *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
@@ -50,7 +50,6 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
-  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
@@ -58,7 +57,7 @@ type MessageListMessagesValue = MessageListItem[]
 
 type MessageListUiStaticValue = Pick<
   MessageListState,
-  'readonly' | 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'
+  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus' | 'externalCodeEditors'
 >
 
 type MessageListUiSelectorsValue = Pick<
@@ -103,7 +102,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
-      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
@@ -120,19 +118,18 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
-      state.localSendGeneration,
       state.streamingLayers
     ]
   )
 
   const uiStatic = useMemo<MessageListUiStaticValue>(
     () => ({
-      readonly: state.readonly,
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
+      translationLanguagesStatus: state.translationLanguagesStatus,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.readonly, state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(

@@ -269,7 +269,6 @@ type Props = {
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
-  captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -299,7 +298,6 @@ const AgentComposerRoot = ({
   resolvedWorkspaceWarning,
   externalContextControls = false,
   sendMessage,
-  captureLocalSendScrollEligibility,
   stop,
   onCreateEmptySession,
   onAgentChange,
@@ -384,7 +382,6 @@ const AgentComposerRoot = ({
         workspaceId={workspaceId ?? session?.workspaceId ?? null}
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         chatStop={stop}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
@@ -422,7 +419,6 @@ interface InnerProps {
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
-  captureLocalSendScrollEligibility?: Props['captureLocalSendScrollEligibility']
   chatStop: Props['stop']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
@@ -652,7 +648,6 @@ const AgentComposerInner = ({
   workspaceId,
   actionsRef,
   chatSendMessage,
-  captureLocalSendScrollEligibility,
   chatStop,
   onCreateEmptySession,
   onAgentChange,
@@ -758,8 +753,28 @@ const AgentComposerInner = ({
   const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
   const workspaceWarning =
     resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const skillsDataEnabled =
+    selectedSkills.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+    rootPanelVisible ||
+    skillsPanelVisible
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath, {
+    enabled: skillsDataEnabled
+  })
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
@@ -968,8 +983,6 @@ const AgentComposerInner = ({
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
   // it with the current (possibly stale) closure, so an externally installed/removed skill would
   // otherwise only appear on the next open (mirrors the MCP status panel).
-  const quickPanel = useOptionalQuickPanel()
-  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
@@ -1185,8 +1198,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
@@ -1210,15 +1222,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [
-      accessiblePaths,
-      agentId,
-      captureLocalSendScrollEligibility,
-      chatSendMessage,
-      saveHistory,
-      sessionId,
-      sessionTopicId
-    ]
+    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1301,9 +1305,8 @@ const AgentComposerInner = ({
       const previousSkills = selectedSkills
       const previousDraftTokens = draftTokensRef.current
 
-      captureLocalSendScrollEligibility?.()
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         clearTimeoutTimer('agentComposerSendMessage')
         setText(previousText)
@@ -1317,7 +1320,6 @@ const AgentComposerInner = ({
     },
     [
       buildQueuedPayload,
-      captureLocalSendScrollEligibility,
       clearTimeoutTimer,
       clearCurrentDraft,
       draftCacheKey,

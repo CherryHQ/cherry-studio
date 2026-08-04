@@ -128,6 +128,7 @@ interface Props {
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
@@ -227,6 +228,7 @@ export function Topics({
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
+  dataEnabled = true,
   historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
@@ -289,7 +291,7 @@ export function Topics({
     isRefreshing: isPinsRefreshing,
     pinnedIds: topicPinnedIds,
     togglePin: toggleTopicPin
-  } = usePins('topic')
+  } = usePins('topic', { enabled: dataEnabled })
   const topicPinState = useResourceListPinnedState({
     disabled: isPinsRefreshing || isPinsMutating,
     pinnedIds: topicPinnedIds,
@@ -302,7 +304,7 @@ export function Topics({
     isRefreshing: isAssistantPinsRefreshing,
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
-  } = usePins('assistant')
+  } = usePins('assistant', { enabled: dataEnabled })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
@@ -324,7 +326,7 @@ export function Topics({
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
-  } = useGroups('assistant')
+  } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)

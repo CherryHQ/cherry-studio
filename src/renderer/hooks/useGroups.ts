@@ -5,8 +5,9 @@ import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useMemo } from 'react'
 
-export function useGroups(entityType: EntityType) {
+export function useGroups(entityType: EntityType, options: { enabled?: boolean } = {}) {
   const { data, isLoading, error, refetch } = useQuery('/groups', {
+    ...(options.enabled !== undefined && { enabled: options.enabled }),
     query: { entityType }
   })
   const groups = useMemo(() => data ?? [], [data])

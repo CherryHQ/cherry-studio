@@ -5,7 +5,8 @@ import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
-  defaultModel: undefined as Model | undefined
+  defaultModel: undefined as Model | undefined,
+  useDefaultModel: vi.fn()
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -26,7 +27,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel })
+  useDefaultModel: (options?: { enabled?: boolean }) => {
+    modelHook.useDefaultModel(options)
+    return { defaultModel: modelHook.defaultModel }
+  }
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -88,9 +92,16 @@ const CANCEL = 'common.cancel'
 afterEach(() => {
   cleanup()
   modelHook.defaultModel = undefined
+  modelHook.useDefaultModel.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
+  it('does not activate the default-model query while closed', () => {
+    render(<ResourceCreateWizard kind="assistant" open={false} onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(modelHook.useDefaultModel).toHaveBeenCalledWith({ enabled: false })
+  })
+
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
