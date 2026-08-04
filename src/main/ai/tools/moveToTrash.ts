@@ -109,8 +109,8 @@ export function getProtectedTrashTargetReason(
     return 'a credential, configuration, or application-data directory'
   }
 
-  const versionControlDirectories = ['.git', '.hg', '.svn'].map((directory) => pathApi.join(workspace, directory))
-  if (versionControlDirectories.some((directory) => isSameOrWithin(target, directory, platform))) {
+  const relativeTargetSegments = pathApi.relative(workspace, target).split(pathApi.sep)
+  if (relativeTargetSegments.some((segment) => ['.git', '.hg', '.svn'].includes(segment))) {
     return 'version-control metadata'
   }
 

@@ -102,6 +102,13 @@ describe('moveWorkspaceItemToTrash', () => {
     expect(getProtectedTrashTargetReason('C:\\Users\\alice', 'C:\\', context)).toContain('profile')
     expect(getProtectedTrashTargetReason('C:\\Users\\alice\\Documents', 'C:\\', context)).toContain('user data')
     expect(getProtectedTrashTargetReason('C:\\Users\\alice\\.ssh\\id_ed25519', 'C:\\', context)).toContain('credential')
+    expect(
+      getProtectedTrashTargetReason(
+        'C:\\Users\\alice\\Projects\\demo\\nested\\.GIT\\config',
+        'C:\\Users\\alice\\Projects\\demo',
+        context
+      )
+    ).toContain('version-control')
     expect(getProtectedTrashTargetReason('C:\\Users\\alice\\OneDrive', 'C:\\Users\\alice', context)).toContain(
       'workspace rooted at or above'
     )
@@ -133,6 +140,15 @@ describe('moveWorkspaceItemToTrash', () => {
     ).toContain('application-data')
     expect(
       getProtectedTrashTargetReason('/Users/alice/project/.git/config', '/Users/alice/project', context)
+    ).toContain('version-control')
+    expect(
+      getProtectedTrashTargetReason('/Users/alice/project/packages/demo/.git/config', '/Users/alice/project', context)
+    ).toContain('version-control')
+    expect(
+      getProtectedTrashTargetReason('/Users/alice/project/vendor/repo/.hg/store', '/Users/alice/project', context)
+    ).toContain('version-control')
+    expect(
+      getProtectedTrashTargetReason('/Users/alice/project/legacy/.svn/wc.db', '/Users/alice/project', context)
     ).toContain('version-control')
     expect(getProtectedTrashTargetReason('/Volumes/Backup', '/', context)).toContain('volume root')
     expect(
