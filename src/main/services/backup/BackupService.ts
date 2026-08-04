@@ -458,9 +458,11 @@ export class BackupService extends BaseService {
           // BACKUP_IN_PROGRESS gate (step 2) is a defense-in-depth layer rather
           // than the only barrier. The IPC gate now also covers legacy
           // File_/Cache_/Backup_* routes (rejectDuringRestore + Cache_Sync
-          // silent-drop), but it only rejects NEW writes — in-flight renderer
-          // turns already past the gate's await boundary, and DataApi/Preference/
-          // IpcApi dispatcher in-flight writes, are NOT drained (pending
+          // silent-drop), but it only rejects NEW writes. AI stream / agent
+          // runtime / channel / JobManager in-flight turns ARE drained below
+          // (pause + drainInFlight, fail-closed RESTORE_DRAIN_UNCLEAN); the
+          // remaining gap is DataApi/Preference/IpcApi dispatcher in-flight
+          // writes + main-process DbService direct writes outside IPC (pending
           // @DeJeune).
           //
           // If a1 acquire throws midway (partial destroy), it rolls back its own
