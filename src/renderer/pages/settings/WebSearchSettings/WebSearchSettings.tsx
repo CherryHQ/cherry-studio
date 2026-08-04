@@ -36,7 +36,6 @@ const WebSearchSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={theme} innerClassName={webSearchFieldClassName}>
-      <ToolSourceSettings />
       {featureSections.map((section) => {
         const defaultProvider =
           section.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
@@ -71,6 +70,7 @@ const WebSearchSettings: FC = () => {
           </section>
         )
       })}
+      <ToolSourceSettings />
     </SettingsContentColumn>
   )
 }

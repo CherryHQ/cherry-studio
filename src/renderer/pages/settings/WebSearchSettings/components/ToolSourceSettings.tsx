@@ -14,8 +14,9 @@ import { useTranslation } from 'react-i18next'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 
 /**
- * Which side serves web tools when both are available. It governs every capability section below,
- * so it gets its own group instead of hiding under one section's advanced settings.
+ * Which side serves web tools when both are available. It governs every capability section, so it
+ * gets its own group instead of hiding under one section's advanced settings — placed last, since
+ * the per-capability provider setup is what people come here to configure.
  */
 export const ToolSourceSettings: FC = () => {
   const { theme } = useTheme()
