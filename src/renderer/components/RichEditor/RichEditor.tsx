@@ -208,7 +208,7 @@ const RichEditor = ({
   const [contentSearchState, setContentSearchState] = useState<FindBarState>(() => ({
     ...INITIAL_FIND_BAR_STATE
   }))
-  const [contentSearchCurrentIndex, setContentSearchCurrentIndex] = useState(-1)
+  const [contentSearchCursor, setContentSearchCursor] = useState<{ criteriaKey: string; index: number } | null>(null)
   const contentSearchFilter = useMemo<NodeFilter>(
     () => ({
       acceptNode(node) {
@@ -219,6 +219,7 @@ const RichEditor = ({
     []
   )
   const deferredContentSearchQuery = useDeferredValue(contentSearchState.query).trim()
+  const contentSearchCriteriaKey = `${deferredContentSearchQuery}\u0000${contentSearchState.caseSensitive ? '1' : '0'}${contentSearchState.wholeWord ? '1' : '0'}`
   const contentSearchRanges = useMemo(() => {
     const target = scrollContainerRef.current
     if (
@@ -249,21 +250,17 @@ const RichEditor = ({
     enableContentSearch,
     markdown
   ])
+  const contentSearchCurrentIndex =
+    contentSearchRanges.length === 0
+      ? -1
+      : contentSearchCursor?.criteriaKey === contentSearchCriteriaKey
+        ? Math.min(contentSearchCursor.index, contentSearchRanges.length - 1)
+        : 0
 
   useEffect(() => {
     if (enableContentSearch) return
     setContentSearchState((current) => (current.enabled ? { ...current, enabled: false } : current))
   }, [enableContentSearch])
-
-  useEffect(() => {
-    setContentSearchCurrentIndex(contentSearchRanges.length > 0 ? 0 : -1)
-  }, [
-    contentSearchRanges.length,
-    contentSearchState.caseSensitive,
-    contentSearchState.enabled,
-    contentSearchState.wholeWord,
-    deferredContentSearchQuery
-  ])
 
   useEffect(() => {
     clearContentSearchHighlights()
@@ -293,12 +290,15 @@ const RichEditor = ({
   const navigateContentSearch = useCallback(
     (delta: 1 | -1) => {
       if (contentSearchRanges.length === 0) return
-      setContentSearchCurrentIndex((currentIndex) => {
-        if (currentIndex < 0) return delta > 0 ? 0 : contentSearchRanges.length - 1
-        return (currentIndex + delta + contentSearchRanges.length) % contentSearchRanges.length
-      })
+      const nextIndex =
+        contentSearchCurrentIndex < 0
+          ? delta > 0
+            ? 0
+            : contentSearchRanges.length - 1
+          : (contentSearchCurrentIndex + delta + contentSearchRanges.length) % contentSearchRanges.length
+      setContentSearchCursor({ criteriaKey: contentSearchCriteriaKey, index: nextIndex })
     },
-    [contentSearchRanges.length]
+    [contentSearchCriteriaKey, contentSearchCurrentIndex, contentSearchRanges.length]
   )
 
   const onKeyDownEditor = useCallback(
