@@ -19,6 +19,7 @@ import {
   OutputPathExistsError,
   presentDegradations,
   presentJournalDegradations,
+  readAutoSyncStatus,
   ResourceInstallPlanError,
   RestoreStateError,
   SourceDriftError,
@@ -326,14 +327,6 @@ async function cancellable<T>(work: () => Promise<T>): Promise<T | null> {
 }
 
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
-  'backup.get_auto_sync_state': async () => application.get('AutoBackupService').getStateSnapshot(),
-  'backup.acknowledge_auto_sync_notification': async ({ type, id }) => {
-    application.get('AutoBackupService').acknowledgeNotification(type, id)
-  },
-  'backup.manual_completion.record': async ({ type }) => {
-    application.get('AutoBackupService').recordManualBackupCompletion(type)
-  },
-
   'backup.get_status': async () => {
     const status = application.get('BackupService').getStatus()
     const { restore } = status
@@ -467,6 +460,11 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.delete_destination_backup': async (input, ctx) => {
     requireManagedWindow(ctx)
     await mapped(() => application.get('BackupService').deleteDestinationBackup(input.destination, input.name))
+  },
+
+  'backup.get_auto_sync_status': async (_input, ctx) => {
+    requireManagedWindow(ctx)
+    return mapped(() => readAutoSyncStatus())
   },
 
   'backup.check_destination': async (input, ctx) => {
