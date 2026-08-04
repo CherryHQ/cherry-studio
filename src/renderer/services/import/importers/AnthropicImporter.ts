@@ -1,18 +1,9 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import {
-  AssistantMessageStatus,
-  type MainTextMessageBlock,
-  type Message,
-  MessageBlockStatus,
-  MessageBlockType,
-  type ThinkingMessageBlock,
-  UserMessageStatus
-} from '@renderer/types/newMessage'
-import type { Topic } from '@renderer/types/topic'
-import { uuid } from '@renderer/utils/uuid'
+import type { DynamicToolUIPart, ReasoningUIPart } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
-import type { ConversationImporter, ImportMessageBlock, ImportResult, ImportToolMessageBlock } from '../types'
+import type { ConversationImporter, ImportConversation, ImportMessage, ImportResult } from '../types'
 
 const logger = loggerService.withContext('AnthropicImporter')
 
@@ -62,8 +53,6 @@ interface AnthropicMessage {
   text: string
   content: AnthropicContentBlock[]
   sender: 'human' | 'assistant'
-  created_at: string
-  updated_at: string
 }
 
 interface AnthropicConversation {
@@ -71,7 +60,6 @@ interface AnthropicConversation {
   name: string
   summary: string
   created_at: string
-  updated_at: string
   chat_messages: AnthropicMessage[]
 }
 
@@ -102,7 +90,7 @@ export class AnthropicImporter implements ConversationImporter {
   /**
    * Parse Anthropic conversations and convert to unified format
    */
-  async parse(fileContent: string, assistantId: string): Promise<ImportResult> {
+  async parse(fileContent: string): Promise<ImportResult> {
     logger.info('Starting Anthropic Claude import...')
 
     const conversations = JSON.parse(fileContent) as AnthropicConversation[]
@@ -113,31 +101,23 @@ export class AnthropicImporter implements ConversationImporter {
 
     logger.info(`Found ${conversations.length} conversations`)
 
-    const topics: Topic[] = []
-    const allMessages: Message[] = []
-    const allBlocks: ImportMessageBlock[] = []
+    const importedConversations: ImportConversation[] = []
 
     for (const conversation of conversations) {
       try {
-        const result = this.convertConversationToTopic(conversation, assistantId)
-        if (!result) continue
-        const { topic, messages, blocks } = result
-        topics.push(topic)
-        allMessages.push(...messages)
-        allBlocks.push(...blocks)
+        const importedConversation = this.convertConversation(conversation)
+        if (importedConversation) importedConversations.push(importedConversation)
       } catch (convError) {
         logger.warn(`Failed to convert conversation "${conversation.name}":`, convError as Error)
       }
     }
 
-    if (topics.length === 0) {
+    if (importedConversations.length === 0) {
       throw new Error(i18n.t('import.claude.error.no_valid_conversations'))
     }
 
     return {
-      topics,
-      messages: allMessages,
-      blocks: allBlocks
+      conversations: importedConversations
     }
   }
 
@@ -158,38 +138,13 @@ export class AnthropicImporter implements ConversationImporter {
     return block.content.map((item) => item.text).join('\n\n')
   }
 
-  private createMainTextBlock(
-    messageId: string,
-    content: string,
-    createdAt: string,
-    updatedAt: string
-  ): MainTextMessageBlock {
-    return {
-      id: uuid(),
-      messageId,
-      type: MessageBlockType.MAIN_TEXT,
-      content,
-      createdAt,
-      updatedAt,
-      status: MessageBlockStatus.SUCCESS
-    }
-  }
-
   /**
-   * Create Message and MessageBlocks from an Anthropic message.
+   * Create a v2 import message from an Anthropic message.
    * Handles text, thinking, tool_use, and tool_result content blocks.
    */
-  private createMessageAndBlocks(
-    anthropicMessage: AnthropicMessage,
-    topicId: string,
-    assistantId: string
-  ): { message: Message; blocks: ImportMessageBlock[] } {
-    const messageId = uuid()
+  private createMessage(anthropicMessage: AnthropicMessage): ImportMessage {
     const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
-    const createdAt = anthropicMessage.created_at
-    const updatedAt = anthropicMessage.updated_at
-
-    const blocks: ImportMessageBlock[] = []
+    const parts: ImportMessage['parts'] = []
     const contentBlocks = anthropicMessage.content
 
     // Index tool_result blocks by their tool_use_id for O(1) lookup
@@ -204,7 +159,7 @@ export class AnthropicImporter implements ConversationImporter {
       }
     }
 
-    // Iterate content blocks in order, building typed blocks
+    // Iterate content blocks in order, building v2 AI SDK parts
     let anonymousToolIndex = 0
     let hasTextBlock = false
     for (const contentBlock of contentBlocks) {
@@ -213,7 +168,7 @@ export class AnthropicImporter implements ConversationImporter {
           const content = contentBlock.text.trim()
           if (!content) break
 
-          blocks.push(this.createMainTextBlock(messageId, content, createdAt, updatedAt))
+          parts.push({ type: 'text', text: content })
           hasTextBlock = true
           break
         }
@@ -222,17 +177,12 @@ export class AnthropicImporter implements ConversationImporter {
           const thinkingMs =
             new Date(contentBlock.stop_timestamp).getTime() - new Date(contentBlock.start_timestamp).getTime()
 
-          const thinkingBlock: ThinkingMessageBlock = {
-            id: uuid(),
-            messageId,
-            type: MessageBlockType.THINKING,
-            content: contentBlock.thinking,
-            thinking_millsec: thinkingMs,
-            createdAt,
-            updatedAt,
-            status: MessageBlockStatus.SUCCESS
+          const reasoningPart: ReasoningUIPart = {
+            type: 'reasoning',
+            text: contentBlock.thinking,
+            state: 'done'
           }
-          blocks.push(thinkingBlock)
+          parts.push(withCherryMeta(reasoningPart, { thinkingMs }))
           break
         }
 
@@ -242,23 +192,22 @@ export class AnthropicImporter implements ConversationImporter {
             ? toolResultMap.get(contentBlock.id)
             : anonymousToolResults[anonymousToolIndex++]
 
-          const toolBlock: ImportToolMessageBlock = {
-            id: uuid(),
-            messageId,
-            type: MessageBlockType.TOOL,
-            toolId,
+          const base = {
+            type: 'dynamic-tool' as const,
+            toolCallId: toolId,
             toolName: contentBlock.name,
-            arguments: contentBlock.input,
-            createdAt,
-            updatedAt,
-            ...(toolResult?.is_error
-              ? { content: this.extractToolResultContent(toolResult), status: MessageBlockStatus.ERROR }
-              : {
-                  content: toolResult ? this.extractToolResultContent(toolResult) : undefined,
-                  status: MessageBlockStatus.SUCCESS
-                })
+            input: contentBlock.input
           }
-          blocks.push(toolBlock)
+
+          let toolPart: DynamicToolUIPart
+          if (toolResult?.is_error) {
+            toolPart = { ...base, state: 'output-error', errorText: this.extractToolResultContent(toolResult) }
+          } else if (toolResult) {
+            toolPart = { ...base, state: 'output-available', output: this.extractToolResultContent(toolResult) }
+          } else {
+            toolPart = { ...base, state: 'input-available' }
+          }
+          parts.push(toolPart)
           break
         }
 
@@ -270,18 +219,12 @@ export class AnthropicImporter implements ConversationImporter {
 
     const messageText = anthropicMessage.text.trim()
     if (!hasTextBlock && messageText) {
-      blocks.push(this.createMainTextBlock(messageId, messageText, createdAt, updatedAt))
+      parts.push({ type: 'text', text: messageText })
     }
 
-    const message: Message = {
-      id: messageId,
+    return {
       role,
-      assistantId,
-      topicId,
-      createdAt,
-      updatedAt,
-      status: role === 'user' ? UserMessageStatus.SUCCESS : AssistantMessageStatus.SUCCESS,
-      blocks: blocks.map((b) => b.id),
+      parts,
       // Anthropic's conversations.json export carries no per-message model field
       // (chat_messages only expose uuid/text/content/sender/timestamps/attachments/files),
       // so assistant messages are tagged with a default Claude model purely so the
@@ -295,26 +238,13 @@ export class AnthropicImporter implements ConversationImporter {
         }
       })
     }
-
-    return { message, blocks }
   }
 
   /**
-   * Convert Anthropic conversation to Cherry Studio Topic.
+   * Convert an Anthropic conversation to the v2 import contract.
    * Returns null if the conversation has no usable message content.
    */
-  private convertConversationToTopic(
-    conversation: AnthropicConversation,
-    assistantId: string
-  ): {
-    topic: Topic
-    messages: Message[]
-    blocks: ImportMessageBlock[]
-  } | null {
-    const topicId = uuid()
-    const messages: Message[] = []
-    const blocks: ImportMessageBlock[] = []
-
+  private convertConversation(conversation: AnthropicConversation): ImportConversation | null {
     // Filter out messages with no usable content
     const usableMessages = conversation.chat_messages.filter((msg) => this.hasUsableContent(msg))
 
@@ -323,25 +253,12 @@ export class AnthropicImporter implements ConversationImporter {
       return null
     }
 
-    for (const msg of usableMessages) {
-      const { message, blocks: msgBlocks } = this.createMessageAndBlocks(msg, topicId, assistantId)
-      messages.push(message)
-      blocks.push(...msgBlocks)
-    }
-
-    const title =
+    const name =
       conversation.name.trim() || conversation.summary.trim() || i18n.t('import.claude.untitled_conversation')
 
-    const topic: Topic = {
-      id: topicId,
-      assistantId,
-      name: title,
-      createdAt: conversation.created_at,
-      updatedAt: conversation.updated_at,
-      messages,
-      isNameManuallyEdited: Boolean(conversation.name.trim())
+    return {
+      name,
+      messages: usableMessages.map((message) => this.createMessage(message))
     }
-
-    return { topic, messages, blocks }
   }
 }

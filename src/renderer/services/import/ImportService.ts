@@ -1,16 +1,12 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { DynamicToolUIPart, ReasoningUIPart } from 'ai'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
-import type { ConversationImporter, ImportMessageBlock, ImportResponse, ImportResult } from './types'
+import type { ConversationImporter, ImportMessage, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -117,18 +113,16 @@ class ImportService {
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
 
-      const result = await importer.parse(fileContent, assistant.id)
-      await this.persistImport(result, assistant)
+      const result = await importer.parse(fileContent)
+      const messagesCount = await this.persistImport(result, assistant)
 
-      logger.info(
-        `Import completed: ${result.topics.length} conversations, ${result.messages.length} messages imported`
-      )
+      logger.info(`Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`)
 
       return {
         success: true,
         assistant,
-        topicsCount: result.topics.length,
-        messagesCount: result.messages.length
+        topicsCount: result.conversations.length,
+        messagesCount
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
@@ -151,21 +145,19 @@ class ImportService {
   }
 
   /**
-   * Builds a v2 create-message DTO from a parsed v1 message. Imported messages
-   * are historical, so they are persisted as `success`. For assistant rows the
-   * producing author (the import's assistant, owning the source model) is frozen
-   * into `messageSnapshot` so the header survives later rename/delete.
+   * Builds a v2 create-message DTO. Imported messages are historical, so they
+   * are persisted as `success`. For assistant rows the producing author is
+   * frozen into `messageSnapshot` so the header survives later rename/delete.
    */
   private toMessageDto(
-    message: Message,
-    blocksById: Map<string, ImportMessageBlock>,
+    message: ImportMessage,
     parentId: string | null,
     assistant: { id: string; name: string; emoji: string }
   ): CreateMessageDto {
     const dto: CreateMessageDto = {
       parentId,
       role: message.role,
-      data: { parts: this.toMessageParts(message, blocksById) },
+      data: { parts: message.parts },
       status: 'success'
     }
 
@@ -186,43 +178,6 @@ class ImportService {
     return dto
   }
 
-  private toMessageParts(message: Message, blocksById: Map<string, ImportMessageBlock>): CherryMessagePart[] {
-    return message.blocks.flatMap((blockId): CherryMessagePart[] => {
-      const block = blocksById.get(blockId)
-      if (!block) throw new Error(`Missing imported message block: ${blockId}`)
-
-      switch (block.type) {
-        case MessageBlockType.MAIN_TEXT:
-          return [{ type: 'text', text: block.content }]
-
-        case MessageBlockType.THINKING: {
-          const part: ReasoningUIPart = { type: 'reasoning', text: block.content, state: 'done' }
-          return [withCherryMeta(part, { thinkingMs: block.thinking_millsec })]
-        }
-
-        case MessageBlockType.TOOL: {
-          const base = {
-            type: 'dynamic-tool' as const,
-            toolCallId: block.toolId,
-            toolName: block.toolName,
-            input: block.arguments
-          }
-
-          let part: DynamicToolUIPart
-          if (block.status === MessageBlockStatus.ERROR) {
-            part = { ...base, state: 'output-error', errorText: block.content }
-          } else if (block.content === undefined) {
-            part = { ...base, state: 'input-available' }
-          } else {
-            part = { ...base, state: 'output-available', output: block.content }
-          }
-
-          return [part]
-        }
-      }
-    })
-  }
-
   /**
    * Persists the import result via DataApi. Messages chain by parent id into
    * a single linear branch under each topic.
@@ -230,25 +185,26 @@ class ImportService {
   private async persistImport(
     result: ImportResult,
     assistant: { id: string; name: string; emoji: string }
-  ): Promise<void> {
-    const { topics, blocks, messages } = result
-    const blocksById = new Map(blocks.map((block) => [block.id, block]))
+  ): Promise<number> {
+    const { conversations } = result
 
-    for (const topic of topics) {
+    for (const conversation of conversations) {
       const createdTopic = await dataApiService.post('/topics', {
-        body: { name: topic.name, assistantId: topic.assistantId }
+        body: { name: conversation.name, assistantId: assistant.id }
       })
 
       let parentId: string | null = null
-      for (const message of topic.messages) {
+      for (const message of conversation.messages) {
         const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-          body: this.toMessageDto(message, blocksById, parentId, assistant)
+          body: this.toMessageDto(message, parentId, assistant)
         })
         parentId = created.id
       }
     }
 
-    logger.info(`Persisted import: ${topics.length} topics, ${messages.length} messages`)
+    const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
+    logger.info(`Persisted import: ${conversations.length} topics, ${messagesCount} messages`)
+    return messagesCount
   }
 }
 

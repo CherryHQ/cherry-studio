@@ -1,4 +1,3 @@
-import { MessageBlockType } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatgptImporter } from '../ChatgptImporter'
@@ -6,13 +5,6 @@ import { ChatgptImporter } from '../ChatgptImporter'
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key }
 }))
-
-vi.mock('@renderer/utils/uuid', () => {
-  let counter = 0
-  return { uuid: () => `uuid-${++counter}` }
-})
-
-const ASSISTANT_ID = 'assistant-1'
 
 const conversation = (parts: unknown[]) => ({
   title: 'ChatGPT chat',
@@ -52,22 +44,24 @@ describe('ChatgptImporter', () => {
       'Images\uE200image_group\uE202{"layout":"grid"}\uE201.'
     ].join(' ')
 
-    const result = await importer.parse(JSON.stringify([conversation([text])]), ASSISTANT_ID)
-    const block = result.blocks.find((item) => item.type === MessageBlockType.MAIN_TEXT)
+    const result = await importer.parse(JSON.stringify([conversation([text])]))
+    const parts = result.conversations[0].messages[0].parts
 
-    expect(block?.content).toBe(
-      'About OpenAI. Visit [OpenAI](https://openai.com). See the search result. Citation. File. UI. Images.'
-    )
+    expect(parts).toEqual([
+      {
+        type: 'text',
+        text: 'About OpenAI. Visit [OpenAI](https://openai.com). See the search result. Citation. File. UI. Images.'
+      }
+    ])
   })
 
   it('imports only text from multimodal content', async () => {
     const result = await importer.parse(
       JSON.stringify([
         conversation([{ content_type: 'image_asset_pointer', asset_pointer: 'file-service://example' }, 'Text'])
-      ]),
-      ASSISTANT_ID
+      ])
     )
 
-    expect(result.blocks[0].content).toBe('Text')
+    expect(result.conversations[0].messages[0].parts).toEqual([{ type: 'text', text: 'Text' }])
   })
 })
