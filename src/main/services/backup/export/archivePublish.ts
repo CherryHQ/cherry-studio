@@ -5,21 +5,12 @@ import { finished } from 'node:stream/promises'
 
 import { ZipArchive } from 'archiver'
 
-<<<<<<< HEAD:src/main/services/backup/archivePublish.ts
 import { loggerService } from '@logger'
 
-import { archiveDurability } from './archiveDurability'
-import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
-import { verifyArchiveReadback } from './archiveReadback'
-import type { AttestationEntry } from './attestation'
-import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES, MAX_ATTESTATION_ENTRY_BYTES } from './ceilings'
-import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
-=======
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from '../archiveLayout'
 import type { AttestationEntry } from '../attestation'
 import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES, MAX_ATTESTATION_ENTRY_BYTES } from '../ceilings'
 import { type DirScanLimits, scanDirectoryUnit } from '../dirScan'
->>>>>>> 755822f3ae4 (refactor(backup): group the export flow into its own directory):src/main/services/backup/export/archivePublish.ts
 import {
   BackupCancelledError,
   CeilingExceededError,
@@ -33,6 +24,8 @@ import { type BackupManifest, parseBackupManifest } from '../manifest'
 import { ResourceCoverageIndex } from '../resourceCoverageIndex'
 import { validateResourcePathSet } from '../resources/resourcePaths'
 import { archiveDurability } from './archiveDurability'
+import { archiveDurability } from './archiveDurability'
+import { verifyArchiveReadback } from './archiveReadback'
 import { verifyArchiveReadback } from './archiveReadback'
 
 const logger = loggerService.withContext('backup/archivePublish')
