@@ -26,7 +26,10 @@ export const kimiWebSearchEchoTool = tool({
  * The AI SDK serializes every tool as `{type:'function', function:{...}}`, but
  * Kimi declares builtins as `{type:'builtin_function', function:{name}}` (the
  * `$` prefix is reserved and rejected for normal functions). Rewrite the
- * declaration and any replayed assistant tool_calls to the builtin shape.
+ * declaration, any replayed assistant tool_calls, and the echoed tool results —
+ * the SDK emits those as `{role:'tool', tool_call_id, content}`, but Kimi needs
+ * `name` alongside the id to run the search on the follow-up request
+ * (platform.kimi.com/docs/guide/use-web-search).
  */
 export function transformMoonshotRequestBody(args: Record<string, any>): Record<string, any> {
   let next = args
@@ -41,19 +44,32 @@ export function transformMoonshotRequestBody(args: Record<string, any>): Record<
     }
   }
   if (Array.isArray(next.messages)) {
-    let touched = false
-    const messages = next.messages.map((message: any) => {
-      if (message?.role !== 'assistant' || !Array.isArray(message.tool_calls)) return message
-      if (!message.tool_calls.some((call: any) => call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME)) return message
-      touched = true
-      return {
-        ...message,
-        tool_calls: message.tool_calls.map((call: any) =>
-          call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME ? { ...call, type: 'builtin_function' } : call
-        )
+    const webSearchCallIds = new Set<string>()
+    for (const message of next.messages) {
+      if (message?.role !== 'assistant' || !Array.isArray(message.tool_calls)) continue
+      for (const call of message.tool_calls) {
+        if (call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME && call.id) webSearchCallIds.add(call.id)
       }
-    })
-    if (touched) next = { ...next, messages }
+    }
+    if (webSearchCallIds.size > 0) {
+      next = {
+        ...next,
+        messages: next.messages.map((message: any) => {
+          if (message?.role === 'assistant' && Array.isArray(message.tool_calls)) {
+            return {
+              ...message,
+              tool_calls: message.tool_calls.map((call: any) =>
+                call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME ? { ...call, type: 'builtin_function' } : call
+              )
+            }
+          }
+          if (message?.role === 'tool' && webSearchCallIds.has(message.tool_call_id)) {
+            return { ...message, name: KIMI_WEB_SEARCH_TOOL_NAME }
+          }
+          return message
+        })
+      }
+    }
   }
   return next
 }

@@ -71,6 +71,44 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(dated, provider('model-dependent'))).toBe(true)
   })
 
+  // A gateway whose declaration narrows to `gemini` resolves the same google tool factory through the
+  // model's `<host>.google` provider segment, so pre-3 Gemini hits the same native-vs-function-tool
+  // conflict there. Keying the guard to the host id let cherryin/aihubmix ship the unsupported combo.
+  it.each(['cherryin', 'aihubmix'])('applies the Gemini tool conflict on %s, not just gemini hosts', (providerId) => {
+    const gateway = {
+      id: providerId,
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
+    } as unknown as Provider
+    const gemini25 = model('google/gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+
+    expect(
+      resolveWebToolRoutes(gemini25, gateway, {
+        webSearchEnabled: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        hasFunctionToolSignals: true
+      })
+    ).toMatchObject({ webSearch: 'none', reasons: { webSearch: 'gemini-function-tool-conflict' } })
+
+    // Gemini 3 combines them, so the same gateway keeps the server route.
+    expect(
+      resolveWebToolRoutes(
+        model('google/gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+        {
+          ...gateway
+        } as Provider,
+        {
+          webSearchEnabled: true,
+          clientSearchAvailable: false,
+          clientFetchAvailable: false,
+          clientToolsPreferred: false,
+          hasFunctionToolSignals: true
+        }
+      )
+    ).toMatchObject({ webSearch: 'server' })
+  })
+
   it('keeps provider-wide tools independent from model-dependent eligibility', () => {
     expect(isBuiltinWebSearchAvailable(model('private-model'), provider('all-chat-models'))).toBe(true)
   })

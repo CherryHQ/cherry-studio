@@ -106,6 +106,21 @@ export function isGeminiWebSearchProvider(provider: Provider): boolean {
   return isGeminiProvider(provider) || isVertexProvider(provider)
 }
 
+/**
+ * Whether this host injects Google's NATIVE web tools for a Gemini model — the thing pre-3 Gemini
+ * refuses to mix with function declarations. Direct Gemini/Vertex do; so do the gateways whose models
+ * carry a `<host>.google` provider segment (cherryin, aihubmix, new-api), because
+ * `resolveToolCapability`'s aggregator fallback lands on the same google factory. Their declarations
+ * are exactly the ones narrowed to the `gemini` vendor, so read that instead of the host id — keying
+ * the guard to the host let those gateways ship native tools alongside function tools.
+ * Hosts that serve Gemini through their own search (OpenRouter's `plugins`) declare no gemini vendor
+ * and stay out: nothing native is injected, so there is no conflict to avoid.
+ */
+function servesGeminiNativeWebTools(provider: Provider): boolean {
+  if (isGeminiWebSearchProvider(provider)) return true
+  return (provider.serverTools ?? []).some((tool) => tool.vendors?.includes('gemini'))
+}
+
 export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
@@ -286,7 +301,7 @@ export function resolveWebToolRoutes(
     options.hasFunctionToolSignals === true &&
     supportsClientTools &&
     provider !== undefined &&
-    isGeminiWebSearchProvider(provider) &&
+    servesGeminiNativeWebTools(provider) &&
     isGeminiModel(model) &&
     !supportsServerToolFunctionMixing(getRawModelId(model))
   const openaiMinimalConflict =
@@ -370,9 +385,10 @@ export function finalizeWebToolRoutes(
   if (next.webFetch === 'server') {
     next = { ...next, webFetch: 'none', reasons: { ...next.reasons, webFetch: 'gemini-function-tool-conflict' } }
   }
-  // Search only conflicts when the native tool is Google's (gemini/vertex hosts);
-  // e.g. openrouter serves gemini models with its own search that tolerates tools.
-  if (next.webSearch === 'server' && isGeminiWebSearchProvider(provider)) {
+  // Search only conflicts when the injected tool is Google's own — gemini/vertex directly, plus the
+  // gateways that resolve the same google factory. OpenRouter serves gemini models with its own
+  // search, which tolerates function tools.
+  if (next.webSearch === 'server' && servesGeminiNativeWebTools(provider)) {
     next = { ...next, webSearch: 'none', reasons: { ...next.reasons, webSearch: 'gemini-function-tool-conflict' } }
   }
   return next

@@ -233,6 +233,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildGenericProviderOptions(
         reasoningOptions.providerId,
         model,
+        actualProvider,
         capabilities,
         reasoningOptions.options
       )
@@ -483,6 +484,7 @@ function buildOllamaProviderOptions(
 function buildGenericProviderOptions(
   providerId: string,
   model: Model,
+  provider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   reasoningOptions: Record<string, unknown>
 ): Record<string, any> {
@@ -492,7 +494,7 @@ function buildGenericProviderOptions(
   providerOptions = { ...providerOptions, ...reasoningOptions }
 
   if (enableWebSearch) {
-    providerOptions = merge({}, providerOptions, getWebSearchParams(model))
+    providerOptions = merge({}, providerOptions, getWebSearchParams(model, provider))
   }
 
   return { [providerId]: providerOptions }
@@ -522,7 +524,7 @@ function buildAIGatewayOptions(
       return buildOpenAIProviderOptions(model, capabilities, provider, serviceTier, textVerbosity, reasoning.options)
     case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
     case ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION:
-      return buildGenericProviderOptions(reasoning.providerId, model, capabilities, reasoning.options)
+      return buildGenericProviderOptions(reasoning.providerId, model, provider, capabilities, reasoning.options)
   }
   return { [reasoning.providerId]: reasoning.options }
 }

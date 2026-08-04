@@ -85,11 +85,11 @@ export function resolveCapabilities(
     }
     const aiSdkProviderId = getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
-      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model, provider)
     } else if (isAIGatewayProvider(provider) || provider.id === SystemProviderIds.gateway) {
       const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
       if (gatewayProviderId) {
-        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model)
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model, provider)
       }
     }
   }

@@ -32,6 +32,30 @@ describe('transformMoonshotRequestBody', () => {
     expect(body.messages[0]).toEqual({ role: 'user', content: 'hi' })
   })
 
+  // The second request is what actually runs the search: Kimi matches the echoed result to its call
+  // by `tool_call_id` AND `name`, but the SDK serializes tool results without a name.
+  it('names the echoed $web_search tool result on the follow-up request', () => {
+    const body = transformMoonshotRequestBody({
+      tools: [{ type: 'function', function: { name: '$web_search', parameters: {} } }],
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          tool_calls: [
+            { id: 'c1', type: 'function', function: { name: '$web_search', arguments: '{"q":1}' } },
+            { id: 'c2', type: 'function', function: { name: 'lookup', arguments: '{}' } }
+          ]
+        },
+        { role: 'tool', tool_call_id: 'c1', content: '{"q":1}' },
+        { role: 'tool', tool_call_id: 'c2', content: 'result' }
+      ]
+    })
+
+    expect(body.messages[2]).toEqual({ role: 'tool', tool_call_id: 'c1', name: '$web_search', content: '{"q":1}' })
+    // A normal function's result must stay untouched.
+    expect(body.messages[3]).toEqual({ role: 'tool', tool_call_id: 'c2', content: 'result' })
+  })
+
   it('is a no-op without $web_search anywhere', () => {
     const args = { tools: [{ type: 'function', function: { name: 'lookup' } }], messages: [{ role: 'user' }] }
     expect(transformMoonshotRequestBody(args)).toBe(args)

@@ -1,7 +1,9 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
+import { matchesPreset } from '@shared/utils/provider'
 
 import type { AppProviderId } from '../types'
 
@@ -11,15 +13,21 @@ export interface CherryWebSearchConfig {
   excludeDomains: string[]
 }
 
-export function getWebSearchParams(model: Model): Record<string, any> {
-  if (model.providerId === 'zhipu') {
+/**
+ * Key delivery off the PRESET identity, never the runtime provider id: a user-copied Zhipu/Bailian/Poe
+ * provider keeps its own id while `ProviderService` still hands it the preset's `serverTools` and
+ * `config.ts` still routes it through the preset's transform (both use `matchesPreset`). Comparing
+ * `model.providerId` there routed those copies to the server side and then injected nothing.
+ */
+export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
+  if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
     // reach — transformZhipuRequestBody moves this marker into `tools`
     // (docs.bigmodel.cn/cn/guide/tools/web-search).
     return { web_search: { enable: true, search_engine: 'search_pro', search_result: true } }
   }
 
-  if (model.providerId === 'dashscope') {
+  if (provider && matchesPreset(provider, 'dashscope')) {
     // Chat-Completions web search (help.aliyun.com/zh/model-studio/web-search). The newest qwen-max and
     // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default.
     const apiModelId = getRawModelId(model)
@@ -34,7 +42,7 @@ export function getWebSearchParams(model: Model): Record<string, any> {
   }
 
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
-  if (model.providerId === 'poe') {
+  if (provider && matchesPreset(provider, 'poe')) {
     return {
       extra_body: {
         web_search: true
@@ -82,7 +90,8 @@ function mapMaxResultToOpenAIContextSize(
 export function buildProviderBuiltinWebSearchConfig(
   providerId: AppProviderId,
   webSearchConfig: CherryWebSearchConfig,
-  model?: Model
+  model?: Model,
+  provider?: Provider
 ): WebSearchPluginConfig | undefined {
   switch (providerId) {
     case 'azure-responses':
@@ -93,10 +102,10 @@ export function buildProviderBuiltinWebSearchConfig(
       // web search on Responses only (chat has no parameter), so this is doubao's whole delivery.
       // (DashScope chat-endpoint models resolve to `openai-compatible` here → default `{}` → no tool;
       // their web search comes from getWebSearchParams instead.)
-      if (model?.providerId === 'doubao') {
+      if (provider && matchesPreset(provider, 'doubao')) {
         return { openai: {} }
       }
-      if (model?.providerId === 'dashscope') {
+      if (model && provider && matchesPreset(provider, 'dashscope')) {
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
@@ -172,7 +181,7 @@ export function buildProviderBuiltinWebSearchConfig(
             : endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
               ? 'anthropic'
               : endpoint
-      return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model) : {}
+      return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model, provider) : {}
     }
     default: {
       return {}
