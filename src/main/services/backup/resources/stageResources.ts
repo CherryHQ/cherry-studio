@@ -30,6 +30,7 @@ import {
   type ResourcePayload,
   type ResourceRequirement
 } from '../manifest'
+import type { BackupResourceReporter } from '../progress'
 import { stageDirectoryWithDriftCheck, stageFileWithDriftCheck, stagePartialDirectoryTree } from '../sourceDrift'
 import {
   captureModeForKind,
@@ -81,6 +82,8 @@ export interface StageResourcesInput {
   readonly captureOwnerResource?: CaptureOwnerResource
   readonly runOwnerCaptureBoundary?: RunOwnerCaptureBoundary
   readonly signal?: AbortSignal
+  /** Called as each unit is entered; absent in tests. */
+  readonly reportUnit?: BackupResourceReporter
 }
 
 export interface StagedResources {
@@ -263,7 +266,8 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
     roots,
     captureOwnerResource,
     runOwnerCaptureBoundary,
-    signal
+    signal,
+    reportUnit
   } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
@@ -273,8 +277,14 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
   let archiveEntries = FIXED_ARCHIVE_ENTRIES
   let archiveBytes = 0
 
-  for (const requirement of requirements) {
+  for (const [index, requirement] of requirements.entries()) {
     throwIfAborted(signal)
+    reportUnit?.({
+      kind: requirement.kind,
+      livePath: requirement.livePath,
+      done: index + 1,
+      total: requirements.length
+    })
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
     const stagingPath = path.join(resourcesDir, ...requirement.livePath.split('/'))
     const mode = captureModeForKind(requirement.kind)
