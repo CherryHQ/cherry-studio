@@ -10,7 +10,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AnthropicImportPopup from './AnthropicImportPopup'
 import ImportPopup from './ImportPopup'
 
 const ImportMenuOptions: FC = () => {
@@ -25,7 +24,7 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={() => ImportPopup.show()} variant="outline">
+          <Button onClick={() => ImportPopup.show({ source: 'chatgpt' })} variant="outline">
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>
@@ -34,7 +33,7 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.claude')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={() => AnthropicImportPopup.show()} variant="outline">
+          <Button onClick={() => ImportPopup.show({ source: 'claude' })} variant="outline">
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>

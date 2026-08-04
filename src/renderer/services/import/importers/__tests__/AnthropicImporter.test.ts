@@ -222,7 +222,7 @@ describe('AnthropicImporter', () => {
       expect(tool.status).toBe(MessageBlockStatus.ERROR)
     })
 
-    it('collapses consecutive same-sender messages, keeping the last of each run', async () => {
+    it('preserves consecutive same-sender messages', async () => {
       const conv = conversation({
         chat_messages: [
           textMessage('human', 'first'),
@@ -232,12 +232,15 @@ describe('AnthropicImporter', () => {
       })
       const result = await importer.parse(JSON.stringify([conv]), ASSISTANT_ID)
 
-      expect(result.messages).toHaveLength(2)
-      const [firstMsg, secondMsg] = result.messages
+      expect(result.messages).toHaveLength(3)
+      const [firstMsg, secondMsg, thirdMsg] = result.messages
       expect(firstMsg.role).toBe('user')
       const firstBlock = result.blocks.find((b) => b.messageId === firstMsg.id)
-      expect((firstBlock as any).content).toBe('second')
-      expect(secondMsg.role).toBe('assistant')
+      expect((firstBlock as any).content).toBe('first')
+      expect(secondMsg.role).toBe('user')
+      const secondBlock = result.blocks.find((b) => b.messageId === secondMsg.id)
+      expect((secondBlock as any).content).toBe('second')
+      expect(thirdMsg.role).toBe('assistant')
     })
 
     it('drops messages with no usable content', async () => {

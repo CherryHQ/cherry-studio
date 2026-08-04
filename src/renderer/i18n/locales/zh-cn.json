@@ -2935,7 +2935,7 @@
     "chatgpt": {
       "assistant_name": "ChatGPT 导入",
       "button": "选择文件",
-      "description": "仅导入对话文字，不携带图片和附件",
+      "description": "导入文字、思考过程和工具调用，不包含图片和附件",
       "error": {
         "invalid_json": "无效的 JSON 文件格式",
         "no_conversations": "文件中未找到任何对话",

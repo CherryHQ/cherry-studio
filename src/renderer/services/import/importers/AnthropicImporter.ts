@@ -391,22 +391,12 @@ export class AnthropicImporter implements ConversationImporter {
     // Filter out messages with no usable content
     const usableMessages = (conversation.chat_messages ?? []).filter((msg) => this.hasUsableContent(msg))
 
-    // Keep only the last one per run to maintain a proper alternating human/assistant structure.
-    const validMessages: AnthropicMessage[] = []
-    for (const msg of usableMessages) {
-      if (validMessages.length > 0 && validMessages[validMessages.length - 1].sender === msg.sender) {
-        validMessages[validMessages.length - 1] = msg
-      } else {
-        validMessages.push(msg)
-      }
-    }
-
     // Skip entirely empty conversations
-    if (validMessages.length === 0) {
+    if (usableMessages.length === 0) {
       return null
     }
 
-    for (const msg of validMessages) {
+    for (const msg of usableMessages) {
       const { message, blocks: msgBlocks } = this.createMessageAndBlocks(msg, topicId, assistantId)
       messages.push(message)
       blocks.push(...msgBlocks)

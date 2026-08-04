@@ -25,7 +25,7 @@ interface ChatGPTMessage {
   }
   content: {
     content_type: string
-    parts?: unknown[]
+    parts?: string[]
   }
   metadata?: any
   create_time?: number
@@ -53,12 +53,6 @@ interface ChatGPTConversation {
 export class ChatgptImporter implements ConversationImporter {
   readonly name = 'ChatGPT'
   readonly emoji = '💬'
-
-  private extractTextParts(message: ChatGPTMessage): string[] {
-    return (message.content?.parts ?? []).filter(
-      (part): part is string => typeof part === 'string' && part.trim().length > 0
-    )
-  }
 
   /**
    * Validate if the file content is a valid ChatGPT export
@@ -160,7 +154,12 @@ export class ChatgptImporter implements ConversationImporter {
       if (node?.message) {
         const message = node.message
         // Filter out empty messages and tool messages
-        if (message.author.role !== 'tool' && this.extractTextParts(message).length > 0) {
+        if (
+          message.author.role !== 'tool' &&
+          message.content?.parts &&
+          message.content.parts.length > 0 &&
+          message.content.parts.some((part) => part && part.trim().length > 0)
+        ) {
           messages.push(message)
         }
       }
@@ -191,7 +190,7 @@ export class ChatgptImporter implements ConversationImporter {
     const role = this.mapRole(chatgptMessage.author.role)
 
     // Extract text content from parts
-    const content = this.extractTextParts(chatgptMessage).join('\n\n')
+    const content = (chatgptMessage.content?.parts || []).filter((part) => part && part.trim()).join('\n\n')
 
     const createdAt = chatgptMessage.create_time
       ? new Date(chatgptMessage.create_time * 1000).toISOString()

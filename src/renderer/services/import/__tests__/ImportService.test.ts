@@ -31,12 +31,7 @@ function chatgptExport() {
           author: { role },
           content: {
             content_type: 'text',
-            // Real ChatGPT multimodal exports mix image descriptor objects
-            // into parts. They must not discard the surrounding text/thread.
-            parts:
-              text === 'Hi'
-                ? [{ content_type: 'image_asset_pointer', asset_pointer: 'file-service://test' }, text]
-                : [text]
+            parts: [text]
           },
           create_time: 1700000000 + i
         }

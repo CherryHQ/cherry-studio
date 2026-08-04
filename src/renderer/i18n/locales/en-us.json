@@ -2935,7 +2935,7 @@
     "chatgpt": {
       "assistant_name": "ChatGPT Import",
       "button": "Select File",
-      "description": "Only imports conversation text, does not include images and attachments",
+      "description": "Imports text, thinking, and tool use; images and attachments are not included",
       "error": {
         "invalid_json": "Invalid JSON file format",
         "no_conversations": "No conversations found in file",
