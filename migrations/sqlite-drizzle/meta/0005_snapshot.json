@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "73ab8658-b9c8-4434-9c30-097461901375",
+  "id": "8eaf0b9e-9648-40f1-9c73-456e7478ea94",
   "prevId": "77dab5b3-daaf-4669-bf97-c1801025f509",
   "tables": {
     "agent": {
@@ -540,7 +540,7 @@
           "name": "last_activity_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {
@@ -4028,7 +4028,7 @@
           "name": "last_activity_at",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {

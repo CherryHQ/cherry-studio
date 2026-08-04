@@ -40,15 +40,8 @@
     {
       "idx": 5,
       "version": "6",
-      "when": 1785835011932,
-      "tag": "0005_large_strong_guy",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1785835056271,
-      "tag": "0006_slimy_tarot",
+      "when": 1785835885956,
+      "tag": "0005_polite_tyger_tiger",
       "breakpoints": true
     }
   ]
