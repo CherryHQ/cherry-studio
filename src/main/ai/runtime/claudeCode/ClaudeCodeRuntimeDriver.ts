@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -35,6 +36,7 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { archiveExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -361,6 +363,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private assistantFileToolsEnabled = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -398,6 +401,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
+    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -482,6 +486,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapter?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.lastSdkUserMessage = sdkMessage
@@ -1059,9 +1064,12 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
-  { supportsImages = true }: { supportsImages?: boolean } = {}
+  {
+    supportsAttachmentReads = false,
+    supportsImages = true
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1096,18 +1104,32 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * Build SDK user content from a message entity. When the model supports vision,
  * supported image attachments (png, jpeg, gif, webp) are materialized into native
  * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. External files and images that
- * cannot be materialized fall back to local paths when available.
+ * shared routing, like first-party non-image files. Ordinary Agents forward first-party
+ * archives as tool-readable paths, while Cherry Assistant keeps them behind opaque
+ * attachment handles. External files and images that cannot be materialized fall back
+ * to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
-  supportsImages: boolean
+  supportsImages: boolean,
+  supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
+  const firstPartyArchiveParts = parts.filter(
+    (part): part is FileUIPart =>
+      !supportsAttachmentReads &&
+      part.type === 'file' &&
+      Boolean(readCherryMeta(part)?.fileEntryId) &&
+      isArchiveFilePart(part)
+  )
   const firstPartyParts = parts.filter(
-    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+    (part) =>
+      part.type === 'text' ||
+      (part.type === 'file' &&
+        Boolean(readCherryMeta(part)?.fileEntryId) &&
+        (supportsAttachmentReads || !isArchiveFilePart(part)))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -1120,12 +1142,17 @@ async function materializeUserContent(
   )
 
   let routedParts = firstPartyParts
+  let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
   if (firstPartyParts.some((part) => part.type === 'file')) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    const attachments = supportsAttachmentReads
+      ? collectAssistantFileAttachments([userMessage])
+      : collectFileAttachments([userMessage])
+    if (supportsAttachmentReads) turnAttachments = attachments
     const [prepared] = await prepareChatMessages([userMessage], {
-      attachments: collectFileAttachments([userMessage]),
+      attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: supportsAttachmentReads
     })
     routedParts = prepared.parts
   }
@@ -1140,11 +1167,15 @@ async function materializeUserContent(
 
   for (const part of [
     ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyArchiveParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!supportsImages || !canBeClaudeImage(part)) {
+    const isArchive = isArchiveFilePart(originalPart)
+    const isFirstPartyArchive = Boolean(readCherryMeta(originalPart)?.fileEntryId) && isArchive
+    if (isFirstPartyArchive && supportsAttachmentReads) continue
+    if (isArchive || !supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
@@ -1184,6 +1215,7 @@ async function materializeUserContent(
 
   const paths = extractAttachmentPaths(fallbackParts)
   let textContent = appendAttachmentPaths(text, paths)
+  if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -1192,6 +1224,19 @@ async function materializeUserContent(
   }
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentManifest(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
+
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attachment manifest:\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function appendAttachmentPaths(text: string, paths: string[]): string {
@@ -1210,6 +1255,11 @@ function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): s
     paths.push(fileURLToPath(part.url))
   }
   return paths
+}
+
+function isArchiveFilePart(part: FileUIPart): boolean {
+  const filename = part.filename?.toLowerCase()
+  return filename ? archiveExts.some((extension) => filename.endsWith(extension)) : false
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {
