@@ -22,16 +22,10 @@ import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import {
-  backupToNutstore,
-  checkConnection,
-  createDirectory,
-  restoreFromNutstore
-} from '@renderer/services/NutstoreService'
+import { backupToNutstore, checkConnection, createDirectory } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
@@ -50,7 +44,6 @@ const NutstoreSettings: FC = () => {
   const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
-  const [nutstorePass, setNutstorePass] = useState<string | undefined>(undefined)
   // const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
   const [checkConnectionLoading, setCheckConnectionLoading] = useState(false)
   const [nsConnected, setNsConnected] = useState<boolean>(false)
@@ -81,7 +74,6 @@ const NutstoreSettings: FC = () => {
 
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
-          setNutstorePass(decrypted.access_token)
           if (!nutstorePath) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
@@ -362,17 +354,10 @@ const NutstoreSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost: NUTSTORE_HOST,
-            webdavUser: nutstoreUsername,
-            webdavPass: nutstorePass,
-            webdavPath: nutstorePath
-          }}
-          restoreMethod={restoreFromNutstore}
+          destination="nutstore"
           customLabels={{
             restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
-            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
-            invalidConfigMessage: t('message.error.invalid.nutstore')
+            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content')
           }}
         />
       </>
