@@ -1481,6 +1481,13 @@
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新对话 {{Command}}",
+      "note_reference": {
+        "description": "从笔记中添加附件",
+        "empty": "未找到笔记",
+        "load_failed": "笔记加载失败",
+        "loading": "正在加载笔记...",
+        "title": "引用笔记"
+      },
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
