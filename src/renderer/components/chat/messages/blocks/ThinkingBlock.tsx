@@ -1,6 +1,7 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
 import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -10,6 +11,91 @@ import { useScrollAnchor } from './useScrollAnchor'
 // This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
 const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
+const CJK_SENTENCE_ENDINGS = '。！？'
+const ASCII_SENTENCE_ENDINGS = '.!?'
+const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+
+function normalizeThinkingPreview(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
+}
+
+function getLatestCompletedThinkingPreview(content: string): string {
+  let latestCompletedSegment = ''
+  let segmentStart = 0
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index]
+    const nextCharacter = content[index + 1]
+    const isLineEnding = character === '\n' || character === '\r'
+    const isSentenceEnding =
+      CJK_SENTENCE_ENDINGS.includes(character) ||
+      (ASCII_SENTENCE_ENDINGS.includes(character) && (nextCharacter === undefined || /\s/.test(nextCharacter)))
+
+    if (!isLineEnding && !isSentenceEnding) continue
+
+    const segmentEnd = isLineEnding ? index : index + 1
+    const completedSegment = normalizeThinkingPreview(content.slice(segmentStart, segmentEnd))
+    if (completedSegment) latestCompletedSegment = completedSegment
+
+    if (character === '\r' && nextCharacter === '\n') index += 1
+    segmentStart = index + 1
+  }
+
+  return latestCompletedSegment || normalizeThinkingPreview(content)
+}
+
+function useStableThinkingPreview(nextPreview: string, isStreaming: boolean): string {
+  const [displayPreview, setDisplayPreview] = useState(nextPreview)
+  const displayPreviewRef = useRef(nextPreview)
+  const lastChangeAtRef = useRef(Date.now())
+  const pendingPreviewRef = useRef<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const clearPendingTimer = () => {
+      if (!timerRef.current) return
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+
+    const commitPreview = (preview: string) => {
+      displayPreviewRef.current = preview
+      lastChangeAtRef.current = Date.now()
+      setDisplayPreview(preview)
+    }
+
+    if (displayPreviewRef.current === nextPreview) {
+      clearPendingTimer()
+      pendingPreviewRef.current = null
+      return clearPendingTimer
+    }
+
+    if (!isStreaming || !displayPreviewRef.current) {
+      clearPendingTimer()
+      pendingPreviewRef.current = null
+      commitPreview(nextPreview)
+      return clearPendingTimer
+    }
+
+    pendingPreviewRef.current = nextPreview
+    const elapsedMs = Date.now() - lastChangeAtRef.current
+    const remainingMs = Math.max(0, THINKING_PREVIEW_MIN_DURATION_MS - elapsedMs)
+
+    clearPendingTimer()
+    timerRef.current = setTimeout(() => {
+      const pendingPreview = pendingPreviewRef.current
+      if (pendingPreview === null) return
+      pendingPreviewRef.current = null
+      timerRef.current = null
+      commitPreview(pendingPreview)
+    }, remainingMs)
+
+    return clearPendingTimer
+  }, [isStreaming, nextPreview])
+
+  if (!isStreaming || !displayPreviewRef.current || displayPreviewRef.current === nextPreview) return nextPreview
+  return displayPreview
+}
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
@@ -65,18 +151,9 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
-  const previewText = useMemo(() => (content ?? '').replace(/\s+/g, ' ').trim(), [content])
-
-  // While streaming, surface the latest sliver of reasoning on the collapsed title row and keep it
-  // scrolled to the end so the newest words stay visible — without auto-expanding the full block.
-  const showRollingPreview = isThinking && previewText.length > 0
-  const previewRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!showRollingPreview) return
-    const el = previewRef.current
-    if (el) el.scrollLeft = el.scrollWidth
-  }, [previewText, showRollingPreview])
+  const previewText = useMemo(() => normalizeThinkingPreview(content ?? ''), [content])
+  const nextStreamingPreview = useMemo(() => getLatestCompletedThinkingPreview(content ?? ''), [content])
+  const streamingPreviewText = useStableThinkingPreview(nextStreamingPreview, isThinking)
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -109,18 +186,23 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
           trailing={
-            showRollingPreview ? (
-              <div
-                ref={previewRef}
-                aria-hidden="true"
-                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[13px] leading-5"
-                style={{
-                  color: THINKING_MUTED_COLOR,
-                  maskImage: 'linear-gradient(to right, transparent, black 24px)',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 24px)'
-                }}>
-                {previewText}
-              </div>
+            isThinking ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="flex shrink-0 items-center text-foreground-tertiary"
+                  data-testid="thinking-loading-indicator">
+                  <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
+                </span>
+                {streamingPreviewText && (
+                  <span
+                    aria-hidden="true"
+                    className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[13px] leading-5"
+                    style={{ color: THINKING_MUTED_COLOR }}>
+                    {streamingPreviewText}
+                  </span>
+                )}
+              </>
             ) : showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
