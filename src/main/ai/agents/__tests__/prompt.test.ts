@@ -110,29 +110,33 @@ describe('PromptBuilder', () => {
     const result = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('You are a personal assistant running inside Cherry Studio')
-    expect(result).toContain('## Autonomy Tools')
     expect(result).toContain('## Memories')
     expect(result).toContain('`/workspace/SOUL.md`')
   })
 
-  it('embeds tool guidance sections in order (autonomy, memory, web)', async () => {
+  it('no longer embeds the always-injected tool-usage handbook (now a lazy builtin skill)', async () => {
     setupFiles({})
 
     const result = await builder.buildSystemPrompt('/workspace')
 
-    const cherryIdx = result.indexOf('## Autonomy Tools')
-    const memoryIdx = result.indexOf('## Agent Memory')
-    const webIdx = result.indexOf('## Web Search Strategy')
-    expect(cherryIdx).toBeGreaterThanOrEqual(0)
-    expect(cherryIdx).toBeLessThan(memoryIdx)
-    expect(memoryIdx).toBeLessThan(webIdx)
-    expect(result).toContain('mcp__cherry-tools__cron')
-    expect(result).not.toContain('mcp__skills__skills')
+    // The autonomy / memory-handbook / web-search handbook headings and their
+    // tool-strategy text ship lazily via the `cherry-tool-guide` builtin skill,
+    // not baked into every prompt.
+    expect(result).not.toContain('## Autonomy Tools')
+    expect(result).not.toContain('## Agent Memory')
+    expect(result).not.toContain('## Web Search Strategy')
+    expect(result).not.toContain('mcp__cherry-tools__cron')
+    expect(result).not.toContain('mcp__cherry-tools__notify')
+    expect(result).not.toContain('mcp__cherry-tools__web_search')
+    expect(result).not.toContain('mcp__cherry-tools__web_fetch')
+
+    // The runtime storage contract stays: the Memories section and its memory
+    // safety boundaries must survive the handbook removal.
+    expect(result).toContain('## Memories')
     expect(result).toContain('mcp__agent-memory__memory')
-    expect(result).toContain('mcp__cherry-tools__web_search')
-    expect(result).toContain('mcp__cherry-tools__web_fetch')
-    // Guard against the removed Exa tool name leaking back into the guidance.
-    expect(result).not.toContain('mcp__exa__web_search_exa')
+    expect(result).toContain('Update it only through `mcp__agent-memory__memory` (action: update)')
+    expect(result).toContain('Never read or write the file directly')
+    expect(result).toContain('append-only log')
   })
 
   it('overrides basic prompt with system.md from workspace', async () => {
@@ -200,6 +204,23 @@ describe('PromptBuilder', () => {
     expect(result).toContain('<facts>')
     expect(result).toContain('Update them autonomously')
     expect(result).toContain('exclusive scope')
+  })
+
+  it('builds the memories section without the base agent prompt', async () => {
+    setupFiles({
+      '/workspace/SOUL.md': 'Be concise.',
+      '/workspace/USER.md': 'Name: V',
+      '/workspace/memory/FACT.md': 'Project: Cherry Studio'
+    })
+
+    const result = await builder.buildMemoriesSection('/workspace')
+
+    expect(result).toContain('## Memories')
+    expect(result).toContain('Be concise.')
+    expect(result).toContain('Name: V')
+    expect(result).toContain('Project: Cherry Studio')
+    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
+    expect(result).not.toContain('## Autonomy Tools')
   })
 
   it('combines system.md override with memories', async () => {

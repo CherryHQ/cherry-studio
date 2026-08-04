@@ -4,8 +4,8 @@
  * they write to; stream-manager only owns the generic contract.
  *
  * The listener attaches error parts, terminalizes interrupted parts, and
- * composes `MessageStats` before calling the backend — backends never
- * synthesise UIMessages or repeat projection logic.
+ * extracts message-owned runtime stats before calling the backend — backends
+ * never synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'

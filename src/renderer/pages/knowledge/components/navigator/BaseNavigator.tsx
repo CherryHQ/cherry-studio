@@ -67,7 +67,7 @@ const BaseNavigator = ({
   )
 
   return (
-    <div style={{ width }} className="relative h-full min-h-0 shrink-0">
+    <div data-ui="knowledge.navigation" style={{ width }} className="relative h-full min-h-0 shrink-0">
       {/* `p-1.5` and the padding-free rows below match the assistant and agent rails'
           `ResourceList.Frame`, so the three sidebars indent identically. */}
       <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px] p-1.5">

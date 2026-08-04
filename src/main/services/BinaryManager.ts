@@ -1137,6 +1137,23 @@ export class BinaryManager extends BaseService {
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
+
+    // Only explicit updates clean versions no longer referenced by mise.
+    if (targetVersion) {
+      try {
+        await this.runMise(['prune', definition.tool])
+      } catch (err) {
+        logger.warn('Failed to prune obsolete mise tool versions', {
+          name: definition.name,
+          error: this.errorMessage(err)
+        })
+        return
+      }
+      await this.runMise(['reshim'])
+      if (!(await this.isManagedBinaryReady(definition.name))) {
+        throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
+      }
+    }
   }
 
   /**
