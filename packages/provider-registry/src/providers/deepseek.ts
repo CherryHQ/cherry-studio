@@ -107,7 +107,7 @@ export default defineProvider({
     { modelId: 'deepseek-reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-v4-flash',
-      endpointTypes: ['openai-responses', 'openai-chat-completions'],
+      endpointTypes: ['openai-chat-completions', 'openai-responses'],
       reasoningContracts: {
         'openai-chat-completions': { wire: flashChatEffortWire },
         'openai-responses': { wire: responsesEffortWire }
