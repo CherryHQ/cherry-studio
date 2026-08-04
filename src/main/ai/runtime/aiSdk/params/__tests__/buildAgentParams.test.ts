@@ -526,7 +526,10 @@ describe('buildAgentParams web-tool routing', () => {
 
   it.each([
     { clientToolsPreferred: true, expectedRoute: 'client' },
-    { clientToolsPreferred: false, expectedRoute: 'server' }
+    // The default exa-mcp resolves ready, so a ready external search provider serves the request
+    // even when server tools are preferred — the provider-native route would bypass the user's
+    // configured provider (and fail through relays that cannot execute it).
+    { clientToolsPreferred: false, expectedRoute: 'client' }
   ])(
     'injects only $expectedRoute implementations when preference is $clientToolsPreferred',
     async ({ clientToolsPreferred, expectedRoute }) => {
@@ -557,6 +560,29 @@ describe('buildAgentParams web-tool routing', () => {
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
     }
   )
+
+  // The ready-provider override only kicks in when the client search provider can actually serve;
+  // a configured-but-broken provider (emptied apiHost here) leaves the preference in charge, so the
+  // server route survives as the fallback.
+  it('falls back to the server route when the client search provider is unavailable', async () => {
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.client_tools_preferred', false],
+      ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+      ['chat.web_search.default_fetch_urls_provider', 'jina'],
+      ['chat.web_search.provider_overrides', { 'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } } }],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+    registry.register(clientFetchEntry)
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.tools?.web_search).toBeUndefined()
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
+  })
 
   // Owning a knowledge base is global account state; the KB tools only load when this request also
   // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal

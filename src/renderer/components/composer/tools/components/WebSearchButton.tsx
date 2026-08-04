@@ -49,9 +49,11 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     model && assistant
       ? resolveWebToolRoutes(model, modelProvider, {
           webSearchEnabled: true,
+          // A ready external search provider wins over the provider-native route (mirrors the main
+          // process: the preference only orders the sides when the client side is available).
+          clientToolsPreferred: clientToolsPreferred || clientSearchAvailable,
           clientSearchAvailable,
           clientFetchAvailable,
-          clientToolsPreferred,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })
