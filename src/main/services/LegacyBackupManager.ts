@@ -20,16 +20,15 @@ import type { Stats } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
-import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
+import { isPathInside } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { WebDavConfig } from '@shared/types/backup'
 import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import * as fs from 'fs-extra'
 import * as path from 'path'
-import type { CreateDirectoryOptions, FileStat } from 'webdav'
+import type { CreateDirectoryOptions } from 'webdav'
 
-import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
@@ -56,19 +55,9 @@ class BackupManager {
   private readonly operationMutex = new Mutex()
 
   // Cached instance to avoid recreating
-  private s3Storage: S3Storage | null = null
   private webdavInstance: WebDav | null = null
 
   // Cached core connection config, used to detect if connection config has changed
-  private cachedS3ConnectionConfig: {
-    endpoint: string
-    region: string
-    bucket: string
-    accessKeyId: string
-    secretAccessKey: string
-    root?: string
-  } | null = null
-
   private cachedWebdavConnectionConfig: {
     webdavHost: string
     webdavUser?: string
@@ -78,47 +67,6 @@ class BackupManager {
 
   private get backupDir(): string {
     return application.getPath('feature.backup.temp')
-  }
-
-  /**
-   * Compatibility adapter for the retained local/WebDAV/S3 settings.
-   *
-   * Archive ownership belongs to BackupService. Keeping destination transport
-   * here must not keep the retired v7 capture engine or its v1 restore journal
-   * alive, so every compatibility destination receives the same v2 archive as
-   * the native Backup settings.
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the backup file
-   * @param destinationPath - Path to save the backup (defaults to this.backupDir)
-   * @param _slimBackup - Retained IPC argument; v2 exports are always Full
-   * @returns Path to the created backup file
-   */
-  async backup(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    destinationPath?: string,
-    _slimBackup: boolean = false
-  ): Promise<string> {
-    void _slimBackup
-    return this.operationMutex.runExclusive(async () => {
-      const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
-      const outputDirectory = destinationPath ?? this.backupDir
-      const outputFileName = destinationPath ? fileName : `${randomUUID()}-${path.basename(fileName)}`
-      const outputPath = path.join(outputDirectory, outputFileName)
-      await fs.ensureDir(outputDirectory)
-      onProgress({ stage: 'preparing', progress: 0, total: 100 })
-      try {
-        const result = await application.get('BackupService').export(outputPath)
-        onProgress({ stage: 'completed', progress: 100, total: 100 })
-        logger.info('[BackupManager] Compatibility destination exported a v2 archive', {
-          outputPath: result.outPath
-        })
-        return result.outPath
-      } catch (error) {
-        logger.error('[BackupManager] v2 export failed:', error as Error)
-        throw error
-      }
-    })
   }
 
   /**
@@ -290,213 +238,6 @@ class BackupManager {
     }
   }
 
-  /**
-   * Direct backup to local directory
-   * Creates a backup and saves it to a local directory.
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the backup file
-   * @param localConfig - Local backup configuration (directory path and options)
-   * @returns Path to the created backup file
-   */
-  async backupToLocalDir(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-  ) {
-    try {
-      const backupDir = localConfig.localBackupDir || this.backupDir
-      await fs.ensureDir(backupDir)
-      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
-    } catch (error) {
-      logger.error('[backupToLocalDir] Local backup failed:', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Direct backup to WebDAV
-   * Creates a backup and uploads it to a WebDAV server.
-   * @param _ - Electron IPC event
-   * @param webdavConfig - WebDAV configuration including server URL, credentials, and options
-   * @returns Result from WebDAV upload operation
-   */
-  async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    try {
-      let result
-      if (webdavConfig.disableStream) {
-        const fileContent = await fs.readFile(backupedFilePath)
-        result = await webdavClient.putFileContents(filename, fileContent, { overwrite: true })
-      } else {
-        const contentLength = (await fs.stat(backupedFilePath)).size
-        result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
-          overwrite: true,
-          contentLength
-        })
-      }
-      await fs.remove(backupedFilePath)
-      return result
-    } catch (error) {
-      await fs.remove(backupedFilePath).catch(() => {})
-      throw error
-    }
-  }
-
-  /**
-   * Direct backup to S3
-   * Creates a backup and uploads it to an S3-compatible storage.
-   * @param _ - Electron IPC event
-   * @param s3Config - S3 configuration including endpoint, bucket, credentials, and options
-   * @returns Result from S3 upload operation
-   */
-  async backupToS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const os = require('os')
-    const deviceName = os.hostname ? os.hostname() : 'device'
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:T.Z]/g, '')
-      .slice(0, 14)
-    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
-
-    logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
-
-    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
-    const s3Client = this.getS3Storage(s3Config)
-    try {
-      const fileBuffer = await fs.promises.readFile(backupedFilePath)
-      const result = await s3Client.putFileContents(filename, fileBuffer)
-      await fs.remove(backupedFilePath)
-      logger.info(`S3 backup completed: ${filename}`)
-      return result
-    } catch (error) {
-      logger.error('[backupToS3] S3 backup failed:', error as Error)
-      await fs.remove(backupedFilePath)
-      throw error
-    }
-  }
-
-  /**
-   * Restore a v2 archive through BackupService while retaining the legacy IPC
-   * surface used by local/WebDAV/S3 settings.
-   */
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<void> {
-    return this.operationMutex.runExclusive(async () => {
-      const restoreId = await this.stageRestore(backupPath)
-      await application.get('BackupService').armRestore(restoreId)
-    })
-  }
-
-  /**
-   * Admission remains a separate step so downloaded archives can be removed
-   * before callers arm the durable restore.
-   */
-  private async stageRestore(backupPath: string): Promise<string> {
-    const preview = await application.get('BackupService').prepareRestore(backupPath)
-    logger.info('[BackupManager] Compatibility restore prepared through BackupService', {
-      restoreId: preview.restoreId
-    })
-    return preview.restoreId
-  }
-
-  /**
-   * Restore from a local backup file
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the backup file
-   * @param localBackupDir - Directory where the backup file is located
-   * @returns Result from restore operation
-   */
-  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
-    try {
-      const backupPath = resolveAndValidatePath(localBackupDir, fileName)
-
-      if (!fs.existsSync(backupPath)) {
-        throw new Error(`Backup file not found: ${backupPath}`)
-      }
-
-      return await this.restore(_, backupPath)
-    } catch (error) {
-      logger.error('[BackupManager] Local restore failed:', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Restore from a WebDAV backup
-   * Downloads the backup file from WebDAV server and restores it.
-   * @param _ - Electron IPC event
-   * @param webdavConfig - WebDAV configuration including server URL, credentials, and file name
-   * @returns Result from restore operation
-   */
-  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    const downloadDir = await this.createOperationDir('webdav-download')
-    const backupedFilePath = path.join(downloadDir, path.basename(filename))
-    const restoreId = await (async () => {
-      try {
-        const retrievedFile = await webdavClient.getFileContents(filename)
-
-        // Write file using streaming
-        await new Promise<void>((resolve, reject) => {
-          const writeStream = fs.createWriteStream(backupedFilePath)
-          writeStream.write(retrievedFile as Buffer)
-          writeStream.end()
-
-          writeStream.on('finish', () => resolve())
-          writeStream.on('error', (error) => reject(error))
-        })
-
-        return await this.stageRestore(backupedFilePath)
-      } catch (error: any) {
-        logger.error('Failed to restore from WebDAV:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
-      } finally {
-        await fs.remove(downloadDir).catch(() => {})
-      }
-    })()
-    await application.get('BackupService').armRestore(restoreId)
-  }
-
-  /**
-   * Restore from an S3 backup
-   * Downloads the backup file from S3 storage and restores it.
-   * @param _ - Electron IPC event
-   * @param s3Config - S3 configuration including bucket, credentials, and file name
-   * @returns Result from restore operation
-   */
-  async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const filename = s3Config.fileName || 'cherry-studio.backup.zip'
-
-    logger.debug(`Starting restore from S3: ${filename}`)
-
-    const s3Client = this.getS3Storage(s3Config)
-    const downloadDir = await this.createOperationDir('s3-download')
-    const backupedFilePath = path.join(downloadDir, path.basename(filename))
-    const restoreId = await (async () => {
-      try {
-        const retrievedFile = await s3Client.getFileContents(filename)
-        await new Promise<void>((resolve, reject) => {
-          const writeStream = fs.createWriteStream(backupedFilePath)
-          writeStream.write(retrievedFile)
-          writeStream.end()
-          writeStream.on('finish', () => resolve())
-          writeStream.on('error', (error) => reject(error))
-        })
-
-        logger.info(`S3 restore file downloaded successfully: ${filename}`)
-        return await this.stageRestore(backupedFilePath)
-      } catch (error: any) {
-        logger.error('[BackupManager] Failed to restore from S3:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
-      } finally {
-        await fs.remove(downloadDir).catch(() => {})
-      }
-    })()
-    await application.get('BackupService').armRestore(restoreId)
-  }
-
   // ==================== File Utility Methods ====================
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
@@ -654,31 +395,6 @@ class BackupManager {
   // These methods handle backup operations with WebDAV servers.
 
   /**
-   * List backup files on WebDAV server
-   * @param _ - Electron IPC event
-   * @param config - WebDAV configuration
-   * @returns Array of backup file info (name, modified time, size), sorted by newest first
-   */
-  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
-    try {
-      const client = this.getWebDavInstance(config)
-      const files = await client.getDirectoryContents()
-
-      return files
-        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
-        .map((file: FileStat) => ({
-          fileName: file.basename,
-          modifiedTime: file.lastmod,
-          size: file.size
-        }))
-        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
-    } catch (error: any) {
-      logger.error('Failed to list WebDAV files:', error)
-      throw new Error(error.message || 'Failed to list backup files')
-    }
-  }
-
-  /**
    * Copy directory with progress reporting
    * Recursively copies files from source to destination while reporting progress
    * @param source - Source directory path
@@ -809,17 +525,6 @@ class BackupManager {
   }
 
   /**
-   * Check WebDAV connection
-   * @param _ - Electron IPC event
-   * @param webdavConfig - WebDAV configuration to test
-   * @returns True if connection is successful
-   */
-  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    return await webdavClient.checkConnection()
-  }
-
-  /**
    * Create a directory on WebDAV server
    * @param _ - Electron IPC event
    * @param webdavConfig - WebDAV configuration
@@ -837,80 +542,8 @@ class BackupManager {
     return await webdavClient.createDirectory(path, options)
   }
 
-  /**
-   * Delete a backup file from WebDAV server
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the file to delete
-   * @param webdavConfig - WebDAV configuration
-   * @returns Result from WebDAV operation
-   */
-  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
-    try {
-      const webdavClient = this.getWebDavInstance(webdavConfig)
-      return await webdavClient.deleteFile(fileName)
-    } catch (error: any) {
-      logger.error('Failed to delete WebDAV file:', error)
-      throw new Error(error.message || 'Failed to delete backup file')
-    }
-  }
-
   // ==================== Local Backup Methods ====================
   // These methods handle backup operations with local directories.
-
-  /**
-   * List backup files in a local directory
-   * @param _ - Electron IPC event
-   * @param localBackupDir - Directory to list backup files from
-   * @returns Array of backup file info (name, modified time, size), sorted by newest first
-   */
-  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
-    try {
-      const files = await fs.readdir(localBackupDir)
-      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
-
-      for (const file of files) {
-        const filePath = path.join(localBackupDir, file)
-        const stat = await fs.stat(filePath)
-
-        if (stat.isFile() && file.endsWith('.zip')) {
-          result.push({
-            fileName: file,
-            modifiedTime: stat.mtime.toISOString(),
-            size: stat.size
-          })
-        }
-      }
-
-      // Sort by modified time, newest first
-      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
-    } catch (error) {
-      logger.error('[BackupManager] List local backup files failed:', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Delete a local backup file
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the file to delete
-   * @param localBackupDir - Directory where the backup file is located
-   * @returns True if deletion was successful
-   */
-  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
-    try {
-      const filePath = resolveAndValidatePath(localBackupDir, fileName)
-
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`Backup file not found: ${filePath}`)
-      }
-
-      await fs.remove(filePath)
-      return true
-    } catch (error) {
-      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
-      throw error
-    }
-  }
 
   // ==================== Legacy & Temp Methods ====================
   // These methods are for legacy backup format and temporary file operations.
@@ -976,114 +609,6 @@ class BackupManager {
 
   // ==================== S3 Methods ====================
   // These methods handle backup operations with S3-compatible storage.
-
-  /**
-   * Get S3Storage instance, reuses existing instance if connection config hasn't changed
-   * Note: Only connection-related config changes will recreate the instance
-   * Other config changes don't affect instance reuse
-   * @param config - S3 configuration
-   * @returns S3Storage instance
-   */
-  private getS3Storage(config: S3Config): S3Storage {
-    // Check if core connection config has changed
-    const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
-
-    if (configChanged || !this.s3Storage) {
-      this.s3Storage = new S3Storage(config)
-      // Only cache connection-related config fields
-      this.cachedS3ConnectionConfig = {
-        endpoint: config.endpoint,
-        region: config.region,
-        bucket: config.bucket,
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-        root: config.root
-      }
-      logger.debug('[BackupManager] Created new S3Storage instance')
-    } else {
-      logger.debug('[BackupManager] Reusing existing S3Storage instance')
-    }
-
-    return this.s3Storage
-  }
-
-  /**
-   * Compare two S3 config objects for equality
-   * Only compares core fields that affect client connection, ignores volatile fields like fileName
-   * @param cachedConfig - The cached S3 configuration
-   * @param config - The new S3 configuration to compare
-   * @returns True if the configs are equal (connection-related fields only)
-   */
-  private isS3ConfigEqual(cachedConfig: typeof this.cachedS3ConnectionConfig, config: S3Config): boolean {
-    if (!cachedConfig) return false
-
-    return (
-      cachedConfig.endpoint === config.endpoint &&
-      cachedConfig.region === config.region &&
-      cachedConfig.bucket === config.bucket &&
-      cachedConfig.accessKeyId === config.accessKeyId &&
-      cachedConfig.secretAccessKey === config.secretAccessKey &&
-      cachedConfig.root === config.root
-    )
-  }
-
-  /**
-   * Check S3 connection
-   * @param _ - Electron IPC event
-   * @param s3Config - S3 configuration to test
-   * @returns True if connection is successful
-   */
-  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const s3Client = this.getS3Storage(s3Config)
-    return await s3Client.checkConnection()
-  }
-
-  /**
-   * List backup files in S3 storage
-   * @param _ - Electron IPC event
-   * @param s3Config - S3 configuration
-   * @returns Array of backup file info (name, modified time, size), sorted by newest first
-   */
-  listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
-    try {
-      const s3Client = this.getS3Storage(s3Config)
-
-      const objects = await s3Client.listFiles()
-      const files = objects
-        .filter((obj) => obj.key.endsWith('.zip'))
-        .map((obj) => {
-          const segments = obj.key.split('/')
-          const fileName = segments[segments.length - 1]
-          return {
-            fileName,
-            modifiedTime: obj.lastModified || '',
-            size: obj.size
-          }
-        })
-
-      return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
-    } catch (error: any) {
-      logger.error('Failed to list S3 files:', error)
-      throw new Error(error.message || 'Failed to list backup files')
-    }
-  }
-
-  /**
-   * Delete a backup file from S3 storage
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the file to delete
-   * @param s3Config - S3 configuration
-   * @returns Result from S3 operation
-   */
-  async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
-    try {
-      const s3Client = this.getS3Storage(s3Config)
-      return await s3Client.deleteFile(fileName)
-    } catch (error: any) {
-      logger.error('Failed to delete S3 file:', error)
-      throw new Error(error.message || 'Failed to delete backup file')
-    }
-  }
 }
 
 export { BackupManager }
