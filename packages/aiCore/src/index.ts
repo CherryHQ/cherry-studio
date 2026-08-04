@@ -64,6 +64,7 @@ export {
   computeHeadTailExcerpt,
   ContextPrompts,
   createContextMiddleware,
+  groupIntoTurns,
   Offloader,
   PERSISTED_OUTPUT_TAG,
   resolveCompressionOutputTokens,

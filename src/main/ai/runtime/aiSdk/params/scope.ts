@@ -9,9 +9,9 @@
  * that already pull from `agentParams/`.
  */
 
-import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
+import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -52,5 +52,5 @@ export interface RequestScope extends ToolApplyScope {
   readonly contextSettings: EffectiveContextSettings
   /** Pre-resolved compression model (explicit pick, else current request
    *  model). null when compression is disabled or resolution failed. */
-  readonly compressionModel: LanguageModelV3 | null
+  readonly compressionModel: CompressionModelDescriptor | null
 }

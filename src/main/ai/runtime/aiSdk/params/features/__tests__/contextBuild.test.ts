@@ -313,6 +313,40 @@ describe('resolveInFlightTruncateThreshold', () => {
     const large = resolveInFlightTruncateThreshold(100_000, 200_000)
     expect(small).toBeLessThan(large)
   })
+
+  // `Model.contextWindow` is `z.number().optional()` — custom / v1-imported /
+  // CherryAI rows really do arrive without it. Multiplying `undefined` yields
+  // `NaN`, and the truncator's `text.length <= NaN` is false for EVERY result,
+  // so ordinary tool output would be offloaded as if oversized.
+  it.each([[undefined], [0], [Number.NaN], [-1], [Number.POSITIVE_INFINITY]])(
+    'falls back to the character setting for an unusable window (%s)',
+    (window) => {
+      const threshold = resolveInFlightTruncateThreshold(100_000, window as number | undefined)
+      expect(threshold).toBe(100_000)
+      expect(Number.isFinite(threshold)).toBe(true)
+    }
+  )
+})
+
+describe('buildContextOptions — models without a contextWindow', () => {
+  it('omits contextWindow and keeps the character threshold instead of emitting NaN', () => {
+    const scope = makeScope({ model: { contextWindow: undefined } })
+    const opts = buildContextOptions(scope)!
+    expect(opts.contextWindow).toBeUndefined()
+    expect(opts.truncate?.threshold).toBe(DEFAULT_CONTEXT_SETTINGS.truncateThreshold)
+    expect(Number.isNaN(opts.truncate?.threshold)).toBe(false)
+  })
+
+  it('does not treat an ordinary tool result as oversized', async () => {
+    // 3k chars: far under the 100k setting, but > head+tail — the NaN threshold
+    // used to offload exactly this.
+    const out = await runTransform(
+      makePrompt('mcp__srv__dump', 3_000),
+      makeScope({ model: { contextWindow: undefined } })
+    )
+    expect(toolOutput(out).value).not.toContain('<persisted-output>')
+    expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
 })
 
 describe('buildContextOptions — compression wiring', () => {
@@ -357,6 +391,66 @@ describe('buildContextOptions — compression wiring', () => {
       compressionModel: {} as never
     })
     expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
+  })
+
+  // The Janitor re-estimates after this hook and returns early once under
+  // budget, so it will NOT re-run `ensureValidHistory` — whatever the fallback
+  // returns goes to the provider as-is. Dropping a single message could cut
+  // between `assistant(tool_call)` and its `tool` results and leave an orphan,
+  // which strict providers reject.
+  describe('sliding-window fallback is turn-atomic', () => {
+    const fallback = () => {
+      const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
+      return buildContextOptions(scope)!.onBeforeCompress!
+    }
+
+    /** system, then 4 tool-using turns (assistant tool_call + 2 tool results each). */
+    const toolHistory = () => {
+      const h: Array<Record<string, unknown>> = [{ role: 'system', content: 'sys' }]
+      for (let t = 0; t < 4; t++) {
+        h.push({ role: 'user', content: `ask ${t}` })
+        h.push({
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: `c${t}a`, type: 'function', function: { name: 'f', arguments: '{}' } },
+            { id: `c${t}b`, type: 'function', function: { name: 'f', arguments: '{}' } }
+          ]
+        })
+        h.push({ role: 'tool', content: 'r'.repeat(400), tool_call_id: `c${t}a` })
+        h.push({ role: 'tool', content: 'r'.repeat(400), tool_call_id: `c${t}b` })
+      }
+      return h as never
+    }
+
+    it('never leaves an orphan tool result at the head', () => {
+      const history = toolHistory()
+      // Force a drop whose proportional boundary lands inside a tool turn.
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{ role: string }>
+      expect(kept.length).toBeLessThan((history as unknown as unknown[]).length)
+      const firstNonSystem = kept.find((m) => m.role !== 'system')
+      expect(firstNonSystem?.role).not.toBe('tool')
+    })
+
+    it('never keeps an assistant tool-call whose results were dropped', () => {
+      const history = toolHistory()
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{
+        role: string
+        tool_calls?: Array<{ id: string }>
+        tool_call_id?: string
+      }>
+      const resultIds = new Set(kept.filter((m) => m.role === 'tool').map((m) => m.tool_call_id))
+      for (const m of kept) {
+        for (const call of m.tool_calls ?? []) {
+          expect(resultIds.has(call.id)).toBe(true)
+        }
+      }
+    })
+
+    it('leaves history untouched when already under budget', () => {
+      const history = toolHistory()
+      expect(fallback()(history, { currentTokens: 100, limit: 1000 } as never)).toBe(history)
+    })
   })
 
   it('attaches NO budget machinery when compression is disabled (no Janitor → no warnings)', () => {

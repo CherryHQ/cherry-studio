@@ -1,9 +1,8 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 
-import { resolveCompressionModel } from './resolveCompressionModel'
+import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'
 
 /** The global layer: the four `chat.context_settings.*` preferences. Shared
@@ -29,13 +28,13 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
 export async function resolveRequestContextSettings(
   model: Model,
   assistantOverride?: ContextSettingsOverride | null
-): Promise<{ contextSettings: EffectiveContextSettings; compressionModel: LanguageModelV3 | null }> {
+): Promise<{ contextSettings: EffectiveContextSettings; compressionModel: CompressionModelDescriptor | null }> {
   const contextSettings = resolveContextSettings({
     globals: resolveGlobalContextSettings(),
     assistant: assistantOverride
   })
 
-  let compressionModel: LanguageModelV3 | null = null
+  let compressionModel: CompressionModelDescriptor | null = null
   if (contextSettings.enabled && contextSettings.compress.enabled) {
     // Explicit pick, else fall back to the current request model.
     const compressId = contextSettings.compress.modelId ?? model.id

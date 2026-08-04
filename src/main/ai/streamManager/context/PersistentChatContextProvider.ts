@@ -35,6 +35,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ModelMessage, UIMessage } from 'ai'
 
+import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
@@ -676,9 +677,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
 
-    // contextWindow is a required input — the model layer's contract guarantees it;
-    // this layer never fabricates or defaults it.
-    const minContextWindow = Math.min(...models.map((m) => m.contextWindow as number))
+    // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI
+    // rows can omit it). Without one there is no budget to compact against —
+    // and an `as number` cast here made every derived budget `NaN`, which
+    // silently disabled compaction instead of triggering it. Serve as-is; the
+    // persist lane still bounds tool outputs by the character setting.
+    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    if (minContextWindow === null) {
+      logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
+      return serve(effective)
+    }
     if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return serve(effective)
     }
@@ -710,12 +718,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // its input carries whole tool outputs, so without a cap the compression
       // request can itself exceed the window (starving the output budget until
       // the model returns no summary at all — the empty-summary path below).
-      const maxOutputTokens = resolveCompressionOutputTokens(minContextWindow)
-      const summary = await summarizeModelMessages(modelMessages, compressionModel, {
+      // The window that matters here is the COMPRESSOR's, not the request
+      // model's: an explicitly picked 8k compressor on a 128k chat would
+      // otherwise be handed a 128k-derived budget and overflow immediately.
+      const compressionWindow = compressionModel.contextWindow ?? minContextWindow
+      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
         maxInputTokens: Math.max(
           COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((minContextWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
         )
       })
       if (!summary) {

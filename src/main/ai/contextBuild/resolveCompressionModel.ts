@@ -15,9 +15,28 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
+import { resolveContextWindow } from './resolveContextWindow'
+
 const logger = loggerService.withContext('resolveCompressionModel')
 
-export async function resolveCompressionModel(modelIdRaw: string): Promise<LanguageModelV3 | null> {
+/**
+ * The compression model plus the window its OWN requests must fit.
+ *
+ * The two windows are genuinely different: chat-history trigger / keep budgets
+ * belong to the request model, but the summarize call is issued against the
+ * compressor, so its input+output budget must come from the compressor's
+ * window. Chatting on a 128k model while compressing with an 8k one used to
+ * hand the summarize call a 128k-derived budget and overflow it — durable then
+ * fell back to un-compacted history, and in-loop failed the turn.
+ *
+ * `contextWindow` is `null` when the compressor row declares none.
+ */
+export interface CompressionModelDescriptor {
+  readonly languageModel: LanguageModelV3
+  readonly contextWindow: number | null
+}
+
+export async function resolveCompressionModel(modelIdRaw: string): Promise<CompressionModelDescriptor | null> {
   if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
     logger.warn('compression modelId is not a valid UniqueModelId', { modelIdRaw })
     return null
@@ -50,7 +69,8 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Langu
     // languageModel() prepends the providerId (`${providerId}:${modelId}`), so it needs the
     // BARE modelId — fall back to the parsed `modelId`, not the composite `model.id`
     // (`||` also covers an empty apiModelId).
-    return await executor.languageModel(model.apiModelId || modelId)
+    const languageModel = await executor.languageModel(model.apiModelId || modelId)
+    return { languageModel, contextWindow: resolveContextWindow(model.contextWindow) }
   } catch (error) {
     logger.warn('compression model resolution failed', {
       providerId,

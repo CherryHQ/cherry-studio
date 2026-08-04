@@ -192,7 +192,7 @@ function fakeMsgWithContextTokens(
   return { ...fakeMsg(id, role, text), stats: { contextTokens } }
 }
 
-function compressionOn(compressionModel: unknown = {}) {
+function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
   mockResolveRequestContextSettings.mockResolvedValue({
     contextSettings: { enabled: true, truncateThreshold: 0.9, compress: { enabled: true } },
     compressionModel
@@ -205,9 +205,14 @@ function makeSubscriber() {
 
 /** Call prepareDispatch with a submit-message trigger pointing to the given anchorId.
  *  Returns `{ messages, prepared }` where messages is the first model's request messages array. */
-async function makeHistory(anchorId: string, models = [DEFAULT_MODEL_ID]) {
+async function makeHistory(
+  anchorId: string,
+  models = [DEFAULT_MODEL_ID],
+  /** Patch the resolved Model rows (e.g. drop or widen `contextWindow`). */
+  modelPatch?: Partial<ReturnType<typeof makeModel>>
+) {
   const { resolveModels } = await import('../modelResolution')
-  vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => makeModel(id)))
+  vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => ({ ...makeModel(id), ...modelPatch })))
   // Mock createUserMessageWithPlaceholders so prepareDispatch doesn't need a real DB.
   const { messageService } = await import('@main/data/services/MessageService')
   vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
@@ -377,6 +382,49 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       'folded.txt',
       'live.txt'
     ])
+  })
+
+  // `Model.contextWindow` is optional; an `as number` cast made every derived
+  // budget `NaN`, and `estimate <= NaN` is false — so the trigger looked
+  // permanently exceeded while `planKeepBoundary(NaN)` had no budget to keep
+  // against. Skip compaction instead, and never summarize against a NaN budget.
+  it('2f. skips durable compaction when no model declares a contextWindow', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'x'.repeat(40_000)),
+      fakeMsg('a1', 'assistant', 'y'.repeat(40_000)),
+      fakeMsg('u2', 'user', 'latest')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages } = await makeHistory('u2', [DEFAULT_MODEL_ID], { contextWindow: undefined })
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    // Nothing folded — the whole path is still served.
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+  })
+
+  it('2g. budgets the summarize call by the compressor window, not the chat window', async () => {
+    // 20k chat window → trigger 16k tokens; 5 × 4k-token blocks = 20k clears it.
+    const BIG = 'token '.repeat(4_000)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    // Explicit 8k compressor: the summarize request must fit ITS window.
+    // Budgeting by the 20k chat window would allocate ~17.7k and overflow it.
+    compressionOn({ languageModel: {}, contextWindow: 8_000 })
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 20_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {

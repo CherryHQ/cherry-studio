@@ -20,6 +20,7 @@
  * double-compact, so budgetStop is removed in the same change.
  */
 import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
@@ -27,11 +28,15 @@ import {
   CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
   CONTEXT_COMPACT_TRIGGER_RATIO
 } from '@main/ai/constants'
+import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { isAbortError } from '@main/utils/error'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
 import type { RequestFeature } from '../feature'
+
+const logger = loggerService.withContext('inLoopCompaction')
 
 /** tokenx estimate of one ModelMessage (text/reasoning dominate; other parts stringified). */
 function estimateMessageTokens(message: ModelMessage): number {
@@ -126,15 +131,30 @@ export const inLoopCompactionFeature: RequestFeature = {
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },
   contributeHooks: (scope) => {
-    const model = scope.compressionModel
+    const compressor = scope.compressionModel
     // `applies()` already guards compressionModel; this narrows the type.
-    if (!model) return {}
-    // contextWindow is a required input for compaction — a budget against a known
-    // window is the whole point. Its presence is the model layer's contract; this
-    // layer never fabricates or defaults it.
-    const contextWindow = scope.model.contextWindow as number
+    if (!compressor) return {}
+    const model = compressor.languageModel
+    // A budget against a known window is the whole point of compaction, but
+    // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI
+    // rows can omit it). Casting it made `trigger`/`keepBudget` `NaN`, and
+    // `estimate <= NaN` is false, so the hook fired on EVERY step. With no
+    // window, contribute no hook at all.
+    const contextWindow = resolveContextWindow(scope.model.contextWindow)
+    if (contextWindow === null) {
+      logger.warn('model declares no contextWindow — in-loop compaction disabled for this request', {
+        modelId: scope.model.id
+      })
+      return {}
+    }
     const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
     const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    // The trigger/keep budgets above belong to the REQUEST model (they describe
+    // the chat history it must fit), but the summarize call is issued against
+    // the compressor, so its own budget must come from the compressor's window.
+    // With an 8k compressor on a 128k chat, sizing by the chat window overflows
+    // the summarize request outright.
+    const compressionWindow = compressor.contextWindow ?? contextWindow
     // Per-request incremental-fold cache. The loop rebuilds `messages` each
     // step as [...initialMessages, ...responseMessages] — append-only, with
     // settled entries never changing — so "the first N messages" is a stable
@@ -146,11 +166,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // history from scratch — measured 44k→66k tokens per summarizer call over
     // a 20-step run (runtime-test finding #4).
     let foldCache: { consumedCount: number; compactedPrefix: ModelMessage[] } | null = null
+    // A compressor that keeps failing (bad key, exhausted quota, dead endpoint)
+    // must not re-fail on every step; one failure disables it for this request.
+    let compactionDisabled = false
     return {
       prepareStep: async ({ messages, steps }) => {
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
+        if (compactionDisabled) return foldCache ? { messages: candidate } : undefined
         // Compact only when strictly over the trigger (`<=` is a no-op), matching the
         // turn-start comparison so the two paths never disagree at estimate === trigger.
         // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
@@ -164,15 +188,31 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const maxOutputTokens = resolveCompressionOutputTokens(contextWindow)
-        const compacted = await compactModelMessages(candidate, model, {
-          keepRecentTurns,
-          maxOutputTokens,
-          maxInputTokens: Math.max(
-            COMPACTION_MIN_INPUT_BUDGET,
-            Math.floor((contextWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-          )
-        })
+        const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        let compacted: ModelMessage[]
+        try {
+          compacted = await compactModelMessages(candidate, model, {
+            keepRecentTurns,
+            maxOutputTokens,
+            maxInputTokens: Math.max(
+              COMPACTION_MIN_INPUT_BUDGET,
+              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+            )
+          })
+        } catch (error) {
+          // `compactModelMessages` propagates provider errors. Letting one out of
+          // `prepareStep` kills the whole chat turn, so a compressor that is
+          // misconfigured or rate-limited would take the conversation down with
+          // it — the opposite of what a context-management aid should do (the
+          // turn-start path already degrades to un-compacted history here).
+          // A user abort is different: that IS the turn ending, so it propagates.
+          if (isAbortError(error)) throw error
+          compactionDisabled = true
+          logger.warn('in-loop compaction failed; continuing without it for this request', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return foldCache ? { messages: candidate } : undefined
+        }
         if (compacted === candidate) {
           return foldCache ? { messages: candidate } : undefined
         }

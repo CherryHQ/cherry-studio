@@ -23,7 +23,7 @@
  * happens before cache markers are placed (see internalFeatures.ts).
  */
 import type { ContextMiddlewareOptions, TruncateOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
-import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
+import { createContextMiddleware, definePlugin, groupIntoTurns } from '@cherrystudio/ai-core'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import {
@@ -32,6 +32,7 @@ import {
   MIN_IN_FLIGHT_TRUNCATE_THRESHOLD
 } from '@main/ai/constants'
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
+import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -56,10 +57,18 @@ const MIN_MESSAGES_KEPT = 2
  * default is ~3% of a 1M window but several times a 16k one, so on small
  * windows it never fired and a single tool result could swamp the request.
  *
+ * `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI rows
+ * can omit it). With no window known there is nothing to take a share of, so
+ * the user's absolute character setting stands alone — never a computed `NaN`,
+ * which would make `text.length <= threshold` false for EVERY result and
+ * offload ordinary tool output.
+ *
  * Exported for tests.
  */
-export function resolveInFlightTruncateThreshold(configuredChars: number, contextWindow: number): number {
-  const windowBudget = Math.floor(contextWindow * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
+export function resolveInFlightTruncateThreshold(configuredChars: number, contextWindow: number | undefined): number {
+  const window = resolveContextWindow(contextWindow)
+  if (window === null) return configuredChars
+  const windowBudget = Math.floor(window * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
   return Math.max(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD, Math.min(configuredChars, windowBudget))
 }
 
@@ -68,9 +77,17 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   const settings = scope.contextSettings
   if (!settings.enabled) return null
 
+  // Optional on `Model` and optional here: a window-less model gets no
+  // window-derived budget rather than a `NaN` one (see resolveContextWindow).
+  const contextWindow = resolveContextWindow(scope.model.contextWindow)
+  if (contextWindow === null) {
+    logger.warn('model declares no contextWindow — window-relative budgets disabled for this request', {
+      modelId: scope.model.id
+    })
+  }
+
   const options: ContextMiddlewareOptions = {
-    // Required input — the model layer's contract guarantees it; never defaulted here.
-    contextWindow: scope.model.contextWindow as number,
+    contextWindow: contextWindow ?? undefined,
 
     compact: {
       reasoning: 'before-last-message',
@@ -78,7 +95,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     },
 
     truncate: {
-      threshold: resolveInFlightTruncateThreshold(settings.truncateThreshold, scope.model.contextWindow as number),
+      threshold: resolveInFlightTruncateThreshold(settings.truncateThreshold, scope.model.contextWindow),
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),
@@ -101,7 +118,11 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   // and running an in-flight compress too would double-compress. The no-LLM sliding-window
   // remains as the only guard when compression is enabled but no model is configured
   // (the durable path also needs a model).
-  if (settings.compress.enabled && !scope.compressionModel) {
+  // Also requires a window: the guard compares an estimate against the budget,
+  // and aiCore rejects `onBeforeCompress` without a `contextWindow` outright
+  // (previously the `as number` cast smuggled a `NaN` past that check and every
+  // comparison against it was silently false).
+  if (settings.compress.enabled && !scope.compressionModel && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
     options.onBeforeCompress = (history, tokenInfo) => dropOldestUntilUnderBudget(history, tokenInfo)
   }
@@ -135,9 +156,19 @@ function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefi
   })
 }
 
-/** Drop the oldest non-system messages until the estimate is under budget,
- *  keeping at least MIN_MESSAGES_KEPT. Length is a proxy for tokens (no
- *  tokenizer here). Ported from PR #14916. */
+/**
+ * Drop the oldest turns until the estimate is under budget, keeping at least
+ * MIN_MESSAGES_KEPT messages. Length is a proxy for tokens (no tokenizer here).
+ * Ported from PR #14916.
+ *
+ * Drops whole TURNS, never single messages: `assistant(tool_call)` and the tool
+ * results answering it are one atomic unit (`groupIntoTurns`, the same rule the
+ * LLM compaction paths use). A per-message cursor could stop between them and
+ * emit an orphan tool result — or an assistant tool-call with no result — which
+ * strict providers reject outright. The Janitor re-estimates after this hook and
+ * returns early once under budget, so it will NOT re-run `ensureValidHistory`:
+ * whatever is returned here goes to the provider as-is.
+ */
 function dropOldestUntilUnderBudget(
   history: Parameters<NonNullable<ContextMiddlewareOptions['onBeforeCompress']>>[0],
   tokenInfo: Parameters<NonNullable<ContextMiddlewareOptions['onBeforeCompress']>>[1]
@@ -150,20 +181,26 @@ function dropOldestUntilUnderBudget(
   const overshootRatio = (currentTokens - limit) / currentTokens
   let lenToDrop = Math.ceil(totalLen * overshootRatio)
 
-  let dropFromIdx = 0
-  if (history[0]?.role === 'system') dropFromIdx = 1
+  const dropFromIdx = history[0]?.role === 'system' ? 1 : 0
+  const maxCursor = history.length - MIN_MESSAGES_KEPT
 
   let cursor = dropFromIdx
   let dropped = 0
-  while (cursor < history.length - MIN_MESSAGES_KEPT && lenToDrop > 0) {
-    lenToDrop -= JSON.stringify(history[cursor]).length
-    cursor++
-    dropped++
+  for (const turn of groupIntoTurns(history)) {
+    if (turn.startIndex < dropFromIdx) continue
+    if (lenToDrop <= 0) break
+    // Only drop a turn we can drop ENTIRELY while leaving the minimum tail.
+    if (turn.endIndex > maxCursor) break
+    for (let i = turn.startIndex; i < turn.endIndex; i++) {
+      lenToDrop -= JSON.stringify(history[i]).length
+      dropped++
+    }
+    cursor = turn.endIndex
   }
   if (dropped === 0) return history
 
   const kept = [...history.slice(0, dropFromIdx), ...history.slice(cursor)]
-  logger.info('context budget exceeded, dropped oldest (sliding-window fallback)', {
+  logger.info('context budget exceeded, dropped oldest turns (sliding-window fallback)', {
     droppedCount: dropped,
     keptCount: kept.length,
     currentTokens,

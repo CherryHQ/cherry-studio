@@ -17,7 +17,10 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
 const CONTEXT_WINDOW = 100_000
-const COMPRESSION_MODEL = { id: 'compression-model' } as any
+const COMPRESSION_LANGUAGE_MODEL = { id: 'compression-model' } as any
+/** `scope.compressionModel` is a descriptor: the model plus ITS own window,
+ *  so the summarize call is budgeted against the compressor and not the chat model. */
+const COMPRESSION_MODEL = { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: null } as any
 
 const scope = (overrides: {
   chatId?: string
@@ -116,8 +119,10 @@ describe('inLoopCompactionFeature', () => {
 
   // --- contributeHooks: prepareStep ---
 
-  const getPrepareStep = () => {
-    const hooks = inLoopCompactionFeature.contributeHooks!(scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW }))
+  const getPrepareStep = (customScope?: ReturnType<typeof scope>) => {
+    const hooks = inLoopCompactionFeature.contributeHooks!(
+      customScope ?? scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+    )
     expect(hooks.prepareStep).toBeTypeOf('function')
     return hooks.prepareStep!
   }
@@ -143,7 +148,7 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).toHaveBeenCalledOnce()
     // The summarize call is itself window-bound, so it carries its own budgets:
     // output sized from the window, input capped so the request can't overflow it.
-    expect(compactModelMessages).toHaveBeenCalledWith(messages, COMPRESSION_MODEL, {
+    expect(compactModelMessages).toHaveBeenCalledWith(messages, COMPRESSION_LANGUAGE_MODEL, {
       keepRecentTurns: expect.any(Number),
       maxOutputTokens: expect.any(Number),
       maxInputTokens: expect.any(Number)
@@ -151,6 +156,52 @@ describe('inLoopCompactionFeature', () => {
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
     expect(result).toEqual({ messages: compacted })
+  })
+
+  // The summarize call goes to the COMPRESSOR, so its budget must come from the
+  // compressor's window. Sizing it by the chat model's window overflows an
+  // explicitly-picked small compressor (8k compressor on a 128k chat).
+  it('budgets the summarize call by the compressor window, not the chat window', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({
+        chatId: 'topic-1',
+        contextWindow: CONTEXT_WINDOW, // 100k chat model
+        compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: 8_000 }
+      })
+    )
+    await prepareStep({ messages: [userMessage(90_000)] } as any)
+    const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
+    expect(maxOutputTokens + maxInputTokens).toBeLessThan(8_000)
+  })
+
+  // `compactModelMessages` propagates provider errors. Letting one escape
+  // `prepareStep` kills the whole chat turn — a misconfigured or rate-limited
+  // compressor would take the conversation down with it.
+  it('survives a failing compressor instead of failing the turn', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockRejectedValue(Object.assign(new Error('401 invalid api key'), { name: 'APICallError' }))
+    const prepareStep = getPrepareStep()
+    const messages = [userMessage(90_000)]
+    await expect(prepareStep({ messages } as any)).resolves.toBeUndefined()
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+  })
+
+  it('disables compaction for the rest of the request after a failure (no retry storm)', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockRejectedValue(new Error('429 rate limited'))
+    const prepareStep = getPrepareStep()
+    await prepareStep({ messages: [userMessage(90_000)] } as any)
+    await prepareStep({ messages: [userMessage(95_000)] } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+  })
+
+  it('still propagates a user abort — that IS the turn ending', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+    const prepareStep = getPrepareStep()
+    await expect(prepareStep({ messages: [userMessage(90_000)] } as any)).rejects.toThrow('aborted')
   })
 
   it('returns no override when compactModelMessages returns the same reference (no-op)', async () => {
