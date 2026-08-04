@@ -110,6 +110,29 @@ describe('useScrollAnchor', () => {
     expect(scrollTopWrites).toEqual([])
   })
 
+  it('hands an explicit disclosure to the runtime even before anything overflows', () => {
+    // A short conversation: the runtime scroller exists but has no overflow yet,
+    // so findScrollParent cannot resolve it. The expand itself creates the first
+    // overflow — reading ownership must not depend on pre-existing overflow.
+    const scroller = document.createElement('div')
+    scroller.style.overflowY = 'auto'
+    Object.defineProperty(scroller, 'scrollHeight', { value: 500, configurable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 500, configurable: true })
+    const anchorEl = document.createElement('div')
+    scroller.appendChild(anchorEl)
+    document.body.appendChild(scroller)
+
+    const requestReadingControl = vi.fn()
+    const { result } = renderScrollAnchor({ runtimeScroller: scroller, requestReadingControl })
+    result.current.anchorRef.current = anchorEl
+
+    const update = vi.fn()
+    act(() => result.current.withScrollAnchor(update, { enterReadingMode: true }))
+
+    expect(requestReadingControl).toHaveBeenCalledWith(anchorEl)
+    expect(update).toHaveBeenCalledOnce()
+  })
+
   it('restores scrollTop after a toggle when standalone (no provider)', () => {
     // Anchor moves up 40px (200 -> 160) as content above it collapses.
     const { anchorEl, scrollTopWrites } = setupScroller({ initialScrollTop: 200, anchorTops: [100, 60] })

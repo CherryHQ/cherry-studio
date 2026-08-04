@@ -55,6 +55,11 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
 
       const scrollContainer = findScrollParent(anchor)
       if (!scrollContainer) {
+        // Nothing scrollable yet — this update may create the first overflow
+        // (short conversation, disclosure expand). Reading ownership must not
+        // depend on pre-existing overflow, so still hand the anchor to the
+        // runtime before bottom-follow can push the new overflow past it.
+        if (options?.enterReadingMode) requestReadingControl()
         update()
         return
       }

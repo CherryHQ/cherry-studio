@@ -1,6 +1,7 @@
 import { cn } from '@renderer/utils/style'
 import { type KeyboardEvent, type ReactNode, useId } from 'react'
 
+import { useScrollAnchor } from '../../blocks/useScrollAnchor'
 import { useMessageDisclosureState } from '../../hooks/useMessageDisclosureState'
 import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
@@ -49,9 +50,10 @@ export function AgentToolDisclosure({
     stateId ? `agent-tool:${stateId}` : undefined,
     defaultActiveKey.includes(itemKey)
   )
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const toggleExpanded = () => {
     if (!canExpand) return
-    setIsExpanded((current) => !current)
+    withScrollAnchor(() => setIsExpanded((current) => !current), { enterReadingMode: !isExpanded })
   }
   const openOrToggle = () => {
     if (onOpenDetails) {
@@ -70,6 +72,7 @@ export function AgentToolDisclosure({
   return (
     <StreamingContext value={isStreaming}>
       <div
+        ref={anchorRef}
         className={cn(
           'w-full overflow-hidden rounded-[7px] border border-border bg-background',
           className,
