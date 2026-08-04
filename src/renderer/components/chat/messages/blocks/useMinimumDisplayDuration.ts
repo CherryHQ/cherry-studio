@@ -35,6 +35,7 @@ export function useMinimumDisplayDuration<TValue>(
       clearPendingTimer()
       pendingValueRef.current = null
       displayValueRef.current = nextValue
+      setDisplayValue(nextValue)
       return clearPendingTimer
     }
 
