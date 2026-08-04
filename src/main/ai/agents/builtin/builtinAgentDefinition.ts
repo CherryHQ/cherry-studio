@@ -21,7 +21,7 @@ export interface BuiltinAgentDefinition {
   skills?: string[]
 }
 
-export interface BuiltinAssistantDefaults {
+interface BuiltinAssistantDefaults {
   name: string
   configuration: AgentConfiguration
 }
