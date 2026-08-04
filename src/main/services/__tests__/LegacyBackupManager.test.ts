@@ -147,6 +147,11 @@ vi.mock('@main/utils/file', () => ({
   createAtomicWriteStream: mockCreateAtomicWriteStream
 }))
 
+vi.mock('@main/utils/system', () => ({
+  getDeviceType: () => 'mac',
+  getHostname: () => 'test-host'
+}))
+
 vi.mock('better-sqlite3', () => ({
   default: vi.fn(() => ({
     pragma: vi.fn(() => 'ok'),
@@ -839,27 +844,58 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.promises.readFile).not.toHaveBeenCalled()
   })
 
-  it('keeps an automatic backup out of a manual remote backup workflow', async () => {
+  it('preserves S3 object paths relative to the configured root', async () => {
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
+      listFiles: vi.fn().mockResolvedValue([
+        { key: 'backup.zip', lastModified: '2026-08-04T02:00:00.000Z', size: 1 },
+        { key: 'nested/backup.zip', lastModified: '2026-08-04T01:00:00.000Z', size: 2 }
+      ])
+    })
+
+    await expect(
+      backupManager.listS3Files({} as Electron.IpcMainInvokeEvent, {
+        endpoint: 'https://s3.example.com',
+        region: 'test',
+        bucket: 'backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+        root: 'root',
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 1
+      })
+    ).resolves.toEqual([
+      { fileName: 'backup.zip', modifiedTime: '2026-08-04T02:00:00.000Z', size: 1 },
+      { fileName: 'nested/backup.zip', modifiedTime: '2026-08-04T01:00:00.000Z', size: 2 }
+    ])
+  })
+
+  it('keeps an automatic backup out until manual retention cleanup finishes', async () => {
     const backupPath = '/mock/temp/backup/backup.zip'
-    let finishManualUpload: (value: boolean) => void = () => {}
-    const putWebdavFile = vi.fn(
+    let finishCleanup: (files: unknown[]) => void = () => {}
+    const getDirectoryContents = vi.fn(
       () =>
-        new Promise<boolean>((resolve) => {
-          finishManualUpload = resolve
+        new Promise<unknown[]>((resolve) => {
+          finishCleanup = resolve
         })
     )
+    const putWebdavFile = vi.fn().mockResolvedValue(true)
     const putS3File = vi.fn().mockResolvedValue({})
     vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
-    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents: putWebdavFile })
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      putFileContents: putWebdavFile,
+      getDirectoryContents
+    })
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents: putS3File })
     vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
 
     const manualBackup = backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
       webdavHost: 'https://example.com',
       fileName: 'backup.zip',
+      maxBackups: 1,
       disableStream: true
     })
-    await vi.waitFor(() => expect(putWebdavFile).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(getDirectoryContents).toHaveBeenCalledOnce())
 
     await expect(
       backupManager.backupToS3(null, {
@@ -876,8 +912,61 @@ describe('BackupManager direct v2 data compatibility', () => {
     ).rejects.toBeInstanceOf(BackupOperationBusyError)
     expect(putS3File).not.toHaveBeenCalled()
 
-    finishManualUpload(true)
+    finishCleanup([])
     await manualBackup
+  })
+
+  it('limits and cancels WebDAV retention cleanup for the exact current device', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    const controller = new AbortController()
+    let deleteSignal: AbortSignal | undefined
+    const deleteFile = vi.fn(
+      (_fileName: string, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          deleteSignal = signal
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const getDirectoryContents = vi.fn().mockResolvedValue([
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804020000.test-host.mac.zip',
+        lastmod: '2026-08-04T02:00:00.000Z',
+        size: 1
+      },
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804015000.other-test-host.mac.zip',
+        lastmod: '2026-08-04T01:50:00.000Z',
+        size: 1
+      },
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804000000.test-host.mac.zip',
+        lastmod: '2026-08-04T00:00:00.000Z',
+        size: 1
+      }
+    ])
+    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      putFileContents: vi.fn().mockResolvedValue(true),
+      getDirectoryContents,
+      deleteFile
+    })
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+    const backup = backupManager.backupToWebdav(
+      null,
+      { webdavHost: 'https://example.com', disableStream: true, maxBackups: 1 },
+      controller.signal
+    )
+    await vi.waitFor(() => expect(deleteFile).toHaveBeenCalledOnce())
+    controller.abort(new DOMException('Stopped.', 'AbortError'))
+
+    await expect(backup).resolves.toMatchObject({ result: true, cleanupError: { name: 'AbortError' } })
+    expect(deleteFile).toHaveBeenCalledWith('cherry-studio.20260804000000.test-host.mac.zip', deleteSignal)
+    expect(deleteSignal?.aborted).toBe(true)
+    expect(getDirectoryContents).toHaveBeenCalledWith(expect.any(AbortSignal))
   })
 
   it('aborts a stalled WebDAV upload after the idle timeout', async () => {

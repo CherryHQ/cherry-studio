@@ -1,4 +1,4 @@
-import { DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import type { S3Config } from '@shared/types/backup'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +17,25 @@ const config: S3Config = {
 }
 
 describe('S3Storage', () => {
+  it('lists object keys relative to the configured root', async () => {
+    const storage = new S3Storage(config)
+    const send = vi.fn().mockResolvedValue({
+      Contents: [
+        { Key: 'cherry-studio/test/backup.zip', Size: 1 },
+        { Key: 'cherry-studio/test/nested/backup.zip', Size: 2 }
+      ]
+    })
+    Object.assign(storage, { client: { send } })
+
+    await expect(storage.listFiles()).resolves.toEqual([
+      { key: 'backup.zip', lastModified: undefined, size: 1 },
+      { key: 'nested/backup.zip', lastModified: undefined, size: 2 }
+    ])
+
+    expect(send.mock.calls[0][0]).toBeInstanceOf(ListObjectsV2Command)
+    expect(send.mock.calls[0][0].input.Prefix).toBe('cherry-studio/test/')
+  })
+
   it('only deletes the root-scoped key and propagates failures', async () => {
     const storage = new S3Storage(config)
     const error = new Error('Delete failed')

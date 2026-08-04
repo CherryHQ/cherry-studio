@@ -12,9 +12,9 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { getBackupSyncState } from '@renderer/services/BackupService'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
@@ -56,7 +56,7 @@ const LocalBackupSettings: React.FC = () => {
 
   const { t } = useTranslation()
 
-  const { localBackupSync } = getBackupSyncState()
+  const localBackupSync = useBackupSyncState('local')
 
   const onSyncIntervalChange = async (value: number) => {
     await setLocalBackupSyncInterval(value)

@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -28,12 +29,19 @@ import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@m
 import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
+import { getDeviceType, getHostname } from '@main/utils/system'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, type S3Config, type WebDavConfig } from '@shared/types/backup'
+import {
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  type LocalBackupConfig,
+  type S3Config,
+  type WebDavConfig
+} from '@shared/types/backup'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 import { Mutex, tryAcquire } from 'async-mutex'
 import Database from 'better-sqlite3'
+import dayjs from 'dayjs'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -86,6 +94,17 @@ interface ProgressData {
   stage: string
   progress: number
   total: number
+}
+
+interface BackupFileInfo {
+  fileName: string
+  modifiedTime: string
+  size: number
+}
+
+interface BackupWorkflowResult<T> {
+  result: T
+  cleanupError: Error | null
 }
 
 type BackupInvocationEvent = Electron.IpcMainInvokeEvent | null
@@ -207,6 +226,58 @@ class BackupManager {
     const mutex =
       event === null ? tryAcquire(this.backupWorkflowMutex, new BackupOperationBusyError()) : this.backupWorkflowMutex
     return mutex.runExclusive(operation)
+  }
+
+  private createBackupFileName(): string {
+    return `cherry-studio.${dayjs().format('YYYYMMDDHHmmssSSS')}.${getHostname() || 'unknown'}.${getDeviceType() || 'unknown'}.zip`
+  }
+
+  private createRemoteCleanupSignal(signal?: AbortSignal): AbortSignal {
+    const timeoutSignal = AbortSignal.timeout(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
+    return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+  }
+
+  private async cleanupOldBackups(
+    maxBackups: number,
+    listFiles: (signal?: AbortSignal) => Promise<BackupFileInfo[]>,
+    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<unknown>,
+    signal?: AbortSignal,
+    deleteAttempts = 1
+  ): Promise<Error | null> {
+    if (maxBackups <= 0) return null
+
+    try {
+      signal?.throwIfAborted()
+      const suffix = `.${getHostname() || 'unknown'}.${getDeviceType() || 'unknown'}.zip`
+      const files = (await listFiles(signal)).filter(
+        (file) => file.fileName.startsWith('cherry-studio.') && file.fileName.endsWith(suffix)
+      )
+      for (const file of files.slice(maxBackups)) {
+        await this.deleteWithRetry(file.fileName, deleteFile, signal, deleteAttempts)
+      }
+      return null
+    } catch (error) {
+      logger.error('Failed to clean up old backups', error as Error)
+      return error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  private async deleteWithRetry(
+    fileName: string,
+    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<unknown>,
+    signal: AbortSignal | undefined,
+    maxAttempts: number
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        signal?.throwIfAborted()
+        await deleteFile(fileName, signal)
+        return
+      } catch (error) {
+        if (signal?.aborted || attempt === maxAttempts) throw error
+        await delay(attempt * 1_000, undefined, { signal })
+      }
+    }
   }
 
   private createBackup(
@@ -598,17 +669,29 @@ class BackupManager {
    */
   async backupToLocalDir(
     event: BackupInvocationEvent,
-    fileName: string,
-    localConfig: { localBackupDir?: string; skipBackupFile?: boolean },
+    fileName: string | undefined,
+    localConfig: LocalBackupConfig,
     signal?: AbortSignal
-  ) {
+  ): Promise<BackupWorkflowResult<string>> {
     try {
       return await this.runBackupWorkflow(event, async () => {
         const operationSignal = event === null ? signal : undefined
         operationSignal?.throwIfAborted()
         const backupDir = localConfig.localBackupDir || this.backupDir
         await fs.ensureDir(backupDir)
-        return this.createBackup(fileName, backupDir, localConfig.skipBackupFile ?? false, operationSignal)
+        const result = await this.createBackup(
+          fileName || this.createBackupFileName(),
+          backupDir,
+          localConfig.skipBackupFile ?? false,
+          operationSignal
+        )
+        const cleanupError = await this.cleanupOldBackups(
+          localConfig.maxBackups ?? 0,
+          (cleanupSignal) => this.listLocalBackupFiles(null, backupDir, cleanupSignal),
+          (oldFileName, cleanupSignal) => this.deleteLocalBackupFile(null, oldFileName, backupDir, cleanupSignal),
+          operationSignal
+        )
+        return { result, cleanupError }
       })
     } catch (error) {
       logger.error('[backupToLocalDir] Local backup failed:', error as Error)
@@ -623,10 +706,14 @@ class BackupManager {
    * @param webdavConfig - WebDAV configuration including server URL, credentials, and options
    * @returns Result from WebDAV upload operation
    */
-  async backupToWebdav(event: BackupInvocationEvent, webdavConfig: WebDavConfig, signal?: AbortSignal) {
+  async backupToWebdav(
+    event: BackupInvocationEvent,
+    webdavConfig: WebDavConfig,
+    signal?: AbortSignal
+  ): Promise<BackupWorkflowResult<boolean>> {
     return this.runBackupWorkflow(event, async () => {
       const operationSignal = event === null ? signal : undefined
-      const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
+      const filename = webdavConfig.fileName || this.createBackupFileName()
       const backupedFilePath = await this.createBackup(
         filename,
         undefined,
@@ -636,39 +723,48 @@ class BackupManager {
       const webdavClient = this.getWebDavInstance(webdavConfig)
       const idleTimeout = new IdleTimeoutController(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
       const uploadSignal = operationSignal ? AbortSignal.any([operationSignal, idleTimeout.signal]) : idleTimeout.signal
+      let result: boolean
 
       try {
         uploadSignal.throwIfAborted()
         if (webdavConfig.disableStream) {
           const fileContent = await fs.promises.readFile(backupedFilePath, { signal: uploadSignal })
           idleTimeout.reset()
-          const result = await webdavClient.putFileContents(filename, fileContent, {
+          result = await webdavClient.putFileContents(filename, fileContent, {
             overwrite: true,
             signal: uploadSignal,
             onUploadProgress: () => idleTimeout.reset()
           })
           uploadSignal.throwIfAborted()
-          return result
-        }
-
-        const contentLength = (await fs.stat(backupedFilePath)).size
-        const { stream, cleanup } = this.createUploadReadStream(backupedFilePath, uploadSignal, idleTimeout.reset)
-        try {
-          const result = await webdavClient.putFileContents(filename, stream, {
-            overwrite: true,
-            contentLength,
-            signal: uploadSignal,
-            onUploadProgress: () => idleTimeout.reset()
-          })
-          uploadSignal.throwIfAborted()
-          return result
-        } finally {
-          cleanup()
+        } else {
+          const contentLength = (await fs.stat(backupedFilePath)).size
+          const { stream, cleanup } = this.createUploadReadStream(backupedFilePath, uploadSignal, idleTimeout.reset)
+          try {
+            result = await webdavClient.putFileContents(filename, stream, {
+              overwrite: true,
+              contentLength,
+              signal: uploadSignal,
+              onUploadProgress: () => idleTimeout.reset()
+            })
+            uploadSignal.throwIfAborted()
+          } finally {
+            cleanup()
+          }
         }
       } finally {
         idleTimeout.cleanup()
         await fs.remove(backupedFilePath).catch(() => {})
       }
+
+      const cleanupSignal = this.createRemoteCleanupSignal(operationSignal)
+      const cleanupError = await this.cleanupOldBackups(
+        webdavConfig.maxBackups ?? 0,
+        (currentSignal) => this.listWebdavFiles(null, webdavConfig, currentSignal),
+        (oldFileName, currentSignal) => this.deleteWebdavFile(null, oldFileName, webdavConfig, currentSignal),
+        cleanupSignal,
+        3
+      )
+      return { result, cleanupError }
     })
   }
 
@@ -679,16 +775,14 @@ class BackupManager {
    * @param s3Config - S3 configuration including endpoint, bucket, credentials, and options
    * @returns Result from S3 upload operation
    */
-  async backupToS3(event: BackupInvocationEvent, s3Config: S3Config, signal?: AbortSignal) {
+  async backupToS3(
+    event: BackupInvocationEvent,
+    s3Config: S3Config,
+    signal?: AbortSignal
+  ): Promise<BackupWorkflowResult<unknown>> {
     return this.runBackupWorkflow(event, async () => {
       const operationSignal = event === null ? signal : undefined
-      const os = require('os')
-      const deviceName = os.hostname ? os.hostname() : 'device'
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[-:T.Z]/g, '')
-        .slice(0, 14)
-      const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+      const filename = s3Config.fileName || this.createBackupFileName()
 
       logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
@@ -701,16 +795,16 @@ class BackupManager {
       const s3Client = this.getS3Storage(s3Config)
       const idleTimeout = new IdleTimeoutController(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
       const uploadSignal = operationSignal ? AbortSignal.any([operationSignal, idleTimeout.signal]) : idleTimeout.signal
+      let result: unknown
       try {
         uploadSignal.throwIfAborted()
         const contentLength = (await fs.stat(backupedFilePath)).size
-        const result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), contentLength, {
+        result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), contentLength, {
           signal: uploadSignal,
           onProgress: idleTimeout.reset
         })
         uploadSignal.throwIfAborted()
         logger.info(`S3 backup completed: ${filename}`)
-        return result
       } catch (error) {
         logger.error('[backupToS3] S3 backup failed:', error as Error)
         throw error
@@ -718,6 +812,16 @@ class BackupManager {
         idleTimeout.cleanup()
         await fs.remove(backupedFilePath).catch(() => {})
       }
+
+      const cleanupSignal = this.createRemoteCleanupSignal(operationSignal)
+      const cleanupError = await this.cleanupOldBackups(
+        s3Config.maxBackups,
+        (currentSignal) => this.listS3Files(null, s3Config, currentSignal),
+        (oldFileName, currentSignal) => this.deleteS3File(null, oldFileName, s3Config, currentSignal),
+        cleanupSignal,
+        3
+      )
+      return { result, cleanupError }
     })
   }
 
@@ -1564,10 +1668,10 @@ class BackupManager {
    * @param config - WebDAV configuration
    * @returns Array of backup file info (name, modified time, size), sorted by newest first
    */
-  listWebdavFiles = async (_: BackupInvocationEvent, config: WebDavConfig) => {
+  listWebdavFiles = async (_: BackupInvocationEvent, config: WebDavConfig, signal?: AbortSignal) => {
     try {
       const client = this.getWebDavInstance(config)
-      const files = await client.getDirectoryContents()
+      const files = await client.getDirectoryContents(signal)
 
       return files
         .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
@@ -1579,6 +1683,7 @@ class BackupManager {
         .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
       logger.error('Failed to list WebDAV files:', error)
+      if (signal?.aborted) throw signal.reason
       throw new Error(error.message || 'Failed to list backup files')
     }
   }
@@ -1752,12 +1857,13 @@ class BackupManager {
    * @param webdavConfig - WebDAV configuration
    * @returns Result from WebDAV operation
    */
-  async deleteWebdavFile(_: BackupInvocationEvent, fileName: string, webdavConfig: WebDavConfig) {
+  async deleteWebdavFile(_: BackupInvocationEvent, fileName: string, webdavConfig: WebDavConfig, signal?: AbortSignal) {
     try {
       const webdavClient = this.getWebDavInstance(webdavConfig)
-      return await webdavClient.deleteFile(fileName)
+      return await webdavClient.deleteFile(fileName, signal)
     } catch (error: any) {
       logger.error('Failed to delete WebDAV file:', error)
+      if (signal?.aborted) throw signal.reason
       throw new Error(error.message || 'Failed to delete backup file')
     }
   }
@@ -1771,12 +1877,14 @@ class BackupManager {
    * @param localBackupDir - Directory to list backup files from
    * @returns Array of backup file info (name, modified time, size), sorted by newest first
    */
-  async listLocalBackupFiles(_: BackupInvocationEvent, localBackupDir: string) {
+  async listLocalBackupFiles(_: BackupInvocationEvent, localBackupDir: string, signal?: AbortSignal) {
     try {
+      signal?.throwIfAborted()
       const files = await fs.readdir(localBackupDir)
       const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
 
       for (const file of files) {
+        signal?.throwIfAborted()
         const filePath = path.join(localBackupDir, file)
         const stat = await fs.stat(filePath)
 
@@ -1804,8 +1912,14 @@ class BackupManager {
    * @param localBackupDir - Directory where the backup file is located
    * @returns True if deletion was successful
    */
-  async deleteLocalBackupFile(_: BackupInvocationEvent, fileName: string, localBackupDir: string) {
+  async deleteLocalBackupFile(
+    _: BackupInvocationEvent,
+    fileName: string,
+    localBackupDir: string,
+    signal?: AbortSignal
+  ) {
     try {
+      signal?.throwIfAborted()
       const filePath = resolveAndValidatePath(localBackupDir, fileName)
 
       if (!fs.existsSync(filePath)) {
@@ -1952,26 +2066,23 @@ class BackupManager {
    * @param s3Config - S3 configuration
    * @returns Array of backup file info (name, modified time, size), sorted by newest first
    */
-  listS3Files = async (_: BackupInvocationEvent, s3Config: S3Config) => {
+  listS3Files = async (_: BackupInvocationEvent, s3Config: S3Config, signal?: AbortSignal) => {
     try {
       const s3Client = this.getS3Storage(s3Config)
 
-      const objects = await s3Client.listFiles()
+      const objects = await s3Client.listFiles('', signal)
       const files = objects
         .filter((obj) => obj.key.endsWith('.zip'))
-        .map((obj) => {
-          const segments = obj.key.split('/')
-          const fileName = segments[segments.length - 1]
-          return {
-            fileName,
-            modifiedTime: obj.lastModified || '',
-            size: obj.size
-          }
-        })
+        .map((obj) => ({
+          fileName: obj.key,
+          modifiedTime: obj.lastModified || '',
+          size: obj.size
+        }))
 
       return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
       logger.error('Failed to list S3 files:', error)
+      if (signal?.aborted) throw signal.reason
       throw new Error(error.message || 'Failed to list backup files')
     }
   }
@@ -1983,12 +2094,13 @@ class BackupManager {
    * @param s3Config - S3 configuration
    * @returns Result from S3 operation
    */
-  async deleteS3File(_: BackupInvocationEvent, fileName: string, s3Config: S3Config) {
+  async deleteS3File(_: BackupInvocationEvent, fileName: string, s3Config: S3Config, signal?: AbortSignal) {
     try {
       const s3Client = this.getS3Storage(s3Config)
-      return await s3Client.deleteFile(fileName)
+      return await s3Client.deleteFile(fileName, signal)
     } catch (error: any) {
       logger.error('Failed to delete S3 file:', error)
+      if (signal?.aborted) throw signal.reason
       throw new Error(error.message || 'Failed to delete backup file')
     }
   }

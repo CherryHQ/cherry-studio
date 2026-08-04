@@ -137,9 +137,12 @@ export default class S3Storage {
     }
   }
 
-  async deleteFile(key: string) {
+  async deleteFile(key: string, signal?: AbortSignal) {
     try {
-      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
+      signal?.throwIfAborted()
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }), {
+        abortSignal: signal
+      })
     } catch (error) {
       logger.error('[S3Storage] Error deleting object:', error as Error)
       throw error
@@ -149,25 +152,30 @@ export default class S3Storage {
   /**
    * 列举指定前缀下的对象，默认列举全部。
    */
-  async listFiles(prefix = ''): Promise<Array<{ key: string; lastModified?: string; size: number }>> {
+  async listFiles(
+    prefix = '',
+    signal?: AbortSignal
+  ): Promise<Array<{ key: string; lastModified?: string; size: number }>> {
     const files: Array<{ key: string; lastModified?: string; size: number }> = []
     let continuationToken: string | undefined
     const fullPrefix = this.buildKey(prefix)
 
     try {
       do {
+        signal?.throwIfAborted()
         const res = await this.client.send(
           new ListObjectsV2Command({
             Bucket: this.bucket,
             Prefix: fullPrefix === '' ? undefined : fullPrefix,
             ContinuationToken: continuationToken
-          })
+          }),
+          { abortSignal: signal }
         )
 
         res.Contents?.forEach((obj) => {
           if (!obj.Key) return
           files.push({
-            key: obj.Key,
+            key: this.root ? obj.Key.slice(this.root.length + 1) : obj.Key,
             lastModified: obj.LastModified?.toISOString(),
             size: obj.Size ?? 0
           })

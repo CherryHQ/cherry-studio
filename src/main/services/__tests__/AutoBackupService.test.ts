@@ -14,22 +14,31 @@ const mocks = vi.hoisted(() => ({
   applicationGetPath: vi.fn((key: string) => (key === 'app.userdata' ? '/mock/userData' : '/mock/install')),
   broadcastToType: vi.fn(),
   decryptToken: vi.fn(async () => ({ username: 'user', access_token: 'token' })),
-  getDeviceType: vi.fn(() => 'mac'),
-  getHostname: vi.fn(() => 'test-host'),
   hasWritePermission: vi.fn(async () => true),
   backupToLocalDir: vi
-    .fn<(event: unknown, fileName: string, config: unknown, signal?: AbortSignal) => Promise<string>>()
-    .mockResolvedValue('/backups/test.zip'),
-  backupToS3: vi.fn<(event: unknown, config: unknown, signal?: AbortSignal) => Promise<object>>().mockResolvedValue({}),
+    .fn<
+      (
+        event: unknown,
+        fileName: string | undefined,
+        config: unknown,
+        signal?: AbortSignal
+      ) => Promise<{ result: string; cleanupError: Error | null }>
+    >()
+    .mockResolvedValue({ result: '/backups/test.zip', cleanupError: null }),
+  backupToS3: vi
+    .fn<
+      (event: unknown, config: unknown, signal?: AbortSignal) => Promise<{ result: object; cleanupError: Error | null }>
+    >()
+    .mockResolvedValue({ result: {}, cleanupError: null }),
   backupToWebdav: vi
-    .fn<(event: unknown, config: unknown, signal?: AbortSignal) => Promise<boolean>>()
-    .mockResolvedValue(true),
-  deleteLocalBackupFile: vi.fn(async () => true),
-  deleteS3File: vi.fn(async () => undefined),
-  deleteWebdavFile: vi.fn(async () => true),
-  listLocalBackupFiles: vi.fn(async (): Promise<Array<{ fileName: string; modifiedTime: string; size: number }>> => []),
-  listS3Files: vi.fn(async (): Promise<Array<{ fileName: string; modifiedTime: string; size: number }>> => []),
-  listWebdavFiles: vi.fn(async (): Promise<Array<{ fileName: string; modifiedTime: string; size: number }>> => [])
+    .fn<
+      (
+        event: unknown,
+        config: unknown,
+        signal?: AbortSignal
+      ) => Promise<{ result: boolean; cleanupError: Error | null }>
+    >()
+    .mockResolvedValue({ result: true, cleanupError: null })
 }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet, getPath: mocks.applicationGetPath } }))
@@ -38,11 +47,6 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() })
   }
-}))
-
-vi.mock('@main/utils/system', () => ({
-  getDeviceType: mocks.getDeviceType,
-  getHostname: mocks.getHostname
 }))
 
 vi.mock('@main/utils/legacyFile', async (importOriginal) => ({
@@ -60,13 +64,7 @@ vi.mock('../LegacyBackupManager', () => {
     legacyBackupManager: {
       backupToLocalDir: mocks.backupToLocalDir,
       backupToS3: mocks.backupToS3,
-      backupToWebdav: mocks.backupToWebdav,
-      deleteLocalBackupFile: mocks.deleteLocalBackupFile,
-      deleteS3File: mocks.deleteS3File,
-      deleteWebdavFile: mocks.deleteWebdavFile,
-      listLocalBackupFiles: mocks.listLocalBackupFiles,
-      listS3Files: mocks.listS3Files,
-      listWebdavFiles: mocks.listWebdavFiles
+      backupToWebdav: mocks.backupToWebdav
     }
   }
 })
@@ -171,8 +169,8 @@ describe('AutoBackupService', () => {
     let finishBackup: (() => void) | undefined
     mocks.backupToWebdav.mockImplementationOnce(
       () =>
-        new Promise<boolean>((resolve) => {
-          finishBackup = () => resolve(true)
+        new Promise<{ result: boolean; cleanupError: null }>((resolve) => {
+          finishBackup = () => resolve({ result: true, cleanupError: null })
         })
     )
 
@@ -186,44 +184,6 @@ describe('AutoBackupService', () => {
 
     expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
     expect(scheduler.has('auto-backup:webdav')).toBe(false)
-  })
-
-  it('only removes old backups belonging to the exact current device', async () => {
-    setPreference('data.backup.s3.auto_sync', false)
-    setPreference('data.backup.local.auto_sync', false)
-    setPreference('data.backup.nutstore.auto_sync', false)
-    preferences['data.backup.webdav.max_backups'] = 1
-    mocks.listWebdavFiles.mockResolvedValueOnce([
-      {
-        fileName: 'cherry-studio.20260804020000.test-host.mac.zip',
-        modifiedTime: '2026-08-04T02:00:00.000Z',
-        size: 1
-      },
-      {
-        fileName: 'cherry-studio.20260804015000.other-test-host.mac.zip',
-        modifiedTime: '2026-08-04T01:50:00.000Z',
-        size: 1
-      },
-      {
-        fileName: 'cherry-studio.20260804010000.test-host.macbook.zip',
-        modifiedTime: '2026-08-04T01:00:00.000Z',
-        size: 1
-      },
-      {
-        fileName: 'cherry-studio.20260804000000.test-host.mac.zip',
-        modifiedTime: '2026-08-04T00:00:00.000Z',
-        size: 1
-      }
-    ])
-
-    await vi.advanceTimersByTimeAsync(1_000)
-
-    expect(mocks.deleteWebdavFile).toHaveBeenCalledOnce()
-    expect(mocks.deleteWebdavFile).toHaveBeenCalledWith(
-      null,
-      'cherry-studio.20260804000000.test-host.mac.zip',
-      expect.anything()
-    )
   })
 
   it('rejects a local backup directory inside application data before creating a backup', async () => {
@@ -242,19 +202,10 @@ describe('AutoBackupService', () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.nutstore.auto_sync', false)
     preferences['data.backup.local.max_backups'] = 1
-    mocks.listLocalBackupFiles.mockResolvedValueOnce([
-      {
-        fileName: 'cherry-studio.20260804020000.test-host.mac.zip',
-        modifiedTime: '2026-08-04T02:00:00.000Z',
-        size: 1
-      },
-      {
-        fileName: 'cherry-studio.20260804010000.test-host.mac.zip',
-        modifiedTime: '2026-08-04T01:00:00.000Z',
-        size: 1
-      }
-    ])
-    mocks.deleteLocalBackupFile.mockRejectedValueOnce(new Error('delete denied'))
+    mocks.backupToLocalDir.mockResolvedValueOnce({
+      result: '/backups/test.zip',
+      cleanupError: new Error('delete denied')
+    })
 
     await vi.advanceTimersByTimeAsync(1_000)
     await vi.advanceTimersByTimeAsync(7_000)
@@ -280,7 +231,7 @@ describe('AutoBackupService', () => {
     let uploadSignal: AbortSignal | undefined
     mocks.backupToWebdav.mockImplementationOnce(
       (_event, _config, signal) =>
-        new Promise<boolean>((_resolve, reject) => {
+        new Promise<{ result: boolean; cleanupError: null }>((_resolve, reject) => {
           uploadSignal = signal
           signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
@@ -308,5 +259,10 @@ describe('AutoBackupService', () => {
       'backup.auto_sync_state_changed',
       expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: expect.stringContaining('BACKUP') })
     )
+
+    const failure = service.getStateSnapshot().pendingNotifications[0]
+    expect(failure).toMatchObject({ type: 'webdav', status: 'failed' })
+    service.acknowledgeNotification(failure.type, failure.id)
+    expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
 })

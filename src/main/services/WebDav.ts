@@ -45,7 +45,7 @@ export default class WebDav {
     options?: PutFileContentsOptions
   ) => {
     if (!this.instance) {
-      return new Error('WebDAV client not initialized')
+      throw new Error('WebDAV client not initialized')
     }
 
     try {
@@ -101,13 +101,13 @@ export default class WebDav {
     return this.instance.createReadStream(path.posix.join(this.webdavPath, filename), options)
   }
 
-  public getDirectoryContents = async () => {
+  public getDirectoryContents = async (signal?: AbortSignal) => {
     if (!this.instance) {
       throw new Error('WebDAV client not initialized')
     }
 
     try {
-      return await this.instance.getDirectoryContents(this.webdavPath)
+      return await this.instance.getDirectoryContents(this.webdavPath, { signal })
     } catch (error) {
       logger.error('Error getting directory contents on WebDAV:', error as Error)
       throw error
@@ -140,7 +140,7 @@ export default class WebDav {
     }
   }
 
-  public deleteFile = async (filename: string) => {
+  public deleteFile = async (filename: string, signal?: AbortSignal) => {
     if (!this.instance) {
       throw new Error('WebDAV client not initialized')
     }
@@ -148,7 +148,7 @@ export default class WebDav {
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
-      return await this.instance.deleteFile(remoteFilePath)
+      return await this.instance.deleteFile(remoteFilePath, { signal })
     } catch (error) {
       logger.error('Error deleting file on WebDAV:', error as Error)
       throw error

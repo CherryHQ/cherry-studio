@@ -5,11 +5,16 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
-import { getDeviceType, getHostname } from '@main/utils/system'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type { AutoBackupEvent, AutoBackupType, S3Config, WebDavConfig } from '@shared/types/backup'
+import type {
+  AutoBackupEvent,
+  AutoBackupEventInput,
+  AutoBackupSnapshot,
+  AutoBackupType,
+  S3Config,
+  WebDavConfig
+} from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import dayjs from 'dayjs'
 
 import { BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
@@ -42,12 +47,6 @@ interface ScheduleSettings {
   intervalMs: number
 }
 
-interface BackupFileInfo {
-  fileName: string
-  modifiedTime: string
-  size: number
-}
-
 const createScheduleState = (): ScheduleState => ({
   generation: 0,
   lastSyncTime: null,
@@ -70,6 +69,9 @@ export class AutoBackupService extends BaseService {
   private activeRun: Promise<void> | null = null
   private activeRunType: AutoBackupType | null = null
   private activeAbortController: AbortController | null = null
+  private nextEventId = 0
+  private readonly latestEvents = new Map<AutoBackupType, AutoBackupEvent>()
+  private readonly pendingNotifications = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingRuns = new Map<AutoBackupType, number>()
   private readonly schedules: Record<AutoBackupType, ScheduleState> = {
     webdav: createScheduleState(),
@@ -109,6 +111,19 @@ export class AutoBackupService extends BaseService {
       this.schedules[type].retryCount = 0
     }
     await this.activeRun
+  }
+
+  getStateSnapshot(): AutoBackupSnapshot {
+    return {
+      events: [...this.latestEvents.values()],
+      pendingNotifications: [...this.pendingNotifications.values()]
+    }
+  }
+
+  acknowledgeNotification(type: AutoBackupType, id: number): void {
+    if (this.pendingNotifications.get(type)?.id === id) {
+      this.pendingNotifications.delete(type)
+    }
   }
 
   private restartSchedule(type: AutoBackupType, mode: ScheduleMode): void {
@@ -250,9 +265,6 @@ export class AutoBackupService extends BaseService {
 
   private async runBackup(type: AutoBackupType, signal: AbortSignal): Promise<Error | null> {
     const preferenceService = application.get('PreferenceService')
-    const hostname = getHostname() || 'unknown'
-    const deviceType = getDeviceType() || 'unknown'
-    const fileName = `cherry-studio.${dayjs().format('YYYYMMDDHHmmss')}.${hostname}.${deviceType}.zip`
 
     if (type === 'webdav') {
       const config: WebDavConfig = {
@@ -260,21 +272,13 @@ export class AutoBackupService extends BaseService {
         webdavUser: preferenceService.get('data.backup.webdav.user'),
         webdavPass: preferenceService.get('data.backup.webdav.pass'),
         webdavPath: preferenceService.get('data.backup.webdav.path'),
-        fileName,
+        maxBackups: preferenceService.get('data.backup.webdav.max_backups'),
         skipBackupFile: preferenceService.get('data.backup.webdav.skip_backup_file'),
         disableStream: preferenceService.get('data.backup.webdav.disable_stream')
       }
-      const success = await legacyBackupManager.backupToWebdav(null, config, signal)
+      const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
       if (success === false) throw new Error('WebDAV automatic backup failed')
-      return this.cleanupOldBackups(
-        type,
-        preferenceService.get('data.backup.webdav.max_backups'),
-        hostname,
-        deviceType,
-        () => legacyBackupManager.listWebdavFiles(null, config),
-        (oldFileName) => legacyBackupManager.deleteWebdavFile(null, oldFileName, config),
-        3
-      )
+      return cleanupError
     }
 
     if (type === 's3') {
@@ -285,44 +289,29 @@ export class AutoBackupService extends BaseService {
         accessKeyId: preferenceService.get('data.backup.s3.access_key_id'),
         secretAccessKey: preferenceService.get('data.backup.s3.secret_access_key'),
         root: preferenceService.get('data.backup.s3.root'),
-        fileName,
         skipBackupFile: preferenceService.get('data.backup.s3.skip_backup_file'),
         autoSync: preferenceService.get('data.backup.s3.auto_sync'),
         syncInterval: preferenceService.get('data.backup.s3.sync_interval'),
         maxBackups: preferenceService.get('data.backup.s3.max_backups')
       }
-      await legacyBackupManager.backupToS3(null, config, signal)
-      return this.cleanupOldBackups(
-        type,
-        config.maxBackups,
-        hostname,
-        deviceType,
-        () => legacyBackupManager.listS3Files(null, config),
-        (oldFileName) => legacyBackupManager.deleteS3File(null, oldFileName, config),
-        3
-      )
+      const { cleanupError } = await legacyBackupManager.backupToS3(null, config, signal)
+      return cleanupError
     }
 
     if (type === 'local') {
       const directory = path.resolve(untildify(preferenceService.get('data.backup.local.dir')))
       await this.validateLocalBackupDirectory(directory)
-      await legacyBackupManager.backupToLocalDir(
+      const { cleanupError } = await legacyBackupManager.backupToLocalDir(
         null,
-        fileName,
+        undefined,
         {
           localBackupDir: directory,
+          maxBackups: preferenceService.get('data.backup.local.max_backups'),
           skipBackupFile: preferenceService.get('data.backup.local.skip_backup_file')
         },
         signal
       )
-      return this.cleanupOldBackups(
-        type,
-        preferenceService.get('data.backup.local.max_backups'),
-        hostname,
-        deviceType,
-        () => legacyBackupManager.listLocalBackupFiles(null, directory),
-        (oldFileName) => legacyBackupManager.deleteLocalBackupFile(null, oldFileName, directory)
-      )
+      return cleanupError
     }
 
     const credentials = await decryptToken(preferenceService.get('data.backup.nutstore.token'))
@@ -333,65 +322,12 @@ export class AutoBackupService extends BaseService {
       webdavUser: credentials.username,
       webdavPass: credentials.access_token,
       webdavPath: preferenceService.get('data.backup.nutstore.path'),
-      fileName,
+      maxBackups: preferenceService.get('data.backup.nutstore.max_backups'),
       skipBackupFile: preferenceService.get('data.backup.nutstore.skip_backup_file')
     }
-    const success = await legacyBackupManager.backupToWebdav(null, config, signal)
+    const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
     if (success === false) throw new Error('Nutstore automatic backup failed')
-    return this.cleanupOldBackups(
-      type,
-      preferenceService.get('data.backup.nutstore.max_backups'),
-      hostname,
-      deviceType,
-      () => legacyBackupManager.listWebdavFiles(null, config),
-      (oldFileName) => legacyBackupManager.deleteWebdavFile(null, oldFileName, config)
-    )
-  }
-
-  private async cleanupOldBackups(
-    type: AutoBackupType,
-    maxBackups: number,
-    hostname: string,
-    deviceType: string,
-    listFiles: () => Promise<BackupFileInfo[]>,
-    deleteFile: (fileName: string) => Promise<unknown>,
-    deleteAttempts = 1
-  ): Promise<Error | null> {
-    if (maxBackups <= 0) return null
-
-    try {
-      const currentDeviceSuffix = `.${hostname}.${deviceType}.zip`
-      const files = (await listFiles()).filter(
-        (file) => file.fileName.startsWith('cherry-studio.') && file.fileName.endsWith(currentDeviceSuffix)
-      )
-      for (const file of files.slice(maxBackups)) {
-        await this.deleteWithRetry(type, file.fileName, deleteFile, deleteAttempts)
-      }
-      return null
-    } catch (error) {
-      logger.error('Failed to clean up old automatic backups', error as Error)
-      return error instanceof Error ? error : new Error(String(error))
-    }
-  }
-
-  private async deleteWithRetry(
-    type: AutoBackupType,
-    fileName: string,
-    deleteFile: (fileName: string) => Promise<unknown>,
-    maxAttempts: number
-  ): Promise<void> {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        await deleteFile(fileName)
-        return
-      } catch (error) {
-        if (attempt === maxAttempts) {
-          throw error
-        }
-        logger.warn('Failed to delete old automatic backup; retrying', { type, fileName, attempt })
-        await new Promise((resolve) => setTimeout(resolve, attempt * 1_000))
-      }
-    }
+    return cleanupError
   }
 
   private async validateLocalBackupDirectory(directory: string): Promise<void> {
@@ -458,9 +394,14 @@ export class AutoBackupService extends BaseService {
     this.emit({ type, status: 'stopped' })
   }
 
-  private emit(event: AutoBackupEvent): void {
+  private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'backup.auto_sync_state_changed', event)
+    const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
+    this.latestEvents.set(event.type, emittedEvent)
+    if (event.status === 'warning' || event.status === 'failed') {
+      this.pendingNotifications.set(event.type, emittedEvent)
+    }
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'backup.auto_sync_state_changed', emittedEvent)
   }
 
   private unregisterAllSchedules(): void {

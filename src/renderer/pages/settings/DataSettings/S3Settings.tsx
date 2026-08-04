@@ -12,9 +12,9 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { getBackupSyncState } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
@@ -42,7 +42,7 @@ const S3Settings: FC = () => {
 
   const { openSmartMiniApp } = useMiniAppPopup()
 
-  const { s3Sync } = getBackupSyncState()
+  const s3Sync = useBackupSyncState('s3')
 
   const onSyncIntervalChange = async (value: number) => {
     await setS3SyncInterval(value)

@@ -1,7 +1,6 @@
 /**
  * @deprecated v2 replacement pending. The retained v1 engine currently creates real compatibility
- * archives containing Data, IndexedDB, Local Storage, and cache.json. Transient sync status remains
- * in the session-local, non-reactive `backupSyncState` below until the native v2 service replaces it.
+ * archives containing Data, IndexedDB, Local Storage, and cache.json.
  */
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
@@ -9,12 +8,11 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
-import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { AutoBackupType } from '@shared/types/backup'
 import dayjs from 'dayjs'
 
 import { notificationService } from './notification'
@@ -27,77 +25,28 @@ export interface RemoteSyncState {
   lastSyncError: string | null
 }
 
-// Session-local, non-reactive sync status. The auto-sync scheduler writes timestamps here and reads
-// them back; the settings UI reads it best-effort until the native v2 service replaces this module.
-const backupSyncState: Record<'webdavSync' | 'localBackupSync' | 's3Sync', RemoteSyncState> = {
-  webdavSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
-  localBackupSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
-  s3Sync: { lastSyncTime: null, syncing: false, lastSyncError: null }
+let backupSyncState: Record<AutoBackupType, RemoteSyncState> = {
+  webdav: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  s3: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  local: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  nutstore: { lastSyncTime: null, syncing: false, lastSyncError: null }
 }
+const backupSyncListeners = new Set<() => void>()
 
 export const getBackupSyncState = () => backupSyncState
-
-const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.webdavSync, patch)
+export const subscribeBackupSyncState = (listener: () => void) => {
+  backupSyncListeners.add(listener)
+  return () => backupSyncListeners.delete(listener)
 }
 
-const setS3SyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.s3Sync, patch)
+export const setBackupSyncState = (type: AutoBackupType, patch: Partial<RemoteSyncState>) => {
+  backupSyncState = { ...backupSyncState, [type]: { ...backupSyncState[type], ...patch } }
+  backupSyncListeners.forEach((listener) => listener())
 }
 
-const setLocalBackupSyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.localBackupSync, patch)
-}
-
-// 重试删除S3文件的辅助函数
-async function deleteS3FileWithRetry(fileName: string, s3Config: S3Config, maxRetries = 3) {
-  let lastError: Error | null = null
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await window.api.backup.deleteS3File(fileName, s3Config)
-      logger.verbose(`Successfully deleted old backup file: ${fileName} (attempt ${attempt})`)
-      return true
-    } catch (error: any) {
-      lastError = error
-      logger.warn(`Delete attempt ${attempt}/${maxRetries} failed for ${fileName}:`, error.message)
-
-      // 如果不是最后一次尝试，等待一段时间再重试
-      if (attempt < maxRetries) {
-        const delay = attempt * 1000 + Math.random() * 1000 // 1-2秒的随机延迟
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-    }
-  }
-
-  logger.error(`Failed to delete old backup file after ${maxRetries} attempts: ${fileName}`, lastError)
-  return false
-}
-
-// 重试删除WebDAV文件的辅助函数
-async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavConfig, maxRetries = 3) {
-  let lastError: Error | null = null
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await window.api.backup.deleteWebdavFile(fileName, webdavConfig)
-      logger.verbose(`Successfully deleted old backup file: ${fileName} (attempt ${attempt})`)
-      return true
-    } catch (error: any) {
-      lastError = error
-      logger.warn(`Delete attempt ${attempt}/${maxRetries} failed for ${fileName}:`, error.message)
-
-      // 如果不是最后一次尝试，等待一段时间再重试
-      if (attempt < maxRetries) {
-        const delay = attempt * 1000 + Math.random() * 1000 // 1-2秒的随机延迟
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-    }
-  }
-
-  logger.error(`Failed to delete old backup file after ${maxRetries} attempts: ${fileName}`, lastError)
-  return false
-}
+const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('webdav', patch)
+const setS3SyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('s3', patch)
+const setLocalBackupSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('local', patch)
 
 export async function backup(skipBackupFile = false) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
@@ -187,87 +136,41 @@ export async function backupToWebdav({
     webdavDisableStream: 'data.backup.webdav.disable_stream'
   })
 
-  let deviceType = 'unknown'
-  let hostname = 'unknown'
-  try {
-    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
-  } catch (error) {
-    logger.error('Failed to get device type or hostname:', error as Error)
-  }
-  const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const finalFileName = customFileName
+    ? customFileName.endsWith('.zip')
+      ? customFileName
+      : `${customFileName}.zip`
+    : undefined
 
   // 上传文件 - Use direct backup method (copy IndexedDB/LocalStorage directories)
   try {
-    const success = await window.api.backup.backupToWebdav({
+    const { result: success, cleanupFailed } = await window.api.backup.backupToWebdav({
       webdavHost,
       webdavUser,
       webdavPass,
       webdavPath,
       fileName: finalFileName,
+      maxBackups: webdavMaxBackups,
       skipBackupFile: webdavSkipBackupFile,
       disableStream: webdavDisableStream
     })
     if (success) {
-      setWebDAVSyncState({
-        lastSyncError: null
-      })
-      void notificationService.send({
-        id: uuid(),
-        type: 'success',
-        title: i18n.t('common.success'),
-        message: i18n.t('message.backup.success'),
-        silent: false,
-        timestamp: Date.now(),
-        source: 'backup'
-      })
-      showMessage && toast.success(i18n.t('message.backup.success'))
-
-      // 清理旧备份文件
-      if (webdavMaxBackups > 0) {
-        try {
-          // 获取所有备份文件
-          const files = await window.api.backup.listWebdavFiles({
-            webdavHost,
-            webdavUser,
-            webdavPass,
-            webdavPath
-          })
-
-          // 筛选当前设备的备份文件
-          const currentDeviceFiles = files.filter((file) => {
-            // 检查文件名是否包含当前设备的标识信息
-            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
-          })
-
-          // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
-          if (currentDeviceFiles.length > webdavMaxBackups) {
-            // 文件已按修改时间降序排序，所以最旧的文件在末尾
-            const filesToDelete = currentDeviceFiles.slice(webdavMaxBackups)
-
-            logger.verbose(`Cleaning up ${filesToDelete.length} old backup files`)
-
-            // 串行删除文件，避免并发请求导致的问题
-            for (let i = 0; i < filesToDelete.length; i++) {
-              const file = filesToDelete[i]
-              await deleteWebdavFileWithRetry(file.fileName, {
-                webdavHost,
-                webdavUser,
-                webdavPass,
-                webdavPath
-              })
-
-              // 在删除操作之间添加短暂延迟，避免请求过于频繁
-              if (i < filesToDelete.length - 1) {
-                await new Promise((resolve) => setTimeout(resolve, 500))
-              }
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to clean up old backup files:', error as Error)
-        }
+      if (cleanupFailed) {
+        const message = i18n.t('message.backup.cleanup_failed')
+        setWebDAVSyncState({ lastSyncError: message })
+        showMessage && toast.warning(message)
+      } else {
+        setWebDAVSyncState({ lastSyncError: null })
+        void notificationService.send({
+          id: uuid(),
+          type: 'success',
+          title: i18n.t('common.success'),
+          message: i18n.t('message.backup.success'),
+          silent: false,
+          timestamp: Date.now(),
+          source: 'backup'
+        })
+        showMessage && toast.success(i18n.t('message.backup.success'))
       }
     } else {
       const message = i18n.t('message.backup.failed')
@@ -360,71 +263,36 @@ export async function backupToS3({
     skipBackupFile: 'data.backup.s3.skip_backup_file',
     syncInterval: 'data.backup.s3.sync_interval'
   })
-  let deviceType = 'unknown'
-  let hostname = 'unknown'
-  try {
-    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
-  } catch (error) {
-    logger.error('Failed to get device type or hostname:', error as Error)
-  }
-  const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const finalFileName = customFileName
+    ? customFileName.endsWith('.zip')
+      ? customFileName
+      : `${customFileName}.zip`
+    : undefined
 
   try {
     // Use the direct backup method with the configured full or slim resource set.
-    const success = await window.api.backup.backupToS3({
+    const { result: success, cleanupFailed } = await window.api.backup.backupToS3({
       ...s3Config,
       fileName: finalFileName
     })
 
     if (success) {
-      setS3SyncState({
-        lastSyncError: null,
-        syncing: false,
-        lastSyncTime: Date.now()
-      })
-      void notificationService.send({
-        id: uuid(),
-        type: 'success',
-        title: i18n.t('common.success'),
-        message: i18n.t('message.backup.success'),
-        silent: false,
-        timestamp: Date.now(),
-        source: 'backup'
-      })
-      showMessage && toast.success(i18n.t('message.backup.success'))
-
-      // 清理旧备份文件
-      if (s3Config.maxBackups > 0) {
-        try {
-          // 获取所有备份文件
-          const files = await window.api.backup.listS3Files(s3Config)
-
-          // 筛选当前设备的备份文件
-          const currentDeviceFiles = files.filter((file) => {
-            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
-          })
-
-          // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
-          if (currentDeviceFiles.length > s3Config.maxBackups) {
-            const filesToDelete = currentDeviceFiles.slice(s3Config.maxBackups)
-
-            logger.verbose(`Cleaning up ${filesToDelete.length} old backup files`)
-
-            for (let i = 0; i < filesToDelete.length; i++) {
-              const file = filesToDelete[i]
-              await deleteS3FileWithRetry(file.fileName, s3Config)
-
-              if (i < filesToDelete.length - 1) {
-                await new Promise((resolve) => setTimeout(resolve, 500))
-              }
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to clean up old backup files:', error as Error)
-        }
+      if (cleanupFailed) {
+        const message = i18n.t('message.backup.cleanup_failed')
+        setS3SyncState({ lastSyncError: message })
+        showMessage && toast.warning(message)
+      } else {
+        setS3SyncState({ lastSyncError: null })
+        void notificationService.send({
+          id: uuid(),
+          type: 'success',
+          title: i18n.t('common.success'),
+          message: i18n.t('message.backup.success'),
+          silent: false,
+          timestamp: Date.now(),
+          source: 'backup'
+        })
+        showMessage && toast.success(i18n.t('message.backup.success'))
       }
     } else {
       const message = i18n.t('message.backup.failed')
@@ -541,31 +409,30 @@ export async function backupToLocal({
       localBackupSkipBackupFile: 'data.backup.local.skip_backup_file'
     })
   const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
-  let deviceType = 'unknown'
-  let hostname = 'unknown'
-  try {
-    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
-  } catch (error) {
-    logger.error('Failed to get device type or hostname:', error as Error)
-  }
-  const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const finalFileName = customFileName
+    ? customFileName.endsWith('.zip')
+      ? customFileName
+      : `${customFileName}.zip`
+    : undefined
 
   try {
     // Use direct backup method (copy IndexedDB/LocalStorage directories)
-    const result = await window.api.backup.backupToLocalDir(finalFileName, {
+    const { result, cleanupFailed } = await window.api.backup.backupToLocalDir(finalFileName, {
       localBackupDir,
+      maxBackups: localBackupMaxBackups,
       skipBackupFile: localBackupSkipBackupFile
     })
 
     if (result) {
-      setLocalBackupSyncState({
-        lastSyncError: null
-      })
+      if (cleanupFailed) {
+        const message = i18n.t('message.backup.cleanup_failed')
+        setLocalBackupSyncState({ lastSyncError: message })
+        showMessage && toast.warning(message)
+      } else {
+        setLocalBackupSyncState({ lastSyncError: null })
+      }
 
-      if (showMessage) {
+      if (showMessage && !cleanupFailed) {
         void notificationService.send({
           id: uuid(),
           type: 'success',
@@ -575,34 +442,6 @@ export async function backupToLocal({
           timestamp: Date.now(),
           source: 'backup'
         })
-      }
-
-      // Clean up old backups if maxBackups is set
-      if (localBackupMaxBackups > 0) {
-        try {
-          // Get all backup files
-          const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
-
-          // Filter backups for current device
-          const currentDeviceFiles = files.filter((file) => {
-            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
-          })
-
-          if (currentDeviceFiles.length > localBackupMaxBackups) {
-            // Sort by modified time (oldest first)
-            const filesToDelete = currentDeviceFiles
-              .sort((a, b) => new Date(a.modifiedTime).getTime() - new Date(b.modifiedTime).getTime())
-              .slice(0, currentDeviceFiles.length - localBackupMaxBackups)
-
-            // Delete older backups
-            for (const file of filesToDelete) {
-              logger.verbose(`[LocalBackup] Deleting old backup: ${file.fileName}`)
-              await window.api.backup.deleteLocalBackupFile(file.fileName, localBackupDir)
-            }
-          }
-        } catch (error) {
-          logger.error('[LocalBackup] Failed to clean up old backups:', error as Error)
-        }
       }
     } else {
       const message = i18n.t('message.backup.failed')
