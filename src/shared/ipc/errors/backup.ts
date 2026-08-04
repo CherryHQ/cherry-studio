@@ -42,5 +42,7 @@ export const backupErrorCodes = {
   /** The selected output cannot be atomically published without clobbering. */
   EXPORT_DESTINATION: 'BACKUP_EXPORT_DESTINATION',
   /** Restore resources conflict with the target filesystem (type, symlink, or device). */
-  RESTORE_RESOURCES: 'BACKUP_RESTORE_RESOURCES'
+  RESTORE_RESOURCES: 'BACKUP_RESTORE_RESOURCES',
+  /** The chosen destination has no usable settings yet, so nothing was attempted. */
+  DESTINATION_NOT_CONFIGURED: 'BACKUP_DESTINATION_NOT_CONFIGURED'
 } as const

@@ -3,7 +3,14 @@ import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from 
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
+import { ensureDir, remove } from 'fs-extra'
+import { randomUUID } from 'node:crypto'
+import { basename, join } from 'node:path'
 
+import { archiveName, isOwnArchive, pruneToLimit } from './destinations/archiveRotation'
+import { resolveDestination } from './destinations/destinationConfig'
+import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
 import { sweepStaleExportOperations } from './export/exportOperation'
@@ -234,11 +241,96 @@ export class BackupService extends BaseService {
   }
 
   /**
+   * Export, upload, then prune — in that order, to a destination whose settings
+   * this process reads for itself.
+   *
+   * The archive is built into the app's own temp area and moved out from there,
+   * never written to the destination directly. That is what lets a backup folder
+   * live on a NAS or a USB stick: the export's atomic publication needs a hard
+   * link, which those filesystems do not have, so it happens on a local disk and
+   * only the finished file crosses over.
+   */
+  public async exportToDestination(
+    id: BackupDestinationId
+  ): Promise<{ name: string; degradations: ExportArchiveResult['manifest']['degradations'] }> {
+    // Resolved before the claim: an unconfigured destination is not an operation,
+    // and must not make a concurrent export look busy.
+    const destination = await resolveDestination(id)
+    const transport = createTransport(destination)
+
+    return this.runExclusive('export', async (signal) => {
+      await this.startExportCleanup()
+      const name = archiveName(new Date())
+      const stagePath = join(application.getPath('feature.backup.temp'), `${randomUUID()}-${name}`)
+      try {
+        const result = await exportArchive({ outPath: stagePath, signal })
+        await transport.upload(result.outPath, name)
+        // Only now. Pruning first is how a limit of 1 turned a failed upload into
+        // a user with no backups at all.
+        await pruneToLimit(transport, destination.maxBackups)
+        return { name, degradations: result.manifest.degradations }
+      } finally {
+        await remove(stagePath).catch(() => {})
+      }
+    })
+  }
+
+  /**
    * Admit an archive and stage a cancellable `prepared` restore. Mutates no live
    * state; {@link armRestore} is what commits to it.
    */
   public prepareRestore(archivePath: string): Promise<RestorePreview> {
     return this.runExclusive('prepare-restore', (signal) => prepareRestore({ archivePath, signal }))
+  }
+
+  /**
+   * Download an archive from a destination and stage it, exactly as if the user
+   * had picked the file locally. The download is discarded before this returns —
+   * {@link armRestore} runs from the staged copy, so keeping it would only hold
+   * a second full-size copy for the length of the user's decision.
+   */
+  public async prepareRestoreFromDestination(id: BackupDestinationId, name: string): Promise<RestorePreview> {
+    const transport = createTransport(await resolveDestination(id))
+
+    return this.runExclusive('prepare-restore', async (signal) => {
+      const downloadDir = join(application.getPath('feature.backup.temp'), `download-${randomUUID()}`)
+      const archivePath = join(downloadDir, basename(name))
+      try {
+        await ensureDir(downloadDir)
+        await transport.download(name, archivePath)
+        return await prepareRestore({ archivePath, signal })
+      } finally {
+        await remove(downloadDir).catch(() => {})
+      }
+    })
+  }
+
+  /**
+   * What this device has already sent to a destination, newest first.
+   *
+   * Not exclusive: listing reads nothing an export or a restore is writing, and
+   * making the picker wait on a running backup would only look broken.
+   */
+  public async listDestinationBackups(id: BackupDestinationId): Promise<RemoteArchive[]> {
+    const transport = createTransport(await resolveDestination(id))
+    const archives = await transport.list()
+    return archives.filter((archive) => isOwnArchive(archive.name)).sort((a, b) => b.modifiedAt - a.modifiedAt)
+  }
+
+  public async deleteDestinationBackup(id: BackupDestinationId, name: string): Promise<void> {
+    const transport = createTransport(await resolveDestination(id))
+    await transport.remove(name)
+  }
+
+  /** Are the stored settings usable? A refusal is an answer here, not a fault. */
+  public async checkDestination(id: BackupDestinationId): Promise<boolean> {
+    const transport = createTransport(await resolveDestination(id))
+    try {
+      return await transport.check()
+    } catch (error) {
+      logger.warn('Backup destination is unreachable', error as Error, { destination: id })
+      return false
+    }
   }
 
   /**
