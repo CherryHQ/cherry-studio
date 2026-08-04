@@ -66,7 +66,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     if (!activeNodeId) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
           <EmptyState preset="no-note" title={t('notes.empty')} />
         </div>
       )
@@ -74,7 +74,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     if (contentLoadError) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
           <EmptyState
             preset="no-note"
             title={t('notes.load_failed')}
@@ -86,7 +86,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     return (
       <>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
+        <div
+          data-ui="notes.editor"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           {tmpViewMode === 'source' ? (
             <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor

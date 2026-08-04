@@ -31,6 +31,7 @@ import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike 
 import BlockErrorFallback from './BlockErrorFallback'
 import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
+import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 // ============ Types & Helpers ============
@@ -64,6 +65,10 @@ type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
   | { key: string; kind: 'activity'; label: React.ReactNode }
   | { key: string; kind: 'tool'; item: ToolRenderItem; status: ToolStatus }
+
+function getToolHeaderCandidateKey(candidate: ToolHeaderCandidate): string {
+  return candidate.key
+}
 
 const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.Agent]: Sparkles,
@@ -254,70 +259,6 @@ function shouldBypassHeaderStabilization(
   )
 }
 
-function useStableHeaderCandidate(
-  nextCandidate: ToolHeaderCandidate,
-  isLiveProgress: boolean | undefined
-): ToolHeaderCandidate {
-  const [displayCandidate, setDisplayCandidate] = React.useState(nextCandidate)
-  const displayCandidateRef = React.useRef(nextCandidate)
-  const lastChangeAtRef = React.useRef(Date.now())
-  const pendingCandidateRef = React.useRef<ToolHeaderCandidate | null>(null)
-  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  React.useEffect(() => {
-    const clearPendingTimer = () => {
-      if (!timerRef.current) return
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
-    const commitCandidate = (candidate: ToolHeaderCandidate) => {
-      displayCandidateRef.current = candidate
-      lastChangeAtRef.current = Date.now()
-      setDisplayCandidate(candidate)
-    }
-
-    if (displayCandidateRef.current.key === nextCandidate.key) {
-      clearPendingTimer()
-      pendingCandidateRef.current = null
-      displayCandidateRef.current = nextCandidate
-      return clearPendingTimer
-    }
-
-    if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
-      clearPendingTimer()
-      pendingCandidateRef.current = null
-      commitCandidate(nextCandidate)
-      return clearPendingTimer
-    }
-
-    pendingCandidateRef.current = nextCandidate
-    const elapsedMs = Date.now() - lastChangeAtRef.current
-    const remainingMs = Math.max(0, LIVE_HEADER_MIN_DURATION_MS - elapsedMs)
-
-    clearPendingTimer()
-    timerRef.current = setTimeout(() => {
-      const pendingCandidate = pendingCandidateRef.current
-      if (!pendingCandidate) return
-      pendingCandidateRef.current = null
-      timerRef.current = null
-      commitCandidate(pendingCandidate)
-    }, remainingMs)
-
-    return clearPendingTimer
-  }, [isLiveProgress, nextCandidate])
-
-  if (!isLiveProgress || shouldBypassHeaderStabilization(displayCandidateRef.current, nextCandidate)) {
-    return nextCandidate
-  }
-
-  if (displayCandidateRef.current.key === nextCandidate.key) {
-    return nextCandidate
-  }
-
-  return displayCandidate
-}
-
 interface ToolBlockGroupHeaderContentProps {
   items: ToolRenderItem[]
   activityLabel?: React.ReactNode
@@ -442,7 +383,12 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
       return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
     }, [activityLabel, allCompleted, fallbackLabel, items, partsMap, preferSummary, showLatestWhenComplete])
-    const displayCandidate = useStableHeaderCandidate(nextCandidate, isLiveProgress)
+    const displayCandidate = useMinimumDisplayDuration(nextCandidate, {
+      enabled: isLiveProgress,
+      getKey: getToolHeaderCandidateKey,
+      minimumDurationMs: LIVE_HEADER_MIN_DURATION_MS,
+      shouldBypass: shouldBypassHeaderStabilization
+    })
     const renderWithElapsed = (content: React.ReactNode, icon?: React.ReactNode) => (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
         {icon && (

@@ -68,7 +68,7 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * strip media the model can't accept → convert, dropping incomplete tool calls that
+ * strip unsupported audio/video → convert, dropping incomplete tool calls that
  * would otherwise dangle without a result → merge adjacent same-role turns left by
  * drops → placeholder any turn that still converted to empty content. See #16195.
  */
