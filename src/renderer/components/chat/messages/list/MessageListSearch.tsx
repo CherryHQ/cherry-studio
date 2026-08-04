@@ -18,7 +18,6 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import {
-  buildMessageSearchRegex,
   computeMessageSearchMatches,
   createMessageContentNodeFilter,
   findMessageElement,
@@ -108,7 +107,7 @@ export const MessageListSearch: FC<Props> = ({
     const scope = scopeRef.current
     if (!enabled || !trimmedQuery || !scope) return
 
-    const regex = buildMessageSearchRegex(trimmedQuery, { caseSensitive: isCaseSensitive, wholeWord: isWholeWord })
+    const searchOptions = { caseSensitive: isCaseSensitive, wholeWord: isWholeWord }
     const filter = createMessageContentNodeFilter(includeUser)
     if (supportsHighlights()) {
       const seenParts = new Set<string>()
@@ -118,7 +117,7 @@ export const MessageListSearch: FC<Props> = ({
         seenParts.add(partKey)
 
         const partElement = findMessagePartElement(scope, match.messageId, match.textPartIndex)
-        return partElement ? findRangesInScope(partElement, regex, filter) : []
+        return partElement ? findRangesInScope(partElement, trimmedQuery, searchOptions, filter) : []
       })
       if (ranges.length > 0) {
         CSS.highlights.set(MATCHES_HIGHLIGHT, new Highlight(...ranges))
@@ -128,7 +127,7 @@ export const MessageListSearch: FC<Props> = ({
     if (!current) return
     const partElement = findMessagePartElement(scope, current.messageId, current.textPartIndex)
     if (!partElement) return
-    const partRanges = findRangesInScope(partElement, regex, filter)
+    const partRanges = findRangesInScope(partElement, trimmedQuery, searchOptions, filter)
     if (partRanges.length === 0) return
     // Raw markdown and rendered text can still differ within one part; clamp
     // only inside that part instead of drifting into another part or message.

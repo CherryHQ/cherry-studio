@@ -35,19 +35,36 @@ export interface MessageSearchOptions {
   includeUser: boolean
 }
 
+type TextSearchOptions = Pick<MessageSearchOptions, 'caseSensitive' | 'wholeWord'>
+
+const WORD_SEGMENTER = new Intl.Segmenter(['zh-CN', 'en-US'], { granularity: 'word' })
+
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-export function buildMessageSearchRegex(
-  searchText: string,
-  options: Pick<MessageSearchOptions, 'caseSensitive' | 'wholeWord'>
-): RegExp {
-  const escaped = escapeRegExp(searchText)
-  // Apply case sensitivity only when the search text contains only Latin
-  // letters (same rule as ContentSearch).
-  const hasOnlyLatinLetters = /^[a-zA-Z\s]+$/.test(searchText)
-  const flags = hasOnlyLatinLetters && options.caseSensitive ? 'g' : 'gi'
-  const pattern = options.wholeWord ? `\\b${escaped}\\b` : escaped
-  return new RegExp(pattern, flags)
+export interface TextSearchMatch {
+  start: number
+  end: number
+}
+
+export function findTextMatches(text: string, searchText: string, options: TextSearchOptions): TextSearchMatch[] {
+  if (!searchText) return []
+
+  const regex = new RegExp(escapeRegExp(searchText), options.caseSensitive ? 'gu' : 'giu')
+  const matches = Array.from(text.matchAll(regex), (match) => ({
+    start: match.index,
+    end: match.index + match[0].length
+  }))
+  if (!options.wholeWord || matches.length === 0) return matches
+
+  const wordStarts = new Set<number>()
+  const wordEnds = new Set<number>()
+  for (const segment of WORD_SEGMENTER.segment(text)) {
+    if (!segment.isWordLike) continue
+    wordStarts.add(segment.index)
+    wordEnds.add(segment.index + segment.segment.length)
+  }
+
+  return matches.filter((match) => wordStarts.has(match.start) && wordEnds.has(match.end))
 }
 
 export function computeMessageSearchMatches(
@@ -59,7 +76,6 @@ export function computeMessageSearchMatches(
   const trimmed = searchText.trim()
   if (!trimmed) return []
 
-  const regex = buildMessageSearchRegex(trimmed, options)
   const matches: MessageSearchMatch[] = []
   for (const message of messages) {
     if (message.role !== 'assistant' && !(options.includeUser && message.role === 'user')) continue
@@ -72,11 +88,9 @@ export function computeMessageSearchMatches(
       textPartIndex++
       if (!part.text) continue
 
-      regex.lastIndex = 0
-      let occurrence = 0
-      while (regex.exec(part.text) !== null) {
+      const textMatches = findTextMatches(part.text, trimmed, options)
+      for (let occurrence = 0; occurrence < textMatches.length; occurrence++) {
         matches.push({ messageId: message.id, textPartIndex: currentTextPartIndex, occurrence })
-        occurrence++
       }
     }
   }
@@ -102,11 +116,16 @@ export function createMessageContentNodeFilter(includeUser: boolean): NodeFilter
 }
 
 /**
- * Collect DOM ranges matching `regex` under `root`. Text nodes are
+ * Collect DOM ranges matching `searchText` under `root`. Text nodes are
  * concatenated before matching so matches spanning element boundaries
  * (e.g. across markdown inline formatting) are still found.
  */
-export function findRangesInScope(root: HTMLElement, regex: RegExp, filter: NodeFilter): Range[] {
+export function findRangesInScope(
+  root: HTMLElement,
+  searchText: string,
+  options: TextSearchOptions,
+  filter: NodeFilter
+): Range[] {
   const ranges: Range[] = []
   const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, filter)
   const allTextNodes: { node: Node; startOffset: number }[] = []
@@ -117,11 +136,9 @@ export function findRangesInScope(root: HTMLElement, regex: RegExp, filter: Node
     fullText += treeWalker.currentNode.nodeValue
   }
 
-  regex.lastIndex = 0
-  let match: RegExpExecArray | null = null
-  while ((match = regex.exec(fullText))) {
-    const matchStart = match.index
-    const matchEnd = matchStart + match[0].length
+  for (const match of findTextMatches(fullText, searchText, options)) {
+    const matchStart = match.start
+    const matchEnd = match.end
 
     let startNode: Node | null = null
     let endNode: Node | null = null

@@ -1,7 +1,7 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { buildMessageSearchRegex, computeMessageSearchMatches } from '../messageSearch'
+import { computeMessageSearchMatches, findTextMatches } from '../messageSearch'
 
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
 
@@ -10,32 +10,35 @@ const message = (id: string, role: CherryUIMessage['role'], parts: CherryMessage
 
 const DEFAULT_OPTIONS = { caseSensitive: false, wholeWord: false, includeUser: false }
 
-describe('buildMessageSearchRegex', () => {
+describe('findTextMatches', () => {
   it('escapes regex metacharacters', () => {
-    const regex = buildMessageSearchRegex('a+b(c)', DEFAULT_OPTIONS)
-    expect(regex.test('xx a+b(c) yy')).toBe(true)
-    expect(regex.test('aab')).toBe(false)
+    expect(findTextMatches('xx a+b(c) yy', 'a+b(c)', DEFAULT_OPTIONS)).toHaveLength(1)
+    expect(findTextMatches('aab', 'a+b(c)', DEFAULT_OPTIONS)).toEqual([])
   })
 
   it('is case-insensitive by default', () => {
-    expect(buildMessageSearchRegex('Hello', DEFAULT_OPTIONS).test('says hello')).toBe(true)
+    expect(findTextMatches('says hello', 'Hello', DEFAULT_OPTIONS)).toHaveLength(1)
   })
 
-  it('honors case sensitivity for Latin-only queries', () => {
-    const regex = buildMessageSearchRegex('Hello', { caseSensitive: true, wholeWord: false })
-    expect(regex.test('says hello')).toBe(false)
-    expect(regex.test('says Hello')).toBe(true)
+  it('honors case sensitivity for English queries containing numbers', () => {
+    const options = { caseSensitive: true, wholeWord: false }
+    expect(findTextMatches('uses api2', 'API2', options)).toEqual([])
+    expect(findTextMatches('uses API2', 'API2', options)).toHaveLength(1)
   })
 
-  it('ignores case sensitivity for non-Latin queries', () => {
-    const regex = buildMessageSearchRegex('你好a', { caseSensitive: true, wholeWord: false })
-    expect(regex.flags).toContain('i')
+  it('matches whole English words only when requested', () => {
+    const options = { caseSensitive: false, wholeWord: true }
+    expect(findTextMatches('a cat sat', 'cat', options)).toHaveLength(1)
+    expect(findTextMatches('concatenate', 'cat', options)).toEqual([])
   })
 
-  it('matches whole words only when requested', () => {
-    const regex = buildMessageSearchRegex('cat', { caseSensitive: false, wholeWord: true })
-    expect(regex.test('a cat sat')).toBe(true)
-    expect(regex.test('concatenate')).toBe(false)
+  it('uses Chinese word boundaries for whole-word matching', () => {
+    const options = { caseSensitive: false, wholeWord: true }
+    expect(findTextMatches('你好世界，你好！', '你好', options)).toEqual([
+      { start: 0, end: 2 },
+      { start: 5, end: 7 }
+    ])
+    expect(findTextMatches('你好世界', '好世', options)).toEqual([])
   })
 })
 
