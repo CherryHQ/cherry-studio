@@ -238,6 +238,7 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger.closest('[data-ui~="part:message-tools"]')).not.toBeNull()
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
