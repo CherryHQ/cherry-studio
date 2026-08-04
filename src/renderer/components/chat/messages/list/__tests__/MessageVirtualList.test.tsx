@@ -256,6 +256,42 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
   })
 
+  it('converts input-driven nested scrolling into reading ownership', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => (
+          <div data-testid="nested-scroll-region" style={{ overflowY: 'auto' }}>
+            <span data-testid="nested-scroll-content">content</span>
+          </div>
+        )}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    const region = screen.getByTestId('nested-scroll-region')
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+
+    // A nested scroll with no preceding input (layout / streaming content)
+    // must not flip the outer list out of following.
+    fireEvent.scroll(region)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+
+    // A nested scrollbar drag: the pointer press seeds intent, and the nested
+    // scroll it produces converts the outer list to reading — scroll does not
+    // bubble, so this rides the capture phase.
+    fireEvent.pointerDown(region)
+    fireEvent.scroll(region)
+    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', region)
+
+    // The outer scroller's own scroll events stay with the runtime's handlers.
+    runtimeMockState.takeUserControl.mockClear()
+    fireEvent.scroll(scroller)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+  })
+
   it('ignores purely horizontal wheel input instead of taking scroll ownership', () => {
     render(
       <MessageVirtualList
