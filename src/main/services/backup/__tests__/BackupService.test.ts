@@ -6,7 +6,7 @@ import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
+import type { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../restore/prepareRestore'
 
 interface PrepareRestoreModule {
   armPreparedRestore: typeof armPreparedRestore
@@ -42,16 +42,16 @@ const {
 vi.mock('@logger', () => ({ loggerService: { withContext: () => loggerMock } }))
 // The derived-work behaviour itself is proven in postPromotion.test.ts; what
 // matters here is that the service tracks the promise it starts.
-vi.mock('../postPromotion', () => ({ runPostPromotionWork: postPromotionMock }))
-vi.mock('../acknowledgeRestore', () => ({
+vi.mock('../restore/postPromotion', () => ({ runPostPromotionWork: postPromotionMock }))
+vi.mock('../restore/acknowledgeRestore', () => ({
   acknowledgeRestore: acknowledgeMock,
   abandonKnowledgeRebuild: abandonMock
 }))
-vi.mock('../prepareRestore', async (importOriginal) => ({
+vi.mock('../restore/prepareRestore', async (importOriginal) => ({
   ...(await importOriginal<PrepareRestoreModule>()),
   armPreparedRestore: armPreparedMock
 }))
-vi.mock('../rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
+vi.mock('../restore/rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
 
 let userDataDir = ''
 
@@ -185,7 +185,7 @@ describe('BackupService', () => {
     })
 
     it('keeps restore transitions independent of runtime quiescence and lifecycle shutdown', () => {
-      for (const relativePath of ['../prepareRestore.ts', '../rollbackRestore.ts']) {
+      for (const relativePath of ['../restore/prepareRestore.ts', '../restore/rollbackRestore.ts']) {
         const source = readFileSync(resolve(__dirname, relativePath), 'utf8')
 
         expect(source, relativePath).not.toMatch(
