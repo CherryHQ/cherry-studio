@@ -37,7 +37,16 @@ export async function resolveRequestContextSettings(
   let compressionModel: CompressionModelDescriptor | null = null
   if (contextSettings.enabled && contextSettings.compress.enabled) {
     // Explicit pick, else fall back to the current request model.
-    const compressId = contextSettings.compress.modelId ?? model.id
+    //
+    // Blank counts as "no pick", not as a pick of "". `??` alone would only
+    // catch null/undefined, and the two layers can express emptiness
+    // differently: the assistant override's schema is `z.string().min(1)` (so
+    // clearing it yields null), but the GLOBAL preference is a plain
+    // `string | null` — its schema is generated from classification.json and
+    // cannot carry that refinement — so an empty string is representable there.
+    // Left as-is it reached `resolveCompressionModel('')`, which returns null,
+    // and compression silently switched off instead of using the current model.
+    const compressId = contextSettings.compress.modelId?.trim() || model.id
     compressionModel = await resolveCompressionModel(compressId)
   }
 

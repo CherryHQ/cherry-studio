@@ -44,12 +44,16 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     expect(mockResolveCompressionModel).toHaveBeenCalledWith('anthropic::claude-x')
   })
 
-  it('passes an empty compress.model_id straight through (?? does not treat "" as null — CR-009 P2-D note)', async () => {
-    setPrefs({ modelId: '' })
+  // The assistant override's schema is `z.string().min(1)`, so clearing it there
+  // yields null. The GLOBAL preference is a plain `string | null` — its schema is
+  // generated from classification.json and can't carry that refinement — so an
+  // empty string is representable. `??` alone would pass it through to
+  // `resolveCompressionModel('')`, which returns null and silently switched
+  // compression off; blank must read as "no pick" and use the current model.
+  it.each([[''], ['   ']])('treats a blank compress.model_id (%j) as "use the current model"', async (blank) => {
+    setPrefs({ modelId: blank })
     await resolveRequestContextSettings(model)
-    // The `??` fallback only replaces null/undefined, so '' reaches resolveCompressionModel,
-    // which rejects it as an invalid id and returns null (compression silently off).
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('')
+    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::gpt-4o')
   })
 
   it('does not resolve a compression model when compression is disabled', async () => {
