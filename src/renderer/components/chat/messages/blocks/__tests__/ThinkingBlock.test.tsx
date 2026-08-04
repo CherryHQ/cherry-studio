@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -139,30 +139,81 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
-    it('should keep the newest rolling reasoning visible while streaming without expanding', () => {
+    it('should show the latest completed segment after the preview has remained stable for one second', async () => {
       const block = createThinkingBlock({
         status: 'streaming',
-        content: 'First thought\n\nsecond thought\tthird thought'
+        content: 'First line\nsecond thought in progress'
       })
       const { rerender } = renderThinkingBlock(block)
-      const preview = screen.getByText('First thought second thought third thought')
-      Object.defineProperty(preview, 'scrollWidth', {
-        configurable: true,
-        value: 240
-      })
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('second thought in progress')).toBeNull()
 
       rerender(
         <ThinkingBlock
           id={block.id}
-          content={`${block.content} fourth thought`}
-          isStreaming={block.status === 'streaming'}
+          content={'First line\nsecond thought complete. third thought in progress'}
+          isStreaming
         />
       )
 
-      expect(screen.getByText('First thought second thought third thought fourth thought')).toBe(preview)
-      expect(preview.scrollLeft).toBe(240)
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
+      await act(() => vi.advanceTimersByTime(500))
+      rerender(
+        <ThinkingBlock
+          id={block.id}
+          content={'First line\nsecond thought complete. third thought complete. fourth thought in progress'}
+          isStreaming
+        />
+      )
+
+      await act(() => vi.advanceTimersByTime(499))
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('second thought complete.')).toBeNull()
+      expect(within(getToggleButton()).queryByText('third thought complete.')).toBeNull()
+
+      await act(() => vi.advanceTimersByTime(1))
+      expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+    })
+
+    it('should keep unfinished streaming text out of the title until a segment is completed', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'Still thinking without a boundary' })
+      renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).queryByText('Still thinking without a boundary')).toBeNull()
+      expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
+    })
+
+    it('should wait for a following character before treating trailing ASCII punctuation as complete', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'First line\nVersion 3.' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+
+      rerender(<ThinkingBlock id={block.id} content={'First line\nVersion 3.1 is still streaming'} isStreaming />)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+    })
+
+    it('should keep consecutive CJK sentence endings with the completed segment', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: '真的吗？！还要继续思考' })
+      renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).getByText('真的吗？！')).toBeInTheDocument()
+    })
+
+    it('should show the loading indicator only while thinking is streaming', () => {
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(screen.queryByTestId('thinking-loading-indicator')).toBeNull()
+      expect(getThinkingTimeText()).toHaveTextContent('Deep reasoning')
     })
   })
 
