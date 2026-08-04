@@ -1,6 +1,6 @@
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -138,13 +138,23 @@ describe('ComposerSpeedControl UI', () => {
     const slider = screen.getByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '5')
     expect(slider).toHaveAttribute('data-value', '3')
-    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).not.toBeInTheDocument()
+    const steps = container.querySelectorAll('[data-slot="composer-effort-step"]')
+    expect(steps).toHaveLength(6)
+    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).toHaveAttribute(
+      'data-current',
+      'true'
+    )
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
       'aria-pressed',
       'false'
     )
     fireEvent.click(screen.getByTestId('select-slider-min'))
+    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(6)
+    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="0"]')).toHaveAttribute(
+      'data-current',
+      'true'
+    )
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
@@ -264,6 +274,46 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
+  })
+
+  it('changes one effort level per wheel step without scrolling the page', () => {
+    const outerWheel = vi.fn()
+    render(
+      <div onWheel={outerWheel}>
+        <ControlledSpeedControl model={codexModel} initialEffort="high" />
+      </div>
+    )
+
+    const slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    const firstWheel = createEvent.wheel(slider, { deltaY: -15, cancelable: true })
+    fireEvent(slider, firstWheel)
+    expect(firstWheel.defaultPrevented).toBe(true)
+    fireEvent.wheel(slider, { deltaY: -15 })
+    expect(slider).toHaveAttribute('data-value', '3')
+
+    fireEvent.wheel(slider, { deltaY: -15 })
+    expect(slider).toHaveAttribute('data-value', '4')
+
+    fireEvent.wheel(slider, { deltaY: -100 })
+    expect(slider).toHaveAttribute('data-value', '5')
+
+    fireEvent.wheel(slider, { deltaY: -100 })
+    expect(slider).toHaveAttribute('data-value', '5')
+
+    fireEvent.wheel(slider, { deltaY: 100 })
+    expect(slider).toHaveAttribute('data-value', '4')
+    expect(outerWheel).not.toHaveBeenCalled()
+  })
+
+  it('treats line and page wheel events as one effort step each', () => {
+    render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+
+    const slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaMode: WheelEvent.DOM_DELTA_LINE, deltaY: -1 })
+    expect(slider).toHaveAttribute('data-value', '4')
+
+    fireEvent.wheel(slider, { deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaY: -1 })
+    expect(slider).toHaveAttribute('data-value', '5')
   })
 
   it('toggles Fast only for a capable provider-model pair', () => {
