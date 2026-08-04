@@ -61,7 +61,10 @@ const navigateMock = vi.hoisted(() => vi.fn())
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
-  on: vi.fn(() => vi.fn())
+  on: vi.fn(() => vi.fn()),
+  // The locate dispatcher polls for a mounted subscriber before emitting; the
+  // mock reports one so delivery happens on the first animation frame.
+  listenerCount: vi.fn(() => 1)
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))

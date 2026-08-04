@@ -10,6 +10,7 @@ import {
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -24,7 +25,6 @@ import {
   useTopicOverlayHandoffOnTerminal,
   useTopicStreamStatus
 } from '@renderer/hooks/useTopicStreamStatus'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -133,16 +133,7 @@ export function useChatRuntimeState({
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    const listRuntime = messageListRuntimeRef.current
-    if (!listRuntime) {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-      return
-    }
-
-    listRuntime.locateMessage(messageId)
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-    })
+    dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after

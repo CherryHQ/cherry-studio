@@ -19,6 +19,7 @@ import {
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -75,17 +76,9 @@ function withTerminalErrorFallback(
 }
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
-  const runtime = agentMessageListRuntimes.get(topicId)
-  if (!runtime) {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-    return false
-  }
-
-  runtime.locateMessage(messageId)
-  window.requestAnimationFrame(() => {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-  })
-  return true
+  const runtime = agentMessageListRuntimes.get(topicId) ?? null
+  dispatchLocateMessage(runtime, messageId, highlight)
+  return runtime !== null
 }
 
 interface AgentMessageListParams {
