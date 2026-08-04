@@ -44,6 +44,7 @@ vi.mock('react-i18next', () => ({
 
 beforeEach(() => {
   commandMock.handler = undefined
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
 })
 
 describe('MessageListSearch', () => {

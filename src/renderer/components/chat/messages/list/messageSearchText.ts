@@ -1,6 +1,6 @@
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
-import { DomUtils, parseDocument } from 'htmlparser2'
+import { Parser } from 'htmlparser2'
 import type { Nodes } from 'mdast'
 import remarkGithubBlockquoteAlert from 'remark-github-blockquote-alert'
 import remarkParse from 'remark-parse'
@@ -9,8 +9,6 @@ import type { Pluggable } from 'unified'
 import { unified } from 'unified'
 
 const CITATION_MARKER_PATTERN = /\[cite:[^\]]+\]/giu
-const CITATION_SUP_OPEN_PATTERN = /<sup\b[^>]*\bdata-citation(?:\s*=|\s|>)/iu
-const CITATION_SUP_CLOSE_PATTERN = /<\/sup\s*>/iu
 
 export const MESSAGE_SEARCH_EXCLUDED_ELEMENT_SELECTOR =
   'button,[role="button"],[data-citation],[data-message-search-exclude],[aria-hidden="true"],[data-streamdown="code-block-header"],.code-block-header,.code-toolbar,script,style'
@@ -19,72 +17,83 @@ const markdownProcessor = unified()
   .use(remarkParse)
   .use([...Object.values(defaultRemarkPlugins), remarkGithubBlockquoteAlert] as Pluggable[])
 
-function projectHtmlText(source: string): string {
-  const document = parseDocument(source)
-  const excludedElements = DomUtils.findAll((element) => {
-    const classNames = new Set((element.attribs.class ?? '').split(/\s+/u))
-    return (
-      element.name === 'button' ||
-      element.name === 'iframe' ||
-      element.name === 'script' ||
-      element.name === 'style' ||
-      element.attribs.role === 'button' ||
-      element.attribs['data-citation'] !== undefined ||
-      element.attribs['data-message-search-exclude'] !== undefined ||
-      element.attribs['aria-hidden'] === 'true' ||
-      element.attribs['data-streamdown'] === 'code-block-header' ||
-      classNames.has('code-block-header') ||
-      classNames.has('code-toolbar')
-    )
-  }, document.children)
-  for (const element of excludedElements) {
-    DomUtils.removeElement(element)
-  }
-  return DomUtils.textContent(document)
+function isExcludedHtmlElement(name: string, attributes: Record<string, string>): boolean {
+  const classNames = new Set((attributes.class ?? '').split(/\s+/u))
+  return (
+    name === 'button' ||
+    name === 'iframe' ||
+    name === 'script' ||
+    name === 'style' ||
+    attributes.role === 'button' ||
+    attributes['data-citation'] !== undefined ||
+    attributes['data-message-search-exclude'] !== undefined ||
+    attributes['aria-hidden'] === 'true' ||
+    attributes['data-streamdown'] === 'code-block-header' ||
+    classNames.has('code-block-header') ||
+    classNames.has('code-toolbar')
+  )
 }
 
 function hasChildren(node: Nodes): node is Nodes & { children: Nodes[] } {
   return 'children' in node
 }
 
-function projectChildren(children: readonly Nodes[]): string {
-  let insideCitation = false
-  let text = ''
-
-  for (const child of children) {
-    if (child.type === 'html') {
-      const opensCitation = CITATION_SUP_OPEN_PATTERN.test(child.value)
-      const closesCitation = CITATION_SUP_CLOSE_PATTERN.test(child.value)
-      if (opensCitation && !closesCitation) insideCitation = true
-      if (!insideCitation || (opensCitation && closesCitation)) text += projectHtmlText(child.value)
-      if (closesCitation) insideCitation = false
-      continue
-    }
-    if (!insideCitation) text += projectMarkdownNode(child)
-  }
-
-  return text
+interface ProjectionContext {
+  appendText: (text: string) => void
+  getText: () => string
+  htmlParser: Parser
 }
 
-function projectMarkdownNode(node: Nodes): string {
+function createProjectionContext(): ProjectionContext {
+  const excludedElements: boolean[] = []
+  let projectedText = ''
+  const appendText = (text: string) => {
+    if (!excludedElements.includes(true)) projectedText += text
+  }
+  const htmlParser = new Parser(
+    {
+      onopentag(name, attributes) {
+        excludedElements.push(isExcludedHtmlElement(name, attributes))
+      },
+      ontext: appendText,
+      onclosetag() {
+        excludedElements.pop()
+      }
+    },
+    { decodeEntities: true }
+  )
+  return { appendText, getText: () => projectedText, htmlParser }
+}
+
+function projectChildren(children: readonly Nodes[], context: ProjectionContext): void {
+  for (const child of children) {
+    projectMarkdownNode(child, context)
+  }
+}
+
+function projectMarkdownNode(node: Nodes, context: ProjectionContext): void {
   switch (node.type) {
     case 'text':
-      return node.value.replace(CITATION_MARKER_PATTERN, '')
+      context.appendText(node.value.replace(CITATION_MARKER_PATTERN, ''))
+      return
     case 'code':
     case 'inlineCode':
-      return node.value
+      context.appendText(node.value)
+      return
     case 'footnoteReference':
-      return node.label ?? node.identifier
+      context.appendText(node.label ?? node.identifier)
+      return
     case 'html':
-      return projectHtmlText(node.value)
+      context.htmlParser.write(node.value)
+      return
     case 'definition':
     case 'image':
     case 'imageReference':
     case 'break':
     case 'thematicBreak':
-      return ''
+      return
     default:
-      return hasChildren(node) ? projectChildren(node.children) : ''
+      if (hasChildren(node)) projectChildren(node.children, context)
   }
 }
 
@@ -92,5 +101,8 @@ function projectMarkdownNode(node: Nodes): string {
 export function projectMarkdownSearchText(source: string): string {
   const normalized = removeSvgEmptyLines(processLatexBrackets(source))
   const tree = markdownProcessor.runSync(markdownProcessor.parse(normalized)) as Nodes
-  return projectMarkdownNode(tree)
+  const context = createProjectionContext()
+  projectMarkdownNode(tree, context)
+  context.htmlParser.end()
+  return context.getText()
 }
