@@ -5,44 +5,20 @@
  * persistent agent data directories. Bundled skills stay in the read-only app
  * resources directory and are injected as a local Claude plugin.
  */
-import { application } from '@application'
+import {
+  type BuiltinAgentDefinition,
+  getBuiltinAgentTemplateDirectory,
+  loadBuiltinAgentDefinition
+} from '@data/builtinAgentDefinition'
 import { loggerService } from '@logger'
-import { getAppLanguage } from '@main/i18n'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import fs from 'fs'
 import path from 'path'
 
 const logger = loggerService.withContext('BuiltinAgentProvisioner')
 
-/** Resolve a localized field: string passes through; locale-keyed object resolves by current language. */
-function resolveLocalizedField(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  if (typeof value !== 'object' || value === null) return undefined
-
-  const map = value as Record<string, string>
-  const lang = getAppLanguage()
-  const prefix = lang.split('-')[0]
-  const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
-
-  return map[lang] || (prefixKey && map[prefixKey]) || map['en-US'] || Object.values(map)[0]
-}
-
-const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
-  assistant: 'cherry-assistant'
-}
-
-function getTemplateDir(builtinRole: string): string | undefined {
-  const templateName = TEMPLATE_NAME_BY_ROLE[builtinRole]
-  if (!templateName) {
-    logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
-    return undefined
-  }
-
-  return path.join(application.getPath('feature.agents.builtin'), templateName)
-}
-
 export function getBuiltinAgentPluginDirectory(builtinRole: string): string | undefined {
-  const templateDir = getTemplateDir(builtinRole)
+  const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
   if (!templateDir) return undefined
 
   // Claude Code runs out of process and cannot resolve Electron's virtual app.asar paths.
@@ -72,49 +48,7 @@ function copyMissingDirSync(src: string, dest: string): void {
   }
 }
 
-// No `description` here: the builtin agent's display/search description is owned by i18n
-// (`agent.builtin.cherry_assistant.description`), not the bundle — a bundle copy would be a
-// drift-prone second source of truth.
-export interface BuiltinAgentConfig {
-  name?: string
-  instructions?: string
-  configuration?: Record<string, unknown>
-  skills?: string[]
-}
-
-export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentConfig | undefined {
-  const templateDir = getTemplateDir(builtinRole)
-  if (!templateDir) return undefined
-
-  const agentJsonPath = path.join(templateDir, 'agent.json')
-  if (!fs.existsSync(agentJsonPath)) {
-    logger.error('Builtin agent definition not found', { agentJsonPath, builtinRole })
-    return undefined
-  }
-
-  try {
-    const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-    if (
-      agentConfig.skills !== undefined &&
-      (!Array.isArray(agentConfig.skills) || agentConfig.skills.some((skill: unknown) => typeof skill !== 'string'))
-    ) {
-      throw new Error('Builtin agent skills must be a string array')
-    }
-    return {
-      name: resolveLocalizedField(agentConfig.name),
-      instructions: resolveLocalizedField(agentConfig.instructions),
-      configuration: agentConfig.configuration,
-      skills: agentConfig.skills
-    } as BuiltinAgentConfig
-  } catch (error) {
-    logger.error('Failed to load builtin agent definition', {
-      builtinRole,
-      agentJsonPath,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return undefined
-  }
-}
+export { loadBuiltinAgentDefinition } from '@data/builtinAgentDefinition'
 
 /**
  * Initialize a built-in agent's persistent data directory.
@@ -129,8 +63,8 @@ export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentCon
 export async function provisionBuiltinAgent(
   agentDataPath: string,
   builtinRole: string
-): Promise<BuiltinAgentConfig | undefined> {
-  const templateDir = getTemplateDir(builtinRole)
+): Promise<BuiltinAgentDefinition | undefined> {
+  const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
   if (!templateDir) return undefined
 
   if (!fs.existsSync(templateDir)) {

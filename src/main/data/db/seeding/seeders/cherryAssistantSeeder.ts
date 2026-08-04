@@ -1,24 +1,13 @@
+import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { sql } from 'drizzle-orm'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
-
-const CHERRY_ASSISTANT_SEED = {
-  name: 'Cherry Assistant',
-  configuration: {
-    avatar: '🍒',
-    permission_mode: 'acceptEdits',
-    max_turns: 100,
-    env_vars: {},
-    builtin_role: 'assistant'
-  } satisfies AgentConfiguration
-} as const
 
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
@@ -34,17 +23,18 @@ export class CherryAssistantSeeder implements ISeeder {
       const existing = this.findBuiltinAssistant(tx)
       if (existing) return
 
+      const defaults = loadBuiltinAssistantDefaults(this.getPreferredSystemLanguage())
       const agentId = uuidv4()
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',
-        name: this.getNameForPreferredSystemLanguage(),
+        name: defaults.name,
         description: '',
         instructions: '',
         // The managed CherryAI model cannot run the agent runtime. Onboarding
         // assigns the user's default model when they choose one.
         model: null,
-        configuration: { ...CHERRY_ASSISTANT_SEED.configuration }
+        configuration: { ...defaults.configuration }
       })
 
       if (!row) {
@@ -72,12 +62,11 @@ export class CherryAssistantSeeder implements ISeeder {
     return existing
   }
 
-  private getNameForPreferredSystemLanguage(): string {
+  private getPreferredSystemLanguage(): string {
     try {
-      const preferredLanguage = app.getPreferredSystemLanguages()[0]
-      return preferredLanguage?.toLowerCase().startsWith('zh') ? 'Cherry 助理' : CHERRY_ASSISTANT_SEED.name
+      return app.getPreferredSystemLanguages()[0] ?? 'en-US'
     } catch {
-      return CHERRY_ASSISTANT_SEED.name
+      return 'en-US'
     }
   }
 }

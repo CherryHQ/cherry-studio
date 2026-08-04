@@ -1,3 +1,7 @@
+import { resolve } from 'node:path'
+
+import { application } from '@application'
+import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -29,6 +33,13 @@ describe('CherryAssistantSeeder', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.builtin') {
+        const builtinRoot = resolve('resources/builtin-agents')
+        return filename ? resolve(builtinRoot, filename) : builtinRoot
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
     vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['en-US'])
   })
 
@@ -67,9 +78,11 @@ describe('CherryAssistantSeeder', () => {
       avatar: '🍒',
       permission_mode: 'acceptEdits',
       max_turns: 100,
+      bootstrap_completed: true,
       env_vars: {},
       builtin_role: 'assistant'
     })
+    expect({ name: agent.name, configuration: agent.configuration }).toEqual(loadBuiltinAssistantDefaults('en-US'))
 
     const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.agentId, agent.id)).all()
     expect(session).toMatchObject({ agentId: agent.id, name: '' })
@@ -87,7 +100,7 @@ describe('CherryAssistantSeeder', () => {
     new CherryAssistantSeeder().run(dbh.db)
 
     const [agent] = builtinAgents(dbh.db)
-    expect(agent.name).toBe('Cherry 助理')
+    expect(agent.name).toBe('Cherry 小助手')
   })
 
   it('falls back to the English name when preferred system languages are unavailable', () => {
@@ -121,6 +134,14 @@ describe('CherryAssistantSeeder', () => {
     expect(updated.configuration).toMatchObject({ permission_mode: 'default' })
     const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
     expect(journal?.value).toMatchObject({ version: '2' })
+  })
+
+  it('does not load the bundled definition when Cherry Assistant already exists', () => {
+    new CherryAssistantSeeder().run(dbh.db)
+    vi.mocked(application.getPath).mockReturnValue('/missing-builtin-agents')
+
+    expect(() => new CherryAssistantSeeder().run(dbh.db)).not.toThrow()
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
   })
 
   it('adds Cherry Assistant after a version 1 skip in an existing library and journals the rollout', () => {

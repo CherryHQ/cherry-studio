@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,6 +86,22 @@ describe('BuiltinAgentProvisioner', () => {
     expect(getBuiltinAgentPluginDirectory('assistant')).toBe(path.join(templateDir, '.claude'))
     expect(mocks.toAsarUnpackedPath).toHaveBeenCalledWith(path.join(templateDir, '.claude'))
     expect(loadBuiltinAgentDefinition('assistant')?.skills).toEqual(['cherry-assistant-guide'])
+  })
+
+  it('builds creation defaults from the bundled Agent definition', () => {
+    expect(loadBuiltinAssistantDefaults()).toEqual({
+      name: 'Cherry Assistant',
+      configuration: { permission_mode: 'default', builtin_role: 'assistant' }
+    })
+  })
+
+  it('rejects invalid bundled creation defaults', () => {
+    writeFile(
+      path.join(templateDir, 'agent.json'),
+      JSON.stringify({ name: 'Cherry Assistant', configuration: { max_turns: 'invalid' } })
+    )
+
+    expect(() => loadBuiltinAssistantDefaults()).toThrow('Cherry Assistant package configuration is invalid')
   })
 
   it('copies persona and memory templates into agent data without copying product files', async () => {
