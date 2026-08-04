@@ -7930,13 +7930,11 @@
       "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",
       "confirmUninstall": "Are you sure you want to uninstall this skill?",
       "directory": "Directory",
-      "directoryImportFailed": "Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Or drag & drop a ZIP file or folder here",
       "emptyDesc": "Install skills from ZIP, directory, or search online registries to extend agent capabilities.",
       "emptyTip": "Tip: You can also ask an agent to install skills for you.",
       "emptyTitle": "No skill selected",
       "filterPlaceholder": "Filter skills...",
-      "importConflict": "Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Install",
       "installFailed": "Failed to install skill: {{name}}",
       "installFromDirectory": "Install from directory",
@@ -7959,10 +7957,7 @@
       "uninstall": "Uninstall",
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
-      "zip": "ZIP",
-      "zipImportFailed": "Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
-      "zipTooLarge": "Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
-      "zipTooManyFiles": "Could not install \"{{name}}\" because the ZIP contains too many files."
+      "zip": "ZIP"
     },
     "system": {
       "title": "System"

@@ -2,6 +2,7 @@ import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scr
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -9,8 +10,6 @@ import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { getSkillImportErrorMessage } from './skillImportError'
 
 interface Props {
   open: boolean
@@ -65,8 +64,8 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   const getInstallErrorMessage = useCallback(
     (e: unknown, fallbackName?: string) => {
-      const fallback = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
-      return e instanceof Error && e.message ? e.message : fallback
+      const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
+      return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
     },
     [t]
   )
@@ -95,7 +94,9 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
           try {
             const skill = item.kind === 'zip' ? await installFromZip(item.path) : await installFromDirectory(item.path)
             if (!skill) {
-              throw new Error(t('settings.skills.installFailed', { name: item.name }))
+              failedCount += 1
+              updateItem(item.id, { status: 'error', error: getInstallErrorMessage(undefined, item.name) })
+              continue
             }
 
             lastSkill = skill
@@ -103,7 +104,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             updateItem(item.id, { status: 'success', skillName: skill.name })
           } catch (error) {
             failedCount += 1
-            updateItem(item.id, { status: 'error', error: getSkillImportErrorMessage(error, item, t) })
+            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(error, item.name) })
           }
         }
 
@@ -129,7 +130,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         setInstalling(null)
       }
     },
-    [installFromDirectory, installFromZip, installing, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
   )
 
   const createImportItem = useCallback(

@@ -7925,13 +7925,11 @@
       "confirmBatchUninstall": "Tem certeza de que deseja desinstalar {{count}} habilidades selecionadas?",
       "confirmUninstall": "Tem a certeza de que quer desinstalar esta competência?",
       "directory": "Diretório",
-      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Ou arraste e solte aqui um arquivo ZIP ou uma pasta",
       "emptyDesc": "Instale habilidades a partir de ZIP, diretório ou pesquise registros online para estender as capacidades do agente.",
       "emptyTip": "Dica: Você também pode pedir a um agente para instalar habilidades para você.",
       "emptyTitle": "Nenhuma habilidade selecionada",
       "filterPlaceholder": "Filtrar habilidades...",
-      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Instalar",
       "installFailed": "Falha ao instalar a habilidade: {{name}}",
       "installFromDirectory": "Instalar a partir do diretório",
@@ -7954,10 +7952,7 @@
       "uninstall": "Desinstalar",
       "uninstallSuccess": "Habilidade desinstalada: {{name}}",
       "viewSource": "Ver Fonte",
-      "zip": "CEP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
-      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
-      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
+      "zip": "CEP"
     },
     "system": {
       "title": "Sistema"

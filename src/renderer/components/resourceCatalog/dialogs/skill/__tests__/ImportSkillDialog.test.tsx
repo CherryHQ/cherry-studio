@@ -140,38 +140,37 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('shows a localized ZIP failure without exposing the extraction path', async () => {
+  it('shows the localized install prefix with the original ZIP error', async () => {
     const user = userEvent.setup()
-    installFromZip.mockRejectedValue(
-      new Error('No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123')
-    )
+    const originalError = 'No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123'
+    installFromZip.mockRejectedValue(new Error(originalError))
 
     render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    expect(await screen.findByText('settings.skills.zipImportFailed:broken.zip')).toBeInTheDocument()
-    expect(screen.queryByText(/zip-install-123/)).not.toBeInTheDocument()
+    expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows localized skill-root guidance for a directory failure', async () => {
+  it('shows the localized install prefix with the original directory error', async () => {
     const user = userEvent.setup()
+    const originalError = 'SKILL.md or skill.md not found in skill folder'
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
-    installFromDirectory.mockRejectedValue(new Error('SKILL.md or skill.md not found in skill folder'))
+    installFromDirectory.mockRejectedValue(new Error(originalError))
 
     render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
 
-    expect(await screen.findByText('settings.skills.directoryImportFailed:broken-skill')).toBeInTheDocument()
+    expect(await screen.findByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('truncates a long import name and wraps a long error while preserving their titles', async () => {
     const user = userEvent.setup()
     const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
-    const localizedError = `settings.skills.installFailed:${longName}`
+    const localizedError = `settings.skills.installFailed:${longName}: corrupt archive`
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: longName, path: `/tmp/${longName}` }] as any)
     installFromZip.mockRejectedValue(new Error('corrupt archive'))
 

@@ -7925,13 +7925,11 @@
       "confirmBatchUninstall": "Sigur dorești să dezinstalezi {{count}} competențe selectate?",
       "confirmUninstall": "Ești sigur că vrei să dezinstalezi această abilitate?",
       "directory": "Director",
-      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Sau trageți și plasați aici un fișier ZIP sau un folder",
       "emptyDesc": "Instalează abilități din ZIP, director sau caută în registre online pentru a extinde capabilitățile agentului.",
       "emptyTip": "Sfat: Poți, de asemenea, să ceri unui agent să instaleze abilități pentru tine.",
       "emptyTitle": "Nicio competență selectată",
       "filterPlaceholder": "Filtrează abilitățile...",
-      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Instalare",
       "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
       "installFromDirectory": "Instalează din director",
@@ -7954,10 +7952,7 @@
       "uninstall": "Dezinstalare",
       "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
       "viewSource": "Vezi sursa",
-      "zip": "ZIP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
-      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
-      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
+      "zip": "ZIP"
     },
     "system": {
       "title": "Sistem"

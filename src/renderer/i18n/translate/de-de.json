@@ -7925,13 +7925,11 @@
       "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
       "confirmUninstall": "Bist du sicher, dass du diese Fähigkeit deinstallieren möchtest?",
       "directory": "Verzeichnis",
-      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "Oder ziehen Sie eine ZIP-Datei oder einen Ordner hierher.",
       "emptyDesc": "Installiere Fähigkeiten aus ZIP, Verzeichnis oder suche in Online-Registries, um die Agenten-Fähigkeiten zu erweitern.",
       "emptyTip": "Tipp: Sie können auch einen Agenten bitten, Fähigkeiten für Sie zu installieren.",
       "emptyTitle": "Keine Fähigkeit ausgewählt",
       "filterPlaceholder": "Filter Fähigkeiten...",
-      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Installieren",
       "installFailed": "Fehler beim Installieren der Fähigkeit: {{name}}",
       "installFromDirectory": "Aus Verzeichnis installieren",
@@ -7954,10 +7952,7 @@
       "uninstall": "Deinstallieren",
       "uninstallSuccess": "Skill deinstalliert: {{name}}",
       "viewSource": "Quelltext anzeigen",
-      "zip": "PLZ",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
-      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
-      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
+      "zip": "PLZ"
     },
     "system": {
       "title": "System"

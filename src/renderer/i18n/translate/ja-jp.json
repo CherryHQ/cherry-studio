@@ -7925,13 +7925,11 @@
       "confirmBatchUninstall": "{{count}}個の選択したスキルをアンインストールしてもよろしいですか？",
       "confirmUninstall": "このスキルをアンインストールしてもよろしいですか？",
       "directory": "ディレクトリ",
-      "directoryImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the selected folder root contains a readable SKILL.md.",
       "dropHint": "または、ZIPファイルまたはフォルダをここにドラッグ＆ドロップしてください",
       "emptyDesc": "ZIP、ディレクトリからスキルをインストールするか、オンラインのレジストリを検索してエージェントの機能を拡張します。",
       "emptyTip": "ヒント: エージェントにスキルをインストールしてもらうこともできます。",
       "emptyTitle": "スキルが選択されていません",
       "filterPlaceholder": "スキルをフィルター...",
-      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "インストール",
       "installFailed": "スキルのインストールに失敗しました: {{name}}",
       "installFromDirectory": "ディレクトリからインストール",
@@ -7954,10 +7952,7 @@
       "uninstall": "アンインストール",
       "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
       "viewSource": "ソースを表示",
-      "zip": "ZIP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
-      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
-      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
+      "zip": "ZIP"
     },
     "system": {
       "title": "システム"
