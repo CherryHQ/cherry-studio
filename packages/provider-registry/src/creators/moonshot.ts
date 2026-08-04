@@ -8,6 +8,10 @@ export default defineCreator({
   modelsDevProviders: ['moonshotai', 'moonshotai-cn'],
   families: ['kimi'],
   idPrefixes: ['kimi', 'moonshot'],
+  // Built-in search rides Kimi's official formula channel — a normal function tool whose execution
+  // POSTs to `/formulas/moonshot/web-search:latest/fibers` (docs/guide/use-official-tools). It serves
+  // both lines: the K2-only `$web_search` builtin protocol 400s with `tokenization failed` on k3.
+  serverTools: { 'web-search': ['kimi-k2', 'kimi-k3', 'kimi-latest'] },
   reasoningFamilies: [
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the
