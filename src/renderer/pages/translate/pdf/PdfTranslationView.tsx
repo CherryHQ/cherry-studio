@@ -70,6 +70,19 @@ interface PdfTranslationUiProgress {
   progress: number
 }
 
+type PdfTranslationResultState =
+  | { type: 'output'; outputPath: AbsoluteFilePath; fileName: string }
+  | { type: 'downloading_assets' }
+  | { type: 'progress'; progress: PdfTranslationUiProgress }
+  | { type: 'preparing' }
+  | { type: 'ocr_required' }
+  | { type: 'text_fallback'; content: ReactNode }
+  | { type: 'checking_dependency' }
+  | { type: 'installing_dependency' }
+  | { type: 'missing_dependency' }
+  | { type: 'error' }
+  | { type: 'ready' }
+
 const PDF_TRANSLATION_UI_STAGE_RANK: Record<PdfTranslationUiStage, number> = {
   preparing: 0,
   analyzing: 1,
@@ -106,6 +119,60 @@ const getProgressLabel = (t: TFunction, stage: PdfTranslationUiStage): string =>
   }
 }
 
+const isRunningPhase = (phase: PdfTranslationPhase) =>
+  phase === 'preparing' || phase === 'downloading_assets' || phase === 'translating'
+
+const requestCancel = (jobId: string, warningMessage: string) => {
+  void ipcApi.request('translate.pdf.cancel', { jobId }).catch((error) => {
+    logger.warn(warningMessage, error as Error)
+  })
+}
+
+const requestCleanup = (jobId: string, warningMessage: string) => {
+  void ipcApi.request('translate.pdf.cleanup', { jobId }).catch((error) => {
+    logger.warn(warningMessage, error as Error)
+  })
+}
+
+const getResultState = ({
+  output,
+  phase,
+  progress,
+  textFallback,
+  babelDocAvailability,
+  babelDocInstalling,
+  error
+}: {
+  output: PdfTranslationOutput | null
+  phase: PdfTranslationPhase
+  progress: PdfTranslationUiProgress | null
+  textFallback?: PdfTextFallback
+  babelDocAvailability: BabelDocAvailability
+  babelDocInstalling: boolean
+  error: Error | null
+}): PdfTranslationResultState => {
+  if (output) return { type: 'output', outputPath: output.outputPath, fileName: output.fileName }
+  if (isRunningPhase(phase)) {
+    if (phase === 'downloading_assets') return { type: 'downloading_assets' }
+    if (progress) return { type: 'progress', progress }
+    return { type: 'preparing' }
+  }
+  if (textFallback?.ocrRequired) return { type: 'ocr_required' }
+  if (textFallback) return { type: 'text_fallback', content: textFallback.content }
+  if (babelDocAvailability === 'checking') return { type: 'checking_dependency' }
+
+  const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
+  if (babelDocAvailability === 'missing' || dependencyMissing) {
+    return { type: babelDocInstalling ? 'installing_dependency' : 'missing_dependency' }
+  }
+  if (error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED) {
+    return { type: 'ocr_required' }
+  }
+  // Raw sidecar diagnostics stay in the main-process log; the renderer uses a generic error.
+  if (error) return { type: 'error' }
+  return { type: 'ready' }
+}
+
 const PdfTranslationView = ({
   file,
   modelId,
@@ -128,28 +195,28 @@ const PdfTranslationView = ({
   const outputRef = useRef(output)
   outputRef.current = output
 
+  const cleanupOutput = useCallback((warningMessage: string) => {
+    const completedJob = outputRef.current
+    if (!completedJob) return
+    requestCleanup(completedJob.jobId, warningMessage)
+    outputRef.current = null
+    setOutput(null)
+  }, [])
+
   const cancel = useCallback(() => {
     const jobId = activeJobIdRef.current
     if (!jobId) return
     activeJobIdRef.current = null
     setPhase('idle')
     setProgress(null)
-    ipcApi.request('translate.pdf.cancel', { jobId }).catch((error) => {
-      logger.warn('Failed to cancel PDF translation', error as Error)
-    })
+    requestCancel(jobId, 'Failed to cancel PDF translation')
   }, [])
 
   const start = useCallback(
     (targetLangCode: TranslateLangCode) => {
       if (!modelId || activeJobIdRef.current) return
 
-      if (outputRef.current) {
-        ipcApi.request('translate.pdf.cleanup', { jobId: outputRef.current.jobId }).catch((error) => {
-          logger.warn('Failed to clean up previous PDF translation output', error as Error)
-        })
-        outputRef.current = null
-        setOutput(null)
-      }
+      cleanupOutput('Failed to clean up previous PDF translation output')
 
       const jobId = uuid()
       activeJobIdRef.current = jobId
@@ -167,9 +234,7 @@ const PdfTranslationView = ({
         })
         .then((result) => {
           if (activeJobIdRef.current !== jobId) {
-            ipcApi.request('translate.pdf.cleanup', { jobId }).catch((error) => {
-              logger.warn('Failed to clean up superseded PDF translation output', error as Error)
-            })
+            requestCleanup(jobId, 'Failed to clean up superseded PDF translation output')
             return
           }
           activeJobIdRef.current = null
@@ -190,7 +255,7 @@ const PdfTranslationView = ({
           setPhase('error')
         })
     },
-    [file.path, modelId, onBabelDocUnavailable, sourceLangCode, t]
+    [cleanupOutput, file.path, modelId, onBabelDocUnavailable, sourceLangCode, t]
   )
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
@@ -221,7 +286,7 @@ const PdfTranslationView = ({
     return () => onHandleChange(null)
   }, [onHandleChange])
 
-  const running = phase === 'preparing' || phase === 'downloading_assets' || phase === 'translating'
+  const running = isRunningPhase(phase)
   useEffect(() => onStatusChange({ phase, running }), [onStatusChange, phase, running])
 
   useEffect(
@@ -229,15 +294,11 @@ const PdfTranslationView = ({
       const activeJobId = activeJobIdRef.current
       activeJobIdRef.current = null
       if (activeJobId) {
-        ipcApi.request('translate.pdf.cancel', { jobId: activeJobId }).catch((error) => {
-          logger.warn('Failed to cancel PDF translation on unmount', error as Error)
-        })
+        requestCancel(activeJobId, 'Failed to cancel PDF translation on unmount')
       }
       const completedJob = outputRef.current
       if (completedJob) {
-        ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId }).catch((error) => {
-          logger.warn('Failed to clean up PDF translation output on unmount', error as Error)
-        })
+        requestCleanup(completedJob.jobId, 'Failed to clean up PDF translation output on unmount')
       }
     },
     []
@@ -245,16 +306,9 @@ const PdfTranslationView = ({
 
   const close = useCallback(() => {
     cancel()
-    const completedJob = outputRef.current
-    if (completedJob) {
-      ipcApi.request('translate.pdf.cleanup', { jobId: completedJob.jobId }).catch((error) => {
-        logger.warn('Failed to clean up PDF translation output', error as Error)
-      })
-      outputRef.current = null
-      setOutput(null)
-    }
+    cleanupOutput('Failed to clean up PDF translation output')
     onClose()
-  }, [cancel, onClose])
+  }, [cancel, cleanupOutput, onClose])
 
   const exportOutput = useCallback(async () => {
     if (!output) return
@@ -268,15 +322,15 @@ const PdfTranslationView = ({
     }
   }, [output, t])
 
-  const progressLabel = getProgressLabel(t, progress?.stage ?? 'preparing')
-  const roundedProgress = progress ? Math.round(progress.progress) : null
-  const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
-  const ocrRequired = error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED
-  // Only localized domain errors are shown verbatim. Any other failure carries the raw sidecar
-  // stderr/traceback (local paths, internal diagnostics) in its message — kept in the main-process
-  // log, never surfaced here — so it falls back to a generic, localized message.
-  const errorDescription = ocrRequired ? t('translate.pdf.error.ocr_required') : t('translate.pdf.error.generic')
-  const showBabelDocPrompt = babelDocAvailability === 'missing' || dependencyMissing
+  const resultState = getResultState({
+    output,
+    phase,
+    progress,
+    textFallback,
+    babelDocAvailability,
+    babelDocInstalling,
+    error
+  })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
@@ -326,63 +380,86 @@ const PdfTranslationView = ({
             </>
           }
           bordered>
-          {output ? (
-            <PdfPreviewPanel filePath={output.outputPath} fileName={output.fileName} refreshKey={0} />
-          ) : running ? (
-            <div className="flex h-full items-center justify-center">
-              {phase === 'downloading_assets' ? (
-                <LoadingState label={t('translate.pdf.progress.downloading_assets')} />
-              ) : progress ? (
-                <PdfProgress
-                  progress={progress.progress}
-                  label={progressLabel}
-                  percentLabel={t('translate.pdf.progress.percent', { progress: roundedProgress })}
-                  valueText={t('translate.pdf.progress.value', { stage: progressLabel, progress: roundedProgress })}
-                />
-              ) : (
-                <LoadingState label={progressLabel} />
-              )}
-            </div>
-          ) : textFallback?.ocrRequired ? (
-            <EmptyState
-              icon={AlertCircle}
-              title={t('translate.pdf.error.title')}
-              description={t('translate.pdf.error.ocr_required')}
-            />
-          ) : textFallback ? (
-            textFallback.content
-          ) : babelDocAvailability === 'checking' ? (
-            <div className="flex h-full items-center justify-center">
-              <LoadingState label={t('translate.pdf.dependency.checking')} />
-            </div>
-          ) : showBabelDocPrompt ? (
-            babelDocInstalling ? (
-              <div className="flex h-full items-center justify-center">
-                <LoadingState label={t('translate.pdf.dependency.installing')} />
-              </div>
-            ) : (
-              <EmptyState
-                icon={Languages}
-                title={t('translate.pdf.dependency.title')}
-                description={t('translate.pdf.dependency.description')}
-                actionLabel={t('translate.pdf.action.install_babeldoc')}
-                onAction={onInstallBabelDoc}
-              />
-            )
-          ) : error ? (
-            <EmptyState icon={AlertCircle} title={t('translate.pdf.error.title')} description={errorDescription} />
-          ) : (
-            <EmptyState
-              icon={Languages}
-              title={t('translate.pdf.ready.title')}
-              description={t('translate.pdf.ready.description')}
-            />
-          )}
+          <PdfTranslationResult state={resultState} onInstallBabelDoc={onInstallBabelDoc} />
         </PdfPane>
       </div>
     </div>
   )
 }
+
+const PdfTranslationResult = ({
+  state,
+  onInstallBabelDoc
+}: {
+  state: PdfTranslationResultState
+  onInstallBabelDoc: () => void
+}) => {
+  const { t } = useTranslation()
+
+  switch (state.type) {
+    case 'output':
+      return <PdfPreviewPanel filePath={state.outputPath} fileName={state.fileName} refreshKey={0} />
+    case 'downloading_assets':
+      return <CenteredLoading label={t('translate.pdf.progress.downloading_assets')} />
+    case 'progress': {
+      const progressLabel = getProgressLabel(t, state.progress.stage)
+      const roundedProgress = Math.round(state.progress.progress)
+      return (
+        <div className="flex h-full items-center justify-center">
+          <PdfProgress
+            progress={state.progress.progress}
+            label={progressLabel}
+            percentLabel={t('translate.pdf.progress.percent', { progress: roundedProgress })}
+            valueText={t('translate.pdf.progress.value', { stage: progressLabel, progress: roundedProgress })}
+          />
+        </div>
+      )
+    }
+    case 'preparing':
+      return <CenteredLoading label={getProgressLabel(t, 'preparing')} />
+    case 'ocr_required':
+    case 'error':
+      return (
+        <EmptyState
+          icon={AlertCircle}
+          title={t('translate.pdf.error.title')}
+          description={
+            state.type === 'ocr_required' ? t('translate.pdf.error.ocr_required') : t('translate.pdf.error.generic')
+          }
+        />
+      )
+    case 'text_fallback':
+      return state.content
+    case 'checking_dependency':
+      return <CenteredLoading label={t('translate.pdf.dependency.checking')} />
+    case 'installing_dependency':
+      return <CenteredLoading label={t('translate.pdf.dependency.installing')} />
+    case 'missing_dependency':
+      return (
+        <EmptyState
+          icon={Languages}
+          title={t('translate.pdf.dependency.title')}
+          description={t('translate.pdf.dependency.description')}
+          actionLabel={t('translate.pdf.action.install_babeldoc')}
+          onAction={onInstallBabelDoc}
+        />
+      )
+    case 'ready':
+      return (
+        <EmptyState
+          icon={Languages}
+          title={t('translate.pdf.ready.title')}
+          description={t('translate.pdf.ready.description')}
+        />
+      )
+  }
+}
+
+const CenteredLoading = ({ label }: { label: string }) => (
+  <div className="flex h-full items-center justify-center">
+    <LoadingState label={label} />
+  </div>
+)
 
 const PdfProgress = ({
   progress,
