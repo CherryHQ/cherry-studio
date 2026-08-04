@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2ccd6677-3ac4-4d3b-a7a1-7bc0df2570bd",
+  "id": "77dab5b3-daaf-4669-bf97-c1801025f509",
   "prevId": "ef12a49f-fae9-44eb-831a-c668131c952e",
   "tables": {
     "agent": {
@@ -836,13 +836,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "disconnected_path": {
-          "name": "disconnected_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "type": {
@@ -1917,7 +1910,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output')"
         }
       }
     },
@@ -3274,6 +3267,13 @@
         },
         "stats": {
           "name": "stats",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "compaction_summary": {
+          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

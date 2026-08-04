@@ -2,23 +2,41 @@ import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
+import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
-  resolveProviderAiSdkConfigMock: vi.fn()
+const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
+  preferenceGetMock: vi.fn(),
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  resolveRequestContextSettingsSpy: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
+
+// Spy that calls through to the real resolver (the null-pref mock keeps it
+// behavior-preserving) so existing tests are untouched but the assistant
+// override passthrough can be asserted.
+vi.mock('../../../../contextBuild/resolveRequestContextSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResolveRequestContextSettingsModule>()
+  return {
+    ...actual,
+    resolveRequestContextSettings: (...args: Parameters<typeof actual.resolveRequestContextSettings>) => {
+      resolveRequestContextSettingsSpy(...args)
+      return actual.resolveRequestContextSettings(...args)
+    }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -26,7 +44,7 @@ vi.mock('@application', () => ({
       path.join(process.cwd(), 'packages/provider-registry/data', filename),
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
-      if (name === 'PreferenceService') return { get: () => null }
+      if (name === 'PreferenceService') return { get: preferenceGetMock }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -40,6 +58,10 @@ const {
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
+
+beforeEach(() => {
+  preferenceGetMock.mockReturnValue(null)
+})
 
 describe('buildAgentParams provider resolution', () => {
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
@@ -98,6 +120,71 @@ describe('buildAgentParams provider resolution', () => {
       }
     })
     expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+
+  it('suppresses URL Context when Gemini 2.5 receives actual function tools', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      },
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    })
+    const model = makeModel({
+      id: 'gemini::gemini-2.5-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.tools).toHaveProperty('mcp__test__lookup')
+    expect(result.plugins.map((plugin) => plugin.name)).not.toContain('urlContext')
+  })
+
+  it('keeps URL Context when Gemini 3 receives function tools', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      },
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    })
+    const model = makeModel({
+      id: 'gemini::gemini-3-pro-preview',
+      providerId: 'gemini',
+      apiModelId: 'gemini-3-pro-preview',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.plugins.map((plugin) => plugin.name)).toContain('urlContext')
   })
 
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
@@ -389,6 +476,126 @@ describe('buildAgentParams standard model parameters', () => {
   })
 })
 
+describe('buildAgentParams web-tool routing', () => {
+  const provider = makeProvider({
+    id: 'anthropic',
+    defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+    },
+    serverTools: [
+      { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' },
+      { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
+    ]
+  })
+  const model = makeModel({
+    id: 'anthropic::claude-sonnet-4-6',
+    providerId: 'anthropic',
+    apiModelId: 'claude-sonnet-4-6',
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+  })
+  const assistant = makeAssistant({ settings: { enableWebSearch: true } })
+  const clientSearchEntry: ToolEntry = {
+    name: 'web_search',
+    namespace: 'web',
+    description: 'client search',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => scope.webToolRoutes?.webSearch === 'client'
+  }
+  const clientFetchEntry: ToolEntry = {
+    name: 'web_fetch',
+    namespace: 'web',
+    description: 'client fetch',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => scope.webToolRoutes?.webFetch === 'client'
+  }
+
+  beforeEach(() => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+  })
+
+  afterEach(() => {
+    registry.deregister(clientSearchEntry.name)
+    registry.deregister(clientFetchEntry.name)
+  })
+
+  it.each([
+    { clientToolsPreferred: true, expectedRoute: 'client' },
+    { clientToolsPreferred: false, expectedRoute: 'server' }
+  ])(
+    'injects only $expectedRoute implementations when preference is $clientToolsPreferred',
+    async ({ clientToolsPreferred, expectedRoute }) => {
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.client_tools_preferred', clientToolsPreferred],
+        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+        ['chat.web_search.default_fetch_urls_provider', 'jina'],
+        ['chat.web_search.provider_overrides', {}],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+      registry.register(clientFetchEntry)
+
+      const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+      const hasClientSearch = result.tools?.web_search === clientSearchEntry.tool
+      const hasClientFetch = result.tools?.web_fetch === clientFetchEntry.tool
+      const hasServerSearch = result.plugins.some((plugin) => plugin.name === 'webSearch')
+      const hasServerFetch = result.plugins.some((plugin) => plugin.name === 'urlContext')
+
+      expect(hasClientSearch).toBe(expectedRoute === 'client')
+      expect(hasClientFetch).toBe(expectedRoute === 'client')
+      expect(hasServerSearch).toBe(expectedRoute === 'server')
+      expect(hasServerFetch).toBe(expectedRoute === 'server')
+      expect(Number(hasClientSearch) + Number(hasServerSearch)).toBe(1)
+      expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
+    }
+  )
+
+  // Owning a knowledge base is global account state; the KB tools only load when this request also
+  // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
+  // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.
+  it('keeps the server route for Gemini 2.5 when a knowledge base exists but none is selected', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const geminiProvider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } },
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    })
+    const geminiModel = makeModel({
+      id: 'gemini::gemini-2.5-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    preferenceGetMock.mockImplementation((key: string) =>
+      key === 'chat.web_search.client_tools_preferred' ? false : null
+    )
+    registry.register(clientSearchEntry)
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider: geminiProvider,
+      model: geminiModel,
+      assistant
+    })
+
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
+    expect(result.tools?.web_search).toBeUndefined()
+  })
+})
+
 describe('buildAgentParams assistant-less reasoning', () => {
   const makeOffCapableSetup = () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -532,6 +739,115 @@ describe('buildAgentParams assistant-less reasoning', () => {
     } finally {
       registry.deregister(entry.name)
     }
+  })
+})
+
+describe('buildAgentParams retained context', () => {
+  const makeSetup = () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    return { provider, model }
+  }
+  const fileMessage = {
+    id: 'm1',
+    role: 'user' as const,
+    parts: [
+      { type: 'text', text: 'see attachment' },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'file:///tmp/log.txt',
+        filename: 'log.txt',
+        providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      }
+    ]
+  } as never
+
+  it('prefers the request-carried retained context over scanning messages', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [{ fileEntryId: 'fe-raw', handle: 'folded.txt', displayName: 'folded.txt' }],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage], retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    // Served messages carry fe-1, but the raw-path retained context wins.
+    expect(result.fileAttachments).toBe(retainedContext.fileAttachments)
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths).toEqual(
+      new Set(['/blobs/fe-blob.txt'])
+    )
+  })
+
+  it('clones the allow-list Set so mid-turn appends never reach the shared retained context', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const served = (result.options.context as RequestContext | undefined)?.persistedOutputPaths
+    expect(served).not.toBe(retainedContext.persistedOutputPaths)
+    served?.add('/blobs/new-mid-turn.txt')
+    expect(retainedContext.persistedOutputPaths.has('/blobs/new-mid-turn.txt')).toBe(false)
+  })
+
+  it('falls back to scanning served messages when no retained context rides the request', async () => {
+    const { provider, model } = makeSetup()
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage] },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
+  })
+})
+
+describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
+  it("forwards the assistant's contextSettings override to the resolver", async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    resolveRequestContextSettingsSpy.mockClear()
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    const override = { truncateThreshold: 4000, compress: { enabled: false } }
+    const assistant = makeAssistant({ settings: { contextSettings: override } })
+
+    await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
   })
 })
 

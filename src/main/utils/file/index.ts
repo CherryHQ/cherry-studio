@@ -12,7 +12,7 @@
  * - `./durability` — fsync, full-write, durable unlink, and rename-only
  *   primitives for transaction state machines.
  * - `./metadata` — content-derived classification (`getFileType(path)`,
- *   `mimeToExt`).
+ *   `isTextByContent`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathSafety` — link-aware path identity and ancestor/device proofs.
  * - `./pathStatus` — `getPathStatus` + its result types.
@@ -104,7 +104,7 @@ export {
   stat,
   write
 } from './fs'
-export { decodeTextBufferIfText, getFileType, mimeToExt } from './metadata'
+export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
 export {
   findCrossDeviceEndpoint,

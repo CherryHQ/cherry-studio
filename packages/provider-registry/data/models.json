@@ -1,12 +1,14 @@
 {
   "models": [
     {
+      "capabilities": [],
       "id": "jamba-1-5-large",
       "metadata": {},
       "name": "jamba-1-5-large",
       "ownedBy": "ai21"
     },
     {
+      "capabilities": [],
       "id": "jamba-1-5-mini",
       "metadata": {},
       "name": "jamba-1-5-mini",
@@ -33,6 +35,7 @@
       }
     },
     {
+      "capabilities": [],
       "id": "jamba-mini-1-7",
       "metadata": {},
       "name": "jamba-mini-1-7",
@@ -101,6 +104,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 32768,
       "id": "qwen-2-5-coder-32b-instruct",
       "inputModalities": ["text"],
@@ -546,6 +550,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 16384,
       "family": "qwen",
       "id": "qwen-mt-plus",
@@ -567,6 +572,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 16384,
       "family": "qwen",
       "id": "qwen-mt-turbo",
@@ -1955,7 +1961,7 @@
       "family": "qwen",
       "id": "qwen3-7-flash",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Qwen 3.7 Flash",
       "outputModalities": ["text"],
@@ -1981,12 +1987,12 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "toggle"
+          },
+          {
             "kind": "budget",
             "max": 81920,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2098,6 +2104,68 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 1000000,
+      "family": "qwen",
+      "id": "qwen3-8-max",
+      "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Qwen3.8 Max",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 262144,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "xhigh"],
+        "thinkingTokenLimits": {
+          "max": 262144,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 1000000,
+      "family": "qwen",
+      "id": "qwen3-8-max-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Qwen3.8 Max Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba"
+    },
+    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 131072,
       "family": "qwen",
@@ -2126,14 +2194,14 @@
           },
           {
             "kind": "budget",
-            "max": 81920,
-            "min": 0
+            "max": 38912,
+            "min": 1024
           }
         ],
         "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
-          "max": 81920,
-          "min": 0
+          "max": 38912,
+          "min": 1024
         }
       }
     },
@@ -2789,11 +2857,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -2982,6 +3050,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "family": "yi",
       "id": "tongyi-intent-detect-v3",
@@ -3488,14 +3557,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "claude-haiku",
       "id": "claude-haiku-4-5",
@@ -3574,7 +3636,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4",
@@ -3621,14 +3683,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4-1",
@@ -3675,14 +3730,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4-5",
@@ -3733,14 +3781,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-6",
@@ -3791,14 +3832,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-6-v1",
@@ -3846,14 +3880,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-7",
@@ -3904,14 +3931,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "id": "claude-opus-4-7-fast",
       "inputModalities": ["text", "image"],
@@ -3952,14 +3972,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8",
@@ -4001,14 +4014,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8-fast",
@@ -4160,7 +4166,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4",
@@ -4207,14 +4213,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4-5",
@@ -4261,14 +4260,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4-6",
@@ -4416,6 +4408,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 131072,
       "family": "trinity",
       "id": "trinity-mini",
@@ -4684,6 +4677,7 @@
       "ownedBy": "baidu"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "ernie-character-8k",
       "metadata": {},
@@ -4691,6 +4685,7 @@
       "ownedBy": "baidu"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "ernie-lite-8k",
       "metadata": {},
@@ -4698,6 +4693,7 @@
       "ownedBy": "baidu"
     },
     {
+      "capabilities": [],
       "contextWindow": 131072,
       "id": "ernie-speed-128k",
       "metadata": {},
@@ -4705,6 +4701,7 @@
       "ownedBy": "baidu"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "ernie-tiny-8k",
       "metadata": {},
@@ -5686,9 +5683,16 @@
       }
     },
     {
+      "capabilities": [],
+      "id": "doubao-seed-1-8",
+      "metadata": {},
+      "name": "doubao-seed-1-8",
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
       "contextWindow": 262144,
-      "id": "doubao-seed-2-0-code",
+      "id": "doubao-seed-2-0-code-preview",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 131072,
       "metadata": {},
@@ -7577,8 +7581,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -7611,8 +7614,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -7635,7 +7637,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-2-5-computer-use-preview-10-2025",
@@ -7664,8 +7666,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -7825,8 +7826,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -7920,8 +7920,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-pro",
@@ -7967,8 +7966,7 @@
         "image-recognition",
         "audio-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "id": "gemini-2-5-pro-preview",
@@ -8009,8 +8007,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "id": "gemini-2-5-pro-preview-05-06",
@@ -8552,8 +8549,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -8605,8 +8601,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -8724,7 +8719,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "gemini-flash",
       "id": "gemini-3-flash",
@@ -8775,8 +8770,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -8827,8 +8821,7 @@
         "image-recognition",
         "image-generation",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 131072,
       "family": "gemini",
@@ -8891,7 +8884,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input", "web-search"],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-3-pro-image-preview",
@@ -8956,8 +8949,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-pro",
@@ -9053,8 +9045,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -9106,8 +9097,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -9194,8 +9184,7 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
-        "web-search"
+        "file-input"
       ],
       "contextWindow": 1048576,
       "id": "gemini-pro-latest",
@@ -11549,6 +11538,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "phi-4-multimodal-instruct",
       "inputModalities": ["text"],
@@ -12005,6 +11995,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 65536,
       "id": "minimax-m2-her",
       "inputModalities": ["text"],
@@ -13283,6 +13274,26 @@
       }
     },
     {
+      "capabilities": ["audio-recognition"],
+      "family": "voxtral",
+      "id": "voxtral-mini-latest",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "Voxtral Mini (latest)",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "family": "voxtral",
+      "id": "voxtral-mini-tts-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Voxtral Mini TTS (latest)",
+      "outputModalities": ["audio"],
+      "ownedBy": "mistral"
+    },
+    {
       "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
       "contextWindow": 32000,
       "family": "mistral",
@@ -13302,6 +13313,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.35
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "audio-recognition", "file-input"],
+      "contextWindow": 32000,
+      "family": "voxtral",
+      "id": "voxtral-small-latest",
+      "inputModalities": ["text", "audio"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Voxtral Small (latest)",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -13976,6 +14010,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "esm2-650m",
       "inputModalities": ["text"],
@@ -13997,6 +14032,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "esmfold",
       "inputModalities": ["text"],
@@ -14018,6 +14054,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "gliner-pii",
       "inputModalities": ["text"],
@@ -14139,6 +14176,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-safety-guard-8b-v3",
@@ -14277,6 +14315,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-3-content-safety",
@@ -14722,6 +14761,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "riva-translate-4b-instruct-v1-1",
       "inputModalities": ["text"],
@@ -14809,6 +14849,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "studiovoice",
       "inputModalities": ["text"],
@@ -14851,6 +14892,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 128000,
       "id": "usdcode",
       "inputModalities": ["text"],
@@ -14871,6 +14913,7 @@
       }
     },
     {
+      "capabilities": [],
       "id": "usdvalidate",
       "inputModalities": ["text"],
       "maxOutputTokens": 4096,
@@ -15192,7 +15235,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-4o",
@@ -15218,7 +15261,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt-mini",
       "id": "gpt-4o-mini",
@@ -15244,7 +15287,7 @@
       }
     },
     {
-      "capabilities": ["web-search"],
+      "capabilities": [],
       "contextWindow": 128000,
       "family": "gpt-mini",
       "id": "gpt-4o-mini-search-preview",
@@ -15306,14 +15349,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5",
@@ -15348,14 +15384,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1",
@@ -15390,14 +15419,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1-codex",
@@ -15432,14 +15454,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1-codex-max",
@@ -15474,14 +15489,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1-codex-mini",
@@ -15516,7 +15524,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-1-instant",
@@ -15542,14 +15550,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-2",
@@ -15584,7 +15585,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "id": "gpt-5-2-chat",
       "inputModalities": ["image", "text"],
@@ -15604,14 +15605,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt-codex",
       "id": "gpt-5-2-chat-latest",
@@ -15646,14 +15640,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-2-codex",
@@ -15688,14 +15675,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-2-pro",
@@ -15726,7 +15706,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-3-chat",
@@ -15752,7 +15732,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-3-chat-latest",
@@ -15778,14 +15758,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-3-codex",
@@ -15820,14 +15793,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt-codex-spark",
       "id": "gpt-5-3-codex-spark",
@@ -15862,14 +15828,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-4",
@@ -15933,14 +15892,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-4-mini",
@@ -15975,14 +15927,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-4-nano",
@@ -16017,14 +15962,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-4-pro",
@@ -16055,14 +15993,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-5",
@@ -16097,14 +16028,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-5-pro",
@@ -16135,14 +16059,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt-sol",
       "id": "gpt-5-6",
@@ -16181,14 +16098,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt-luna",
       "id": "gpt-5-6-luna",
@@ -16227,14 +16137,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "id": "gpt-5-6-luna-pro",
       "inputModalities": ["image", "text"],
@@ -16249,7 +16152,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6000000000000001
+          "perMillionTokens": 0.6
         }
       },
       "reasoning": {
@@ -16263,14 +16166,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt-sol",
       "id": "gpt-5-6-sol",
@@ -16309,14 +16205,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "id": "gpt-5-6-sol-pro",
       "inputModalities": ["image", "text"],
@@ -16345,14 +16234,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt-terra",
       "id": "gpt-5-6-terra",
@@ -16391,14 +16273,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "id": "gpt-5-6-terra-pro",
       "inputModalities": ["image", "text"],
@@ -16409,7 +16284,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.0000000000000002
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
@@ -16427,14 +16302,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "id": "gpt-5-chat",
       "metadata": {},
       "name": "GPT-5 Chat",
@@ -16442,14 +16310,7 @@
       "ownedBy": "openai"
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-codex",
@@ -16542,14 +16403,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt-mini",
       "id": "gpt-5-mini",
@@ -16584,14 +16438,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt-nano",
       "id": "gpt-5-nano",
@@ -16626,14 +16473,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-pro",
@@ -17383,14 +17223,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "o",
       "id": "o3",
@@ -17425,7 +17258,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 200000,
       "family": "o",
       "id": "o3-deep-research",
@@ -17460,7 +17293,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "o-mini",
       "id": "o3-mini",
@@ -17495,14 +17328,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "o-pro",
       "id": "o3-pro",
@@ -17533,14 +17359,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "o-mini",
       "id": "o4-mini",
@@ -17641,7 +17460,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 128000,
       "family": "sonar",
       "id": "sonar",
@@ -17663,7 +17482,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "web-search"],
+      "capabilities": ["reasoning"],
       "contextWindow": 128000,
       "id": "sonar-deep-research",
       "inputModalities": ["text"],
@@ -17693,14 +17512,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "sonar-pro",
       "id": "sonar-pro",
@@ -17722,7 +17534,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["reasoning", "image-recognition", "file-input"],
       "contextWindow": 128000,
       "family": "sonar-reasoning",
       "id": "sonar-reasoning-pro",
@@ -18327,7 +18139,7 @@
       "ownedBy": "suno"
     },
     {
-      "capabilities": ["reasoning", "function-call", "web-search"],
+      "capabilities": ["reasoning", "function-call"],
       "contextWindow": 196608,
       "id": "hunyuan-2-0",
       "maxInputTokens": 131072,
@@ -18337,7 +18149,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call", "web-search"],
+      "capabilities": ["function-call"],
       "contextWindow": 147456,
       "id": "hunyuan-2-0-instruct",
       "maxInputTokens": 131072,
@@ -18347,7 +18159,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["reasoning", "function-call", "web-search"],
+      "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
       "id": "hunyuan-a13b-instruct",
       "inputModalities": ["text"],
@@ -18385,14 +18197,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "web-search"],
+      "capabilities": ["reasoning", "function-call"],
       "id": "hunyuan-t1",
       "metadata": {},
       "name": "Hunyuan T1",
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call", "web-search"],
+      "capabilities": ["function-call"],
       "id": "hunyuan-turbos",
       "metadata": {},
       "name": "Hunyuan TurboS",
@@ -18461,6 +18273,7 @@
       "ownedBy": "tencent"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "hy-mt2-lite",
       "maxOutputTokens": 4096,
@@ -18469,6 +18282,7 @@
       "ownedBy": "tencent"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "hy-mt2-plus",
       "maxOutputTokens": 4096,
@@ -18477,6 +18291,7 @@
       "ownedBy": "tencent"
     },
     {
+      "capabilities": [],
       "contextWindow": 8192,
       "id": "hy-mt2-pro",
       "maxOutputTokens": 4096,
@@ -18485,6 +18300,7 @@
       "ownedBy": "tencent"
     },
     {
+      "capabilities": [],
       "contextWindow": 32768,
       "id": "hy-role",
       "maxInputTokens": 28672,
@@ -18531,7 +18347,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "web-search"],
+      "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
       "id": "hy3-preview",
       "inputModalities": ["text"],
@@ -18789,6 +18605,7 @@
       }
     },
     {
+      "capabilities": [],
       "contextWindow": 81920,
       "family": "morph",
       "id": "morph-v3-fast",
@@ -18873,6 +18690,27 @@
         ],
         "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh"]
       }
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 32000,
+      "family": "v0",
+      "id": "pplx-embed-v1-0-6b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed v1 0.6b",
+      "outputModalities": ["vector"],
+      "ownedBy": "vercel"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 32000,
+      "id": "pplx-embed-v1-4b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed v1 4b",
+      "outputModalities": ["vector"],
+      "ownedBy": "vercel"
     },
     {
       "capabilities": ["audio-generation"],
@@ -21108,5 +20946,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "720c311cd96313c4"
+  "version": "fc192c89cc19978b"
 }
