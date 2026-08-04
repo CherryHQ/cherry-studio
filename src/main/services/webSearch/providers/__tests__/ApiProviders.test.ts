@@ -490,9 +490,45 @@ describe('main web search API providers', () => {
       'https://r.jina.ai/https://example.com/article'
     ])
     expect(result.results[0]?.content).toBe('Reader Content')
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('Jina Reader China mirror failed; retrying global host', {
-      providerId: 'jina'
-    })
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      'Jina Reader preferred host failed; retrying alternate built-in host',
+      {
+        providerId: 'jina',
+        error: 'Jina Reader fetch failed: HTTP 503 mirror unavailable'
+      }
+    )
+  })
+
+  it('retries a failed global Jina Reader request through the China mirror', async () => {
+    mocks.isInChina.mockResolvedValue(false)
+    fetchMock.mockResolvedValueOnce(createTextResponse('global unavailable', 'text/plain', 403)).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jina.ai/https://example.com/article',
+      'https://r.jinaai.cn/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
   })
 
   it('retries empty China Jina Reader content through the global host', async () => {
@@ -652,7 +688,7 @@ describe('main web search API providers', () => {
   })
 
   it('throws when Jina Reader returns empty content', async () => {
-    fetchMock.mockResolvedValue(
+    const emptyResponse = () =>
       createJsonResponse({
         code: 200,
         data: {
@@ -661,7 +697,7 @@ describe('main web search API providers', () => {
           text: '\n'
         }
       })
-    )
+    fetchMock.mockResolvedValueOnce(emptyResponse()).mockResolvedValueOnce(emptyResponse())
 
     const provider = createProviderDriver(
       JinaProvider,
@@ -679,7 +715,9 @@ describe('main web search API providers', () => {
   })
 
   it('includes Jina Reader upstream error body for HTTP failures', async () => {
-    fetchMock.mockResolvedValue(createTextResponse('unauthorized reader token', 'text/plain', 401))
+    fetchMock
+      .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
+      .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
 
     const provider = createProviderDriver(
       JinaProvider,

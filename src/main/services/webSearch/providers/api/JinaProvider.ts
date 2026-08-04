@@ -14,9 +14,10 @@ import type { BaseSearchContext } from '../base/context'
 
 // Jina serves a China-accessible mirror for users whose global endpoints are blocked.
 // Maps each built-in preset host to its mainland-China counterpart.
+const JINA_GLOBAL_READER_HOST = 'https://r.jina.ai'
 const JINA_CHINA_HOST_BY_DEFAULT: Record<string, string> = {
   'https://s.jina.ai': 'https://s.jinaai.cn',
-  'https://r.jina.ai': 'https://r.jinaai.cn'
+  [JINA_GLOBAL_READER_HOST]: 'https://r.jinaai.cn'
 }
 
 const logger = loggerService.withContext('JinaProvider')
@@ -96,7 +97,10 @@ export class JinaProvider extends BaseWebSearchProvider {
         throw error
       }
 
-      logger.warn('Jina Reader China mirror failed; retrying global host', { providerId: this.provider.id })
+      logger.warn('Jina Reader preferred host failed; retrying alternate built-in host', {
+        providerId: this.provider.id,
+        error: error instanceof Error ? error.message : String(error)
+      })
       const fallbackContext = { ...context, requestUrl: context.fallbackRequestUrl }
       const payload = await this.executeFetchUrls(fallbackContext)
 
@@ -147,8 +151,9 @@ export class JinaProvider extends BaseWebSearchProvider {
   ): Promise<JinaContext> {
     const url = query.trim()
     const apiHost = await this.resolveRegionAwareApiHost('fetchUrls')
+    const chinaHost = JINA_CHINA_HOST_BY_DEFAULT[JINA_GLOBAL_READER_HOST]
     const fallbackApiHost =
-      apiHost === JINA_CHINA_HOST_BY_DEFAULT['https://r.jina.ai'] ? 'https://r.jina.ai' : undefined
+      apiHost === JINA_GLOBAL_READER_HOST ? chinaHost : apiHost === chinaHost ? JINA_GLOBAL_READER_HOST : undefined
 
     return {
       // Jina Reader works without a key (rate-limited); a key is optional and only raises the limits.
