@@ -314,6 +314,25 @@ describe('OpenClawService gateway status state machine', () => {
       ).resolves.toEqual(schema)
     })
 
+    it('accepts a runtime schema larger than the diagnostic capture limit', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = {
+        ...createRuntimeConfigSchema(),
+        description: 'x'.repeat(1024 * 1024)
+      }
+      queueSpawnResult({ stdout: JSON.stringify(schema) })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
+    })
+
     it('redacts secrets and bounds diagnostic output', () => {
       const basicSecret = 'dXNlcjpwYXNz'
       const customSecret = 'credential with spaces'

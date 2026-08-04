@@ -71,6 +71,10 @@ type OpenClawCommandResult = {
   outputTruncated: boolean
 }
 
+type OpenClawCommandOptions = {
+  captureFullStdout?: boolean
+}
+
 type OpenClawValidationIssue = {
   path: string
   message: string
@@ -309,7 +313,8 @@ export class OpenClawService extends BaseService {
   private runOpenClawCommand(
     openclawPath: AbsoluteFilePath,
     args: string[],
-    env: Record<string, string>
+    env: Record<string, string>,
+    options: OpenClawCommandOptions = {}
   ): Promise<OpenClawCommandResult> {
     return new Promise((resolve, reject) => {
       let proc: ReturnType<typeof crossPlatformSpawn>
@@ -325,8 +330,8 @@ export class OpenClawService extends BaseService {
         return
       }
 
-      const stdoutCapture = this.createBoundedOutputCapture()
-      const stderrCapture = this.createBoundedOutputCapture()
+      const stdoutCapture = this.createOutputCapture(options.captureFullStdout ? null : undefined)
+      const stderrCapture = this.createOutputCapture()
       let outputTruncated = false
       let settled = false
 
@@ -367,14 +372,14 @@ export class OpenClawService extends BaseService {
     })
   }
 
-  private createBoundedOutputCapture() {
+  private createOutputCapture(limitBytes: number | null = OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES) {
     const chunks: Buffer[] = []
     let capturedBytes = 0
 
     return {
       append: (chunk: Buffer | string): boolean => {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        const remaining = Math.max(0, OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES - capturedBytes)
+        const remaining = limitBytes === null ? bytes.length : Math.max(0, limitBytes - capturedBytes)
         const retainedBytes = Math.min(bytes.length, remaining)
         if (retainedBytes > 0) {
           chunks.push(bytes.subarray(0, retainedBytes))
@@ -491,10 +496,15 @@ export class OpenClawService extends BaseService {
   private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<OpenClawConfigSchemaNode> {
     let result: OpenClawCommandResult
     try {
-      result = await this.runOpenClawCommand(runtime.path, ['config', 'schema', '--json'], {
-        ...runtime.env,
-        OPENCLAW_CONFIG_PATH: openclawConfigPath()
-      })
+      result = await this.runOpenClawCommand(
+        runtime.path,
+        ['config', 'schema', '--json'],
+        {
+          ...runtime.env,
+          OPENCLAW_CONFIG_PATH: openclawConfigPath()
+        },
+        { captureFullStdout: true }
+      )
     } catch (error) {
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
@@ -615,8 +625,8 @@ export class OpenClawService extends BaseService {
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
-    const stdoutCapture = this.createBoundedOutputCapture()
-    const stderrCapture = this.createBoundedOutputCapture()
+    const stdoutCapture = this.createOutputCapture()
+    const stderrCapture = this.createOutputCapture()
     const firstNonEmptyLines = (output: string) =>
       output
         .split(/\r?\n/)
