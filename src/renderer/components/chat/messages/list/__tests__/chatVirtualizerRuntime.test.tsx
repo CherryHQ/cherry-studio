@@ -998,6 +998,53 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('enters reading mode when an explicit range navigation is already centered', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    let scrollTop = 1000
+    render(
+      <RuntimeDomProbe
+        items={['message-a']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+    const scroller = runtime!.scrollerRef.current!
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value
+      }
+    })
+    setElementMetric(scroller, 'clientHeight', () => 400)
+    setElementMetric(scroller, 'scrollHeight', () => 1400)
+    Object.defineProperty(scroller, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ top: 0, bottom: 400, left: 0, right: 800, width: 800, height: 400, x: 0, y: 0 })
+    })
+
+    const message = document.createElement('div')
+    message.dataset.messageKey = 'message-a'
+    const text = document.createTextNode('matched text')
+    message.append(text)
+    runtime!.contentRef.current!.prepend(message)
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    Object.defineProperty(range, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ top: 190, bottom: 210, left: 0, right: 100, width: 100, height: 20, x: 0, y: 190 })
+    })
+
+    expect(handle!.isFollowing()).toBe(true)
+    act(() => handle!.scrollToRange(range))
+    expect(scrollTop).toBe(1000)
+    expect(handle!.isFollowing()).toBe(false)
+  })
+
   it('keeps key navigation aimed at the same message when history is prepended mid-animation', () => {
     const raf = installQueuedAnimationFrame()
 

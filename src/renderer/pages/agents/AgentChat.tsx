@@ -2,6 +2,7 @@ import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { MessageListSearch } from '@renderer/components/chat/messages/list/MessageListSearch'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -45,7 +46,11 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
-import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import {
+  locateAgentMessageInList,
+  scrollAgentMessageInList,
+  scrollAgentRangeInList
+} from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 
@@ -557,6 +562,16 @@ const AgentChatSessionCenter = ({
   onOpenCitationsPanel,
   onCreateEmptySession
 }: AgentChatSessionCenterProps) => {
+  const mainAreaRef = useRef<HTMLDivElement>(null)
+  const sessionTopicId = buildAgentSessionTopicId(runtime.sessionId)
+  const locateSearchMessage = useCallback(
+    (messageId: string) => scrollAgentMessageInList(sessionTopicId, messageId),
+    [sessionTopicId]
+  )
+  const scrollToSearchRange = useCallback(
+    (range: Range) => scrollAgentRangeInList(sessionTopicId, range),
+    [sessionTopicId]
+  )
   const composer = (
     <AgentComposerSlot
       agentId={agentId}
@@ -575,7 +590,7 @@ const AgentChatSessionCenter = ({
     />
   )
   const main = (
-    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div ref={mainAreaRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
@@ -584,6 +599,13 @@ const AgentChatSessionCenter = ({
           />
         </div>
       )}
+      <MessageListSearch
+        messages={runtime.uiMessages}
+        partsByMessageId={runtime.partsByMessageId}
+        locateMessage={locateSearchMessage}
+        scrollToRange={scrollToSearchRange}
+        scopeRef={mainAreaRef}
+      />
       <AgentChatMain
         placement="docked"
         sessionMessagesEnabled={sessionMessagesEnabled}

@@ -132,6 +132,12 @@ export function useChatRuntimeState({
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
+  const scrollToMessage = useCallback((messageId: string) => {
+    messageListRuntimeRef.current?.locateMessage(messageId)
+  }, [])
+  const scrollToRange = useCallback((range: Range) => {
+    messageListRuntimeRef.current?.scrollToRange(range)
+  }, [])
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
     dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
@@ -400,6 +406,8 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,
+    scrollToMessage,
+    scrollToRange,
     locateMessage,
     sendMessage,
     composerContext,

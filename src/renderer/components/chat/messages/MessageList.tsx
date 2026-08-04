@@ -302,6 +302,10 @@ const MessageList = () => {
     messageListRef.current?.scrollToElement(element)
   }, [])
 
+  const scrollToRange = useCallback((range: Range) => {
+    messageListRef.current?.scrollToRange(range)
+  }, [])
+
   const updateActiveMessageOutline = useCallback(() => {
     if (!shouldTrackMessageOutline) {
       setActiveOutline((current) => (current ? null : current))
@@ -510,11 +514,13 @@ const MessageList = () => {
   const runtimeActionsRef = useRef({
     scrollToBottom,
     scrollToMessageById,
+    scrollToRange,
     runTopicImageAction
   })
   runtimeActionsRef.current = {
     scrollToBottom,
     scrollToMessageById,
+    scrollToRange,
     runTopicImageAction
   }
 
@@ -671,6 +677,7 @@ const MessageList = () => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
+      scrollToRange: (range) => runtimeActionsRef.current.scrollToRange(range),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
       exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')
     })

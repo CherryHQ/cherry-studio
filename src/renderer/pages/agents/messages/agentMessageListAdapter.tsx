@@ -81,6 +81,18 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   return runtime !== null
 }
 
+export function scrollAgentMessageInList(topicId: string, messageId: string): boolean {
+  const runtime = agentMessageListRuntimes.get(topicId)
+  runtime?.locateMessage(messageId)
+  return runtime !== undefined
+}
+
+export function scrollAgentRangeInList(topicId: string, range: Range): boolean {
+  const runtime = agentMessageListRuntimes.get(topicId)
+  runtime?.scrollToRange(range)
+  return runtime !== undefined
+}
+
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]

@@ -45,8 +45,8 @@
   --reference-foreground: #000;
   --reference-subtle: #f1f7ff;
   --highlight-foreground: var(--foreground);
-  --highlight: var(--cs-amber-50);
-  --highlight-accent: var(--cs-amber-100);
+  --highlight: var(--cs-amber-200);
+  --highlight-accent: var(--cs-amber-300);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);

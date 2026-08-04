@@ -19,6 +19,7 @@ const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const scrollToElement = vi.fn()
+const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -193,6 +194,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToTop,
           scrollToKey,
           scrollToElement,
+          scrollToRange,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -274,6 +276,7 @@ describe('MessageList', () => {
     scrollToTop.mockClear()
     scrollToKey.mockClear()
     scrollToElement.mockClear()
+    scrollToRange.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -580,6 +583,10 @@ describe('MessageList', () => {
     runtime?.locateMessage(nextMessage.id)
 
     expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
+
+    const range = document.createRange()
+    runtime?.scrollToRange(range)
+    expect(scrollToRange).toHaveBeenCalledWith(range)
   })
 
   it('does not register the message outline scroll listener while outline is disabled', () => {
