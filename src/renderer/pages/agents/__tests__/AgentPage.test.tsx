@@ -103,6 +103,7 @@ const agentPageMocks = vi.hoisted(() => ({
   sessionsLoadingAll: false,
   sessionsFullyLoaded: true,
   isLatestSessionLoading: false,
+  latestSessionOptions: vi.fn(),
   // `undefined` → derive the latest from `classicLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined
@@ -251,6 +252,7 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
       isLoading: false
     }),
     useLatestSession: (options?: { enabled?: boolean }) => {
+      agentPageMocks.latestSessionOptions(options)
       const derived = findLatestUpdated(agentPageMocks.classicLayoutSessions)
       const latest =
         agentPageMocks.latestSessionOverride === undefined
@@ -699,6 +701,7 @@ describe('AgentPage', () => {
     agentPageMocks.sessionsLoadingAll = false
     agentPageMocks.sessionsFullyLoaded = true
     agentPageMocks.isLatestSessionLoading = false
+    agentPageMocks.latestSessionOptions.mockReset()
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
     agentPageMocks.agentSidePanelSessionsSource = undefined
@@ -1285,6 +1288,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-last-viewed'))
+    expect(agentPageMocks.latestSessionOptions).toHaveBeenLastCalledWith({ enabled: false })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
@@ -1299,6 +1303,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(agentPageMocks.latestSessionOptions).toHaveBeenLastCalledWith({ enabled: true })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
@@ -1315,6 +1320,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-from-url'))
+    expect(agentPageMocks.latestSessionOptions).toHaveBeenLastCalledWith({ enabled: false })
   })
 
   it('creates an empty session on modern first entry only when there are no sessions', async () => {

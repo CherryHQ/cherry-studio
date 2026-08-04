@@ -12,6 +12,10 @@ export default defineProvider({
       adapterFamily: 'azure-responses'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://portal.azure.com/',

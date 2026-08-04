@@ -1,4 +1,5 @@
 import type { Span } from '@opentelemetry/api'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -104,6 +105,16 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
+  /**
+   * Compaction anchors emitted during this turn, newest last.
+   *
+   * They cannot ride the accumulator: `pipeStreamLoop` TEES the provider stream
+   * (one branch broadcasts, one accumulates), and the sink injects into the
+   * broadcast branch only — so an anchor reaches the renderer live but never
+   * reaches `finalMessage`, and the marker vanishes on reload. Collected here
+   * and merged into the accumulated snapshot before persistence.
+   */
+  compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   /** Tool outputs too large to send, by toolCallId. Serves `ai.tool.get_result` until persisted. */
   deferredOutputs?: Map<string, unknown>
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its

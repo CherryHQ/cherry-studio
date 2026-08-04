@@ -1595,7 +1595,6 @@
         "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
-      "url_context": "URLコンテキスト",
       "web_search": {
         "builtin": {
           "disabled_content": "現在のモデルはウェブ検索をサポートしていません",
@@ -1617,8 +1616,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
-        "url_context": "Geminiは、URLコンテキストと関数呼び出しを同時に使用することをサポートしていません。"
+        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。"
       }
     },
     "message": {

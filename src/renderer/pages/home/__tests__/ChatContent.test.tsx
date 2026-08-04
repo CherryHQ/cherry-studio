@@ -137,14 +137,12 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     placement,
     onSend,
     sendDisabled,
-    onDraftAssistantChange,
-    captureLocalSendScrollEligibility
+    onDraftAssistantChange
   }: {
     placement: 'home' | 'docked'
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
-    captureLocalSendScrollEligibility?: () => void
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
@@ -160,10 +158,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         type="button"
         data-use-mentioned-model-selector="true"
         disabled={sendDisabled}
-        onClick={() => {
-          captureLocalSendScrollEligibility?.()
-          return onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
-        }}>
+        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
         send
       </button>
     )
@@ -204,15 +199,13 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       historyPartsByMessageId: Record<string, CherryMessagePart[]>
       liveMessageIds: readonly string[]
     }
-    localSendGeneration: number
-    onBindRuntime?: (runtime: { captureLocalSendScrollEligibility: () => void }) => void | (() => void)
+    onBindRuntime?: (runtime: unknown) => void | (() => void)
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
       streamingLayers: params.streamingLayers,
-      localSendGeneration: params.localSendGeneration,
       isInitialLoading: params.isInitialLoading
     },
     actions: { bindRuntime: params.onBindRuntime },
@@ -321,7 +314,6 @@ describe('ChatContent', () => {
 
   it('opens a stream against the active branch node', async () => {
     const sendMessage = vi.fn()
-    const captureLocalSendScrollEligibility = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
       sendMessage,
       regenerate: vi.fn(),
@@ -332,7 +324,6 @@ describe('ChatContent', () => {
     })
 
     render(<ChatContent topic={topic} />)
-    mockMessageListValue.current.actions.bindRuntime?.({ captureLocalSendScrollEligibility })
 
     const sendButton = await screen.findByRole('button', { name: 'send' })
     await act(async () => {
@@ -351,8 +342,6 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 
   it('uses a branch draft anchor for the next send and clears it after stream open', async () => {
@@ -959,7 +948,6 @@ describe('ChatContent', () => {
         parentAnchorId: 'forked-user'
       })
     )
-    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
     expect(regenerate).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(

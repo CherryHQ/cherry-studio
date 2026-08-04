@@ -30,9 +30,10 @@ export type RestoreKnowledgeBaseInput = Pick<
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
 >
 
-export const useKnowledgeBases = () => {
+export const useKnowledgeBases = (options: { enabled?: boolean } = {}) => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
-    query: KNOWLEDGE_V2_BASES_QUERY
+    query: KNOWLEDGE_V2_BASES_QUERY,
+    ...(options.enabled !== undefined && { enabled: options.enabled })
   })
 
   const bases = useMemo(() => data?.items ?? [], [data])

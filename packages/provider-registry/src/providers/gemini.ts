@@ -23,16 +23,18 @@ const budgetThinkingWire: ReasoningWireProfile = {
   }
 }
 
+// Ids as Google serves them (dotted minor version); generation derives the canonical
+// catalog key and keeps the dotted id as the wire `apiModelId`.
 const budgetThinkingModels = [
-  'gemini-2-5-flash-image',
-  'gemini-2-5-flash-image-preview',
-  'gemini-2-5-flash-lite',
-  'gemini-2-5-pro',
-  'gemini-2-5-flash',
-  'gemini-3-1-flash-lite-image',
+  'gemini-2.5-flash-image',
+  'gemini-2.5-flash-image-preview',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite-image',
   'gemini-omni-flash-preview',
-  'gemini-2-5-pro-preview',
-  'gemini-2-5-pro-preview-05-06'
+  'gemini-2.5-pro-preview',
+  'gemini-2.5-pro-preview-05-06'
 ]
 
 export default defineProvider({
@@ -45,6 +47,10 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://aistudio.google.com/app/apikey',
