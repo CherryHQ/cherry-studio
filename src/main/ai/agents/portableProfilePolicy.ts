@@ -1,4 +1,4 @@
-import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
+import type { PortableProfileSanitization } from '@data/db/restore/portableProfileContracts'
 import { isAgentRuntimeConfigCaptureExcluded as isSkillRuntimeConfigCaptureExcluded } from '@main/ai/skills/capturePolicy'
 import {
   type AgentConfiguration,

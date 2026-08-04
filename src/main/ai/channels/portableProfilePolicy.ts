@@ -1,5 +1,5 @@
+import type { PortableProfileSanitization } from '@data/db/restore/portableProfileContracts'
 import type { AgentChannelRow } from '@data/db/schemas/agentChannel'
-import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
 import { type PortableAgentPermissionMode, sanitizePermissionMode } from '@main/ai/agents/portableProfilePolicy'
 import { AgentChannelConfigSchemasByType, AgentChannelTypeSchema } from '@shared/data/api/schemas/agentChannels'
 import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
