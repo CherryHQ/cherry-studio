@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
-import { type BackupDestinationId,backupToDestination } from '@renderer/services/backupDestination'
+import { type BackupDestinationId, backupToDestination } from '@renderer/services/backupDestination'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
