@@ -510,9 +510,11 @@ export function useActiveTopic({
   // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
   // without waiting for the full topic history to paginate in. The rail keeps its own
   // loadAll source; this hook only needs the one active row.
-  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
-    passive || !activeTopicId ? undefined : activeTopicId
-  )
+  const {
+    topic: apiActiveTopic,
+    isLoading: isActiveTopicQueryLoading,
+    error
+  } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
       activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
@@ -583,5 +585,5 @@ export function useActiveTopic({
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.
   const isLoading = !activeTopic && isActiveTopicQueryLoading
-  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, error, topicSource }
 }

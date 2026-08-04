@@ -50,6 +50,7 @@ import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
@@ -156,11 +157,12 @@ const HomePage: FC = () => {
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
-  // Frozen at mount for the same reason as `resumeTopicId` below: `useTabSelfMetadata` stamps this
-  // page's own instance metadata during the first effect flush, so a reactive read would retract the
-  // fallback one render later and race the very queries it gates.
+  // Frozen at mount for the same reason as `resumeTopicId` below: an unbound tab may use global
+  // history, while bare app metadata marks an explicit draft. `useTabSelfMetadata` stamps that bare
+  // metadata during the first effect flush, so a reactive read would retract the fallback one render
+  // later and race the very queries it gates.
   const [canUseGlobalTopicFallback] = useState(
-    () => !currentTab || (currentTab.id === 'home' && !hasTabInstanceMetadataForApp(currentTab, 'assistants'))
+    () => !currentTab || !hasTabInstanceMetadataForApp(currentTab, 'assistants')
   )
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
@@ -249,9 +251,11 @@ const HomePage: FC = () => {
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
+  const syncedRouteActiveTopicIdRef = useRef(routeActiveTopicId)
+  const isRouteTopicBindingChanging = syncedRouteActiveTopicIdRef.current !== routeActiveTopicId
   // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
-  // activates, so a reactive read would chase this page's own writes. Only the default bootstrap
-  // tab may use global history; named tabs (including explicit drafts) keep their own identity.
+  // activates, so a reactive read would chase this page's own writes. Unbound entry tabs may use
+  // global history; named tabs (including explicit drafts) keep their own identity.
   const [resumeTopicId] = useState<string | null>(() =>
     shouldAutoCreateTopic && canUseGlobalTopicFallback && !routeActiveTopicId && !routeAssistantId
       ? lastUsedTopicId
@@ -260,6 +264,7 @@ const HomePage: FC = () => {
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
+    syncedRouteActiveTopicIdRef.current = routeActiveTopicId
     setActiveTopicId(routeActiveTopicId)
   }, [routeActiveTopicId])
 
@@ -268,6 +273,7 @@ const HomePage: FC = () => {
     setActiveTopic,
     clearActiveTopic,
     isLoading: isActiveTopicLoading,
+    error: activeTopicError,
     topicSource: activeTopicSource
   } = useActiveTopic({
     initialTopic,
@@ -277,7 +283,7 @@ const HomePage: FC = () => {
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
-  // The tab-metadata entry target no longer exists: its by-id query settled with no row. `last_used_
+  // The tab-metadata entry target no longer exists: its by-id query settled with NOT_FOUND. `last_used_
   // topic_id` is never cleared on delete, so the sidebar can bind a tab to a deleted topic — the tab
   // has no identity left to keep, and stranding it on a blank draft is worse than falling through to
   // global history. Derived, not stored: it must be true in the same render the query settles, or the
@@ -289,7 +295,8 @@ const HomePage: FC = () => {
     !!routeActiveTopicId &&
     activeTopicId === routeActiveTopicId &&
     !activeTopic &&
-    !isActiveTopicLoading
+    !isActiveTopicLoading &&
+    isDataApiNotFoundError(activeTopicError)
   const activeTargetTopicId = isEntryTopicMissing ? null : routeActiveTopicId
   // The global latest query is the final fallback, not a parallel page dependency. An explicit
   // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve
@@ -421,11 +428,18 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
+  // Keep the route target authoritative while Sidebar metadata is syncing into page state. Once the
+  // route has settled, page-owned selection uses `activeTopicId` so choosing a topic inside the page
+  // can update the tab binding. The visible entity may intentionally remain the previous topic while
+  // the target loads; it is never used as the identity during that transition.
+  const tabInstanceTopicId = !isMessageOnlyView
+    ? isRouteTopicBindingChanging
+      ? routeActiveTopicId
+      : (activeTopicId ?? visibleTopic?.id)
+    : undefined
   const preserveTabVisuals =
-    !visibleTopic &&
-    ((isMessageOnlyView && !!routeTopicId && isRouteTopicLoading) ||
-      (!isMessageOnlyView && !!routeActiveTopicId && isActiveTopicLoading))
+    (isMessageOnlyView && !visibleTopic && !!routeTopicId && isRouteTopicLoading) ||
+    (!isMessageOnlyView && !!tabInstanceTopicId && visibleTopic?.id !== tabInstanceTopicId && !isEntryTopicMissing)
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
@@ -614,6 +628,9 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
+    // A bound target with a non-NOT_FOUND error keeps its identity while DataApi/SWR retries. Only a
+    // confirmed missing target may fall through to latest/create recovery.
+    if (routeActiveTopicId && !isEntryTopicMissing) return
 
     // Resume the last-focused topic before falling back to the most-recently-updated one —
     // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
@@ -653,10 +670,12 @@ const HomePage: FC = () => {
     isActiveTopicLoading,
     isAssistantListResolved,
     isLatestTopicReady,
+    isEntryTopicMissing,
     isResumeTopicLoading,
     latestTopic,
     resumeApiTopic,
     resumeTopicId,
+    routeActiveTopicId,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,
