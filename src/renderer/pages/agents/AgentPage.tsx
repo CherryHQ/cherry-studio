@@ -1187,7 +1187,10 @@ const AgentPage = () => {
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
-    <div id="agent-page" className={cn('relative flex flex-1 flex-col overflow-hidden', className)}>
+    <div
+      data-ui="agent.view"
+      id="agent-page"
+      className={cn('relative flex flex-1 flex-col overflow-hidden', className)}>
       {children}
     </div>
   )

@@ -20,7 +20,8 @@ Decided per file part in `prepareChatMessages`
 | Attachment | Native when | What the model receives |
 |---|---|---|
 | image | model is vision | native image part (inline) |
-| image | non-vision | OCR text, inline (capped) |
+| image | non-vision, OCR finds text | OCR text, inline (capped) |
+| image | non-vision, no OCR text (or OCR unconfigured/failed) | native image part (inline base64) |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
@@ -39,15 +40,20 @@ Decided per file part in `prepareChatMessages`
   File-API upload for large files would slot in behind the same signature.)
 - Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
   — so they get a short note instead.
-- Any per-file failure (missing entry, parse error, unconfigured OCR, failed
-  materialization) degrades to a `[could not read this file].` note rather than
-  dropping the file or failing the request.
+- A non-vision image only degrades to OCR text when OCR actually finds text.
+  Otherwise (empty OCR result, unconfigured or failed OCR) the native image is
+  forwarded anyway — the provider decides what it can do with it, so a model
+  whose vision capability is under-declared still sees the picture.
+- Any per-file failure (missing entry, parse error, failed materialization)
+  degrades to a `[could not read this file].` note rather than dropping the
+  file or failing the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
-Only `fileEntryId`-backed (first-party chat) attachments are routed. Gateway /
-external file parts (no `fileEntryId`) are left untouched, so the OpenAI-
-compatible passthrough is unaffected.
+Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
+external file parts (no `fileEntryId`) are still eagerly materialized, but an
+image is omitted for a non-vision model because it was never an explicit OCR
+fallback. Other gateway/external file types keep their existing behavior.
 
 ## The cap (the only context guard)
 
