@@ -1727,8 +1727,9 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    // Live patches were already applied inside reconcile (live-first); the spawn-frozen part waits
-    // for the next fresh turn's pull instead of dropping the in-flight stream.
+    // Safe live patches were already applied inside reconcile; the spawn-frozen part and any
+    // deferred permission-mode update wait for the next fresh turn's pull instead of dropping the
+    // in-flight stream.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
   })

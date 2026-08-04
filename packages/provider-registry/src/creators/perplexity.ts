@@ -10,5 +10,5 @@ export default defineCreator({
     // Membership profile (no knobs): unanchored superset of the effort rule.
     { pattern: 'sonar-deep-research' }
   ],
-  webSearch: ['sonar']
+  serverTools: { 'web-search': ['sonar'] }
 })

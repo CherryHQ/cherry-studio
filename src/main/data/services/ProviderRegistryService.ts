@@ -23,7 +23,9 @@ import type {
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
-  ReasoningWireProfile
+  ReasoningWireDialect,
+  ReasoningWireProfile,
+  ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
@@ -36,7 +38,8 @@ import {
   inferReasoningOwnedBy,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
-  REASONING_FORMAT_PROFILES
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
@@ -75,6 +78,8 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native tools served by this host. */
+  serverTools?: ServerToolConfig[]
   /** Registry-owned currency for provider-reported cost amounts. */
   reportedCostCurrency?: Currency
   /** Registry-owned Fast request transport. */
@@ -208,11 +213,14 @@ export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
   format?: ProviderReasoningFormat
   contract?: ProviderModelReasoningContract
+  wireDialect?: ReasoningWireDialect
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
   const formatDefault = REASONING_FORMAT_PROFILES[formatType]
-  const wire = input.contract?.wire ?? input.format?.wire ?? formatDefault.wire
+  // Priority is unchanged; only the last-resort default becomes dialect-aware,
+  // so per-model contracts and endpoint-wide wires still win outright.
+  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
 
   return { format: formatType, support: input.contract?.support, wire }
 }
@@ -509,7 +517,8 @@ function mergeReasoningSupport(
     controls: override?.controls ?? preset?.controls,
     supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
     thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
-    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort,
+    wireDialect: override?.wireDialect ?? preset?.wireDialect
   }
 }
 
@@ -664,6 +673,7 @@ class ProviderRegistryService {
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
@@ -812,7 +822,8 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect: reasoning?.wireDialect
     })
     return { ...resolved, support: reasoning }
   }
@@ -844,16 +855,25 @@ class ProviderRegistryService {
       if (contract) break
     }
 
+    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+
+    // The dialect is a CATALOG fact that is deliberately not persisted on the
+    // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
+    // resolvable `apiModelId`, no `presetModelId` — must re-resolve it here.
+    // Without this the row silently takes the newer wire and Claude <=4.5 /
+    // Gemini 2.x emit a dialect their API rejects. Support resolution above is
+    // untouched: controls still come from the row, only the dialect is looked up.
+    const wireDialect =
+      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect
     })
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
-    return {
-      ...resolved,
-      support: mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
-    }
+    return { ...resolved, support }
   }
 
   resolveRegistryModelProfile(

@@ -48,6 +48,7 @@ export default openaiCompatible({
     models: 'https://poe.com/',
     official: 'https://poe.com/'
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   apiFeatures: {
     arrayContent: false,
     developerRole: false

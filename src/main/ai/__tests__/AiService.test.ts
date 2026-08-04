@@ -27,7 +27,8 @@ const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet
+    get: mockApplicationGet,
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 

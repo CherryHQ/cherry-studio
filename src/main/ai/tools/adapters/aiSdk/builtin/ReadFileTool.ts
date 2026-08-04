@@ -1,16 +1,141 @@
 /**
- * read_file tool — reads an attached file's text by `filename` (announced in the
- * conversation). The lookup lives in the shared `fileLookup` core; this file is
- * just the AI-SDK `tool()` wrapper. Text-only: natively-consumable files are
- * inlined by the chat path, never routed here.
+ * read_file tool — reads an attached file's text by `filename` (announced in
+ * the conversation).
+ *
+ * The overflow/paging tool for chat attachments: attachments are already
+ * inlined into the conversation by the chat path, so this only loads *more* of
+ * a file's **text** — the truncated tail of a capped inline excerpt, or further
+ * pages of a long file. Natively-consumable files (image on a vision model,
+ * PDF on a native provider, …) are sent inline as the real file and never
+ * routed here, so `read_file` is text-only: documents/text are extracted,
+ * images are OCR'd, audio/video/binary have no text form.
+ *
+ * Never throws on a read failure (returns `{ error }`, sanitized) so the
+ * agentic loop keeps running; a cancellation rethrows so it propagates as the
+ * cancellation it is.
  */
 
-import { READ_FILE_TOOL_NAME, readFileInputSchema, readFileResultSchema } from '@shared/ai/builtinTools'
+import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import {
+  READ_FILE_PAGE_SIZE,
+  READ_FILE_TOOL_NAME,
+  type ReadFileError,
+  type ReadFileInput,
+  readFileInputSchema,
+  type ReadFileOutput,
+  type ReadFileResult,
+  readFileResultSchema
+} from '@shared/ai/builtinTools'
+import { FILE_TYPE } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
-import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '../../../fileLookup'
+import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
+
+const logger = loggerService.withContext('ReadFile')
+
+const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
+
+Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
+
+/** Resolution context: the allow-list of this request's attachments. */
+export interface ReadFileContext {
+  attachments: ReadonlyArray<FileAttachmentRef>
+}
+
+function isReadFileError(result: ReadFileResult): result is ReadFileError {
+  return 'error' in result
+}
+
+/** A non-paged text result (notes / short content). */
+function textResult(text: string): ReadFileOutput {
+  return { text, totalChars: text.length }
+}
+
+function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFileOutput {
+  let start = Math.min(Math.max(offset, 0), text.length)
+  // A start landing on a lone low surrogate means the prior page kept the high
+  // half — skip the orphan.
+  const startCode = text.charCodeAt(start)
+  if (startCode >= 0xdc00 && startCode <= 0xdfff) start += 1
+
+  let end = surrogateSafeEnd(text, Math.min(start + limit, text.length))
+  // Guarantee forward progress: if backing off a surrogate split collapsed the
+  // page to empty (start on a high surrogate with limit too small to clear the
+  // pair), take the whole pair so `nextOffset` always advances past `start`.
+  if (end <= start && start < text.length) end = Math.min(start + 2, text.length)
+  return {
+    text: text.slice(start, end),
+    totalChars: text.length,
+    ...(end < text.length ? { nextOffset: end } : {})
+  }
+}
+
+export async function readFile(
+  input: ReadFileInput,
+  { attachments }: ReadFileContext,
+  signal?: AbortSignal
+): Promise<ReadFileResult> {
+  // Resolve the model-facing handle to an internal entry id against the request's
+  // allow-list — the model never sees (or can guess) entry ids, and can only read
+  // files attached to this conversation.
+  const entry = attachments.find((a) => a.handle === input.filename)
+  if (!entry) {
+    const available = attachments.map((a) => a.handle).join(', ') || '(none)'
+    return { error: `No attached file named "${input.filename}". Available: ${available}` }
+  }
+  const entryId = entry.fileEntryId
+
+  try {
+    const { ext } = await application.get('FileManager').getById(entryId)
+    const bareExt = ext?.toLowerCase() ?? ''
+    const fileType = getFileTypeByExt(bareExt)
+
+    if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
+      return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
+    }
+    if (fileType === FILE_TYPE.OTHER && bareExt) {
+      // Binary / unsupported — don't auto-decode it into mojibake.
+      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
+    }
+
+    const text =
+      fileType === FILE_TYPE.IMAGE
+        ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
+        : await extractDocumentText(entryId, { signal })
+
+    if (text === null) {
+      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
+    }
+    if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
+    // 0 is the "use the default" sentinel for both (see `readFileInputSchema`).
+    return paginate(text, input.offset || undefined, input.limit || undefined)
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error
+    // Log the detail; return a sanitized, filename-level message (no entry ids / paths).
+    logger.error('read_file failed', error as Error, { filename: input.filename })
+    return { error: `Failed to read attached file "${input.filename}".` }
+  }
+}
+
+/** Project a `read_file` result into an AI-SDK tool-result output (always text). */
+export function readFileModelOutput(output: ReadFileResult): ToolResultOutput {
+  if (isReadFileError(output)) {
+    return { type: 'text', value: output.error }
+  }
+  const more =
+    output.nextOffset != null
+      ? `\n\n[Showing ${output.text.length} of ${output.totalChars} chars. Call read_file again with offset=${output.nextOffset} for more.]`
+      : ''
+  return { type: 'text', value: output.text + more }
+}
 
 const readFileTool = tool({
   description: READ_FILE_DESCRIPTION,
@@ -27,6 +152,10 @@ const readFileTool = tool({
 export function createReadFileToolEntry(): ToolEntry {
   return {
     name: READ_FILE_TOOL_NAME,
+    // Persist-only: blobs an oversized page echo (`text`) out of message.data
+    // while totalChars/nextOffset ride the skeleton. Never triggers in-flight —
+    // toModelOutput emits text, and the truncator's entity path only sees json.
+    codec: makeTextFieldCodec({ textKey: 'text' }),
     namespace: 'file',
     description: 'Read an attached file by filename — returns its text (paged for long files)',
     // Always inline when active so the model can call it directly off the manifest.
