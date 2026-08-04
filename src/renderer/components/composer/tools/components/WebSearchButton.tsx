@@ -133,13 +133,16 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
         icon,
+        // The pinned toolbar and the quick panel render this launcher, not the button below, and
+        // they fall back to `label` without it — so the serving side has to travel here too.
+        tooltip: tooltipTitle,
         active: enableWebSearch,
         disabled: isDisabled,
         disabledReason,
         action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
       }
     ])
-  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t])
+  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t, tooltipTitle])
 
   return { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle }
 }

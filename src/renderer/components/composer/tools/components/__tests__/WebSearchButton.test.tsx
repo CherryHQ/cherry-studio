@@ -246,6 +246,19 @@ describe('WebSearchButton', () => {
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
   })
 
+  // The pinned toolbar renders the registered launcher, not the button, and falls back to `label`
+  // when the launcher carries no tooltip — which is how the globe kept showing the plain label.
+  it('carries the serving side on the registered launcher too', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
+    expect(webSearchLauncher.tooltip).toBe('chat.input.web_search.route.client')
+  })
+
   it('registers web search only for the plus menu', async () => {
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
