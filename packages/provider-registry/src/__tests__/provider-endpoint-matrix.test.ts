@@ -68,8 +68,8 @@ describe('deepseek endpoint matrix', () => {
     })
   })
 
-  it('prefers Chat Completions for V4 Flash so reasoning works on the deepseek adapter', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual(['openai-chat-completions', 'openai-responses'])
+  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual(['openai-responses', 'openai-chat-completions'])
   })
 
   it.each(['deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])(

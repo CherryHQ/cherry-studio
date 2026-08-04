@@ -1955,7 +1955,7 @@
       "family": "qwen",
       "id": "qwen3-7-flash",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 65536,
+      "maxOutputTokens": 64000,
       "metadata": {},
       "name": "Qwen 3.7 Flash",
       "outputModalities": ["text"],
@@ -1981,12 +1981,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2094,61 +2094,6 @@
         "thinkingTokenLimits": {
           "max": 262144,
           "min": 1
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1000000,
-      "family": "qwen",
-      "id": "qwen3-8-max",
-      "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "Qwen 3.8 Max",
-      "outputModalities": ["text"],
-      "ownedBy": "alibaba",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 6
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "xhigh"]
-          },
-          {
-            "kind": "budget",
-            "max": 262144,
-            "min": 0
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "xhigh"],
-        "thinkingTokenLimits": {
-          "max": 262144,
-          "min": 0
         }
       }
     },
@@ -13338,26 +13283,6 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
-      "family": "voxtral",
-      "id": "voxtral-mini-latest",
-      "inputModalities": ["audio"],
-      "metadata": {},
-      "name": "Voxtral Mini (latest)",
-      "outputModalities": ["text"],
-      "ownedBy": "mistral"
-    },
-    {
-      "capabilities": ["audio-generation"],
-      "family": "voxtral",
-      "id": "voxtral-mini-tts-latest",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Voxtral Mini TTS (latest)",
-      "outputModalities": ["audio"],
-      "ownedBy": "mistral"
-    },
-    {
       "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
       "contextWindow": 32000,
       "family": "mistral",
@@ -13377,29 +13302,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.35
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "audio-recognition", "file-input"],
-      "contextWindow": 32000,
-      "family": "voxtral",
-      "id": "voxtral-small-latest",
-      "inputModalities": ["text", "audio"],
-      "maxOutputTokens": 32000,
-      "metadata": {},
-      "name": "Voxtral Small (latest)",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "mistral",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
         }
       }
     },
@@ -16347,7 +16249,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.6000000000000001
         }
       },
       "reasoning": {
@@ -16507,7 +16409,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 1.0000000000000002
         },
         "output": {
           "currency": "USD",
@@ -18973,27 +18875,6 @@
       }
     },
     {
-      "capabilities": ["embedding"],
-      "contextWindow": 32000,
-      "family": "v0",
-      "id": "pplx-embed-v1-0-6b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Embed v1 0.6b",
-      "outputModalities": ["vector"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["embedding"],
-      "contextWindow": 32000,
-      "id": "pplx-embed-v1-4b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Embed v1 4b",
-      "outputModalities": ["vector"],
-      "ownedBy": "vercel"
-    },
-    {
       "capabilities": ["audio-generation"],
       "family": "o",
       "id": "tts-1",
@@ -21227,5 +21108,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "cf4ca6cc3d3cfaf0"
+  "version": "720c311cd96313c4"
 }
