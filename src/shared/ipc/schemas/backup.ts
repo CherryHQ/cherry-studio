@@ -26,6 +26,10 @@ export const backupRequestSchemas = {
   'backup.acknowledge_auto_sync_notification': defineRoute({
     input: z.object({ type: autoBackupTypeSchema, id: z.number().int().positive() }),
     output: z.void()
+  }),
+  'backup.manual_completion.record': defineRoute({
+    input: z.object({ type: autoBackupTypeSchema }),
+    output: z.void()
   })
 }
 

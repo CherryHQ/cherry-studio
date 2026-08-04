@@ -11,7 +11,7 @@ import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import { type CreateDirectoryOptions } from 'webdav'
 
-import { type RemoteSyncState, setBackupSyncState } from './BackupService'
+import { recordManualBackupCompletion, type RemoteSyncState, setBackupSyncState } from './BackupService'
 
 const logger = loggerService.withContext('NutstoreService')
 
@@ -123,6 +123,7 @@ export async function backupToNutstore({
     })
 
     if (isSuccess) {
+      if (!autoBackupProcess) await recordManualBackupCompletion('nutstore')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setNutstoreSyncState({ lastSyncError: message })

@@ -8,6 +8,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
@@ -42,6 +43,14 @@ export const subscribeBackupSyncState = (listener: () => void) => {
 export const setBackupSyncState = (type: AutoBackupType, patch: Partial<RemoteSyncState>) => {
   backupSyncState = { ...backupSyncState, [type]: { ...backupSyncState[type], ...patch } }
   backupSyncListeners.forEach((listener) => listener())
+}
+
+export async function recordManualBackupCompletion(type: AutoBackupType): Promise<void> {
+  try {
+    await ipcApi.request('backup.manual_completion.record', { type })
+  } catch (error) {
+    logger.error('Failed to record manual backup completion', error as Error)
+  }
 }
 
 const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('webdav', patch)
@@ -155,6 +164,7 @@ export async function backupToWebdav({
       disableStream: webdavDisableStream
     })
     if (success) {
+      if (!autoBackupProcess) await recordManualBackupCompletion('webdav')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setWebDAVSyncState({ lastSyncError: message })
@@ -277,6 +287,7 @@ export async function backupToS3({
     })
 
     if (success) {
+      if (!autoBackupProcess) await recordManualBackupCompletion('s3')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setS3SyncState({ lastSyncError: message })
@@ -424,6 +435,7 @@ export async function backupToLocal({
     })
 
     if (result) {
+      if (!autoBackupProcess) await recordManualBackupCompletion('local')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setLocalBackupSyncState({ lastSyncError: message })

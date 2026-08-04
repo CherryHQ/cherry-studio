@@ -126,6 +126,11 @@ export class AutoBackupService extends BaseService {
     }
   }
 
+  recordManualBackupCompletion(type: AutoBackupType): void {
+    this.schedules[type].lastSyncTime = Date.now()
+    if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
+  }
+
   private restartSchedule(type: AutoBackupType, mode: ScheduleMode): void {
     const state = this.schedules[type]
     state.generation++

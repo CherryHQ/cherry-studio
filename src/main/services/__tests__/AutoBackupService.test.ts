@@ -170,6 +170,22 @@ describe('AutoBackupService', () => {
     }
   })
 
+  it('schedules from a manual completion when automatic backup is enabled later', async () => {
+    setPreference('data.backup.webdav.auto_sync', false)
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+
+    service.recordManualBackupCompletion('webdav')
+    setPreference('data.backup.webdav.auto_sync', true)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+  })
+
   it('does not reschedule after automatic backup is disabled during an upload', async () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.local.auto_sync', false)
