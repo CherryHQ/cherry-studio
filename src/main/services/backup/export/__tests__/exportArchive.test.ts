@@ -14,11 +14,11 @@ import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { admitArchive } from '../admission/admitArchive'
-import { diskProbe } from '../diskPreflight'
-import { InsufficientDiskSpaceError, OutputPathExistsError } from '../errors'
+import { admitArchive } from '../../admission/admitArchive'
+import { diskProbe } from '../../diskPreflight'
+import { InsufficientDiskSpaceError, OutputPathExistsError } from '../../errors'
+import { driftHooks } from '../../sourceDrift'
 import { exportArchive } from '../exportArchive'
-import { driftHooks } from '../sourceDrift'
 
 /**
  * End-to-end proof for the export path: a real migrated database in, a
