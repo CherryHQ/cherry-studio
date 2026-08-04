@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { toInternalBlobFileName } from '../portableProfilePolicy'
+import { toInternalBlobFileName } from './blobName'
 
 const logger = loggerService.withContext('pathResolver')
 
