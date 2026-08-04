@@ -5,15 +5,16 @@
  * persistent agent data directories. Bundled skills stay in the read-only app
  * resources directory and are injected as a local Claude plugin.
  */
-import {
-  type BuiltinAgentDefinition,
-  getBuiltinAgentTemplateDirectory,
-  loadBuiltinAgentDefinition
-} from '@data/builtinAgentDefinition'
 import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import fs from 'fs'
 import path from 'path'
+
+import {
+  type BuiltinAgentDefinition,
+  getBuiltinAgentTemplateDirectory,
+  loadBuiltinAgentDefinition
+} from './BuiltinAgentDefinition'
 
 const logger = loggerService.withContext('BuiltinAgentProvisioner')
 
@@ -48,7 +49,7 @@ function copyMissingDirSync(src: string, dest: string): void {
   }
 }
 
-export { loadBuiltinAgentDefinition } from '@data/builtinAgentDefinition'
+export { loadBuiltinAgentDefinition } from './BuiltinAgentDefinition'
 
 /**
  * Initialize a built-in agent's persistent data directory.

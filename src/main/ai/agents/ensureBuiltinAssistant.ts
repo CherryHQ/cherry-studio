@@ -1,8 +1,9 @@
 import { application } from '@application'
-import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
 import { agentService } from '@data/services/AgentService'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
+
+import { loadBuiltinAssistantDefaults } from './builtin/BuiltinAgentDefinition'
 
 export function ensureBuiltinAssistant(): AgentEntity {
   const defaults = loadBuiltinAssistantDefaults()

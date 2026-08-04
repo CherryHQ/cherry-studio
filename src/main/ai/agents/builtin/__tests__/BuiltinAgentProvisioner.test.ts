@@ -3,7 +3,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +15,7 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
+import { loadBuiltinAssistantDefaults } from '../BuiltinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
