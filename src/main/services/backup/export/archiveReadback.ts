@@ -1,12 +1,12 @@
 import { createHash, type Hash } from 'node:crypto'
 import type { Readable } from 'node:stream'
 
-import { type NormalizedEntry, openArchive, validateArchiveShape } from './admission/catalog'
-import { classifyPayloadLayout } from './admission/layout'
-import { DB_ENTRY } from './archiveLayout'
-import { BACKUP_CEILINGS } from './ceilings'
-import { BackupCancelledError, ManifestPayloadMismatchError } from './errors'
-import type { BackupManifest, ResourcePayload } from './manifest'
+import { type NormalizedEntry, openArchive, validateArchiveShape } from '../admission/catalog'
+import { classifyPayloadLayout } from '../admission/layout'
+import { DB_ENTRY } from '../archiveLayout'
+import { BACKUP_CEILINGS } from '../ceilings'
+import { BackupCancelledError, ManifestPayloadMismatchError } from '../errors'
+import type { BackupManifest, ResourcePayload } from '../manifest'
 
 /**
  * Read-back verification of the ZIP bytes immediately before publication.

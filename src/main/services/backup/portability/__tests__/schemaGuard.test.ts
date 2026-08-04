@@ -14,7 +14,7 @@ import { miniAppTable } from '@data/db/schemas/miniApp'
 import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { sanitizeAgentChannelCapability } from '@main/ai/channelPortableProfilePolicy'
+import { sanitizeAgentChannelCapability } from '@main/ai/channels'
 import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
@@ -420,7 +420,7 @@ describe('module purity', () => {
   const POLICY_MODULES = ['managedPathRebase.ts', 'preferenceResetPolicy.ts', 'tablePolicy.ts']
   const PORTABLE_DB_OWNER_POLICY_MODULES = [
     path.join(REPO_SRC, 'main/ai/agents/portableProfilePolicy.ts'),
-    path.join(REPO_SRC, 'main/ai/channelPortableProfilePolicy.ts'),
+    path.join(REPO_SRC, 'main/ai/channels/portableProfilePolicy.ts'),
     path.join(REPO_SRC, 'main/ai/mcp/portableProfilePolicy.ts')
   ]
   const OWNER_POLICY_MODULES = [
@@ -429,7 +429,7 @@ describe('module purity', () => {
     path.join(REPO_SRC, 'main/features/knowledge/capturePolicy.ts'),
     path.join(REPO_SRC, 'main/features/knowledge/portableProfilePolicy.ts'),
     path.join(REPO_SRC, 'main/features/knowledge/restorePolicy.ts'),
-    path.join(REPO_SRC, 'main/services/file/portableProfilePolicy.ts')
+    path.join(REPO_SRC, 'main/services/file/utils/blobName.ts')
   ]
   /**
    * `workspacePathPolicy.ts` is effectful on purpose: its decision is pure (and is

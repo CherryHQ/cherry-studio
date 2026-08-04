@@ -5,7 +5,7 @@ import { findRollbackBlocker } from '@data/db/restore/resourceInstallV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
-import { RestoreStateError } from './errors'
+import { RestoreStateError } from '../errors'
 import { exitForRestoreJournalRecovery } from './restoreTransitionFailure'
 
 const logger = loggerService.withContext('backupRollbackRestore')

@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 
-import { RestoreStateError } from './errors'
+import { RestoreStateError } from '../errors'
 
 const logger = loggerService.withContext('backup/restoreTransitionFailure')
 
