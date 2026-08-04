@@ -8076,8 +8076,8 @@
         "check_failed": "验证失败",
         "check_success": "验证成功",
         "client_tools_preferred": {
-          "description": "当客户端与模型原生能力均可用时，优先使用已配置的搜索和 URL 获取服务商。",
-          "label": "优先使用客户端 Web 工具"
+          "description": "开启后，即使模型自带联网搜索，也使用上方配置的搜索与网页读取服务；关闭则交给模型内置搜索。",
+          "label": "优先使用自己配置的搜索服务"
         },
         "compression": {
           "cutoff": {
