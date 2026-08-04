@@ -2,6 +2,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { loggerService } from '@logger'
 import {
   decodePortableAgentResumePoint,
@@ -11,6 +14,8 @@ import {
 import { atomicWriteFile, ensureDir, exists, read } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 const logger = loggerService.withContext('portableTranscript')
 
@@ -102,32 +107,39 @@ interface DetachedResumeRow {
   readonly workspacePath: string | null
 }
 
+/**
+ * Read through the Drizzle schema rather than hand-written SQL: these column
+ * names are the only thing tying this owner to the detached database, so a
+ * rename must fail at typecheck instead of at export time.
+ */
 function readDetachedResumeRow(detachedDbPath: string, hostSessionId: string): DetachedResumeRow {
-  const db = new Database(detachedDbPath, { fileMustExist: true, readonly: true })
+  const sqlite = new Database(detachedDbPath, { fileMustExist: true, readonly: true })
   try {
+    const db = drizzle({ client: sqlite, casing: 'snake_case' })
     const tokenRow = db
-      .prepare(
-        `SELECT runtime_resume_token AS runtimeResumeToken
-         FROM agent_session_message
-         WHERE session_id = ? AND runtime_resume_token IS NOT NULL
-         ORDER BY created_at DESC
-         LIMIT 1`
+      .select({ runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken })
+      .from(agentSessionMessageTable)
+      .where(
+        and(
+          eq(agentSessionMessageTable.sessionId, hostSessionId),
+          isNotNull(agentSessionMessageTable.runtimeResumeToken)
+        )
       )
-      .get(hostSessionId) as { runtimeResumeToken: string } | undefined
+      .orderBy(desc(agentSessionMessageTable.createdAt))
+      .limit(1)
+      .get()
     const workspaceRow = db
-      .prepare(
-        `SELECT w.path AS workspacePath
-         FROM agent_session s
-         LEFT JOIN agent_workspace w ON w.id = s.workspace_id
-         WHERE s.id = ?`
-      )
-      .get(hostSessionId) as { workspacePath: string | null } | undefined
+      .select({ workspacePath: agentWorkspaceTable.path })
+      .from(agentSessionTable)
+      .leftJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, agentSessionTable.workspaceId))
+      .where(eq(agentSessionTable.id, hostSessionId))
+      .get()
     return {
       token: tokenRow?.runtimeResumeToken ?? null,
       workspacePath: workspaceRow?.workspacePath ?? null
     }
   } finally {
-    db.close()
+    sqlite.close()
   }
 }
 
