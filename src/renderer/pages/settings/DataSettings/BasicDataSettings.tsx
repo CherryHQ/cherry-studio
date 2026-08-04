@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
