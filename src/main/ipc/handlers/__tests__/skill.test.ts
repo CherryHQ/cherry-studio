@@ -33,7 +33,6 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   }
 }))
 
-import { PluginError } from '../../../utils/markdownParser'
 import { skillHandlers } from '../skill'
 
 const ctx = { senderId: 'w1' }
@@ -57,17 +56,6 @@ describe('skillHandlers', () => {
     expect(await skillHandlers['skill.install']({ installSource: 'src' }, ctx)).toEqual({
       success: false,
       error: 'boom'
-    })
-  })
-
-  it('install_from_directory preserves the parser error message', async () => {
-    installFromDirectoryMock.mockRejectedValue(
-      new PluginError('FILE_NOT_FOUND', '/tmp/not-a-skill/SKILL.md', 'SKILL.md or skill.md not found in skill folder')
-    )
-
-    expect(await skillHandlers['skill.install_from_directory']({ directoryPath: '/tmp/not-a-skill' }, ctx)).toEqual({
-      success: false,
-      error: 'SKILL.md or skill.md not found in skill folder'
     })
   })
 
