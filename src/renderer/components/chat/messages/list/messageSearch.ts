@@ -15,6 +15,8 @@
 import { uiSelector } from '@renderer/utils/uiContract'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
+import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
+
 const MESSAGE_SELECTOR = uiSelector({ semanticId: 'chat.message' })
 const MESSAGE_CONTENT_SELECTOR = uiSelector({ parts: ['message-content'] })
 const TEXT_PART_SELECTOR = '.block-wrapper.text-foreground'
@@ -65,7 +67,7 @@ export function computeMessageSearchMatches(
     const parts = partsByMessageId?.[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     let textPartIndex = 0
     for (const part of parts) {
-      if (part.type !== 'text') continue
+      if (part.type !== 'text' || hasPartParentToolCallId(part)) continue
       const currentTextPartIndex = textPartIndex
       textPartIndex++
       if (!part.text) continue

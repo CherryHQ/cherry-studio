@@ -72,4 +72,20 @@ describe('computeMessageSearchMatches', () => {
     const matches = computeMessageSearchMatches(messages, overlay, 'streaming', DEFAULT_OPTIONS)
     expect(matches).toEqual([{ messageId: 'a2', textPartIndex: 0, occurrence: 0 }])
   })
+
+  it('excludes nested tool text without shifting rendered text part indices', () => {
+    const nestedToolText = {
+      type: 'text',
+      text: 'hidden apple',
+      providerMetadata: { 'claude-code': { parentToolCallId: 'parent' } }
+    } as CherryMessagePart
+    const matches = computeMessageSearchMatches(
+      [message('a1', 'assistant', [nestedToolText, textPart('visible apple')])],
+      undefined,
+      'apple',
+      DEFAULT_OPTIONS
+    )
+
+    expect(matches).toEqual([{ messageId: 'a1', textPartIndex: 0, occurrence: 0 }])
+  })
 })
