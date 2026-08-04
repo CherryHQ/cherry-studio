@@ -99,10 +99,10 @@
   },
   "openclaw": {
     "errors": {
-      "binary_incompatible": "[to be translated]:The OpenClaw binary used by Cherry Studio is incompatible with the generated configuration. Upgrade OpenClaw.{{details}}",
-      "external_config_invalid": "[to be translated]:OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
-      "more_issues": "[to be translated]:and {{count}} more issue(s)",
-      "preflight_failed": "[to be translated]:Cherry Studio could not validate the OpenClaw configuration."
+      "binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
+      "more_issues": "и ещё проблем: {{count}}",
+      "preflight_failed": "Cherry Studio не удалось проверить конфигурацию OpenClaw."
     }
   },
   "paintings": {
