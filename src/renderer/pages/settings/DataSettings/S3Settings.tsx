@@ -272,18 +272,7 @@ const S3Settings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <S3BackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          s3Config={{
-            endpoint: s3Endpoint,
-            region: s3Region,
-            bucket: s3Bucket,
-            accessKeyId: s3AccessKeyId,
-            secretAccessKey: s3SecretAccessKey,
-            root: s3Root
-          }}
-        />
+        <S3BackupManager visible={backupManagerVisible} onClose={closeBackupManager} destination="s3" />
       </>
     </SettingGroup>
   )

@@ -417,7 +417,9 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
 
   'backup.export_to_destination': async (input, ctx) => {
     requireManagedWindow(ctx)
-    const result = await cancellable(() => application.get('BackupService').exportToDestination(input.destination))
+    const result = await cancellable(() =>
+      application.get('BackupService').exportToDestination(input.destination, input.name)
+    )
     if (result === null) {
       return { status: 'canceled' as const }
     }

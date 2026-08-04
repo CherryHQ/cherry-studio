@@ -236,17 +236,7 @@ const WebDavSettings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <WebdavBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost,
-            webdavUser,
-            webdavPass,
-            webdavPath,
-            webdavDisableStream
-          }}
-        />
+        <WebdavBackupManager visible={backupManagerVisible} onClose={closeBackupManager} destination="webdav" />
       </>
     </SettingGroup>
   )

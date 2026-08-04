@@ -289,7 +289,14 @@ export const backupRequestSchemas = {
    * so a failure can never leave the user with fewer backups than they started.
    */
   'backup.export_to_destination': defineRoute({
-    input: DestinationSchema,
+    input: DestinationSchema.extend({
+      /**
+       * What the user typed in the backup dialog. Sanitized by main before it
+       * becomes a remote key, and it opts the archive out of rotation — only the
+       * generated name identifies one as this device's.
+       */
+      name: z.string().min(1).max(200).optional()
+    }),
     output: z.discriminatedUnion('status', [
       z.strictObject({ status: z.literal('canceled') }),
       z.strictObject({

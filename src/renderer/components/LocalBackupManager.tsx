@@ -11,7 +11,13 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
-import { restoreFromLocal } from '@renderer/services/BackupService'
+import { ipcApi } from '@renderer/ipc'
+import {
+  type BackupDestinationId,
+  deleteDestinationBackup,
+  listDestinationBackups,
+  prepareRestoreFromDestination
+} from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
@@ -22,21 +28,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface BackupFile {
-  fileName: string
-  modifiedTime: string
+  name: string
+  modifiedAt: number
   size: number
 }
 
 interface LocalBackupManagerProps {
   visible: boolean
   onClose: () => void
-  localBackupDir?: string
-  restoreMethod?: (fileName: string) => Promise<void>
+  destination: BackupDestinationId
 }
 
 const PAGE_SIZE = 5
 
-export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMethod }: LocalBackupManagerProps) {
+export function LocalBackupManager({ visible, onClose, destination }: LocalBackupManagerProps) {
   const { t } = useTranslation()
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,20 +51,16 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
   const [currentPage, setCurrentPage] = useState(1)
 
   const fetchBackupFiles = useCallback(async () => {
-    if (!localBackupDir) {
-      return
-    }
-
     setLoading(true)
     try {
-      const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
+      const files = await listDestinationBackups(destination)
       setBackupFiles(files)
     } catch (error: any) {
       toast.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
     } finally {
       setLoading(false)
     }
-  }, [localBackupDir, t])
+  }, [destination, t])
 
   useEffect(() => {
     if (visible) {
@@ -81,10 +82,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
-  const currentPageKeys = useMemo(
-    () => new Set(paginatedBackupFiles.map((file) => file.fileName)),
-    [paginatedBackupFiles]
-  )
+  const currentPageKeys = useMemo(() => new Set(paginatedBackupFiles.map((file) => file.name)), [paginatedBackupFiles])
 
   const handleSelectionChange = useCallback(
     (nextSelectedRowKeys: Key[]) => {
@@ -102,10 +100,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    if (!localBackupDir) {
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -120,7 +114,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     try {
       // Delete selected files one by one
       for (const key of selectedRowKeys) {
-        await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
+        await deleteDestinationBackup(destination, key.toString())
       }
       toast.success(t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
@@ -133,10 +127,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
   }
 
   const handleDeleteSingle = async (fileName: string) => {
-    if (!localBackupDir) {
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -149,7 +139,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
     setDeleting(true)
     try {
-      await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
+      await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.local.backup.manager.delete.success.single'))
       await fetchBackupFiles()
     } catch (error: any) {
@@ -160,23 +150,27 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
   }
 
   const handleRestore = async (fileName: string) => {
-    if (!localBackupDir) {
-      return
-    }
-
-    const confirmed = await popup.confirm({
-      title: t('settings.data.local.restore.confirm.title'),
-      icon: <CircleAlert />,
-      content: t('settings.data.local.restore.confirm.content'),
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      centered: true
-    })
-    if (!confirmed) return
-
     setRestoring(true)
     try {
-      await (restoreMethod || restoreFromLocal)(fileName)
+      // Confirm only after preparation, which is what rejects an unusable archive.
+      const result = await prepareRestoreFromDestination(destination, fileName)
+      if (result.status === 'canceled') return
+
+      const confirmed = await popup.confirm({
+        title: t('settings.data.local.restore.confirm.title'),
+        icon: <CircleAlert />,
+        content: t('settings.data.local.restore.confirm.content'),
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        centered: true
+      })
+      if (!confirmed) {
+        // An abandoned preparation stays in the journal and blocks the next restore.
+        await ipcApi.request('backup.cancel_restore')
+        return
+      }
+
+      await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.local.backup.manager.restore.success'))
       onClose() // Close the modal
     } catch (error: any) {
@@ -188,7 +182,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const columns: ColumnDef<BackupFile>[] = [
     {
-      accessorKey: 'fileName',
+      accessorKey: 'name',
       header: t('settings.data.local.backup.manager.columns.fileName'),
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
@@ -201,10 +195,10 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       }
     },
     {
-      accessorKey: 'modifiedTime',
+      accessorKey: 'modifiedAt',
       header: t('settings.data.local.backup.manager.columns.modifiedTime'),
       meta: { width: 180 },
-      cell: ({ getValue }) => dayjs(getValue() as string).format('YYYY-MM-DD HH:mm:ss')
+      cell: ({ getValue }) => dayjs(getValue() as number).format('YYYY-MM-DD HH:mm:ss')
     },
     {
       accessorKey: 'size',
@@ -224,7 +218,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
               className="inline-flex"
               size="sm"
               variant="ghost"
-              onClick={() => handleRestore(record.fileName)}
+              onClick={() => handleRestore(record.name)}
               disabled={restoring || deleting}>
               {t('settings.data.local.backup.manager.restore.text')}
             </Button>
@@ -232,7 +226,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
               className="inline-flex"
               size="sm"
               variant="ghost"
-              onClick={() => handleDeleteSingle(record.fileName)}
+              onClick={() => handleDeleteSingle(record.name)}
               disabled={deleting || restoring}>
               {t('settings.data.local.backup.manager.delete.text')}
             </Button>
@@ -251,7 +245,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         <div className="flex flex-col gap-2">
           <div className="relative">
             <DataTable
-              rowKey="fileName"
+              rowKey="name"
               columns={columns}
               data={paginatedBackupFiles}
               selection={{

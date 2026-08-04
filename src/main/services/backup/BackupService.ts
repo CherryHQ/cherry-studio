@@ -8,7 +8,7 @@ import { ensureDir, remove } from 'fs-extra'
 import { randomUUID } from 'node:crypto'
 import { basename, join } from 'node:path'
 
-import { archiveName, isOwnArchive, pruneToLimit } from './destinations/archiveRotation'
+import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
 import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
 import { BackupBusyError, BackupCancelledError } from './errors'
@@ -251,7 +251,8 @@ export class BackupService extends BaseService {
    * only the finished file crosses over.
    */
   public async exportToDestination(
-    id: BackupDestinationId
+    id: BackupDestinationId,
+    customName?: string
   ): Promise<{ name: string; degradations: ExportArchiveResult['manifest']['degradations'] }> {
     // Resolved before the claim: an unconfigured destination is not an operation,
     // and must not make a concurrent export look busy.
@@ -260,8 +261,15 @@ export class BackupService extends BaseService {
 
     return this.runExclusive('export', async (signal) => {
       await this.startExportCleanup()
-      const name = archiveName(new Date())
-      const stagePath = join(application.getPath('feature.backup.temp'), `${randomUUID()}-${name}`)
+      // A name the user typed is kept, but it opts out of rotation: only the
+      // generated convention identifies an archive as this device's.
+      const name = customName ? sanitizeArchiveName(customName) : archiveName(new Date())
+      const tempRoot = application.getPath('feature.backup.temp')
+      // Neither the export's staging nor its publish link creates this; the
+      // dialog-driven export never needed it because the user picks an existing
+      // folder.
+      await ensureDir(tempRoot)
+      const stagePath = join(tempRoot, `${randomUUID()}-${name}`)
       try {
         const result = await exportArchive({ outPath: stagePath, signal })
         await transport.upload(result.outPath, name)
@@ -306,15 +314,20 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * What this device has already sent to a destination, newest first.
+   * Everything sitting at a destination, newest first.
    *
-   * Not exclusive: listing reads nothing an export or a restore is writing, and
-   * making the picker wait on a running backup would only look broken.
+   * Deliberately NOT narrowed to this device the way rotation is: restoring
+   * another machine's backup, or one the user named themselves, is the point of
+   * a shared folder. Only deletion is device-scoped.
+   *
+   * Not exclusive either — listing reads nothing an export or a restore is
+   * writing, and making the picker wait on a running backup would only look
+   * broken.
    */
   public async listDestinationBackups(id: BackupDestinationId): Promise<RemoteArchive[]> {
     const transport = createTransport(await resolveDestination(id))
     const archives = await transport.list()
-    return archives.filter((archive) => isOwnArchive(archive.name)).sort((a, b) => b.modifiedAt - a.modifiedAt)
+    return [...archives].sort((a, b) => b.modifiedAt - a.modifiedAt)
   }
 
   public async deleteDestinationBackup(id: BackupDestinationId, name: string): Promise<void> {

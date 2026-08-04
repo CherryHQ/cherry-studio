@@ -34,6 +34,19 @@ function sanitize(hostname: string): string {
 }
 
 /**
+ * Make a user-typed backup name safe to use as a remote key.
+ *
+ * The name reaches a WebDAV path and an S3 key, so a separator or a `..` in it
+ * would place the archive somewhere the user did not choose — and, on the next
+ * rotation, name something else for deletion.
+ */
+export function sanitizeArchiveName(name: string): string {
+  const flattened = name.replace(/[/\\]/g, '-').replace(/\.{2,}/g, '.').trim()
+  const bounded = flattened.slice(0, 120) || `${ARCHIVE_PREFIX}${ARCHIVE_SUFFIX}`
+  return bounded.endsWith(ARCHIVE_SUFFIX) ? bounded : `${bounded}${ARCHIVE_SUFFIX}`
+}
+
+/**
  * Was this archive written by THIS device?
  *
  * Rotation only ever deletes its own. Several machines commonly sync one cloud
