@@ -3773,6 +3773,7 @@
   "settings.data.backup_v2.progress.stage.preparing": "准备中",
   "settings.data.backup_v2.progress.stage.snapshotting-db": "正在复制数据库",
   "settings.data.backup_v2.progress.stage.staging": "正在暂存以待重启",
+  "settings.data.backup_v2.progress.stage.uploading": "正在上传",
   "settings.data.backup_v2.progress.stage.verifying": "正在校验并写入归档",
   "settings.data.backup_v2.progress.starting": "正在开始…",
   "settings.data.backup_v2.progress.stop": "停止备份",

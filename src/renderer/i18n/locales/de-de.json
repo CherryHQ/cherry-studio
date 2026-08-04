@@ -3773,6 +3773,7 @@
   "settings.data.backup_v2.progress.stage.preparing": "Preparing",
   "settings.data.backup_v2.progress.stage.snapshotting-db": "Copying database",
   "settings.data.backup_v2.progress.stage.staging": "Staging for restart",
+  "settings.data.backup_v2.progress.stage.uploading": "Uploading",
   "settings.data.backup_v2.progress.stage.verifying": "Verifying and writing archive",
   "settings.data.backup_v2.progress.starting": "Starting…",
   "settings.data.backup_v2.progress.stop": "Stop backup",
