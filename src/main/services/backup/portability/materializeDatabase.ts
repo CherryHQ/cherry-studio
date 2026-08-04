@@ -18,7 +18,7 @@ import {
   sanitizeAgentAutomation,
   toDisconnectedAgentWorkspaceSegment
 } from '@main/ai/agents/portableProfilePolicy'
-import { sanitizeAgentChannelCapability } from '@main/ai/channelPortableProfilePolicy'
+import { sanitizeAgentChannelCapability } from '@main/ai/channels'
 import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { ACTIVE_JOB_STATUSES, JobStatusAtomSchema } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_STATUSES } from '@shared/data/types/knowledge'
