@@ -4,6 +4,7 @@ import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProvide
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ToolSourceSettings } from './components/ToolSourceSettings'
 import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
 import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
 import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
@@ -35,6 +36,7 @@ const WebSearchSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={theme} innerClassName={webSearchFieldClassName}>
+      <ToolSourceSettings />
       {featureSections.map((section) => {
         const defaultProvider =
           section.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider

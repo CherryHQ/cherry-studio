@@ -236,9 +236,10 @@ describe('WebSearchSettings', () => {
     expect(blacklistTitle).toBeVisible()
   })
 
+  // The preference governs every capability section, so it lives in its own group rather than under
+  // one section's advanced settings — no accordion interaction needed to reach it.
   it('defaults to client web-tool priority and persists switch changes', async () => {
     render(<WebSearchSettings />)
-    openAdvancedSettings()
 
     const prioritySwitch = screen.getByRole('switch', {
       name: 'settings.tool.websearch.client_tools_preferred.label'

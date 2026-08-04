@@ -1,9 +1,8 @@
-import { Button, InfoTooltip, Input, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, Tooltip } from '@cherrystudio/ui'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -28,8 +27,7 @@ interface Props {
 const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { clientToolsPreferred, maxResults, compressionConfig, setClientToolsPreferred, setMaxResults } =
-    useWebSearchSettings()
+  const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
   const [draftMaxResultsInput, setDraftMaxResultsInput] = useState(String(maxResults))
   const [maxResultsBaseline, setMaxResultsBaseline] = useState(maxResults)
   const maxResultsDirty = draftMaxResultsInput !== String(maxResultsBaseline)
@@ -79,22 +77,6 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
       ) : null}
       {variant === 'plain' ? <SettingDivider className="mt-0 border-border-subtle" /> : null}
       <div className="flex flex-col">
-        <SettingRow className={settingRowClassName}>
-          <div className={settingLabelClassName}>
-            <SettingRowTitle>{t('settings.tool.websearch.client_tools_preferred.label')}</SettingRowTitle>
-            <SettingHelpText className="mt-1">
-              {t('settings.tool.websearch.client_tools_preferred.description')}
-            </SettingHelpText>
-          </div>
-          <Switch
-            aria-label={t('settings.tool.websearch.client_tools_preferred.label')}
-            checked={clientToolsPreferred}
-            onCheckedChange={(checked) =>
-              void persist(() => setClientToolsPreferred(checked), 'Failed to save the client web-tool preference')
-            }
-          />
-        </SettingRow>
-        <SettingDivider className="border-border-subtle" />
         <SettingRow className={settingRowClassName}>
           <SettingRowTitle className={settingLabelClassName}>
             {t('settings.tool.websearch.search_max_result.label')}
