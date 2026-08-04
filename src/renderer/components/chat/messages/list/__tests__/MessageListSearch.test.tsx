@@ -47,6 +47,34 @@ beforeEach(() => {
   Range.prototype.getBoundingClientRect = () => new DOMRect()
 })
 
+function installCustomHighlightsMock() {
+  const cssDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'CSS')
+  const highlightDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Highlight')
+  const highlights = {
+    delete: vi.fn(),
+    set: vi.fn()
+  }
+
+  Object.defineProperty(globalThis, 'CSS', {
+    configurable: true,
+    value: Object.assign(Object.create(cssDescriptor?.value ?? null), { highlights })
+  })
+  Object.defineProperty(globalThis, 'Highlight', {
+    configurable: true,
+    value: class HighlightMock {}
+  })
+
+  return {
+    highlights,
+    restore() {
+      if (cssDescriptor) Object.defineProperty(globalThis, 'CSS', cssDescriptor)
+      else Reflect.deleteProperty(globalThis, 'CSS')
+      if (highlightDescriptor) Object.defineProperty(globalThis, 'Highlight', highlightDescriptor)
+      else Reflect.deleteProperty(globalThis, 'Highlight')
+    }
+  }
+}
+
 describe('MessageListSearch', () => {
   it('labels icon controls and exposes filter pressed states', async () => {
     const user = userEvent.setup()
@@ -128,6 +156,70 @@ describe('MessageListSearch', () => {
     expect(locateMessage).toHaveBeenCalledTimes(1)
 
     scope.remove()
+  })
+
+  it('refreshes highlights only after exact navigation has visually settled', async () => {
+    const customHighlights = installCustomHighlightsMock()
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi
+      .spyOn(globalThis, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback) => {
+        animationFrames.push(callback)
+        return animationFrames.length
+      })
+    const cancelAnimationFrameSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+    const scope = document.createElement('div')
+    const partElement = document.createElement('div')
+    partElement.dataset.messagePartId = 'a1-part-0'
+    partElement.textContent = 'apple apple'
+    scope.appendChild(partElement)
+    document.body.appendChild(scope)
+
+    const scrollToRange = vi.fn()
+    const message: MessageListItem = {
+      id: 'a1',
+      role: 'assistant',
+      status: 'success',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    }
+    const view = render(
+      <MessageListSearch
+        messages={[message]}
+        partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }}
+        renderUserTextAsMarkdown={false}
+        locateMessage={vi.fn()}
+        scrollToRange={scrollToRange}
+        getOuterScroller={() => scope}
+        scopeRef={{ current: scope }}
+      />
+    )
+
+    try {
+      const user = userEvent.setup()
+      act(() => commandMock.handler?.())
+      await user.type(screen.getByRole('textbox'), 'apple')
+      const next = screen.getByRole('button', { name: 'common.next' })
+      await waitFor(() => expect(next).toBeEnabled())
+      await waitFor(() => expect(customHighlights.highlights.set).toHaveBeenCalled())
+      customHighlights.highlights.set.mockClear()
+
+      await user.click(next)
+      await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
+      expect(customHighlights.highlights.set).not.toHaveBeenCalled()
+
+      act(() => animationFrames.shift()?.(0))
+      expect(customHighlights.highlights.set).not.toHaveBeenCalled()
+      act(() => animationFrames.shift()?.(16))
+
+      expect(customHighlights.highlights.set).toHaveBeenCalledWith('message-search-current', expect.anything())
+    } finally {
+      view.unmount()
+      scope.remove()
+      requestAnimationFrameSpy.mockRestore()
+      cancelAnimationFrameSpy.mockRestore()
+      customHighlights.restore()
+    }
   })
 
   it('cancels pending navigation when its result disappears', async () => {

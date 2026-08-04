@@ -46,7 +46,7 @@ export interface MessageVirtualListHandle {
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
   /** Smooth-scroll `element` to the requested viewport alignment, then freeze the viewport on it. */
   scrollToElement(element: HTMLElement, align?: 'start' | 'center'): void
-  /** Center an exact text range in the viewport, then freeze the viewport on its rendered content. */
+  /** Center an exact text range immediately, then freeze the viewport on its rendered content. */
   scrollToRange(range: Range): void
   isFollowing(): boolean
   getScrollElement(): HTMLElement | null
@@ -833,7 +833,7 @@ export function useChatVirtualizerRuntime<T>({
             (currentScroller.clientHeight - rangeRect.height) / 2
           )
         },
-        'smooth',
+        'instant',
         getRangeElement
       )
     },

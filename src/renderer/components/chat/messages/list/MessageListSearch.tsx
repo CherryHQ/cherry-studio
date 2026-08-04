@@ -49,6 +49,7 @@ interface SearchCursor {
 interface PendingNavigation {
   criteriaKey: string
   match: MessageSearchMatch
+  isWaitingForHighlight: boolean
 }
 
 const clearHighlights = () => {
@@ -74,6 +75,7 @@ export const MessageListSearch: FC<Props> = ({
   const [searchState, setSearchState] = useState<FindBarState>(() => ({ ...INITIAL_FIND_BAR_STATE }))
   const [cursor, setCursor] = useState<SearchCursor | null>(null)
   const pendingNavigationRef = useRef<PendingNavigation | null>(null)
+  const settledHighlightFrameRef = useRef<number | null>(null)
 
   const { enabled, query, caseSensitive, wholeWord, includeUser } = searchState
   const deferredQuery = useDeferredValue(query)
@@ -112,6 +114,10 @@ export const MessageListSearch: FC<Props> = ({
   }, [matches])
 
   useEffect(() => {
+    if (settledHighlightFrameRef.current !== null) {
+      cancelAnimationFrame(settledHighlightFrameRef.current)
+      settledHighlightFrameRef.current = null
+    }
     pendingNavigationRef.current = null
   }, [criteriaKey, enabled])
 
@@ -122,48 +128,85 @@ export const MessageListSearch: FC<Props> = ({
     }
   }, [matches])
 
-  const refreshHighlights = useCallback(() => {
-    clearHighlights()
+  const syncSearchDomRef = useRef<() => void>(() => {})
+
+  const syncSearchDom = useCallback(() => {
     const scope = scopeRef.current
-    if (!enabled || !trimmedQuery || !scope) return
+    if (!enabled || !trimmedQuery || !scope) {
+      clearHighlights()
+      return
+    }
+
+    const pending = pendingNavigationRef.current
+    if (pending) {
+      if (
+        pending.isWaitingForHighlight ||
+        pending.criteriaKey !== criteriaKey ||
+        !current ||
+        pending.match.key !== current.key
+      ) {
+        return
+      }
+
+      const partElement = getMountedMessagePartElements(scope).get(current.partId)
+      if (!partElement) return
+
+      const ranges = findRangesInScope(
+        partElement,
+        trimmedQuery,
+        { caseSensitive, wholeWord },
+        createMessageSearchNodeFilter()
+      )
+      const range = ranges[current.occurrence]
+      if (!range) {
+        if (current.role === 'user') requestUserMessagePartExpansion(partElement)
+        return
+      }
+
+      pending.isWaitingForHighlight = true
+      revealRangeInNestedScrollContainers(range, getOuterScroller() ?? scope)
+      scrollToRange(range)
+      // Let the instant scroll and virtualizer reconciliation paint before doing
+      // the full mounted-range scan and committing CSS highlights.
+      settledHighlightFrameRef.current = requestAnimationFrame(() => {
+        settledHighlightFrameRef.current = requestAnimationFrame(() => {
+          settledHighlightFrameRef.current = null
+          const latestPending = pendingNavigationRef.current
+          if (latestPending?.criteriaKey !== pending.criteriaKey || latestPending.match.key !== pending.match.key) {
+            return
+          }
+          pendingNavigationRef.current = null
+          syncSearchDomRef.current()
+        })
+      })
+      return
+    }
+
+    clearHighlights()
+    if (!supportsCustomHighlights()) return
 
     const mountedParts = getMountedMessagePartElements(scope)
     const searchOptions = { caseSensitive, wholeWord }
     const filter = createMessageSearchNodeFilter()
-    if (supportsCustomHighlights()) {
-      const mountedRanges: Range[] = []
-      for (const [partId, partElement] of mountedParts) {
-        const partMatches = matchesByPartId.get(partId)
-        if (!partMatches) continue
-        mountedRanges.push(
-          ...findRangesInScope(partElement, trimmedQuery, searchOptions, filter).slice(0, partMatches.length)
-        )
-      }
-      if (mountedRanges.length > 0) {
-        CSS.highlights.set(MATCHES_HIGHLIGHT, new Highlight(...mountedRanges))
-      }
+    const mountedRanges: Range[] = []
+    const rangesByPartId = new Map<string, Range[]>()
+    for (const [partId, partElement] of mountedParts) {
+      const partMatches = matchesByPartId.get(partId)
+      if (!partMatches) continue
+      const partRanges = findRangesInScope(partElement, trimmedQuery, searchOptions, filter).slice(
+        0,
+        partMatches.length
+      )
+      rangesByPartId.set(partId, partRanges)
+      mountedRanges.push(...partRanges)
+    }
+    if (mountedRanges.length > 0) {
+      CSS.highlights.set(MATCHES_HIGHLIGHT, new Highlight(...mountedRanges))
     }
 
     if (!current) return
-    const partElement = mountedParts.get(current.partId)
-    if (!partElement) return
-    const partRanges = findRangesInScope(partElement, trimmedQuery, searchOptions, filter)
-    const range = partRanges[current.occurrence]
-    if (!range) {
-      if (current.role === 'user') requestUserMessagePartExpansion(partElement)
-      return
-    }
-
-    if (supportsCustomHighlights()) {
-      CSS.highlights.set(CURRENT_HIGHLIGHT, new Highlight(range))
-    }
-
-    const pending = pendingNavigationRef.current
-    if (pending?.criteriaKey !== criteriaKey || pending.match.key !== current.key) return
-
-    revealRangeInNestedScrollContainers(range, getOuterScroller() ?? scope)
-    scrollToRange(range)
-    pendingNavigationRef.current = null
+    const currentRange = rangesByPartId.get(current.partId)?.[current.occurrence]
+    if (currentRange) CSS.highlights.set(CURRENT_HIGHLIGHT, new Highlight(currentRange))
   }, [
     caseSensitive,
     criteriaKey,
@@ -177,12 +220,11 @@ export const MessageListSearch: FC<Props> = ({
     wholeWord
   ])
 
-  const refreshHighlightsRef = useRef(refreshHighlights)
-  refreshHighlightsRef.current = refreshHighlights
+  syncSearchDomRef.current = syncSearchDom
 
   useEffect(() => {
-    refreshHighlights()
-  }, [refreshHighlights])
+    syncSearchDom()
+  }, [syncSearchDom])
 
   useEffect(() => {
     if (!enabled) return
@@ -194,7 +236,7 @@ export const MessageListSearch: FC<Props> = ({
       if (frame !== null) return
       frame = requestAnimationFrame(() => {
         frame = null
-        refreshHighlightsRef.current()
+        syncSearchDomRef.current()
       })
     })
     observer.observe(scope, { childList: true, subtree: true, characterData: true })
@@ -204,7 +246,13 @@ export const MessageListSearch: FC<Props> = ({
     }
   }, [enabled, scopeRef])
 
-  useEffect(() => clearHighlights, [])
+  useEffect(
+    () => () => {
+      if (settledHighlightFrameRef.current !== null) cancelAnimationFrame(settledHighlightFrameRef.current)
+      clearHighlights()
+    },
+    []
+  )
 
   useCommandHandler(
     'chat.message.search',
@@ -219,8 +267,12 @@ export const MessageListSearch: FC<Props> = ({
 
   const navigateToMatch = useCallback(
     (match: MessageSearchMatch) => {
+      if (settledHighlightFrameRef.current !== null) {
+        cancelAnimationFrame(settledHighlightFrameRef.current)
+        settledHighlightFrameRef.current = null
+      }
       setCursor({ criteriaKey, matchKey: match.key })
-      pendingNavigationRef.current = { criteriaKey, match }
+      pendingNavigationRef.current = { criteriaKey, match, isWaitingForHighlight: false }
 
       const scope = scopeRef.current
       if (!scope || !getMountedMessagePartElements(scope).has(match.partId)) {
