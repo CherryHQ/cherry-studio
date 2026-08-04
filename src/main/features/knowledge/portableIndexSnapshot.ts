@@ -3,11 +3,11 @@ import fs from 'node:fs/promises'
 import { application } from '@application'
 import Database from 'better-sqlite3'
 
-import { collectKnowledgeIndexRequirements, type KnowledgeIndexRequirement } from './portableProfilePolicy'
 import type {
   KnowledgeIndexSnapshotFailure,
   KnowledgeIndexSnapshotResult
-} from './vectorstore/KnowledgeVectorStoreService'
+} from './pipeline/vectorstore/KnowledgeVectorStoreService'
+import { collectKnowledgeIndexRequirements, type KnowledgeIndexRequirement } from './portableProfilePolicy'
 
 class PortableIndexValidationError extends Error {
   constructor(readonly reason: Extract<KnowledgeIndexSnapshotFailure, 'material-mismatch' | 'embedding-missing'>) {

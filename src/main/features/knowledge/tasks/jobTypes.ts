@@ -15,7 +15,6 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.index-documents': {
       baseId: string
       itemId: string
-      parentJobId: string | null
       /** Restore-only path: index transported material without probing original sources. */
       restoreId?: string
     }
@@ -25,7 +24,7 @@ declare module '@main/core/job/jobRegistry' {
       fileProcessingJobId: string
       pollRound: number
       firstScheduledAt: number
-      parentJobId: string | null
+      processedRelativePath: string
     }
     'knowledge.delete-subtree': {
       baseId: string

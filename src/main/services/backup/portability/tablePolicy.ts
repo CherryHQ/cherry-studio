@@ -320,7 +320,7 @@ export const JOB_SCHEDULE_AUTOMATION_PATCH = Object.freeze({ enabled: false } as
  * runs at `onAllReady` (src/main/features/knowledge/KnowledgeService.ts:1021-1032),
  * finds every `deleting` subtree root, and enqueues `knowledge.delete-subtree`,
  * which recursively removes knowledge storage and purges vectors
- * (src/main/features/knowledge/utils/storage/pathStorage.ts:232). A restored
+ * (src/main/features/knowledge/pathStorage.ts). A restored
  * archive carrying such a row would silently destroy content on the TARGET
  * machine — the exact class of unconfirmed side effect §3.1 forbids.
  *
