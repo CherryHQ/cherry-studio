@@ -10,6 +10,12 @@ import type { BackupDestinationId, BackupProgressStage } from '@shared/ipc/schem
 import type { EventPayload } from '@shared/ipc/types'
 import { ensureDir, remove } from 'fs-extra'
 
+import {
+  AUTO_SYNC_JOB_TYPE,
+  AUTO_SYNC_PREFERENCE_KEYS,
+  autoSyncJobHandler,
+  reconcileAutoSyncSchedules
+} from './autoSync'
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
 import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
@@ -116,7 +122,7 @@ export interface BackupStatus {
 @ServicePhase(Phase.WhenReady)
 // Post-promotion work calls KnowledgeService. The owner must be initialized
 // before BackupService starts and remain alive until BackupService has stopped.
-@DependsOn(['KnowledgeService'])
+@DependsOn(['KnowledgeService', 'JobManager'])
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
@@ -134,6 +140,27 @@ export class BackupService extends BaseService {
     this.shuttingDown = false
     this.postPromotionSuppressed = false
     this.exportCleanupWork = null
+
+    // HERE, not in a later hook: JobManager's startup recovery cancels
+    // non-terminal jobs whose type has no registered handler, and it wakes on
+    // its own timer rather than waiting for us.
+    application.get('JobManager').registerHandler(AUTO_SYNC_JOB_TYPE, autoSyncJobHandler)
+
+    // Preference is the source of truth; the schedule row is its projection.
+    this.registerDisposable(
+      application
+        .get('PreferenceService')
+        .subscribeMultipleChanges([...AUTO_SYNC_PREFERENCE_KEYS], () => this.reconcileAutoSync())
+    )
+  }
+
+  /** Never let a settings edit — or a restore's forced disable — throw here. */
+  private reconcileAutoSync(): void {
+    try {
+      reconcileAutoSyncSchedules()
+    } catch (error) {
+      logger.error('Could not reconcile automatic backup schedules', error as Error)
+    }
   }
 
   /**
@@ -142,6 +169,10 @@ export class BackupService extends BaseService {
    * expired) any promotion, so acting on the journal here could only fight it.
    */
   protected onReady(): void {
+    // A restore comes back with every schedule forced off; this turns the ones
+    // the user still wants back on.
+    this.reconcileAutoSync()
+
     const status = this.getRestoreStatus()
     switch (status.kind) {
       case 'none':
