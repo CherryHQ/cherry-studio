@@ -73,7 +73,6 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
-import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -1345,15 +1344,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   message,
   messageParts
 }: MessagePartsRendererContentProps) {
-  const requestFollowRecovery = useRequestScrollFollowRecovery()
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const wasActiveTurnProcessingRef = React.useRef(isActiveTurnProcessing)
-  React.useEffect(() => {
-    if (wasActiveTurnProcessingRef.current && !isActiveTurnProcessing) requestFollowRecovery()
-    wasActiveTurnProcessingRef.current = isActiveTurnProcessing
-  }, [isActiveTurnProcessing, requestFollowRecovery])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()

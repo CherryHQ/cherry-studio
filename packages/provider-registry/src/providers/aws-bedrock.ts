@@ -58,6 +58,10 @@ export default defineProvider({
       }
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html',

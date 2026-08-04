@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { splitOverrideWireId } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 
 /**
@@ -16,8 +17,12 @@ const provider = (providerId: string) => {
   return result
 }
 
+// Look up by the CANONICAL key the catalog ships: source authors `modelId` as the served id
+// (`qwen3.7-max`), and generation splits it into key + `apiModelId` (see splitOverrideWireId).
 const endpointsOf = (providerId: string, modelId: string): string[] | undefined => {
-  const entry = provider(providerId).overrides?.find((o) => o.modelId === modelId)
+  const entry = provider(providerId)
+    .overrides?.map((o) => splitOverrideWireId(o))
+    .find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
   return entry.endpointTypes as string[] | undefined
 }
@@ -83,7 +88,7 @@ describe('deepseek endpoint matrix', () => {
 describe('doubao (Ark) endpoint matrix', () => {
   // Ark serves /responses for the 250615+ line only (docs/82379/1585128), so here a single-element
   // pin IS correct — the vendor genuinely does not serve the other endpoint.
-  it.each(['doubao-seed-2-1-pro', 'doubao-seed-1-6', 'seed-1-8'])(
+  it.each(['doubao-seed-2-1-pro', 'doubao-seed-1-6', 'doubao-seed-1-8'])(
     'prefers Responses with Chat selectable for the 250615+ SKU %s',
     (modelId) => {
       expect(endpointsOf('doubao', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])
