@@ -216,10 +216,6 @@ describe('SkillMarketplaceDialog', () => {
     const sourceTabs = screen.getAllByRole('radio')
     expect(sourceTabs.map((tab) => tab.textContent)).toEqual(['skills.sh1', 'claude-plugins.dev2', 'clawhub.ai'])
     expect(sourceTabs[0]).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('px-6', 'pt-1', 'pb-1')
-    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('[&::-webkit-scrollbar]:!w-0.75')
-    expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]')
-    expect(screen.getAllByRole('listitem')[0].className).not.toContain('hover:bg-accent')
     expect(screen.getByText('React Skill')).toBeInTheDocument()
     const firstResult = screen.getAllByRole('listitem')[0]
     expect(within(firstResult).queryByText('vercel')).not.toBeInTheDocument()
@@ -233,7 +229,6 @@ describe('SkillMarketplaceDialog', () => {
 
     expect(screen.getByText('Code Review')).toBeInTheDocument()
     const claudeResult = screen.getAllByRole('listitem')[0]
-    expect(claudeResult).toHaveClass('min-h-[56px]', 'border-b')
     expect(within(claudeResult).queryByText('Review code changes')).not.toBeInTheDocument()
     expect(within(claudeResult).queryByText('anthropic')).not.toBeInTheDocument()
     expect(within(claudeResult).getByText('42')).toBeInTheDocument()
@@ -271,18 +266,24 @@ describe('SkillMarketplaceDialog', () => {
     }
   })
 
-  it('selects a source with results when the default source has no matches', async () => {
+  it('keeps the selected source active when only another source has results', async () => {
+    const user = userEvent.setup()
     skillSearchState.results = [resultsFixture[1]]
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /clawhub.ai/ }))
     typeSearchQuery('react')
 
-    await waitFor(() => {
-      expect(screen.getByRole('radio', { name: /skills.sh/ })).toHaveAttribute('aria-checked', 'true')
-    })
+    const clawhubTab = screen.getByRole('radio', { name: /clawhub.ai/ })
+    expect(clawhubTab).toHaveAttribute('aria-checked', 'true')
+    expect(clawhubTab).not.toBeDisabled()
+    expect(screen.getByText('library.skill_marketplace.no_results_title')).toBeInTheDocument()
+    expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
+
+    const skillsShTab = screen.getByRole('radio', { name: 'skills.sh 1' })
+    await user.click(skillsShTab)
+
     expect(screen.getByText('React Skill')).toBeInTheDocument()
-    expect(screen.queryByText('library.skill_marketplace.no_results_title')).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeDisabled()
   })
 
   it('shows a localized marketplace error message when search fails', async () => {
@@ -314,6 +315,7 @@ describe('SkillMarketplaceDialog', () => {
   })
 
   it('keeps other install buttons enabled while one install is in progress', async () => {
+    const user = userEvent.setup()
     skillSearchState.results = [
       resultsFixture[0],
       {
@@ -328,6 +330,7 @@ describe('SkillMarketplaceDialog', () => {
     )
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
     typeSearchQuery('code')
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
@@ -350,6 +353,7 @@ describe('SkillMarketplaceDialog', () => {
     isInstallingMock.mockImplementation((key?: string) => (key ? false : true))
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
     typeSearchQuery('code')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     await user.click(installButtons[0])

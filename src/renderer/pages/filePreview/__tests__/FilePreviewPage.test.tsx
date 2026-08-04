@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +26,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: ({ filePath, refreshKey }: { filePath: FilePath; refreshKey: number }) => (
+  FilePreview: ({ filePath, refreshKey }: { filePath: AbsoluteFilePath; refreshKey: number }) => (
     <div data-testid="file-preview" data-refresh-key={refreshKey}>
       {filePath}
     </div>
@@ -44,7 +44,7 @@ beforeEach(() => {
 describe('FilePreviewPage', () => {
   it('renders the shared file preview for a valid route path', () => {
     mocks.currentTab = { metadata: { filePreviewRefreshKey: 7 } }
-    render(<FilePreviewPage filePath={'/tmp/report.pdf' as FilePath} />)
+    render(<FilePreviewPage filePath={'/tmp/report.pdf' as AbsoluteFilePath} />)
 
     expect(screen.getByTestId('file-preview')).toHaveTextContent('/tmp/report.pdf')
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '7')

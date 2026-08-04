@@ -5,7 +5,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
 import type { ReactNode } from 'react'
 
-import OpenaiAlert from '../components/OpenaiAlert'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryInOauth from './CherryInOauth'
@@ -17,6 +16,7 @@ import LmStudioSettings from './LmStudioSettings'
 import LoginOauthPanel from './LoginOauthPanel'
 import OvmsSettings from './OvmsSettings'
 import ProviderOauth from './ProviderOauth'
+import RadeonCloudBenefits from './RadeonCloudBenefits'
 import VertexAiSettings from './VertexAiSettings'
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
@@ -35,6 +35,11 @@ export type ProviderSpecificRegistryEntry = {
 export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlacement, ProviderSpecificRegistryEntry[]> = {
   beforeAuth: [
     {
+      key: 'radeon-cloud-benefits',
+      when: ({ provider }) => matchesPreset(provider, 'radeon-cloud'),
+      render: () => <RadeonCloudBenefits />
+    },
+    {
       key: 'oauth',
       when: ({ provider }) => isProviderSupportAuth(provider),
       render: (providerId) => <ProviderOauth providerId={providerId} />
@@ -43,11 +48,6 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'cherryin-oauth',
       when: ({ meta }) => meta.isCherryIN,
       render: (providerId) => <CherryInOauth providerId={providerId} />
-    },
-    {
-      key: 'openai-alert',
-      when: ({ provider }) => matchesPreset(provider, 'openai'),
-      render: () => <OpenaiAlert />
     },
     {
       key: 'ovms-settings',

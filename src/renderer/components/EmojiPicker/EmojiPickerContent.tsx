@@ -16,34 +16,35 @@ import { useTranslation } from 'react-i18next'
 
 import { type EmojiData, loadEmojiData } from './emojiData'
 import type { EmojiPickerProps } from './EmojiPicker'
+import { detectEmojiSupportLevel, detectUnsupportedZwjEmojiIds } from './emojiSupport'
 import { useRecentEmojis } from './useRecentEmojis'
 
 const logger = loggerService.withContext('EmojiPicker')
 
 const CHERRY_PICKER_STYLE = {
-  '--epr-bg-color': 'var(--color-popover)',
+  '--epr-bg-color': 'var(--popover)',
   '--epr-picker-border-color': 'transparent',
   '--epr-picker-border-radius': 'var(--radius-lg)',
-  '--epr-highlight-color': 'var(--color-primary)',
-  '--epr-hover-bg-color': 'var(--color-accent)',
-  '--epr-hover-bg-color-reduced-opacity': 'var(--color-accent)',
-  '--epr-focus-bg-color': 'var(--color-accent)',
-  '--epr-text-color': 'var(--color-popover-foreground)',
-  '--epr-category-label-bg-color': 'var(--color-popover)',
-  '--epr-category-label-text-color': 'var(--color-popover-foreground)',
+  '--epr-highlight-color': 'var(--primary)',
+  '--epr-hover-bg-color': 'var(--accent)',
+  '--epr-hover-bg-color-reduced-opacity': 'var(--accent)',
+  '--epr-focus-bg-color': 'var(--accent)',
+  '--epr-text-color': 'var(--popover-foreground)',
+  '--epr-category-label-bg-color': 'var(--popover)',
+  '--epr-category-label-text-color': 'var(--popover-foreground)',
   '--epr-category-label-height': '32px',
-  '--epr-category-icon-active-color': 'var(--color-primary)',
-  '--epr-search-input-bg-color': 'var(--color-background)',
-  '--epr-search-input-bg-color-active': 'var(--color-background)',
+  '--epr-category-icon-active-color': 'var(--primary)',
+  '--epr-search-input-bg-color': 'var(--background)',
+  '--epr-search-input-bg-color-active': 'var(--background)',
   '--epr-search-input-height': '32px',
-  '--epr-search-input-text-color': 'var(--color-foreground)',
-  '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
-  '--epr-search-border-color': 'var(--color-input)',
-  '--epr-search-border-color-active': 'var(--color-ring)',
+  '--epr-search-input-text-color': 'var(--foreground)',
+  '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
+  '--epr-search-border-color': 'var(--input)',
+  '--epr-search-border-color-active': 'var(--primary)',
   '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
-  '--epr-emoji-hover-color': 'var(--color-accent)',
-  '--epr-emoji-variation-indicator-color': 'var(--color-border)',
-  '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
+  '--epr-emoji-hover-color': 'var(--accent)',
+  '--epr-emoji-variation-indicator-color': 'var(--border)',
+  '--epr-emoji-variation-indicator-color-hover': 'var(--foreground)'
 } as CSSProperties
 
 const CATEGORY_ORDER = [
@@ -88,7 +89,21 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as LanguageVarious
   const [emojiData, setEmojiData] = useState<EmojiData | undefined>()
+  const [emojiVersion, setEmojiVersion] = useState<string | undefined>()
+  const [hiddenEmojis, setHiddenEmojis] = useState<string[]>([])
   const { recent, pushRecent } = useRecentEmojis()
+
+  useEffect(() => {
+    let cancelled = false
+
+    void detectEmojiSupportLevel().then((version) => {
+      if (!cancelled) setEmojiVersion(String(version))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -107,6 +122,23 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
       cancelled = true
     }
   }, [locale])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!emojiData) {
+      setHiddenEmojis([])
+      return
+    }
+
+    void detectUnsupportedZwjEmojiIds(emojiData).then((emojiIds) => {
+      if (!cancelled) setHiddenEmojis(emojiIds)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [emojiData])
 
   const categories = useMemo(
     () =>
@@ -131,7 +163,9 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
         className="cherry-emoji-picker-react"
         emojiData={emojiData}
         emojiStyle={EmojiStyle.NATIVE}
+        emojiVersion={emojiVersion}
         height="100%"
+        hiddenEmojis={hiddenEmojis}
         previewConfig={{ showPreview: false }}
         searchClearButtonLabel={t('common.clear')}
         searchDisabled={false}

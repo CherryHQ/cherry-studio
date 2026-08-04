@@ -84,7 +84,7 @@ describe('MessageHeader', () => {
     providerState.selection = undefined
   })
 
-  it('keeps content and footer in the body column with footer pinned to the bottom', () => {
+  it('keeps content and footer in the same body column', () => {
     const { container } = render(
       <MessageHeader
         message={createMessage()}
@@ -98,25 +98,19 @@ describe('MessageHeader', () => {
     const footerSlot = container.querySelector('.message-footer-slot')
     const footer = container.querySelector('.MessageFooter')
 
-    expect(bodyColumn).toHaveClass('flex', 'min-h-0', 'flex-1', 'flex-col')
-    expect(content).toHaveClass('min-h-0', 'flex-1')
-    expect(footerSlot).toHaveClass('mt-auto', 'shrink-0')
     expect(content?.closest('.message-body-column')).toBe(bodyColumn)
     expect(footer?.closest('.message-body-column')).toBe(bodyColumn)
     expect(footer?.closest('.message-footer-slot')).toBe(footerSlot)
   })
 
-  it('keeps the compact centered header layout when there is no body slot', () => {
+  it('omits the body column when there is no body slot', () => {
     const { container } = render(<MessageHeader message={createMessage()} />)
 
-    const header = container.querySelector('.message-header')
-
-    expect(header).toHaveClass('mb-2', 'items-center')
     expect(container.querySelector('.message-body-column')).toBeNull()
   })
 
-  it('shows the snapshot assistant name as primary and the model as secondary', () => {
-    const { getByText } = render(
+  it('shows the snapshot assistant name without repeating the model beside it', () => {
+    const { getByText, queryByText } = render(
       <MessageHeader
         message={createMessage('assistant', {
           model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
@@ -130,6 +124,27 @@ describe('MessageHeader', () => {
       />
     )
     expect(getByText('My Assistant')).toBeTruthy()
+    expect(queryByText('GPT-4')).toBeNull()
+  })
+
+  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
     expect(getByText('GPT-4')).toBeTruthy()
   })
 

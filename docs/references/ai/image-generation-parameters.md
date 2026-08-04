@@ -26,7 +26,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
 │        user edits → painting.params  (canonical camelCase bag)                  │
 │    canonicalGenerate: buildParamsSchema(support,mode) validate / coerce         │
 │        → paramValues  (pure canonical bag; blanks dropped, customSize composed) │
-└──────────────────────────── ipcApi.request('ai.generate_image') ───────────────┘
+└──────────────────────────── ipcApi.request('ai.image.generate') ───────────────┘
                                        │  { uniqueModelId, prompt, mode, paramValues, inputImages?, mask? }
                                        ▼   (model routing is dynamic; paramValues validated + coerced by the catalog imageParamsSchema)
 ┌─ MAIN · AiService.generateImage ───────────────────────────────────────────────┐
@@ -182,7 +182,7 @@ are committed when the model is selected by `computeModelFieldReset`
 
 ### 1. Validate + collapse to one IPC bag (`canonicalGenerate`)
 
-[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
+[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.image.generate`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
 
 ### 2. Partition in main (`splitParamValues` + `AI_SDK_NATIVE_BINDINGS`)
 
@@ -221,7 +221,9 @@ The SDK image model is one of: a custom `ImageModelV3` (e.g.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`) so it survives a restart.
+When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+
+The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
 Unlike the SDK path (whose bag IS the body), a transport builds its **own** per-model
 envelope, so it receives the **canonical camelCase params directly** — native

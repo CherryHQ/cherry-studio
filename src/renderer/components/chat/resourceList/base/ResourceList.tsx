@@ -88,7 +88,7 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
     <div className={wrapperClassName}>
       <div className="relative">
         {searchIcon && (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-muted">
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-tertiary">
             {searchIcon}
           </span>
         )}
@@ -98,7 +98,7 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
             'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
-            'placeholder:text-[10px] placeholder:text-foreground-muted focus-visible:border-sidebar-ring focus-visible:ring-0',
+            'placeholder:text-[10px] placeholder:text-muted-foreground focus-visible:border-sidebar-ring focus-visible:ring-0',
             searchIcon ? 'pl-6' : 'pl-2',
             className
           )}
@@ -123,19 +123,17 @@ function Header({ actions, children, className, count, icon, ref, title, ...prop
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (
-            <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground/50">{icon}</span>
+            <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary">{icon}</span>
           )}
           <div className="flex min-w-0 flex-1 items-baseline gap-1">
-            {title && (
-              <span className="truncate font-medium text-[12px] text-muted-foreground/60 leading-4">{title}</span>
-            )}
+            {title && <span className="truncate font-medium text-[12px] text-muted-foreground leading-4">{title}</span>}
             {count !== undefined && (
-              <span className="shrink-0 font-medium text-[12px] text-muted-foreground/40 tabular-nums leading-4">
+              <span className="shrink-0 font-medium text-[12px] text-foreground-tertiary tabular-nums leading-4">
                 {count}
               </span>
             )}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground/55">{actions}</div>}
+          {actions && <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground">{actions}</div>}
         </div>
       )}
       {children}
@@ -163,19 +161,19 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
           command ? 'w-full shrink' : 'flex-1',
           className
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
         {command && <CommandHint command={command} />}
       </Button>
-      {actions && <div className="flex shrink-0 items-center gap-1 text-foreground/70">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground">{actions}</div>}
     </div>
   )
 }
@@ -193,7 +191,7 @@ function HeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'text-foreground/70! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
+        'text-muted-foreground! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
         className
       )}
       {...props}
@@ -214,7 +212,7 @@ function GroupHeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-muted-foreground! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -227,7 +225,7 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   collapseLabel: string
   expandIcon?: ReactNode
   expandLabel: string
-  sectionId: string
+  sectionIds: readonly string[]
 }
 
 function SectionToggleMenuItem({
@@ -237,15 +235,17 @@ function SectionToggleMenuItem({
   expandIcon,
   expandLabel,
   onClick,
-  sectionId,
+  sectionIds,
   ...props
 }: SectionToggleMenuItemProps) {
   const actions = useResourceListActions()
   const view = useResourceListView()
-  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
-  const groupIds = section?.groups.map((group) => group.group.id) ?? []
-  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
-  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const sectionIdSet = new Set(sectionIds)
+  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
+  const groups = sections.flatMap((section) => section.groups)
+  const groupIds = groups.map((group) => group.group.id)
+  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
+  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
   const hasExpandedGroup = expandedGroupIds.length > 0
   const isDisabled = disabled || groupIds.length === 0
 
@@ -360,6 +360,7 @@ function FilterBar({ className, ref, ...props }: FilterBarProps) {
 type ItemProps<T extends ResourceListItemBase> = ComponentProps<'div'> & {
   item: T
   ref?: Ref<HTMLDivElement>
+  tooltip?: ReactNode
 }
 
 function Item<T extends ResourceListItemBase>({
@@ -372,6 +373,7 @@ function Item<T extends ResourceListItemBase>({
   onMouseEnter,
   onMouseLeave,
   tabIndex,
+  tooltip,
   ...props
 }: ItemProps<T>) {
   const actions = useResourceListActions()
@@ -379,7 +381,7 @@ function Item<T extends ResourceListItemBase>({
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
 
-  return (
+  const content = (
     <div
       ref={ref}
       id={elementId ?? getResourceListOptionDomId(id)}
@@ -391,7 +393,7 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
         rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-foreground',
@@ -420,6 +422,14 @@ function Item<T extends ResourceListItemBase>({
       }}
       {...props}
     />
+  )
+
+  if (!tooltip) return content
+
+  return (
+    <Tooltip content={tooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+      {content}
+    </Tooltip>
   )
 }
 
@@ -473,7 +483,7 @@ function RenameField<T extends ResourceListItemBase>({
       ref={setInputRef}
       defaultValue={getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
+        'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-foreground shadow-none focus-visible:ring-0',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -511,7 +521,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
@@ -535,9 +545,9 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:outline-none',
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}
@@ -672,7 +682,10 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
     <div
       ref={ref}
       role="alert"
-      className={cn('m-2 rounded-md border border-destructive/40 p-3 text-sm', className)}
+      className={cn(
+        'm-2 rounded-md border border-error-border bg-error-subtle p-3 text-error-subtle-foreground text-sm',
+        className
+      )}
       {...props}>
       {message ?? children ?? t('error.boundary.default.message')}
     </div>

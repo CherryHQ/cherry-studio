@@ -5,7 +5,8 @@ import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
-  defaultModel: undefined as Model | undefined
+  defaultModel: undefined as Model | undefined,
+  useDefaultModel: vi.fn()
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -26,7 +27,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel })
+  useDefaultModel: (options?: { enabled?: boolean }) => {
+    modelHook.useDefaultModel(options)
+    return { defaultModel: modelHook.defaultModel }
+  }
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -88,9 +92,16 @@ const CANCEL = 'common.cancel'
 afterEach(() => {
   cleanup()
   modelHook.defaultModel = undefined
+  modelHook.useDefaultModel.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
+  it('does not activate the default-model query while closed', () => {
+    render(<ResourceCreateWizard kind="assistant" open={false} onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(modelHook.useDefaultModel).toHaveBeenCalledWith({ enabled: false })
+  })
+
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
@@ -210,7 +221,7 @@ describe('ResourceCreateWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('shows the capability step (not knowledge) for the agent kind', async () => {
+  it('shows the knowledge step after capability for the agent kind', async () => {
     const user = userEvent.setup()
     render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -220,6 +231,25 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+    expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
+  })
+
+  it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {
+    const user = userEvent.setup()
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const { rerender } = render(<ResourceCreateWizard {...props} kind="agent" />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+
+    expect(() => rerender(<ResourceCreateWizard {...props} kind="assistant" open={false} />)).not.toThrow()
   })
 
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {

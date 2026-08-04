@@ -1,11 +1,14 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
-import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
+const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -15,6 +18,68 @@ const loadHtmlToImage = () => {
     throw error
   })
   return htmlToImagePromise
+}
+
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Failed to encode image blob'))
+      }
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
+  const images = [
+    ...(root instanceof HTMLImageElement ? [root] : []),
+    ...root.querySelectorAll<HTMLImageElement>('img')
+  ].filter((image) => image.src.startsWith('file://'))
+
+  const originalSources = images.map((image) => ({
+    image,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset')
+  }))
+  const dataUrlBySource = new Map<string, Promise<string>>()
+
+  await Promise.all(
+    originalSources.map(async ({ image }) => {
+      const source = image.src
+      let dataUrlPromise = dataUrlBySource.get(source)
+      if (!dataUrlPromise) {
+        dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
+        dataUrlBySource.set(source, dataUrlPromise)
+      }
+
+      try {
+        image.removeAttribute('srcset')
+        image.src = await dataUrlPromise
+      } catch (error) {
+        logger.warn('Failed to inline local image for capture', error as Error, { source })
+      }
+    })
+  )
+
+  return () => {
+    for (const { image, src, srcset } of originalSources) {
+      if (src === null) {
+        image.removeAttribute('src')
+      } else {
+        image.setAttribute('src', src)
+      }
+      if (srcset === null) {
+        image.removeAttribute('srcset')
+      } else {
+        image.setAttribute('srcset', srcset)
+      }
+    }
+  }
 }
 
 /**
@@ -107,27 +172,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
   if (el) {
     const htmlToImage = await loadHtmlToImage()
-
-    // Save original styles
-    const originalStyle = {
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
-      overflow: el.style.overflow,
-      position: el.style.position
-    }
-
-    const originalScrollTop = el.scrollTop
+    let restoreLocalImageSources: (() => void) | undefined
 
     try {
-      // Hide scrollbars during capture
-      el.classList.add('hide-scrollbar')
-
-      // Modify styles to show full content
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflow = 'visible'
-      el.style.position = 'static'
-
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -142,6 +189,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
@@ -152,17 +203,27 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return true
       }
 
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
         cacheBust: true,
+        imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
-        canvasWidth: el.scrollWidth,
-        canvasHeight: el.scrollHeight,
+        width: totalWidth,
+        height: totalHeight,
+        canvasWidth: totalWidth,
+        canvasHeight: totalHeight,
         style: {
           backgroundColor: getComputedStyle(el).backgroundColor,
-          color: getComputedStyle(el).color
+          color: getComputedStyle(el).color,
+          height: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
+          position: 'static',
+          scrollbarWidth: 'none'
         }
       }
 
@@ -175,19 +236,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
-      // Restore original styles
-      el.style.height = originalStyle.height
-      el.style.maxHeight = originalStyle.maxHeight
-      el.style.overflow = originalStyle.overflow
-      el.style.position = originalStyle.position
-
-      // Restore original scroll position
-      setTimeout(() => {
-        el.scrollTop = originalScrollTop
-      }, 0)
-
-      // Remove scrollbar hiding class
-      el.classList.remove('hide-scrollbar')
+      restoreLocalImageSources?.()
     }
   }
 
@@ -742,11 +791,24 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   }
 
   if (src.startsWith('file://')) {
-    const bytes = await window.api.fs.read(src)
-    const mimeType = mime.getType(src) || 'application/octet-stream'
-    return new Blob([bytes], { type: mimeType })
+    const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
+    const { content, mime } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(path),
+      options: { mode: 'full', encoding: 'binary' }
+    })
+    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }
 
   const response = await fetch(src)
   return response.blob()
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
 }

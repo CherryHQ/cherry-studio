@@ -40,7 +40,6 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const [searchDebouncing, setSearchDebouncing] = useState(false)
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasQuery = query.trim() !== ''
 
   const clearPendingSearch = useCallback(() => {
     if (!searchDebounceRef.current) return
@@ -69,26 +68,10 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     return counts
   }, [results])
 
-  const firstSourceWithResults = useMemo(
-    () => SEARCH_SOURCES.find((source) => (tabCounts.get(source) ?? 0) > 0) ?? null,
-    [tabCounts]
-  )
-
-  const selectedSource =
-    hasQuery && results.length > 0 && (tabCounts.get(activeSource) ?? 0) === 0 && firstSourceWithResults
-      ? firstSourceWithResults
-      : activeSource
-
   const visibleResults = useMemo(
-    () => results.filter((result) => result.sourceRegistry === selectedSource),
-    [selectedSource, results]
+    () => results.filter((result) => result.sourceRegistry === activeSource),
+    [activeSource, results]
   )
-
-  useEffect(() => {
-    if (activeSource !== selectedSource) {
-      setActiveSource(selectedSource)
-    }
-  }, [activeSource, selectedSource])
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -152,7 +135,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         size="xl"
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="skill-marketplace-dialog">
-        <div className="shrink-0 border-border-muted border-b px-6 pt-5 pb-4">
+        <div className="shrink-0 border-border-subtle border-b px-6 pt-5 pb-4">
           <DialogHeader className="text-left">
             <DialogTitle>{t('library.skill_marketplace.title')}</DialogTitle>
           </DialogHeader>
@@ -160,18 +143,19 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
           <div className="mt-3 flex items-center gap-3">
             <SegmentedControl<SkillSearchSource>
               size="sm"
-              value={selectedSource}
+              value={activeSource}
               onValueChange={setActiveSource}
               className="shrink-0"
               options={SEARCH_SOURCES.map((source) => {
                 const count = tabCounts.get(source) ?? 0
                 return {
                   value: source,
-                  disabled: hasQuery && results.length > 0 && count === 0,
                   label: (
                     <>
                       {source}
-                      {count > 0 ? <span className="text-foreground-muted text-xs tabular-nums">{count}</span> : null}
+                      {count > 0 ? (
+                        <span className="text-foreground-tertiary text-xs tabular-nums">{count}</span>
+                      ) : null}
                     </>
                   )
                 }
@@ -241,7 +225,7 @@ function SkillSearchBody({
 
   if (searching) {
     return (
-      <Center className="min-h-0 flex-1 text-foreground-muted text-sm">
+      <Center className="min-h-0 flex-1 text-foreground-tertiary text-sm">
         <Spinner text={t('common.loading')} />
       </Center>
     )
@@ -310,7 +294,7 @@ function SkillSearchResultRow({
   return (
     <div
       role="listitem"
-      className={`mx-auto flex min-h-[56px] w-full max-w-3xl items-center gap-4 px-2 py-2 ${last ? '' : 'border-border-muted border-b'}`}>
+      className={`mx-auto flex min-h-[56px] w-full max-w-3xl items-center gap-4 px-2 py-2 ${last ? '' : 'border-border-subtle border-b'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex h-4 min-w-0 items-center gap-1.5 text-[13px] leading-4">
           <div className="min-w-0 truncate font-semibold text-foreground leading-4">{result.name}</div>
@@ -321,14 +305,14 @@ function SkillSearchResultRow({
                 size="icon-sm"
                 aria-label={t('settings.skills.viewSource')}
                 onClick={() => window.open(result.sourceUrl!)}
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground">
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
                 <ExternalLink className="size-3" />
               </Button>
             </Tooltip>
           ) : null}
         </div>
         {hasMeta ? (
-          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-muted leading-[14px]">
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-tertiary leading-[14px]">
             {result.stars > 0 ? (
               <span className="flex shrink-0 items-center gap-0.5">
                 <Star className="size-3" />
@@ -351,7 +335,7 @@ function SkillSearchResultRow({
           onClick={onInstall}
           disabled={installed || installing}
           aria-busy={installing || undefined}
-          className="h-7 min-h-0 min-w-[64px] justify-center gap-1 rounded-lg border-border-muted bg-background px-2 text-xs shadow-none hover:bg-accent">
+          className="h-7 min-h-0 min-w-[64px] justify-center gap-1 rounded-lg border-border-subtle bg-background px-2 text-xs shadow-none hover:bg-accent">
           {installing ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : installed ? (

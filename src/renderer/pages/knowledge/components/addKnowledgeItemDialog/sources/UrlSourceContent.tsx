@@ -12,7 +12,7 @@ const UrlSourceContent = ({ value, onValueChange }: UrlSourceContentProps) => {
   return (
     <div className="min-w-0 flex-1 overflow-y-auto">
       <div className="min-w-0">
-        <p className="mb-1.5 text-foreground-muted text-xs leading-4">
+        <p className="mb-1.5 text-muted-foreground text-xs leading-4">
           {t('knowledge.data_source.add_dialog.url.description')}
         </p>
         <Input
@@ -20,9 +20,9 @@ const UrlSourceContent = ({ value, onValueChange }: UrlSourceContentProps) => {
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('knowledge.data_source.add_dialog.url.placeholder')}
-          className="w-full rounded-md border-border-subtle bg-background px-2.5 py-1.25 text-foreground outline-none transition-colors focus-visible:border-border-active focus-visible:ring-0"
+          className="w-full rounded-md border-border-subtle bg-background px-2.5 py-1.25 text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-0"
         />
-        <p className="mt-1 text-foreground-muted text-xs leading-4">{t('knowledge.data_source.add_dialog.url.help')}</p>
+        <p className="mt-1 text-muted-foreground text-xs leading-4">{t('knowledge.data_source.add_dialog.url.help')}</p>
       </div>
     </div>
   )

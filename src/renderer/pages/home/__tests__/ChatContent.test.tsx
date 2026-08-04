@@ -1,13 +1,13 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
 
-// The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
+// The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
 // re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
 const { ipcMock } = vi.hoisted(() => ({
@@ -199,6 +199,7 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       historyPartsByMessageId: Record<string, CherryMessagePart[]>
       liveMessageIds: readonly string[]
     }
+    onBindRuntime?: (runtime: unknown) => void | (() => void)
     isInitialLoading?: boolean
   }) => ({
     state: {
@@ -207,7 +208,7 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       streamingLayers: params.streamingLayers,
       isInitialLoading: params.isInitialLoading
     },
-    actions: {},
+    actions: { bindRuntime: params.onBindRuntime },
     meta: {}
   })
 }))
@@ -247,9 +248,9 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
-    // Route ai.stream_open through the spy; other stream routes/events are inert here
+    // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
-    ipcMock.request = (route, input) => (route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined))
+    ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
     ipcMock.on = () => () => {}
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({
@@ -324,8 +325,9 @@ describe('ChatContent', () => {
 
     render(<ChatContent topic={topic} />)
 
+    const sendButton = await screen.findByRole('button', { name: 'send' })
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      fireEvent.click(sendButton)
       await Promise.resolve()
     })
 
@@ -842,7 +844,7 @@ describe('ChatContent', () => {
     })
   })
 
-  it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
+  it('adds the forked user sibling to branch live state and advances the local send generation', async () => {
     const onBranchLiveStateChange = vi.fn()
     const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
     const historyUser = {

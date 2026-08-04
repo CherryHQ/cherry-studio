@@ -30,9 +30,10 @@ export type RestoreKnowledgeBaseInput = Pick<
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
 >
 
-export const useKnowledgeBases = () => {
+export const useKnowledgeBases = (options: { enabled?: boolean } = {}) => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
-    query: KNOWLEDGE_V2_BASES_QUERY
+    query: KNOWLEDGE_V2_BASES_QUERY,
+    ...(options.enabled !== undefined && { enabled: options.enabled })
   })
 
   const bases = useMemo(() => data?.items ?? [], [data])
@@ -56,22 +57,13 @@ export const useCreateKnowledgeBase = () => {
 
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim()
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      // A base is BM25-only by default and gets its embedding model later from the
-      // RAG settings. The one exception is creation-time backfill: the create dialog
-      // passes the local embedding model (paired with its dimensions) when it is
-      // already downloaded, so the base starts as a vector base. Keep the pair intact
-      // — the create schema rejects one without the other.
-      const body: {
-        name: string
-        groupId?: string
-        embeddingModelId?: string
-        dimensions?: number
-      } = {
+      const body: CreateKnowledgeBaseInput = {
         name
       }
 
@@ -79,8 +71,9 @@ export const useCreateKnowledgeBase = () => {
         body.groupId = groupId
       }
 
-      if (input.embeddingModelId && input.dimensions) {
-        body.embeddingModelId = input.embeddingModelId
+      // Embedding is optional; when present the schema requires its dimensions alongside it.
+      if (embeddingModelId) {
+        body.embeddingModelId = embeddingModelId
         body.dimensions = input.dimensions
       }
 
@@ -131,7 +124,7 @@ export const useRestoreKnowledgeBase = () => {
 
       const sourceBaseId = input.sourceBaseId.trim()
       const name = input.name?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim() || null
       const dimensions = input.dimensions
 
       if (!sourceBaseId) {
@@ -142,12 +135,12 @@ export const useRestoreKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
+      if (dimensions !== null && (!Number.isInteger(dimensions) || dimensions <= 0)) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      if ((embeddingModelId === null) !== (dimensions === null)) {
+        throw new Error('Knowledge base embedding model and dimensions must be provided together')
       }
 
       setIsRestoring(true)
@@ -321,9 +314,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }

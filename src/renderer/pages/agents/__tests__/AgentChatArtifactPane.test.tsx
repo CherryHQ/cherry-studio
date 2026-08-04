@@ -8,6 +8,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -90,7 +97,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <section data-testid="session-right-pane" data-open={String(Boolean(open))}>
       {open ? children : null}
@@ -138,6 +145,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -272,7 +280,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   )
 
   const MockArtifactPaneView = ({
+    headerVariant,
     model,
+    paneActions,
+    paneTitle,
     searchKeyword,
     onSearchKeywordChange,
     selectedFile,
@@ -281,36 +292,48 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     previewFileSelection,
     onPreviewClose
   }: {
+    headerVariant?: 'overlay' | 'pane'
     model: {
       effectiveExpandedIds: ReadonlySet<string>
       setExpandedIds: (ids: ReadonlySet<string>) => void
     }
     searchKeyword: string
     onSearchKeywordChange: (keyword: string) => void
+    paneActions?: ReactNode
+    paneTitle?: ReactNode
     selectedFile: string | null
     onSelectedFileChange: (file: string | null) => void
     workspacePath?: string
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
   }) => (
-    <MockArtifactPane
-      workspacePath={workspacePath}
-      previewFileSelection={previewFileSelection}
-      onPreviewClose={onPreviewClose}
-      selectedFile={selectedFile}
-      onSelectedFileChange={onSelectedFileChange}
-      fileTreeExpandedIds={new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))}
-      onFileTreeExpandedIdsChange={model.setExpandedIds}
-      fileTreeSearchKeyword={searchKeyword}
-      onFileTreeSearchKeywordChange={onSearchKeywordChange}
-    />
+    <div>
+      {headerVariant === 'pane' ? (
+        <div data-testid="artifact-pane-header">
+          <span>{previewFileSelection?.filePath ?? paneTitle}</span>
+          {paneActions}
+        </div>
+      ) : null}
+      <MockArtifactPane
+        workspacePath={workspacePath}
+        previewFileSelection={previewFileSelection}
+        onPreviewClose={onPreviewClose}
+        selectedFile={selectedFile}
+        onSelectedFileChange={onSelectedFileChange}
+        fileTreeExpandedIds={
+          new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))
+        }
+        onFileTreeExpandedIdsChange={model.setExpandedIds}
+        fileTreeSearchKeyword={searchKeyword}
+        onFileTreeSearchKeywordChange={onSearchKeywordChange}
+      />
+    </div>
   )
 
   return {
     ARTIFACT_PANE_WIDTH: 460,
-    ArtifactFilePreview: MockArtifactFilePreview,
-    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
-    isImageFile: (filePath: string) => /\.(?:png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i.test(filePath),
+    getArtifactPaneSelectionPath: ({ workspacePath, filePath }: { workspacePath: string; filePath: string }) =>
+      `${workspacePath}/${filePath}`,
     normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
       rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
     resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
@@ -396,12 +419,17 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: () => [null, vi.fn()],
-  useSharedCacheValue: () => undefined,
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: () => [false],
+    useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue: () => undefined,
+    usePersistCache: () => [undefined, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -421,7 +449,23 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
       { id: 'agent-2', model: 'provider:model-2' }
     ],
     isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/agent/useSession', () => ({
+  useUpdateSession: () => ({ updateSession: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -490,6 +534,8 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 
@@ -608,6 +654,19 @@ describe('AgentChat artifact pane', () => {
   }
 
   beforeEach(() => {
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'file.get_metadata'
+        ? Promise.resolve({
+            kind: 'file',
+            type: 'text',
+            size: 1024,
+            createdAt: 1,
+            modifiedAt: 1,
+            mime: 'text/plain'
+          })
+        : Promise.resolve(undefined)
+    )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
       isLoading: false,
@@ -638,9 +697,7 @@ describe('AgentChat artifact pane', () => {
           }
         },
         file: {
-          openPath: vi.fn(),
-          isTextFile: vi.fn().mockResolvedValue(true),
-          getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
+          openPath: vi.fn()
         }
       }
     })
@@ -662,13 +719,8 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '280')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '280')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
-    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
@@ -865,7 +917,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 
-  it('renders the missing-agent selection as a home composer without leasing a session', () => {
+  it('renders the missing-agent selection as a home composer without leasing a session', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,
       session: undefined,
@@ -879,9 +931,10 @@ describe('AgentChat artifact pane', () => {
       onMissingAgentSelectionAgentChange
     })
 
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
 
@@ -1027,7 +1080,7 @@ describe('AgentChat artifact pane', () => {
     expect(tracePane).not.toBeVisible()
   })
 
-  it('opens message file paths in the files tab overlay', () => {
+  it('opens message file paths in the files tab overlay', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
@@ -1035,16 +1088,16 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'src/index.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/index.ts')
   })
 
-  it('opens Excel file paths in the files tab overlay without text sniffing', () => {
-    const isTextFile = vi.mocked(window.api.file.isTextFile)
-
+  it('opens Excel file paths in the files tab overlay without text sniffing', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
@@ -1052,14 +1105,15 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /report\.xlsx/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'report.xlsx')
-    expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
-  it('opens absolute file paths outside the workspace in the files tab overlay', () => {
+  it('opens absolute file paths outside the workspace in the files tab overlay', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
@@ -1067,17 +1121,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /记忆商人\.md/ })).toBeNull()
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/Users/suyao/Desktop')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', '记忆商人.md')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })
 
-  it('closes the files tab overlay and clears the selected file', () => {
+  it('closes the files tab overlay and clears the selected file', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()

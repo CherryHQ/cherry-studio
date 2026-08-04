@@ -8,6 +8,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -104,6 +105,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      uiContractPlugin(),
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
@@ -154,6 +156,7 @@ export default defineConfig({
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },
         onwarn(warning, warn) {

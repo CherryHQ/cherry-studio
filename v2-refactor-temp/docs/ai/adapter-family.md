@@ -58,7 +58,7 @@ The endpoint-type defaults are protocol-derived (any anthropic-messages endpoint
 
 ### Path 1 — Catalog (new installs)
 
-`packages/provider-registry/data/providers.json` declares `adapterFamily` per endpoint per provider. The seeder copies it through via `buildRuntimeEndpointConfigs`:
+`packages/provider-registry/data/providers.json` declares `adapterFamily` per endpoint per provider. The seeder copies it through via `buildPersistedEndpointConfigs`:
 
 ```jsonc
 {
@@ -96,7 +96,7 @@ When the future provider-add UI lets users enter a baseUrl, the form submission 
 |---|---|
 | `packages/provider-registry/data/providers.json` | Catalog: `adapterFamily` per endpoint per provider |
 | `packages/provider-registry/src/schemas/provider.ts` | `RegistryEndpointConfigSchema.adapterFamily` |
-| `packages/provider-registry/src/registry-utils.ts` | `inferAdapterFamily` (single source of truth) + `buildRuntimeEndpointConfigs` (carries field through) |
+| `packages/provider-registry/src/registry-utils.ts` | `inferAdapterFamily` (single source of truth) + `buildPersistedEndpointConfigs` (carries field through) |
 | `packages/provider-registry/src/registry-loader.ts` | `findProvider(id)` lookup used by the migrator |
 | `packages/shared/data/types/provider.ts` | Runtime `EndpointConfigSchema.adapterFamily` |
 | `src/main/data/db/seeding/seeders/presetProviderSeeder.ts` | New-install write path |
@@ -150,7 +150,7 @@ UI exposes endpoint type; the system derives adapter family from it.
 | `inferAdapterFamily` (5 cases) | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — catalog wins, endpoint defaults, openai-compatible terminal fallback, dual schema acceptance |
 | Migrator backfill (9 cases) | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` — catalog hit, legacy.type fallback, ANTHROPIC default, catalog > legacy.type precedence, multi-endpoint relays |
 | Resolver (54 cases) | `src/main/ai/provider/__tests__/endpoint.test.ts` — catalog adapterFamily routing, variant suffix application (base `openai` → `openai-chat`, already-variant `azure-responses` idempotent), MiniMax-style relay regression (the original bug), unknown-family degradation |
-| `buildRuntimeEndpointConfigs` (9 cases) | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — adapterFamily passthrough, retention rule |
+| `buildPersistedEndpointConfigs` (9 cases) | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — adapterFamily passthrough, retention rule |
 
 Regression baseline check on `src/main/ai`: 317 ✅ / 7 ❌ (same 3 pre-existing files: AiStreamManager, WebSearchTool, toolSearch — unrelated to this change).
 

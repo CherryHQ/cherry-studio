@@ -7,16 +7,22 @@
  * `useChatWrite()`.
  */
 
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
-/** Optional hints passed alongside `deleteMessage`. */
-export interface DeleteMessageTraceOptions {
+/** Optional arguments passed alongside `deleteMessage`. */
+export interface DeleteMessageOptions {
   modelName?: string
+  /** Complete multi-select plan, used to reject unsafe batches before their first write. */
+  selectedMessageIds?: readonly string[]
 }
 
+export type MessageDeleteAvailability =
+  | { enabled: true }
+  | { enabled: false; reason: 'first-turn' | 'root-unavailable' | 'message-unavailable' }
+
+/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
   /**
@@ -26,12 +32,19 @@ export interface RegenerateOptions {
    * group becomes a side-by-side comparison of different models.
    */
   modelId?: UniqueModelId
+  /** Explicit request controls; when omitted, the source assistant turn is inherited. */
+  turnOptions?: AssistantTurnOptions
 }
 
 export interface ChatWriteActions {
+  /** Whether a context boundary can be created or removed in the current topic state. */
+  canStartNewContext: boolean
+  /** Create a context boundary at the active leaf, or remove it when it is already the active leaf. */
+  startNewContext: () => Promise<void>
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
+  getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
+  deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>
@@ -41,7 +54,11 @@ export interface ChatWriteActions {
    * then regenerate the assistant response anchored at that sibling. The source
    * message stays intact, including for the first root user message.
    */
-  forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
+  forkAndResend: (
+    messageId: string,
+    editedParts: CherryMessagePart[],
+    turnOptions?: AssistantTurnOptions
+  ) => Promise<void>
   /**
    * Pin `messageId` as the topic's active node. The scroll view truncates
    * there; the user's next message becomes the new leaf and the tree forks.

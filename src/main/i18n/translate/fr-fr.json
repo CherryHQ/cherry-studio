@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP de Cherry Studio compatible OpenAI, Anthropic et Gemini, ainsi que les endpoints propres à Cherry (modèles, bases de connaissances)",
+      "language_switcher_label": "Langue de la documentation",
+      "operations": {
+        "chat_completions": "Crée une complétion de conversation. Les corps de requête et de réponse suivent le format OpenAI Chat Completions ; avec `stream: true`, la sortie est incrémentale.",
+        "count_tokens": "Estime le nombre de tokens d'entrée consommés par un ensemble de messages au format Anthropic.",
+        "generate_content": "Génère du contenu via la méthode `generateContent` de Gemini. Les corps de requête et de réponse suivent le format de l'API Gemini ; `streamGenerateContent` est servi sur le même chemin.",
+        "get_knowledge_base": "Récupère une base de connaissances par son ID.",
+        "health": "État du service, heure actuelle et version. Aucune authentification requise.",
+        "info": "Nom et version de l'API ainsi que ses principaux endpoints. Aucune authentification requise.",
+        "list_knowledge_bases": "Liste les bases de connaissances disponibles dans cette instance de Cherry Studio.",
+        "list_models": "Liste les modèles disponibles via cette passerelle, au format models d'OpenAI.",
+        "messages": "Crée un message. Les corps de requête et de réponse suivent le format Anthropic Messages ; avec `stream: true`, la sortie est incrémentale.",
+        "responses": "Crée une réponse. Les corps de requête et de réponse suivent le format OpenAI Responses.",
+        "search_knowledge_bases": "Recherche dans une ou plusieurs bases de connaissances et renvoie les fragments de documents correspondants."
+      },
+      "tags": {
+        "anthropic": "Endpoints compatibles Anthropic. Pointez l'URL de base d'un SDK Anthropic vers cette passerelle pour les utiliser.",
+        "cherry": "Endpoints propres à Cherry Studio : bases de connaissances, informations de service et vérification d'état.",
+        "gemini": "Endpoints compatibles Gemini, servis sous `/v1beta` comme dans l'API d'origine.",
+        "openai": "Endpoints compatibles OpenAI. Pointez l'URL de base d'un SDK OpenAI vers cette passerelle pour les utiliser."
+      }
+    }
+  },
   "appMenu": {
     "about": "À propos",
     "close": "Fermer la fenêtre",
@@ -56,6 +81,12 @@
   },
   "dialog": {
     "all_files": "Tous les fichiers",
+    "data_reset": {
+      "cancel": "Annuler",
+      "confirm": "Réinitialiser et redémarrer",
+      "message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+      "title": "Réinitialiser les données de l’application"
+    },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",
     "pdf_files": "Fichiers PDF",

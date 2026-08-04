@@ -1,4 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -23,6 +24,7 @@ vi.mock('../painting/MessageGenerateImage', () => ({
 vi.mock('../shared/agentToolTypes', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
 
 const { chooseTool } = await import('../chooseTool')
+const { buildToolResponseFromPart } = await import('../toolResponse')
 
 function resp(name: string, type?: string): NormalToolResponse {
   return { tool: { name, type } } as unknown as NormalToolResponse
@@ -34,8 +36,14 @@ function testIdOf(node: React.ReactNode): string | null {
 }
 
 describe('chooseTool', () => {
-  it('routes the kb_search / web_search wire names to their title cards', () => {
+  it('renders all knowledge-base wire names', () => {
     expect(testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
+    expect(testIdOf(chooseTool(resp('kb_list')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_read')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_manage')))).toBe('agent-card')
+  })
+
+  it('routes the web_search wire name to its title card', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
@@ -47,5 +55,20 @@ describe('chooseTool', () => {
     expect(testIdOf(chooseTool(resp('generate_image')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
+  })
+
+  it('keeps an AI SDK dynamic generate_image part on the builtin image-card path', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'image-call',
+      toolName: 'generate_image',
+      state: 'output-available',
+      input: { prompt: 'a cat' },
+      output: [{ id: 'file-1', name: 'cat.png' }]
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('builtin')
+    expect(testIdOf(chooseTool(response as NormalToolResponse))).toBe('image-card')
   })
 })

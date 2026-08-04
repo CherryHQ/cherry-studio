@@ -144,6 +144,7 @@ const RichEditor = ({
   onMarkdownChange,
   onBlur,
   editable = true,
+  autoFocus = true,
   className = '',
   wrapperStyle,
   showToolbar = true,
@@ -168,6 +169,7 @@ const RichEditor = ({
     onBlur,
     placeholder,
     editable,
+    autoFocus,
     enableSpellCheck,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
@@ -411,10 +413,12 @@ const RichEditor = ({
           break
         }
         case 'undo':
-          editor.chain().focus().undo().run()
+          editor.view.focus()
+          editor.commands.undo()
           break
         case 'redo':
-          editor.chain().focus().redo().run()
+          editor.view.focus()
+          editor.commands.redo()
           break
         case 'blockMath': {
           // Math is handled by the MathInputDialog component in toolbar

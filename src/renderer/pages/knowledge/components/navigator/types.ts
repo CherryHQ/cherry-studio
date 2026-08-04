@@ -4,12 +4,8 @@ import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
-export interface BaseNavigatorSearchProps {
-  value: string
-  onValueChange: (value: string) => void
-}
-
 export interface BaseNavigatorContentProps {
+  isLoading: boolean
   sections: KnowledgePageBaseGroupSection[]
   groups: Group[]
   groupById: ReadonlyMap<string, Group>

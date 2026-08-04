@@ -1,18 +1,16 @@
-import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type {
-  AgentDetail,
+  GroupItem,
   ResourceCreateValues,
+  ResourceEditDialogTarget,
   ResourceItem,
-  ResourceType,
-  TagItem
+  ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
-import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
-import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Tag } from '@shared/data/types/tag'
+import type { Group } from '@shared/data/types/group'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,54 +18,40 @@ import { useAgentMutations } from './agentAdapter'
 import { useAssistantMutations } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
-type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
-
 type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
-const DIALOG_EXIT_ANIMATION_MS = 200
+const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
 
 /**
  * Build the top-bar chip list.
  *
- * Source: `resources` (so count reflects real bindings — unbound tags stay hidden,
- * matching the default collapsed state). Tag id/color are resolved from the
- * backend `/tags` list and embedded assistant tag refs; only if neither has the
- * tag yet (SWR cache race) do we fall back to `DEFAULT_TAG_COLOR`.
+ * Source: canonical assistant groups plus the unfiltered assistant list. Groups
+ * with no assistants stay hidden until the user expands the toolbar.
  */
-function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: ResourceType): TagItem[] {
-  const backendTagByName = new Map(backendTags.map((t) => [t.name, t] as const))
-  const tagMap = new Map<string, number>()
+function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: ResourceType): GroupItem[] {
+  const counts = new Map<string, number>()
   const list = filterType ? resources.filter((r) => r.type === filterType) : resources
-  list.forEach((r) => {
-    if (r.type === 'assistant') {
-      for (const tag of r.raw.tags ?? []) {
-        if (!backendTagByName.has(tag.name)) backendTagByName.set(tag.name, tag)
-      }
-      if (r.tag) {
-        tagMap.set(r.tag, (tagMap.get(r.tag) || 0) + 1)
-      }
+  for (const resource of list) {
+    if (resource.type === 'assistant' && resource.groupId) {
+      counts.set(resource.groupId, (counts.get(resource.groupId) ?? 0) + 1)
     }
+  }
+
+  return groups.flatMap((group) => {
+    const count = counts.get(group.id)
+    return count ? [{ id: group.id, name: group.name, count }] : []
   })
-  return Array.from(tagMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, count], index) => ({
-      id: backendTagByName.get(name)?.id ?? `tag-${index}`,
-      name,
-      color: backendTagByName.get(name)?.color ?? DEFAULT_TAG_COLOR,
-      count
-    }))
 }
 
 export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [creatingResource, setCreatingResource] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
@@ -86,51 +70,38 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     refetch
   } = useResourceLibrary({
     resourceType,
-    activeTag: isAssistantLibrary ? activeTag : null,
+    activeGroupId: isAssistantLibrary ? activeGroupId : null,
     search,
     sort: 'name'
   })
 
   useEffect(() => {
-    setActiveTag(null)
+    setActiveGroupId(null)
   }, [resourceType])
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
-  const tagList = useTagList()
+  const { groups } = useGroups('assistant')
+  const { createGroup } = useGroupMutations('assistant')
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
 
-  const scopedTags = useMemo(() => {
+  const scopedGroups = useMemo(() => {
     if (!isAssistantLibrary) return []
-    return buildTags(allResources, tagList.tags, 'assistant')
-  }, [allResources, isAssistantLibrary, tagList.tags])
-
-  const allTagNames = useMemo(
-    () => tagList.tags.map((tag) => tag.name).sort((a, b) => a.localeCompare(b, 'zh')),
-    [tagList.tags]
-  )
+    return buildGroups(allResources, groups, 'assistant')
+  }, [allResources, groups, isAssistantLibrary])
 
   useEffect(() => {
     if (createDialogOpen || !createDialogKind) return
 
-    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), DIALOG_EXIT_ANIMATION_MS)
+    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), CREATE_DIALOG_EXIT_ANIMATION_MS)
     return () => window.clearTimeout(timeoutId)
   }, [createDialogKind, createDialogOpen])
 
-  useEffect(() => {
-    if (editDialogOpen || !editDialog) return
-
-    const timeoutId = window.setTimeout(() => setEditDialog(null), DIALOG_EXIT_ANIMATION_MS)
-    return () => window.clearTimeout(timeoutId)
-  }, [editDialog, editDialogOpen])
-
   const handleOpenResource = useCallback((resource: ResourceItem) => {
     if (resource.type === 'assistant') {
-      setEditDialog({ kind: 'assistant', resource: resource.raw })
-      setEditDialogOpen(true)
+      setEditDialogTarget({ kind: 'assistant', id: resource.id })
     } else if (resource.type === 'agent') {
-      setEditDialog({ kind: 'agent', resource: resource.raw })
-      setEditDialogOpen(true)
+      setEditDialogTarget({ kind: 'agent', id: resource.id })
     } else if (resource.type === 'skill') {
       setSelectedSkill(resource.raw)
     }
@@ -156,7 +127,8 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
 
       const assistant = resource.raw
       try {
-        const content = serializeAssistantForExport(assistant)
+        const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
+        const content = serializeAssistantForExport(assistant, groupName)
 
         await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
@@ -165,7 +137,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
       }
     },
-    [t]
+    [groupById, t]
   )
 
   const handleCreate = useCallback((type: ResourceType) => {
@@ -198,7 +170,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent(buildCreateAgentDto(values))
+          await createAgent(buildCreateAgentCommand(values))
         }
 
         setCreateDialogOpen(false)
@@ -209,14 +181,6 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     },
     [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
   )
-
-  const handleEditDialogOpenChange = useCallback((open: boolean) => {
-    setEditDialogOpen(open)
-  }, [])
-
-  const handleEditSaved = useCallback(() => {
-    refetch()
-  }, [refetch])
 
   return {
     resourceError,
@@ -238,14 +202,13 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       onOpenAssistantLibrary: isAssistantLibrary ? () => setAssistantLibraryOpen(true) : undefined,
       onOpenSkillMarketplace: () => setSkillMarketplaceOpen(true),
       onOpenSystemSkills: () => setSystemSkillOpen(true),
-      tags: scopedTags,
-      activeTag,
-      onTagFilter: setActiveTag,
-      onAddTag: async (tagName: string) => {
-        await ensureTags([tagName])
+      groups: scopedGroups,
+      activeGroupId,
+      onGroupFilter: setActiveGroupId,
+      onAddGroup: async (groupName: string) => {
+        await createGroup(groupName)
       },
-      allTagNames,
-      allTags: tagList.tags
+      allGroups: groups
     },
     dialogs: {
       assistantImportOpen,
@@ -254,8 +217,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       createDialogOpen,
       creatingResource,
       deleteConfirm,
-      editDialog,
-      editDialogOpen,
+      editDialogTarget,
       selectedSkill,
       skillImportOpen,
       skillMarketplaceOpen,
@@ -263,13 +225,12 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       setAssistantImportOpen,
       setAssistantLibraryOpen,
       setDeleteConfirm,
+      setEditDialogTarget,
       setSelectedSkill,
       setSkillImportOpen,
       setSkillMarketplaceOpen,
       setSystemSkillOpen,
       handleCreateDialogOpenChange,
-      handleEditDialogOpenChange,
-      handleEditSaved,
       handleSubmitCreateResource
     }
   }

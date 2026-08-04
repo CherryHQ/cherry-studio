@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "与 OpenAI、Anthropic、Gemini 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
+      "language_switcher_label": "文档语言",
+      "operations": {
+        "chat_completions": "创建一次对话补全。请求与响应格式与 OpenAI Chat Completions 一致；设置 `stream: true` 可流式输出。",
+        "count_tokens": "估算一组 Anthropic 格式消息占用的输入 token 数量。",
+        "generate_content": "通过 Gemini 的 `generateContent` 方法生成内容。请求与响应格式与 Gemini API 一致；`streamGenerateContent` 走同一路径。",
+        "get_knowledge_base": "按 ID 获取单个知识库。",
+        "health": "服务健康状态、当前时间与版本号。无需鉴权。",
+        "info": "API 名称、版本与主要端点列表。无需鉴权。",
+        "list_knowledge_bases": "列出当前 Cherry Studio 实例中的知识库。",
+        "list_models": "以 OpenAI models 格式列出该网关可用的模型。",
+        "messages": "创建一条消息。请求与响应格式与 Anthropic Messages 一致；设置 `stream: true` 可流式输出。",
+        "responses": "创建一次响应。请求与响应格式与 OpenAI Responses 一致。",
+        "search_knowledge_bases": "在一个或多个知识库中检索，返回匹配的文档片段。"
+      },
+      "tags": {
+        "anthropic": "兼容 Anthropic 的接口。把 Anthropic SDK 的 base URL 指向本网关即可使用。",
+        "cherry": "Cherry Studio 自有接口：知识库、服务信息与健康检查。",
+        "gemini": "兼容 Gemini 的接口，与上游一样挂在 `/v1beta` 下。",
+        "openai": "兼容 OpenAI 的接口。把 OpenAI SDK 的 base URL 指向本网关即可使用。"
+      }
+    }
+  },
   "appMenu": {
     "about": "关于",
     "close": "关闭窗口",
@@ -56,6 +81,12 @@
   },
   "dialog": {
     "all_files": "所有文件",
+    "data_reset": {
+      "cancel": "取消",
+      "confirm": "重置并重启",
+      "message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+      "title": "重置应用数据"
+    },
     "html_files": "HTML 文件",
     "open_file": "打开文件",
     "pdf_files": "PDF 文件",

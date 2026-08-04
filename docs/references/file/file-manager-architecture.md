@@ -32,6 +32,7 @@ FileEntry
 ├── name: filename (without extension)
 ├── ext: extension (without leading dot), nullable
 ├── size: bytes
+├── contentHash: '{algo}:{hex}' content-dedup detection hash; internal-only, null while unknown/in-flight/awaiting repair
 ├── externalPath: absolute path, non-null only when origin='external'
 ├── deletedAt: ms epoch | null
 ├── createdAt / updatedAt
@@ -55,9 +56,9 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 `fe_external_path_idx` (plain index on the raw `external_path`) backs byte-exact lookups (`findByExternalPath`, rename re-finds, path-resolution call sites). The functional index simultaneously serves the case-insensitive lookup path (`WHERE lower(externalPath) = lower(?)`) used by `findCaseInsensitivePeers` and enforces the uniqueness invariant — `ensureExternalEntry` MUST resolve case-collisions at the application layer before INSERT (see "Duplicate-entry detection on insert" below) because a DB-level rejection would otherwise surface as an opaque `SQLITE_CONSTRAINT`. Internal rows (`externalPath = NULL`) are exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
 
-**Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `canonicalizeExternalPath(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
+**Stored form of `externalPath` — byte-faithful**: `externalPath` is persisted **exactly as the OS handed it to us**, with only lexical cleanup (null-byte reject, `./`/`../`/repeated-separator collapse, trailing-separator trim). It is **not** Unicode-normalized, so the stored string always reaches the real file on every filesystem — including normalization-*sensitive* ones (Linux ext4/btrfs) where an NFC-rewritten path would not exist on disk (see [Rejected: Unicode (NFC) normalization](#rejected-unicode-nfc-normalization-of-externalpath) below). Uniqueness is therefore **byte-exact plus case-fold** only: the `lower()` functional index catches identical and case-different paths; it deliberately does not fold Unicode forms.
 
-**Compile-time enforcement via `CanonicalExternalPath` brand**: `canonicalizeExternalPath()` returns a branded `CanonicalExternalPath` (TS phantom type, zero runtime cost; see `src/shared/data/types/file/fileEntry.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
+**Compile-time enforcement via the `AbsoluteFilePath` brand**: `AbsoluteFilePathSchema.parse()` returns a branded `AbsoluteFilePath` (Zod brand, zero runtime cost; see `src/shared/types/file/common.ts`), and the external-entry lookup/write surfaces (`findByExternalPath`, `setExternalPathAndName`) accept the narrower `CanonicalFilePath` produced by the `canonicalizeFilePath()` factory. Every DB read/write surface that filters by `externalPath` MUST accept the branded type, not a plain `string`, so a caller cannot pass an unvalidated raw path and silently miss all matches. (`AbsoluteFilePathSchema` only *validates the absolute-path shape* — it does not mutate the value; see [AbsoluteFilePath vs CanonicalFilePath](../../../src/shared/types/file/common.ts).) "Narrower" is a **proper** subset, not a spelling normalization: `canonicalizeFilePath()` is partial over `AbsoluteFilePath` and throws on input it cannot reduce to a key (today: UNC — see [UNC paths](#unc-paths)). Holding an `AbsoluteFilePath` does not entitle a call site to assume it can obtain the `CanonicalFilePath` these surfaces demand.
 
 | Source | Natively canonical | Relies on normalization to disambiguate |
 |---|---|---|
@@ -67,26 +68,64 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 | External URL scheme / shell integration | ❌ | Same as above |
 | v1 migration (inherits Dexie stored values) | ❌ (inherits legacy value quality) | Canonicalize once during migration |
 
-**Normalization scope** (synchronous, no FS IO):
+**Normalization scope** (synchronous, no FS IO) — lexical cleanup only:
 - Null-byte rejection — `raw.includes('\0')` → throw, so poisoned paths never reach DB persistence (reject at the earliest boundary, not at use-time inside `resolvePhysicalPath`)
 - `path.resolve(raw)` → absolutize + eliminate `./` `../`
-- `.normalize('NFC')` → Unicode normalization (closes the NFD/NFC window for macOS CJK)
 - Trailing separator trimming
+- Windows: drive-letter case folding (`c:\` → `C:\`) and separator normalization to `\` (so `C:/a/b` and `C:\a\b` share one stored form)
+
+- UNC rejection — `\\server\share\…` throws. `\\server\share` is an **indivisible root** that `../` must not be able to escape, and neither the POSIX nor the drive-letter branch models that; producing a silently wrong key is worse than refusing. Note the asymmetry this creates with the brand, and that it is deliberate: see [UNC paths](#unc-paths) below.
+
+These steps are purely lexical (no FS IO). **Unicode (NFC) normalization is deliberately NOT a step here** — an NFC-rewritten NFD path would not exist on disk on normalization-*sensitive* filesystems, so byte-faithful storage is what keeps the stored path reachable (see [Rejected](#rejected-unicode-nfc-normalization-of-externalpath) below). The `./`/`../` collapse, by contrast, is *not* guaranteed to preserve the on-disk target across symlinks/junctions (`/a/link/../b` ≠ `/a/b` if `link` resolves elsewhere) — this cleanup is a lexical dedup-key normalizer, **not** a reachability/security primitive; use `fs.realpath` at the main-process boundary when true target equivalence matters.
 
 **Intentionally omitted** (deferred until concrete user feedback warrants the cost):
-- `fs.realpath` as a step *inside* `canonicalizeExternalPath` itself (would require async FS IO at every canonicalization call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
+- `fs.realpath` as a step *inside* `canonicalizeFilePath` itself (would require async FS IO at every call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
 - Symlink target merging at canonicalize time
 - Windows 8.3 short-name resolution
 
-See the JSDoc for `canonicalizeExternalPath` in `src/main/services/file/utils/pathResolver.ts` for the detailed contract.
+See the JSDoc for `canonicalizeFilePath` in `src/shared/utils/file/canonicalize.ts` for the detailed contract.
 
-#### Rule evolution discipline
+#### UNC paths
 
-Because the canonical form is **application-layer logic**, not DB schema, any change to `canonicalizeExternalPath`'s normalization steps desynchronizes historical rows (written under the old rule) from new queries (running under the new rule). This produces a silent failure mode: byte-compare misses, the user sees "my file is in the library but the app says it isn't", and `ensureExternalEntry` inserts a duplicate.
+`AbsoluteFilePathSchema` **accepts** UNC (`\\server\share\…`); `canonicalizeFilePath` **rejects** it. The split is the point, not an oversight — the two gates answer different questions:
 
-**Rule**: modifying `canonicalizeExternalPath` ≡ ship a paired Drizzle migration that re-canonicalizes every existing `file_entry` row with `origin='external'` in the **same PR**. No exceptions — even if the new rule is claimed "strictly more permissive", the byte-compare will still miss.
+| Gate | Question | UNC |
+|---|---|---|
+| `AbsoluteFilePathSchema` | Is this shape safe to hand to `fs`? | ✅ Node reads UNC natively on Windows |
+| `canonicalizeFilePath` | Is this safe to persist as a byte-compare dedup key? | ❌ no defined `\\server\share` root handling |
 
-When a rule change additionally collapses previously-distinct strings to the same canonical form (e.g. adding `fs.realpath` merges APFS case-insensitive duplicates), the migration MUST also merge the colliding rows. The rules below are prescriptive; follow them exactly rather than improvising per-migration.
+**Consequence**: a UNC path can be read, previewed, and copied into an internal entry (`createInternalEntry` copies bytes; it never canonicalizes). It cannot become an **external** entry, because that requires a canonical `externalPath` — `ensureExternalEntry` and `findByExternalPath` both throw a descriptive UNC error rather than storing a corrupted key.
+
+**Why the brand accepts it.** UNC *is* an absolute filesystem path, and the schema was already inconsistent about it: `fileUrlToPath` decodes a UNC `file://` URL to the forward-slash form `//server/share/…`, which has always passed the POSIX branch. Rejecting only the backslash spelling of the same path meant a network-share `file://` snapshot (the shape v1 migration produces) silently became an unreadable, dropped attachment. Accepting both spellings makes the gate describe a property of the path instead of a property of how it happened to be spelled.
+
+**Known gap (pre-existing, unchanged):** the forward-slash form `//server/share/x` still passes the POSIX branch of `canonicalizeFilePath` and is silently reduced to `/server/share/x`. Only the backslash form is caught. Fixing it means deciding whether `//` is UNC or a POSIX double-slash path, which is platform-dependent — tracked separately, not addressed here.
+
+**URL encoding puts the server in the authority.** `toFileUrl` emits `file://server/share/…` for a UNC path, not `file:////server/share/…`. The leading `//` produced by separator normalization already *is* the URL authority marker, so appending it to `file://` would leave the authority empty and demote the server to path text — a URL Node rejects with `ERR_INVALID_FILE_URL_PATH`. This also makes `toFileUrl` the exact inverse of `fileUrlToPath`, which decodes `file://host/…` to `//host/…`.
+
+**Containment checks degrade, they do not throw.** `isPathWithinAccessiblePath` / `getAccessiblePathRelativePath` (`src/renderer/components/composer/variants/agent/accessiblePath.ts`) canonicalize before comparing. A path that cannot be canonicalized is not *provably* inside anything, so they return `false` / the input unchanged. Containment is a predicate; it must stay total.
+
+#### Rejected: Unicode (NFC) normalization of `externalPath`
+
+An earlier design NFC-normalized `externalPath` (inside `canonicalizeFilePath`) before persistence, so a file named with a decomposable character (`é` = `e` + combining acute vs the precomposed `é`) would dedup to one row on macOS. **This is deliberately rejected.** `externalPath` is stored byte-faithful (see "Stored form" above) and is never Unicode-normalized.
+
+1. **Reachability (blocking).** On a normalization-*sensitive* filesystem (Linux ext4/btrfs, some SMB/NFS mounts) the directory entry stores exact bytes. NFC-normalizing an NFD-named file's path yields a string that does **not** exist on disk, so `ensureExternalEntry`'s `fs.stat`, the copy source, and `resolvePhysicalPath` all `ENOENT` — the file becomes unimportable and unreachable. Breaking Linux functionality to dedup on macOS is not an acceptable trade.
+2. **Unverified premise.** The "most common duplicate trigger for CJK users" justification was AI-authored in a comment; this v2 code has never shipped, and there is no observed evidence that this app's path sources (`showOpenDialog`, drag-drop, `fs.readdir`) ever surface the same file in divergent normalization forms.
+3. **Rare and cosmetic even on macOS.** A duplicate row needs a conjunction: the same file added more than once, through two ingestion routes that *disagree* on normalization, with a decomposable non-ASCII name, stored on disk in a divergent form. Even then APFS is normalization-insensitive, so both rows resolve to the *same* physical file — the harm is one extra, user-deletable list entry, not data loss or breakage. And the `fs.realpath` collision probe below does not catch it (NFD vs NFC are not `lower()` case-peers), so NFC-in-storage was the *sole* mechanism folding it — bought at the cost of item 1.
+4. **YAGNI.** Storage-time normalization plus its rule-evolution migration discipline is real, permanent complexity for an unverified, rare, cosmetic condition.
+
+If real NFD/NFC duplicates are ever *observed*, the correct fix is an FS-aware `fs.realpath` fold at the collision probe (run only when the file exists), **never** re-introducing Unicode normalization into `canonicalizeFilePath` or the stored form.
+
+#### Rule-evolution discipline
+
+Removing the NFC step removed a *reachability* hazard (an NFC-rewritten path does not exist on disk). It did **not** remove the *desync* hazard, which is a separate problem with a separate cause: the canonical form is **application-layer logic** whose output is used as a **byte-compare key**. Any change to `canonicalizeFilePath` that changes its output desynchronizes historical rows (written under the old rule) from new queries (running under the new rule) — regardless of whether the step consults the filesystem. The failure is silent: byte-compare misses, the user sees "my file is in the library but the app says it isn't", and `ensureExternalEntry` inserts a duplicate.
+
+Every remaining step is output-sensitive. The `./`/`../` collapse is the likeliest one to be revisited, precisely because "Normalization scope" above already records that it is not target-preserving across symlinks; changing it would invalidate every stored row containing a collapsed segment.
+
+**Rule**: modifying `canonicalizeFilePath` ≡ ship a paired Drizzle migration that re-canonicalizes every existing `file_entry` row with `origin='external'` in the **same PR**. No exceptions — even if the new rule is claimed "strictly more permissive", the byte-compare will still miss.
+
+> **Current exception (expires at the first shipped release).** v2 has never shipped, so there are no historical rows to desync — `src/main/data/db/schemas/` and `migrations/sqlite-drizzle/` are pre-release throwaway per [CLAUDE.md](../../../CLAUDE.md). That is why removing the NFC step needed no paired migration. This exemption is temporal, not a property of the rule: it stops applying the moment a release writes real user rows, and it never covered the rule itself.
+
+When a rule change additionally collapses previously-distinct strings to the same canonical form (e.g. folding `/` and `\` on Windows merges `C:/a` and `C:\a`), the migration MUST also merge the colliding rows. The rules below are prescriptive; follow them exactly rather than improvising per-migration.
 
 **Winner selection when merging rows**:
 
@@ -96,7 +135,7 @@ When a rule change additionally collapses previously-distinct strings to the sam
 
 **Losers' dependents** (executed in the same Drizzle transaction as the merge):
 
-- Association rows with `fileEntryId = loser.id` → update to `winner.id`. No deduplication inside each table's `UNIQUE(fileEntryId, sourceId, role)` constraint is expected because each `(sourceId, role)` pair originally referenced only one entry; if violations occur, the update conflicts and the migration fails loudly (do not silently `ON CONFLICT DO NOTHING` — investigate).
+- Association rows with `fileEntryId = loser.id` → **deduplicate, then** update to `winner.id`. `chat_message_file_ref` and `painting_file_ref` are unique on `(fileEntryId, sourceId, role)`, **not** on `(sourceId, role)` — one message legitimately references many files under the same role. So a source that referenced both a loser and the winner (or two losers) yields duplicate rows the moment they are rewritten to `winner.id`. Delete every loser row whose `(sourceId, role)` the winner already covers, then update the survivors; that is the semantically correct merge, since the two refs now point at one file. Any conflict remaining **after** this step is a genuine invariant violation — fail loudly, never `ON CONFLICT DO NOTHING`. `provider_logo_file_ref` / `mini_app_logo_file_ref` are unique on `(sourceId)` alone, so a source holds at most one row and a plain update cannot collide.
 - `file_entry.id = loser.id` → delete.
 - Any downstream consumer of `loser.id` (future `file_upload.fileEntryId`, business-service caches keyed by entryId) MUST be enumerated and updated in the same migration. If you add a new table that references `file_entry.id`, the canonicalization migration procedure expands — document the expansion alongside the table's schema.
 
@@ -152,8 +191,20 @@ Invariants:
 | `ext` | SoT | Pure projection of `externalPath` (extname) |
 | `size` | SoT (non-null, ≥ 0) | **Always `null`** — no DB snapshot; live value via `getMetadata` |
 | `externalPath` | NULL | Absolute path (the authoritative identity of external) |
+| `contentHash` | Detection substrate `{algo}:{hex}` (for example `xxh3-64:…`); maintained on every write; `null` means unknown, in-flight, or awaiting repair | **Always `null`** — content lives outside Cherry (`fe_contenthash_external_null` CHECK) |
 
 For external entries the row stores only identity + stable projections. `name` / `ext` do not drift because `externalPath` is fixed for the lifetime of the entry (external rename by the user surfaces as a dangling entry, not an in-place rewrite of `name`). `size` / `mtime` are served live by File IPC `getMetadata(id)` on demand — see [§3 External Entry Liveness Model](#3-external-entry-liveness-model).
+
+#### Content-level dedup detection (`contentHash`)
+
+`contentHash` is a **detection substrate** for content-level deduplication, not an identity or key. It is orthogonal to external-path deduplication: external paths enforce identity and upsert behavior, while internal hashes only surface possible content matches for a consumer-defined policy.
+
+- **Tagged format.** Values use `{algo}:{lowercase hex}`; the current producer is XXH3-64 via native `@node-rs/xxhash`. Keeping the algorithm in the value allows old and new algorithms to coexist during a future incremental migration.
+- **Internal-only and derived by Main.** `createInternalEntry`, `write`, `writeIfUnchanged`, and `createWriteStream` persist the current hash and size. Renderer/callers cannot provide an authoritative hash. Bytes, base64, copy, download, and stream sources calculate both values incrementally from the same byte stream that materializes the durable tmp file; no post-write reread or caller-trusted shortcut is used. External rows never carry either snapshot.
+- **Non-null is a trust invariant.** A non-null hash describes the current managed blob. Before replacing internal content, FileManager atomically snapshots the old metadata, sets `contentHash = NULL`, and records the foreground `commitAt` in `updatedAt`; after rename it writes the prepared `size` / `contentHash` while preserving the row's current `updatedAt`. Rename failure restores the old metadata (and restores the old timestamp only when no concurrent metadata update advanced it). Rename success followed by DB-finalize failure keeps the hash null and throws `ContentCommittedMetadataPendingError`; callers refresh the file state and must not retry the same write automatically.
+- **Non-unique by design.** `fe_content_hash_idx` is a plain index. Multiple logical entries may contain identical bytes, and a collision must never raise a constraint violation. `FileEntryService.findInternalByContentHash`, exposed to renderers through DataApi `GET /files/entries/by-content-hash`, returns active candidates oldest-first without selecting one; FileManager retains the same query for Main-side consumers.
+- **Insert-always remains unchanged.** `createInternalEntry` never looks up or reuses candidates. A consumer may hash source bytes, query candidates, apply its own secondary check or user decision, and then either reuse or create; the created entry's persisted hash is still derived independently by Main from the bytes it writes.
+- **Startup trust generation + reconciliation.** Before File IPC registration, FileManager checks `app_state['fileManager:contentMetadataGeneration']`. A missing, malformed, or non-v2 marker causes one synchronous transaction to null every non-null internal hash (explicitly preserving `updatedAt`) and write `{ version: 2 }`. This safely invalidates hashes created by older releases without rewriting an executed migration. After all services are ready, the singleton `file.contenthash-backfill` job keyset-pages through null rows by `id`, including trashed rows, and rebuilds `size` and `contentHash` from one read. It shares FileManager's per-entry write lock and persists with `contentHash IS NULL`, so it cannot overwrite a foreground write. Missing or unreadable blobs remain null for the next startup attempt. During reconciliation, dedup queries may temporarily miss candidates but never trust an incorrect non-null hash.
 
 ### 1.3 FileRef (Business Reference)
 
@@ -167,7 +218,7 @@ chat_message_file_ref / painting_file_ref / ...
 └── UNIQUE(fileEntryId, sourceId, role)
 ```
 
-`FileRefService` aggregates these source-owned tables into the shared `FileRef` discriminated union for DataApi reads, ref counts, and sweep reporting. It does not own persistent ref writes. The only mutable refs stored by `FileRefService` are `temp_session` refs, backed by main-process `CacheService` memory.
+`FileRefService` aggregates these source-owned tables into the shared `FileRef` discriminated union for DataApi reads, ref counts, and sweep reporting. It does not own persistent ref writes.
 
 When a persistent business object is deleted, SQLite FK cascade removes its association rows. Relationship replacement (for example, replacing a painting's complete file set) is handled directly by the owning business service.
 
@@ -212,8 +263,8 @@ Only **versionCache** and **lifecycle artifacts** are truly bound to the FileMan
 
 ```
 src/main/services/file/
-├── index.ts              ← barrel: exports only FileManager + public types
-├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache + inline getMetadata
+├── index.ts              ← barrel: exports FileManager + public entry-facing types/helpers
+├── FileManager.ts        ← facade class; lifecycle + legacy IPC + versionCache + inline getMetadata
 ├── internal/             ← private implementation (not re-exported by index.ts; external imports forbidden)
 │     ├── deps.ts              — FileManagerDeps type
 │     ├── dispatch.ts          — FileHandle.kind dispatch helper (entry vs path adapter)
@@ -223,13 +274,17 @@ src/main/services/file/
 │     │    ├── rename.ts
 │     │    └── copy.ts
 │     ├── content/
-│     │    ├── read.ts         — read / createReadStream (including `readByPath` variants)
+│     │    ├── read.ts         — entry-aware read / createReadStream
 │     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
 │     │    └── hash.ts         — getContentHash / getVersion
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
-│     └── orphanSweep.ts       — temp-session ref prune + FS-level orphan sweep
+│     └── orphanSweep.ts       — FS-level orphan sweep
+├── utils/
+│     ├── content.ts           — consistent path read + path conditional write
+│     ├── metadata.ts          — path-arm metadata projection
+│     └── pathResolver.ts      — FileEntry path resolution + external canonicalization
 └── versionCache.ts       ← LRU type definition
 ```
 
@@ -300,7 +355,12 @@ export class FileManager extends BaseService implements IFileManager {
   protected async onInit() {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    // No auto-sweep at startup; an explicit cleanup UI/caller triggers `runSweep` via IPC.
+    // Auto-policy reaper: a non-awaited startup pass + an idle-gated interval
+    // (file-entry-cleanup.md §5.5). The tick also fires the FS orphan sweep
+    // concurrently, behind its own weekly floor (`fileSweepTick`). The `runSweep`
+    // umbrella is separate — on demand via IPC only.
+    void this.runEntryCleanup()
+    this.registerInterval(() => this.entryCleanupTick(), CLEANUP_INTERVAL_MS)
   }
 }
 ```
@@ -313,79 +373,73 @@ export class FileManager extends BaseService implements IFileManager {
 - FileManager's public API remains entry-native (accepts only `FileEntryId`); main-side business service calls are intuitive without needing a `createFileEntryHandle(id)` wrapper
 - The `FilePathHandle` branch **only needs the IPC handler**; main-side business services hold FileEntries—they have no arbitrary-path scenario
 
-**Internal module convention**: each action file exposes consistently named variants by kind:
+**Implementation convention**: entry-aware actions stay under `internal/*` and
+receive `FileManagerDeps`; renderer-facing path-arm actions have no entry state
+to coordinate, live under `utils/*`, and are re-exported by the module barrel:
 
 ```typescript
 // internal/content/read.ts
-export async function read(deps, entryId, opts): Promise<ReadResult<T>>           // serves FileManager public API (entry-flavoured)
-export async function readByPath(deps, path, opts): Promise<ReadResult<T>>        // serves the path-handle branch of the IPC handler
-// future: export async function readVirtual(deps, handle, opts)
+export async function read(deps, entryId, opts): Promise<ReadResult<T>>
+
+// utils/content.ts
+export async function readByPath(path, opts): Promise<ReadResult<T>>
+export async function writeIfUnchangedByPath(path, data, version): Promise<FileVersion>
 ```
 
 **Naming convention** (per the shipped exports): entry-flavoured variants
 use the **bare verb** (`read`, `createInternal`, `ensureExternal`, `trash`,
 `copy`, `rename`, …); path-flavoured siblings carry the `*ByPath` suffix.
-The bare entry variant is what `FileManager`'s public method delegates to;
-`*ByPath` (and future `*Virtual`) **do not** flow through FileManager's
-public methods — they serve the path-handle branch of the IPC handler
-only. The previous draft of this section used a `*ByEntry` suffix on the
-entry variants, but no shipped export follows that pattern; the docs are
-updated to match the code, not the other way around.
+The bare entry variant is what `FileManager`'s public method delegates to.
+Renderer-facing `*ByPath` variants **do not** flow through FileManager's public
+methods — they serve the path-handle branch of the IPC handler and live in
+`utils/*` so `internal/*` remains private.
 
-**Unified style for dispatch helper**: to prevent "every IPC method writing its own if-else" noise, FileManager provides a small internal helper:
+**Unified style for dispatch helper**: generic `FileHandle` routes use the file
+module's `dispatchHandle` helper at the renderer transport boundary. Operations
+whose contract is intentionally path-only call their path helper directly:
 
 ```typescript
-// FileManager.ts (private)
-private dispatchHandle<T>(
-  handle: FileHandle,
-  byEntry: (entryId: FileEntryId) => Promise<T>,
-  byPath: (path: FilePath) => Promise<T>
-): Promise<T> {
-  switch (handle.kind) {
-    case 'entry': return byEntry(handle.entryId)
-    case 'path':  return byPath(handle.path)
-  }
-}
-
-private registerIpcHandlers() {
-  this.ipcHandle('file.read', (handle, opts) =>
-    this.dispatchHandle(handle,
-      id   => this.read(id, opts),
-      path => contentRead.readByPath(this.deps, path, opts)
-    )
-  )
-  this.ipcHandle('file.write', (handle, data) =>
-    this.dispatchHandle(handle,
-      id   => this.write(id, data),
-      path => contentWrite.writeByPath(this.deps, path, data)
-    )
-  )
-  // ... other IPC methods that accept FileHandle
-
-  // IPC methods that accept only FileEntryId pass through directly
-  this.ipcHandle('file.trash', ({ id }) => this.trash(id))
-  this.ipcHandle('file.createInternalEntry', params => this.createInternalEntry(params))
-  this.ipcHandle('file.ensureExternalEntry', params => this.ensureExternalEntry(params))
+// src/main/ipc/handlers/file.ts
+export const fileHandlers = {
+  'file.read': async ({ handle, options }) =>
+    options.mode === 'range'
+      ? dispatchHandle(
+          handle,
+          id => fileManager.readChunk(id, options.offset, options.length),
+          path => readChunkByPath(path, options.offset, options.length)
+        )
+      : dispatchHandle(
+          handle,
+          id => fileManager.read(id, { encoding: options.encoding }),
+          path => readByPath(path, { encoding: options.encoding })
+        ),
+  'file.write_if_unchanged': async ({ path, data, expectedVersion }) =>
+    writeIfUnchangedByPath(path, data, expectedVersion)
 }
 ```
 
 **Impact of adding a new handle kind** (e.g., `virtual` pointing into archive members, `remote` pointing to an S3 URI):
 
-1. `src/shared/file/types/handle.ts` — add variant to handle union
-2. Relevant `internal/*/*.ts` — add corresponding `*Virtual` / `*Remote` pure functions
-3. `FileManager.ts` — add a callback parameter to the `dispatchHandle` signature; each IPC handler explicitly handles that kind (or throws "unsupported")
+1. `src/shared/data/types/file.ts` — add variant to handle union
+2. Relevant `internal/*/*.ts` or `utils/*.ts` — add the entry-aware or path-like operation
+3. `src/main/ipc/handlers/file.ts` — extend `dispatchHandle`; each IPC handler explicitly handles that kind (or throws "unsupported")
 
-**The extension surface is concentrated in a single file, FileManager.ts**—it's immediately obvious which kinds each IPC method supports, which aids auditing. This is lighter than introducing a separate `FileAccessor` class while achieving the same "extension convergence".
+**The renderer extension surface is concentrated in the File IPC adapter**—it is
+immediately obvious which kinds each IPC method supports, which aids auditing.
 
 #### 1.6.6 External Access Constraints
 
 | Location | May import | Forbidden to import |
 |---|---|---|
-| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/services/file` (gets FileManager) / `@main/utils/file/{fs,path,metadata,search,shell}` / `@main/services/file/watcher` | `@main/services/file/internal/**` |
+| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/services/file` (FileManager + selected path helpers) / `@main/utils/file/{fs,path,metadata,search,shell}` / `@main/services/file/watcher` | Deep imports into `@main/services/file/internal/**` or `@main/services/file/utils/**` |
 | Inside the file module itself (`internal/*`, `watcher/*`) | May reference each other as needed; may also import `@main/utils/file/*` primitives | Except FileManager, must not import `internal/*` |
 | External Node/renderer | N/A (file-module is main-side) | — |
 
-**Boundary enforcement**: the `src/main/services/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/services/file`. If violations surface, add an ESLint `no-restricted-imports` rule.
+**Boundary enforcement**: the `src/main/services/file/index.ts` barrel does not
+re-export general `internal/` implementation. `dispatchHandle` is the temporary
+documented exception while legacy handlers remain; path-arm operations are
+implemented in `utils/*` and re-exported through the barrel. ESLint's
+`barrel/closed` rule rejects deep imports.
 
 #### 1.6.7 Design Trade-offs
 
@@ -393,7 +447,7 @@ private registerIpcHandlers() {
 |---|---|---|
 | Split business methods into 5 lifecycle services | ❌ | Overkill—lifecycle registration, dependency ordering, and test mocking costs all 5×, in exchange only for "methods split across files" |
 | FileManager as facade + `internal/*` pure functions | ✅ | Only 1 lifecycle node; pure functions can be unit-tested with stub deps directly; external API surface remains stable |
-| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch itself is a proper responsibility of the IPC adapter layer; converging into the `dispatchHandle` helper inside FileManager suffices; splitting off another layer adds pure complexity |
+| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch belongs to the IPC adapter layer; the adapter reuses `dispatchHandle` from `internal/dispatch.ts` via the file-module barrel, so another class would add pure complexity |
 | FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
@@ -415,7 +469,6 @@ class FileManager extends BaseService {
 
   protected override onInit(): void {
     this.registerIpcHandlers()
-    this.initVersionCache()
     danglingCache.initFromDb()
 
     // Wire internal events → renderer broadcast. Each disposable auto-cleans on stop.
@@ -425,8 +478,6 @@ class FileManager extends BaseService {
       this.windowManager.broadcast('file-manager-event', { type: 'entry-content', ...e })))
     this.registerDisposable(this.onDanglingStateChanged((e) =>
       this.windowManager.broadcast('file-manager-event', { type: 'dangling-state', ...e })))
-
-    void this.runOrphanSweep().catch((err) => logger.error('Orphan sweep failed', err))
   }
 }
 ```
@@ -540,7 +591,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 - **Active push**: when a business module creates a watcher via `createDirectoryWatcher()`, the factory auto-wires add/unlink events into DanglingCache
 - **Side effect**: FileManager's own read/stat/write operations also update the cache on success/failure
 
-**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the ref association chain is preserved; the user can explicitly "Remove from library" or attempt to re-point.
+**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but dangling state itself never triggers cleanup—the ref association chain is preserved. `manual` entries require the user to explicitly "Remove from library" or attempt to re-point; `delete_when_unreferenced` entries are instead reclaimed by the ref-count-driven cleanup pass ([file-entry-cleanup.md](./file-entry-cleanup.md)) regardless of presence.
 
 ---
 
@@ -557,7 +608,7 @@ interface FileVersion {
 
 Used as a fast signal for detecting external changes. Two tiers of usage:
 - Fast path: `statVersion(path)` (microsecond-level, covers 99% of cases)
-- Deep path: `contentHash(path)` → xxhash-h64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed)
+- Deep path: `contentHash(path)` → tagged XXH3-64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed). This uses the same algorithm as persisted dedup detection, but the OCC value is computed on demand and is not persisted by the comparison itself.
 
 Rationale for mtime + size as a signature:
 - Six scenarios where mtime alone fails—multiple writes within the same ms, clock rewind, backup preserving mtime, user touch, low-precision FS (FAT32), in-place 1-byte edit—are covered by size or hash as fallbacks
@@ -592,7 +643,7 @@ writeIfUnchanged(id, data, expectedVersion: FileVersion): Promise<FileVersion>
 | First-time write, overwrite, migration, preprocessing | `write` | No concurrency semantics |
 | Editor save (Notes, Markdown, and other potential future consumers) | `writeIfUnchanged` | Must detect external changes |
 
-On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decides on UX after catching (dialog, three-way merge, keep both versions, etc.).
+On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decides on UX after catching (dialog, three-way merge, keep both versions, etc.). Both entry and raw-path arms fully prepare the tmp payload first, then re-stat immediately before rename; an edit that lands while a large payload is being materialized is therefore detected before replacement.
 
 **Behavior on external**: write / writeIfUnchanged / createWriteStream / rename / permanentDelete **all apply**—Cherry supports user-explicitly-triggered external file modifications (editor save, UI rename, user-confirmed delete), delegated to the FS primitives at `@main/utils/file/fs` (atomic write / rename / remove). Cherry **does not** perform automatic / watcher-driven external file modifications.
 
@@ -614,14 +665,14 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ### 5.1 tmp + fsync + rename Flow
 
-All writes (entry/internal to userData, entry/external to externalPath, path-handle to any path) follow the POSIX atomic flow:
+All writes (entry/internal to userData, entry/external to externalPath, path-handle to any path) use `PreparedAtomicWrite` and follow the POSIX atomic flow:
 
 ```
 1. Create {target}.tmp-{uuid} in the same directory
-2. Write data to the tmp fd
-3. fsync(tmp fd)                  ← data flushed to disk
-4. rename(tmp, target)             ← atomic replacement (POSIX guarantee)
-5. fsync(dir fd)                   ← rename metadata flushed to disk
+2. Write data while incrementally deriving size + contentHash
+3. fsync(tmp fd)                  ← data flushed to disk; state = prepared
+4. rename(tmp, target)            ← atomic replacement (POSIX guarantee)
+5. fsync(dir fd)                  ← rename metadata flushed to disk; state = committed
 ```
 
 Key rules:
@@ -630,6 +681,9 @@ Key rules:
 - **tmp naming**: `{target}.tmp-{uuidv7}`—UUID avoids concurrent-write conflicts
 - **Crash residue**: FileManager's on-demand orphan sweep cleans up by `^.+\.tmp-<uuidv7>$`
 - **2× disk usage** is an inherent cost of POSIX rename semantics, unavoidable
+- `commit()` and `abort()` are terminal and idempotent; a prepared write can enter only one terminal state
+
+For an internal entry, steps 3–5 are wrapped by the recoverable metadata protocol described in §1.2: mark hash unknown before rename, finalize exact prepared metadata afterward. A DB failure before rename leaves the target and old metadata untouched; a DB failure after rename leaves a durable null recovery marker instead of a stale non-null hash.
 
 ### 5.2 Stream Variant
 
@@ -637,11 +691,13 @@ Key rules:
 createWriteStream(id): Promise<AtomicWriteStream>
 ```
 
-Stream writes also follow tmp + rename. The returned `AtomicWriteStream` extends `Writable`; `.close()` triggers fsync + rename + fsync(dir); `.abort()` cancels and unlinks the tmp.
+Stream writes also follow the same prepared commit. The returned `AtomicWriteStream` extends `Writable`; `_final()` does not complete until rename, DB finalization, and version-cache update all succeed, so `finish` is an end-to-end success signal. `.abort()` / stream errors before commit unlink the tmp and do not replace the target. During shutdown, FileManager aborts streams that have not entered commit and waits for streams that have.
 
 ### 5.3 FS Primitive Access Policy
 
 The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` primitives exported by `@main/utils/file/fs` **are open to modules outside the file module**. BootConfig, MCP oauth storage, and any other main-process service that needs a safe atomic write imports them directly; scattered ad-hoc tmp+rename implementations are not introduced.
+
+Renderer-provided raw paths are a separate trust boundary. Before any renderer-reachable path write/move/rename/delete/mkdir/import, Main rejects lexical or realpath overlap with `application.getPath('feature.files.data')`, including ancestors and symlinks into the managed tree. Internal FileManager operations use entry ids and are not routed through that raw-path guard.
 
 ---
 
@@ -683,8 +739,8 @@ Query: `WHERE deletedAt < now() - retentionMs` → batch permanentDelete.
 |---|---|
 | unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the next user-triggered orphan sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
-| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
-| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | NFC closed by `canonicalizeExternalPath`; case-collision rejected at INSERT by the DB functional unique index plus the `fs.realpath`-based reuse-or-throw decision in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). |
+| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `AbsoluteFilePathSchema.parse(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
+| **Two entries for the same file** | **Case** differences (macOS APFS, Windows NTFS): rejected at INSERT by the DB `lower()` functional unique index plus the `fs.realpath`-based reuse-or-throw probe in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). **Unicode (NFD ↔ NFC)** differences: deliberately **not** deduped — `externalPath` is stored byte-faithful, and the rare, cosmetic macOS case is accepted rather than break reachability on Linux (see §1.2 "Rejected: Unicode (NFC) normalization of `externalPath`"). |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
 | External write with permission error / disk full on target path | Throw without polluting DB; caller decides retry or user notification |
@@ -707,20 +763,21 @@ Three layers of protection, with each layer as a fallback for the next:
 | relationship replaced -> explicit cleanup+insert      |
 +-------------------------------------------------------+
 | Layer 3: on-demand DB orphan sweep                    |
-| prune temp-session refs whose file_entry is missing   |
-| report active file_entry rows with zero refs          |
+| report zero-ref manual entries                        |
+| reclaim zero-ref delete_when_unreferenced entries     |
+| via the cleanup pass                                  |
 +-------------------------------------------------------+
 ```
 
-Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep only handles the non-persistent `temp_session` cache and reporting.
+Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep reports `manual` zero-ref entries, and reclaims `delete_when_unreferenced` zero-ref entries via the cleanup pass described in [file-entry-cleanup.md](./file-entry-cleanup.md).
 
 ### 7.1 No-Reference Entry Policy
 
 The default stance — *FileEntry is preserved even when no business refs point at it* — is chosen so the user never loses a file they (or Cherry) bothered to track merely because the original consumer got deleted. A UI surface may show an "unreferenced" marker for user-triggered cleanup.
 
-There are **no automatic deletion exceptions**. Even an external entry that is currently missing and has zero refs is still a user-visible library record: it may represent a temporarily unmounted drive, a file the user wants to re-link later, or simply a stale record the user should remove explicitly. The file module may report these rows, but it must not delete them without an explicit user/caller action.
+Automatic deletion applies **only** to entries whose `cleanup_policy = 'delete_when_unreferenced'` (see [file-entry-cleanup.md](./file-entry-cleanup.md)); `manual` entries have no automatic deletion exceptions. Even an external `manual` entry that is currently missing and has zero refs is still a user-visible library record: it may represent a temporarily unmounted drive, a file the user wants to re-link later, or simply a stale record the user should remove explicitly. The file module may report these rows, but it must not delete them without an explicit user/caller action.
 
-**Policy matrix by `(origin, dangling state, refs)`**:
+**Policy matrix by `(origin, dangling state, refs)`**: the rows below describe `manual`-policy behavior. A `delete_when_unreferenced` entry is instead reclaimed once it clears the grace window with zero refs — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper).
 
 | origin | dangling state | refs | Policy |
 |---|---|---|---|
@@ -732,7 +789,7 @@ There are **no automatic deletion exceptions**. Even an external entry that is c
 
 ### 7.2 No Automatic Dangling-External Cleanup
 
-Dangling external entries are never deleted automatically by a scheduler, startup task, or `runSweep()` policy pass. Cleanup is explicit:
+This section applies to `manual`-policy entries. Dangling external `manual` entries are never deleted automatically by a scheduler, startup task, or `runSweep()` policy pass — deletion of `delete_when_unreferenced` entries is handled by the separate cleanup pass in [file-entry-cleanup.md](./file-entry-cleanup.md), and is driven by ref count and grace window, not dangling state. Cleanup for `manual` entries is explicit:
 
 - **User action**: FilesPage or a cleanup UI calls the external-entry deletion path (labelled "Remove from library") for selected rows.
 - **Business action**: a business service that owns a reference may decide how to handle a missing file in its own workflow (prompt, re-link, remove ref, etc.).
@@ -749,7 +806,7 @@ Consequences:
 - No persisted "missing since" timestamp or time-based cleanup query.
 - No cleanup-verification bypass around DanglingCache TTL.
 - No cleanup-specific observability event.
-- No `('external', 'missing', 0)` automatic deletion branch in Layer 3. Layer 3 remains temp-session ref pruning plus orphan-entry reporting.
+- No `('external', 'missing', 0)` automatic deletion branch keyed on dangling state. Layer 3's reporting sub-path remains zero-ref reporting for `manual` entries; `delete_when_unreferenced` entries are instead reclaimed by the policy-driven cleanup pass (file-entry-cleanup.md), independent of dangling state.
 
 ---
 
@@ -783,11 +840,11 @@ to the same change that lands the first `onRename` consumer (see §8.3).
 
 ```typescript
 export type WatcherEvent =
-  | { readonly kind: 'add'; readonly path: FilePath }
-  | { readonly kind: 'addDir'; readonly path: FilePath }
-  | { readonly kind: 'unlink'; readonly path: FilePath }
-  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
-  | { readonly kind: 'change'; readonly path: FilePath }
+  | { readonly kind: 'add'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'addDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlink'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'change'; readonly path: AbsoluteFilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }
 
@@ -804,13 +861,13 @@ export interface CreateDirectoryWatcherOptions {
   /** Recurse into subdirectories. Default: true. */
   readonly recursive?: boolean
   /** Custom ignore predicate. Built-in OS-junk ignores always apply. */
-  readonly ignore?: (path: FilePath) => boolean
+  readonly ignore?: (path: AbsoluteFilePath) => boolean
   /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
   readonly stabilityThresholdMs?: number
 }
 
 export function createDirectoryWatcher(
-  path: FilePath,
+  path: AbsoluteFilePath,
   opts?: CreateDirectoryWatcherOptions
 ): Promise<DirectoryWatcher>
 ```
@@ -885,7 +942,7 @@ CREATE TABLE file_upload (
   file_entry_id   TEXT NOT NULL REFERENCES file_entry(id) ON DELETE CASCADE,
   provider        TEXT NOT NULL,
   remote_id       TEXT NOT NULL,
-  content_version TEXT NOT NULL,   -- xxhash-h64 at upload time
+  content_version TEXT NOT NULL,   -- XXH3-64 at upload time
   uploaded_at     INTEGER NOT NULL,
   expires_at      INTEGER,
   status          TEXT NOT NULL,   -- 'active' | 'expired' | 'failed'
@@ -920,11 +977,11 @@ interface IFileUploadService {
 
 ---
 
-## 10. On-Demand Orphan Sweep (User-Triggered)
+## 10. Orphan Sweep (scheduled FS pass + on-demand report)
 
 ### 10.1 Positioning
 
-Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle. Both passes begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim.
+The **FS-level pass** (§10) runs unattended from `FileManager.fileSweepTick` — the same idle-gated tick as the entry cleanup, concurrently with it, behind a 7-day floor. That is what reclaims orphan blobs in production. The **DB-level report pass** (§7 Layer 3) has no scheduled trigger and runs only inside the `runSweep` umbrella, which is reachable solely via the `File_RunSweep` IPC channel — a channel with no renderer caller today. FileManager exposes a single `runSweep()` maintenance method: it first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folding the cleanup pass's own summary into `counts.entryCleanup`, and returns a single `OrphanReport` once all three settle. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim. (No user-facing UI calls `runSweep` — the entry cleanup it wraps is silent, and the cleanup mechanism has no user surface; see file-entry-cleanup.md's Decision note.)
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -933,28 +990,37 @@ protected override async onInit(): Promise<void> {
   await this.deps.danglingCache.initFromDb()
   // IPC handlers, including `File_RunSweep`, are registered here.
   this.registerIpcHandlers()
+  // Entry-cleanup pass auto-runs here (previous-session backlog) and on a
+  // 30min idle-gated interval — independently of `runSweep`. See
+  // file-entry-cleanup.md §5.5.
+  void this.runEntryCleanup()
+  this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
 }
 
 async runSweep(): Promise<OrphanReport> {
-  // Two concurrent passes:
-  //   1. FS-level file sweep (§10): scan {userData}/Data/Files/* for
+  // Three passes, cleanup first:
+  //   1. Entry-cleanup pass (file-entry-cleanup.md §5): reclaims zero-ref
+  //      `delete_when_unreferenced` entries. No volume abort (spec §5.3).
+  //      Runs first so the DB report below doesn't re-report entries it
+  //      just reclaimed.
+  //   2. FS-level file sweep (§10): scan {userData}/Data/Files/* for
   //      orphans not present in the file_entry snapshot.
-  //   2. DB-level temp-session ref prune + entry report (§7 Layer 3):
-  //      prune cache refs whose file_entry is missing, then report
-  //      unreferenced active entries.
-  // Each branch settles independently with its own error capture. A DB
+  //   3. DB-level entry report (§7 Layer 3): report unreferenced
+  //      `manual` entries.
+  // Passes 2/3 settle independently with their own error capture. A DB
   // failure dominates as `failed`; FS-side partial/aborted/failed outcomes
-  // degrade the umbrella report to `partial` via `fsSweepIssue`. Exception:
-  // while a staged backup restore is pending promotion, BOTH passes stand
-  // aside up front and the umbrella returns `aborted`
-  // (abortReason: 'pending-restore') verbatim — expected behavior, never
-  // disguised as a degraded `partial` run.
+  // degrade the umbrella report to `partial` via `fsSweepIssue`. The
+  // cleanup pass's own outcome rides in `counts.entryCleanup` and never
+  // changes the umbrella `outcome`. Exception: while a staged backup restore
+  // is pending promotion, BOTH passes stand aside up front and the umbrella
+  // returns `aborted` (abortReason: 'pending-restore') verbatim — expected
+  // behavior, never disguised as a degraded `partial` run.
 }
 ```
 
-**Rationale for user-triggered (vs. startup auto-run)**:
-- Cleanup is a user-domain concern. The user opening the cleanup UI is the trigger; running it implicitly at boot consumes resources for an action the user did not request.
-- The earlier startup variant existed in part to suppress noise during the v1→v2 transition window (when consumer migrators Batches A-E had not yet wired their file association rows). That noise was scaffolding for a one-time event — once Batch A-E land the noise self-resolves, and outside the transition window the sweep's findings are exactly the signal the cleanup UI wants to surface.
+**Rationale for the split (scheduled FS pass, on-demand report)**:
+- The FS pass performs *reclamation*, and the entry-cleanup pass manufactures its input on every run (`unlinkFailures`, plus crash residue between row-delete and unlink). Reclamation cannot wait on a caller that does not exist, so it rides the idle tick — but behind a coarse floor, because an orphan blob costs disk, never correctness.
+- The DB pass only *reports*. A report with no consumer has nothing to do, so it stays on demand; when a cleanup UI appears it invokes `runSweep` and gets both halves plus the entry-cleanup summary in one `OrphanReport`.
 - No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
 **A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register sequence and gives a single spot for Phase 2 channels to land.
@@ -987,7 +1053,7 @@ The `mtime > 5min` filter is an **engineering heuristic**, not a formal guarante
 
 | Scenario | Consequence |
 |---|---|
-| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on the next user-triggered sweep |
+| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on the next sweep |
 | Process frozen / suspended > 5min mid-write; then a subsequent sweep runs | Same as above |
 | System clock jumps forward > 5min after file creation | Recent residue gets mis-aged; usually harmless — those files were orphans anyway |
 | System clock jumps backward | Filter becomes permissive (`now < mtime` disqualifies the file); cleanup delayed to the next sweep run (safe) |
@@ -1060,9 +1126,11 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports active entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it reports `manual` entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
 
-These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per user-triggered sweep run is a trivial volume for log aggregation.
+The entry-cleanup pass (§7.1, [file-entry-cleanup.md §5.6](./file-entry-cleanup.md#56-failure-handling--observability)) emits a third, independent record under `event: 'file-entry-cleanup'` — `info` on `completed` and on `'skipped'` (the pending-staged-restore stand-aside), `error` on `failed` (it has no `aborted` outcome; the volume abort was removed, spec §5.3) — covering candidate/deleted/`gonePinned`/`failed` counts and skip/unlink-failure breakdowns for the `delete_when_unreferenced` reclaim path. It fires on its own triggers (init, idle-gated interval) in addition to running as the first of `runSweep`'s three passes (§10.1).
+
+These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most three records per user-triggered sweep run is a trivial volume for log aggregation.
 
 ### 10.6 DanglingCache Initialization
 
@@ -1090,7 +1158,7 @@ The old version batch-stat'd all external entries at startup to build the dangli
 | createInternalEntry creates a new internal file during sweep | The `mtime > 5min` filter (§10.3) prevents the new file from being mistakenly deleted; the snapshot strategy (§10.2) makes this reliance explicit |
 | FileManager.read/write on existing entries during sweep | No mutual exclusion; read/write follow different code paths and are unaffected |
 | Upstream bug causes bulk deletion plan | Safety threshold (§10.4) aborts the sweep without unlinking |
-| app exits during sweep | No persistent side effect; user can rerun via the cleanup UI on next launch |
+| app exits during sweep | No persistent side effect; the next scheduled `fileSweepTick` re-derives everything |
 
 ### 10.9 Crash Consistency
 
@@ -1099,7 +1167,7 @@ file_module's crash window is very narrow:
 | Operation | Order | Crash mid-operation | Recovery |
 |---|---|---|---|
 | createInternalEntry | FS write UUID file → DB insert | Orphan file | Orphan sweep |
-| write (internal) | atomic tmp+rename + DB update | One of new/old files preserved | Naturally consistent |
+| write (internal) | prepare tmp → mark hash null → atomic rename → finalize size/hash | Crash before rename preserves old bytes; crash after rename leaves new bytes + null hash | Startup reconciliation rebuilds null metadata |
 | trash / restore / rename | DB only | None | None |
 | permanentDelete (internal) | DB delete → best-effort FS unlink | Crash after DB delete leaves an orphan blob | Orphan sweep |
 | copy (internal) | FS copy → DB insert | Orphan file | Orphan sweep |
@@ -1128,7 +1196,7 @@ export const danglingCache = new DanglingCache()
 
 ### 11.2 State Model
 
-DanglingCache exposes lazy, query-driven presence checks only. There is no cleanup-only recheck path because dangling external entries are not auto-deleted (§7.2). If a future explicit user workflow needs a strict re-stat escape hatch, add it with that concrete caller and document the user-visible action.
+DanglingCache exposes lazy, query-driven presence checks only. There is no cleanup-only recheck path because dangling state never drives deletion — `manual` entries are not auto-deleted (§7.2), and the cleanup pass for `delete_when_unreferenced` entries keys on ref count and grace window, not presence ([file-entry-cleanup.md](./file-entry-cleanup.md)). If a future explicit user workflow needs a strict re-stat escape hatch, add it with that concrete caller and document the user-visible action.
 
 ```typescript
 type DanglingState = 'present' | 'missing' | 'unknown'
@@ -1212,7 +1280,9 @@ Business modules **need not be directly aware of DanglingCache**. All watchers m
 - `unlink` → cache marks `missing`
 - `change` → cache untouched (file is still present; mtime drift is not tracked here)
 
-The cache feed is keyed by canonical (NFC) form so it lines up with the reverse index populated by `ensureExternalEntry`; the path forwarded to subscribers is the raw OS form chokidar saw, so a subscriber that opens the file with that string stays coherent with what the FS actually has.
+Because `externalPath` is stored **byte-faithful** (see §1.2 "Stored form"), the reverse index is keyed by that exact stored form and the watcher matches chokidar events by **raw byte equality** — no NFC normalization on either leg. (The NFC step that used to sit in the watcher existed only to bridge to the old NFC-canonical keys; it is removed together with them — see §1.2 "Rejected: Unicode (NFC) normalization".) The path forwarded to subscribers is likewise the raw OS form chokidar saw.
+
+`check()` is the correctness baseline: it stats `entry.externalPath` (byte-faithful) directly, so an entry's dangling state is always *eventually* correct regardless of whether any watcher event matched — the watcher leg is an eager-update latency optimization on top of it, never a correctness dependency. On Linux the raw event byte-matches the stored key by construction; on macOS/Windows it matches when the path source and chokidar agree on Unicode form. If they ever diverge (unverified — same open question as §1.2 "Rejected"), the only effect is that a watcher event misses and the badge stays stale until the next `check()` — benign and self-healing. The platform-conditional fold that could bridge such a divergence, *if ever observed*, belongs on the reverse-index comparison key (`process.platform`-aware: NFC on darwin/win32, identity on linux) — never on the stored form.
 
 **Note**: watcher rename events **do not auto-update an external entry's externalPath**—Cherry does not track external rename. After a rename, the original entry goes dangling; the user must re-@ to establish a new reference.
 
@@ -1263,7 +1333,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 
 **Freshness guarantee**: for any path the caller queries, cached state is never older than the TTL. Paths that are never queried may stay stale indefinitely — but by construction, no consumer is looking at them, so the staleness has no user-visible impact.
 
-**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and dangling entries are never auto-deleted, so stale presence state should be corrected at use/query time rather than by a hidden global scanner.
+**Why no background sweep**: a periodic background re-validation across all cached entries was considered and rejected. See [§12 Key Design Decisions](#12-key-design-decisions). The short version: FS IO cost would scale with total entry count instead of query frequency, and deletion is never driven by dangling state (`manual` entries require explicit action; auto-policy cleanup keys on ref count), so stale presence state should be corrected at use/query time rather than by a hidden global scanner.
 
 **Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway); DanglingCache is a UI/presence helper, not a correctness boundary.
 
@@ -1337,7 +1407,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / FS observation / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
-| **Content hash algorithm** | xxhash-h64 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s). 64-bit collision space is sufficient for distinguishing successive versions within a single file's write history — the `xxhash-wasm` package shipped in this version exposes only h32 / h64, and h64 is the strongest variant available; revisit if a 128-bit variant becomes a dependency-cost tradeoff worth taking. |
+| **Content hash algorithm** | XXH3-64 via native `@node-rs/xxhash`, stored as `{algo}:{hex}` | One implementation serves persisted dedup detection and on-demand OCC comparison. The native package avoids the previous WASM throughput ceiling and provides incremental XXH3-64 hashing; its XXH3-128 API is one-shot only, which would require buffering streamed files. The 64-bit value is a candidate signal, never an identity: collisions only produce a candidate that the consumer must verify, and the algorithm tag preserves an incremental upgrade path. |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
 | **Trash model** | deletedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |
@@ -1379,7 +1449,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 | Location | Change required |
 |---|---|
 | `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
-| Same file → `canonicalizeExternalPath` | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
+| `src/shared/utils/file/canonicalize.ts` → `canonicalizeFilePath()` | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix
 
@@ -1393,7 +1463,7 @@ Every ad-hoc `if (entry.origin === 'internal')` / `=== 'external'` in the codeba
 | DanglingCache participation | `DanglingCache.check` returns `'present'` for internal; consider where the new variant falls on the `present/missing/unknown` axis |
 | `permanentDelete` semantics | Does it touch physical files? Just DB? Refer to §6 and architecture.md §3.4 |
 | Orphan sweep scope | §10 scans `origin='internal'` UUID files; does the new variant have a sweepable disk presence? |
-| Explicit cleanup semantics | §7.2 forbids automatic dangling-entry deletion; decide whether the new origin is preserved, reported, or removable only through an explicit user/caller action |
+| Explicit cleanup semantics | §7.2 forbids dangling-state-driven automatic deletion of `manual` entries (auto-policy entries are reclaimed by the ref-count-driven cleanup pass — [file-entry-cleanup.md](./file-entry-cleanup.md)); decide whether the new origin is preserved, reported, or removable only through an explicit user/caller action |
 | IPC dispatch applicability | architecture.md §3.3 tables per method — does each method make sense for the new variant? |
 
 ### 13.5 UX Layer

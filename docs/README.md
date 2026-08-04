@@ -88,11 +88,13 @@
 | [CodeBlockView](./references/components/code-block-view.md) | Code block view component |
 | [Image Preview](./references/components/image-preview.md) | Image preview components |
 | [Code Execution](./references/components/code-execution.md) | Python code execution via Pyodide |
+| [UI Semantic Contract](./references/ui-semantic-contract.md) | `data-ui` token protocol, stability tiers, and maintained selectors for themes, tests, and AI tooling |
 
 ### Other
 
 | Document | Description |
 |----------|-------------|
+| [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
 | [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |

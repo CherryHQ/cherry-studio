@@ -7,12 +7,89 @@ export default defineCreator({
   fetchModels: anthropicModels(),
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
-  webSearch: [
-    'claude-opus-4',
-    'claude-sonnet-4',
-    'claude-haiku-4',
-    'claude-3-5-haiku',
-    'claude-3-5-sonnet',
-    'claude-3-7-sonnet'
-  ]
+  reasoningFamilies: [
+    // Fable always reasons. The API rejects attempts to disable thinking.
+    {
+      pattern: '^(?:anthropic\\.)?claude-fable',
+      effort: ['low', 'medium', 'high', 'max'],
+      toggle: false,
+      wireDialect: 'effort'
+    },
+    // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
+    // -latest aliases (which track the newest flagship).
+    {
+      pattern:
+        '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest)',
+      effort: ['low', 'medium', 'high', 'max'],
+      toggle: true,
+      wireDialect: 'effort'
+    },
+    // Pre-adaptive thinking SKUs: on/off + budget (tiers below). `thinking.type
+    // = adaptive` is 4.6+, so every earlier SKU stays on enabled+budget_tokens
+    // — including opus-4.5, which DOES take an effort knob (output_config.effort)
+    // yet still rejects adaptive. Effort-capability and dialect are independent.
+    { pattern: '^(?:anthropic\\.)?claude', toggle: true, wireDialect: 'budget', template: true },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$',
+      budget: { min: 1024, max: 128000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$',
+      budget: { min: 1024, max: 128000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-(:?sonnet|haiku)-4[.-]6.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 64000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 64000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 32000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 64000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 32000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 64000 },
+      template: true
+    },
+    // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    { pattern: 'claude-3-7-sonnet|claude-3\\.7-sonnet' },
+    { pattern: 'claude-(?:sonnet|opus|haiku)-4' }
+  ],
+  serverTools: {
+    'web-search': [
+      'claude-opus-4',
+      'claude-sonnet-4',
+      'claude-haiku-4',
+      'claude-3-5-haiku',
+      'claude-3-5-sonnet',
+      'claude-3-7-sonnet'
+    ],
+    // web_fetch serves the same SKU lines as web_search (docs.claude.com web-fetch-tool).
+    'url-context': [
+      'claude-opus-4',
+      'claude-sonnet-4',
+      'claude-haiku-4',
+      'claude-3-5-haiku',
+      'claude-3-5-sonnet',
+      'claude-3-7-sonnet'
+    ]
+  }
 })

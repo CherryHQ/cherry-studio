@@ -1,11 +1,12 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import { Check, Copy } from 'lucide-react'
-import type { CSSProperties, FC, KeyboardEvent } from 'react'
+import type { ComponentProps, CSSProperties, FC, MouseEventHandler } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface CopyButtonProps {
+interface CopyButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   tooltip?: string
   textToCopy: string
   label?: string
@@ -24,15 +25,23 @@ const CopyButton: FC<CopyButtonProps> = ({
   tooltip,
   textToCopy,
   label,
-  color = 'var(--color-text-2)',
-  hoverColor = 'var(--color-primary)',
+  color = 'var(--muted-foreground)',
+  hoverColor = 'var(--primary)',
   size = 14,
-  successFeedback = 'toast'
+  successFeedback = 'toast',
+  className,
+  style,
+  onClick,
+  type = 'button',
+  ...props
 }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false)
 
-  const handleCopy = () => {
+  const handleCopy: MouseEventHandler<HTMLButtonElement> = (event) => {
+    onClick?.(event)
+    if (event.defaultPrevented) return
+
     navigator.clipboard
       .writeText(textToCopy)
       .then(() => {
@@ -47,35 +56,31 @@ const CopyButton: FC<CopyButtonProps> = ({
       })
   }
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      handleCopy()
-    }
-  }
-
-  const ariaLabel = tooltip || t('common.copy')
+  const ariaLabel = props['aria-label'] || tooltip || t('common.copy')
   const buttonStyle: CopyButtonStyle = {
+    ...style,
     '--copy-button-color': color,
     '--copy-button-hover-color': hoverColor
   }
 
   const button = (
-    <div
-      className="group flex cursor-pointer flex-row items-center gap-1 text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]"
+    <button
+      type={type}
+      className={cn(
+        'group flex cursor-pointer flex-row items-center gap-1 text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)] disabled:cursor-not-allowed',
+        className
+      )}
       style={buttonStyle}
       onClick={handleCopy}
-      onKeyDown={handleKeyDown}
-      role="button"
       aria-label={ariaLabel}
-      tabIndex={0}>
+      {...props}>
       {copied ? (
         <Check size={size} className="copy-icon shrink-0 text-success transition-colors" />
       ) : (
         <Copy size={size} className="copy-icon shrink-0 transition-colors" />
       )}
       {label && <span style={{ fontSize: size }}>{label}</span>}
-    </div>
+    </button>
   )
 
   if (tooltip) {

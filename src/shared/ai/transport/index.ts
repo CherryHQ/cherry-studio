@@ -1,4 +1,29 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
+export {
+  DEFER_TOOL_OUTPUT_BYTES,
+  type DeferredToolOutput,
+  type DeferredToolResultRef,
+  deferToolOutput,
+  isDeferredToolOutput,
+  shouldDeferToolOutput
+} from './deferredToolResult'
+export {
+  projectMessagePartForRenderer,
+  projectMessagePartsForRenderer,
+  projectStreamChunkForRenderer
+} from './outboundProjection'
+export {
+  blobRefsOf,
+  envelopeDisplayExcerpt,
+  isPersistedToolOutput,
+  PERSIST_HEAD_CHARS,
+  PERSIST_TAIL_CHARS,
+  type PersistedToolOutput,
+  type PersistedToolOutputBlobRef,
+  type PersistedToolOutputEntitiesRef,
+  type PersistedToolOutputRef,
+  type PersistedToolOutputSingleRef
+} from './persistedToolOutput'
 export type {
   ActiveExecution,
   AiAgentSessionWarmCloseRequest,
@@ -12,6 +37,8 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultRequest,
+  AiToolResultResponse,
   ApprovalDecision,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,

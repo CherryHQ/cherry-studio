@@ -1,6 +1,7 @@
 import type {
   QuickPanelContextType,
   QuickPanelInputAdapter,
+  QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
@@ -29,9 +30,8 @@ export interface ComposerToolLauncher {
    */
   sources?: readonly ComposerToolLauncherSource[]
   /**
-   * Root panel placement. `'trailing'` renders the launcher after caller-provided
-   * additional items (e.g. agent skills) instead of alongside the other command
-   * items. Defaults to leading (with the other command items).
+   * Root panel placement. `'trailing'` renders the launcher after regular root-panel
+   * launchers and caller-provided additional items. Defaults to leading.
    */
   rootPanelPlacement?: 'trailing'
   order?: number
@@ -53,5 +53,10 @@ export interface ComposerToolLauncher {
    */
   panelSymbol?: string
   submenu?: ComposerToolLauncher[]
+  /**
+   * Actionable rows owned by a custom panel that should participate in root-panel search.
+   * They stay hidden in the unfiltered root list. Read-only/status rows must not be exposed here.
+   */
+  rootSearchItems?: readonly QuickPanelListItem[]
   action?: (options: ComposerToolLauncherActionOptions) => void
 }

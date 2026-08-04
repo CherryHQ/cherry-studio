@@ -24,6 +24,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 

@@ -1,20 +1,27 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { ChevronLeft } from 'lucide-react'
+import type { TFunction } from 'i18next'
+import { ChevronLeft, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
+import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
 import { getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  embeddingModelId?: string | null
   items: KnowledgeItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
   total?: number
@@ -25,8 +32,11 @@ export interface DataSourcePanelProps {
   onLoadMore?: () => void
   updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
-  /** View a non-directory item's chunks in-app (note left-click + the row's context menu). */
+  onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
+  /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
+  /** View a note's original stored content in-app (note left-click). */
+  onViewNoteContent?: (itemId: string) => void
   /** Drill into a directory item to list its children. */
   onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
   /** The directory currently drilled into, or null/undefined at the base root. */
@@ -34,7 +44,69 @@ export interface DataSourcePanelProps {
   /** Navigate one level up out of {@link currentDirectory}. */
   onNavigateUp?: () => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
+  onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onReindexItems: (itemIds: string[]) => void | Promise<unknown>
+}
+
+type LocalEmbeddingStatus = Exclude<LocalModelStatus, 'ready'>
+
+interface LocalEmbeddingState {
+  status: LocalEmbeddingStatus
+  percent: number
+}
+
+const openLocalModelSettings = () => openSettingsTab('/settings/local-models')
+
+const getLocalEmbeddingStatusLabel = (status: LocalEmbeddingStatus, t: TFunction) => {
+  switch (status) {
+    case 'error':
+      return t('knowledge.rag.download_local_embedding_failed')
+    case 'unsupported':
+      return t('settings.dependencies.localModels.unsupported')
+    case 'not_downloaded':
+      return t('knowledge.rag.download_local_embedding')
+    case 'downloading':
+      return t('settings.dependencies.localModels.status.downloading')
+  }
+}
+
+const LocalEmbeddingStatus = ({ status, percent }: LocalEmbeddingState) => {
+  const { t } = useTranslation()
+  const downloading = status === 'downloading'
+  const canOpenSettings = status === 'not_downloaded' || status === 'error'
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+      <div role="status" aria-live="polite" className="flex flex-col items-center">
+        {downloading ? (
+          <CircularProgress
+            value={Math.floor(percent)}
+            size={80}
+            strokeWidth={6}
+            showLabel
+            labelClassName="font-medium text-foreground text-sm tabular-nums"
+            renderLabel={(progress) => `${progress}%`}
+          />
+        ) : null}
+        <h3
+          className={
+            downloading
+              ? 'mt-5 font-semibold text-base text-foreground leading-6'
+              : 'font-semibold text-base text-foreground leading-6'
+          }>
+          {t('settings.dependencies.localModels.embedding.name')}
+        </h3>
+        <p className="mt-1 text-foreground-tertiary text-sm leading-5">{getLocalEmbeddingStatusLabel(status, t)}</p>
+      </div>
+      {canOpenSettings ? (
+        <Button type="button" variant="outline" size="sm" className="mt-5" onClick={openLocalModelSettings}>
+          <Settings2 className="size-3.5" />
+          {t('common.go_to_settings')}
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -46,7 +118,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
         <h3 className="font-semibold text-foreground text-lg leading-7">
           {t('knowledge.data_source.empty_description')}
         </h3>
-        <p className="mt-2 text-foreground-muted text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
+        <p className="mt-2 text-foreground-tertiary text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-2.5">
           {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => {
             const Icon = dataSourceTypeDisplayConfig[source.value].icon.icon
@@ -59,7 +131,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
                 size="lg"
                 className="h-9 w-24 rounded-lg px-3 font-medium"
                 onClick={() => onAddSource(source.value)}>
-                <Icon className="size-4 text-foreground-secondary" />
+                <Icon className="size-4 text-muted-foreground" />
                 {t(source.labelKey)}
               </Button>
             )
@@ -70,7 +142,11 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   )
 }
 
-const DataSourcePanel = ({
+interface DataSourcePanelContentProps extends DataSourcePanelProps {
+  localEmbeddingState?: LocalEmbeddingState
+}
+
+const DataSourcePanelContent = ({
   items,
   total = items.length,
   isLoading,
@@ -79,15 +155,23 @@ const DataSourcePanel = ({
   onLoadMore = () => undefined,
   updatedAt,
   onAdd,
+  onPreviewFile,
   onItemClick,
+  onViewNoteContent,
   onDrillIntoDirectory,
   currentDirectory,
   onNavigateUp,
   onDelete,
-  onReindex
-}: DataSourcePanelProps) => {
+  onDeleteItems,
+  onReindex,
+  onReindexItems,
+  localEmbeddingState
+}: DataSourcePanelContentProps) => {
   const { t } = useTranslation()
-  const { previewSource } = usePreviewKnowledgeSource()
+  const { invalidatePreviewRequests, previewSource } = usePreviewKnowledgeSource(
+    onPreviewFile,
+    currentDirectory?.id ?? null
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -103,11 +187,13 @@ const DataSourcePanel = ({
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
-  // Left-click dispatch by item type: a directory drills in, a file/url opens with the system
-  // tool (`previewSource` toasts its own errors), and a note falls back to the in-app chunk view.
+  // A directory drills in; files and captured URLs preview inline; uncaptured valid HTTP URLs open
+  // in the system browser; notes show their original stored content. `previewSource` owns warnings
+  // and error toasts. Chunks are a separate advanced action reached from the row's context menu.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {
+        invalidatePreviewRequests()
         onDrillIntoDirectory?.(item)
         return
       }
@@ -115,10 +201,15 @@ const DataSourcePanel = ({
         void previewSource(item)
         return
       }
-      onItemClick?.(item.id)
+      onViewNoteContent?.(item.id)
     },
-    [onDrillIntoDirectory, onItemClick, previewSource]
+    [invalidatePreviewRequests, onDrillIntoDirectory, onViewNoteContent, previewSource]
   )
+
+  const handleNavigateUp = useCallback(() => {
+    invalidatePreviewRequests()
+    onNavigateUp?.()
+  }, [invalidatePreviewRequests, onNavigateUp])
 
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
     setSelectedIds((prev) => {
@@ -140,27 +231,27 @@ const DataSourcePanel = ({
   )
 
   const handleBulkReindex = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onReindex(item)))
+      await onReindexItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
     }
     setSelectedIds(new Set())
-  }, [items, onReindex, selectedIds, t])
+  }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const targets = items.filter((item) => selectedIds.has(item.id))
+    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
     try {
-      await Promise.all(targets.map((item) => onDelete(item)))
+      await onDeleteItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
       return
     }
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
-  }, [items, onDelete, selectedIds, t])
+  }, [items, onDeleteItems, selectedIds, t])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {
@@ -178,12 +269,22 @@ const DataSourcePanel = ({
   }
 
   const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
+  const localModelStatus =
+    localEmbeddingState && (items.length > 0 || Boolean(currentDirectory))
+      ? {
+          label:
+            localEmbeddingState.status === 'downloading'
+              ? `${getLocalEmbeddingStatusLabel(localEmbeddingState.status, t)} ${Math.floor(localEmbeddingState.percent)}%`
+              : getLocalEmbeddingStatusLabel(localEmbeddingState.status, t),
+          onOpenSettings: localEmbeddingState.status === 'unsupported' ? undefined : openLocalModelSettings
+        }
+      : undefined
 
   return (
     <KnowledgePanelShell
-      headerClassName="shrink-0 px-3 pt-1"
+      headerClassName="shrink-0 px-3"
       header={
-        <div className="border-border-muted border-b pb-3">
+        <div className="flex h-11 items-center border-border border-b">
           <DataSourcePanelHeader
             total={total}
             loadedCount={items.length}
@@ -192,7 +293,8 @@ const DataSourcePanel = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
-            canAddSource={!currentDirectory}
+            canAddSource={!currentDirectory && !localEmbeddingState}
+            localModelStatus={localModelStatus}
           />
         </div>
       }>
@@ -205,19 +307,21 @@ const DataSourcePanel = ({
             <Button
               type="button"
               variant="ghost"
-              onClick={onNavigateUp}
+              onClick={handleNavigateUp}
               className="h-auto min-h-0 gap-1 px-2.5 py-0 text-foreground text-sm opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}
             </Button>
-            <span className="min-w-0 truncate text-foreground-secondary text-sm" title={getItemTitle(currentDirectory)}>
+            <span className="min-w-0 truncate text-muted-foreground text-sm" title={getItemTitle(currentDirectory)}>
               {getItemTitle(currentDirectory)}
             </span>
           </div>
         )}
-        {!isLoading && items.length === 0 ? (
+        {localEmbeddingState && items.length === 0 && !currentDirectory ? (
+          <LocalEmbeddingStatus {...localEmbeddingState} />
+        ) : !isLoading && items.length === 0 ? (
           currentDirectory ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-muted text-sm">
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
               {t('knowledge.data_source.empty_folder')}
             </div>
           ) : (
@@ -268,5 +372,20 @@ const DataSourcePanel = ({
     </KnowledgePanelShell>
   )
 }
+
+const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
+  const { status, percent } = useLocalModel('embedding')
+
+  return (
+    <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />
+  )
+}
+
+const DataSourcePanel = (props: DataSourcePanelProps) =>
+  props.embeddingModelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID ? (
+    <LocalEmbeddingDataSourcePanel {...props} />
+  ) : (
+    <DataSourcePanelContent {...props} />
+  )
 
 export default DataSourcePanel

@@ -29,7 +29,9 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
   magicPromptOption: { title: 'paintings.magic_prompt_option' },
   addWatermark: { title: 'paintings.watermark' },
   outputFormat: { title: 'paintings.ppio.output_format' },
+  outputCompression: { title: 'paintings.output_compression' },
   quality: { title: 'paintings.quality' },
+  resolution: { title: 'paintings.image.size' },
   moderation: { title: 'paintings.moderation' },
   background: { title: 'paintings.background' },
   styleType: { title: 'paintings.style_type', tooltip: 'paintings.style_type_tip' },
@@ -192,7 +194,12 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
       const customSizePairedKey = customSizeSpec?.type === 'size' ? (customSizeSpec.pairedEnumKey ?? 'size') : undefined
       const pairedSize = customSizePairedKey === key
       const options: OptionItem[] = toOptions(key, spec.options)
-      if (pairedSize) options.push({ labelKey: 'paintings.custom_size', value: 'custom' })
+      if (pairedSize) {
+        const customOption = { labelKey: 'paintings.custom_size', value: 'custom' }
+        const customIndex = options.findIndex((option) => option.value === 'custom')
+        if (customIndex >= 0) options[customIndex] = customOption
+        else options.push(customOption)
+      }
       if (renderAsChips) {
         return {
           type: 'sizeChips',

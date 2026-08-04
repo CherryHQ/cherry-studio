@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { isBinaryExists } from '@main/utils/binaryResolver'
 import type { binaryRequestSchemas } from '@shared/ipc/schemas/binary'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -10,12 +9,10 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * route schema; the source-trust gate (validateSender) runs before dispatch.
  */
 export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
-  'binary.install_tool': async (tool) => application.get('BinaryManager').installTool(tool),
-  'binary.remove_tool': async (name) => application.get('BinaryManager').removeTool(name),
-  'binary.get_state': async () => application.get('BinaryManager').getState(),
+  'binary.install_tool': async (request) => application.get('BinaryManager').installByName(request),
+  'binary.add_custom_tool': async (definition) => application.get('BinaryManager').addCustomTool(definition),
+  'binary.remove_tool': async (request) => application.get('BinaryManager').removeTool(request),
+  'binary.get_tool_snapshots': async (names) => application.get('BinaryManager').getToolSnapshots(names),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
-  'binary.get_tool_dir': async (name) => application.get('BinaryManager').getToolDir(name),
-  'binary.probe_bundled': async () => application.get('BinaryManager').probeBundled(),
-  'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force),
-  'binary.is_installed': async (name) => isBinaryExists(name)
+  'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force)
 }

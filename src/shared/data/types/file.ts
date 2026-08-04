@@ -5,7 +5,7 @@
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
  * - **FileRef** — the association linking a business entity (chat message,
- *   painting, temp session) to a `FileEntry`.
+ *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *
@@ -37,6 +37,7 @@
  * | `name`        | SoT (user renamable)               | derived from `externalPath` basename (stable)  |
  * | `ext`         | SoT                                | derived from `externalPath` extname (stable)   |
  * | `size`        | SoT (bytes, ≥ 0)                   | **absent** — live value via `getMetadata`      |
+ * | `contentHash` | nullable tagged content hash      | **absent**                                     |
  * | `externalPath`| **absent**                         | non-null absolute path (canonical)             |
  * | `deletedAt`   | optional (present iff trashed)     | **absent** (external cannot be trashed)        |
  *
@@ -108,8 +109,9 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { type FilePath, SafeExtSchema } from '@shared/types/file'
-import { canonicalizeAbsolutePath } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { CanonicalFilePathSchema } from '@shared/utils/file'
 import * as z from 'zod'
 
 import { MessageIdSchema } from './message'
@@ -118,6 +120,17 @@ import { MessageIdSchema } from './message'
 
 /** Millisecond epoch timestamp (non-negative integer) */
 export const TimestampSchema = z.int().nonnegative()
+
+/** Canonical lowercase `{algorithm}:{hex}` shape for content-hash values. */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
+export const ContentHashSchema = z
+  .string()
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algorithm}:{lowercase hex}`')
+  .brand<'ContentHash'>()
+
+/** Algorithm-tagged content hash validated by {@link ContentHashSchema}. */
+export type ContentHash = z.infer<typeof ContentHashSchema>
 
 /**
  * Name schema with security validations.
@@ -162,86 +175,15 @@ export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
-// ─── Absolute Path ───
+// ─── Cleanup Policy Enum ───
 
 /**
- * Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a
- * dedicated URL schema if needed.
- *
- * **Storage invariant for `externalPath`**: values persisted in
- * `file_entry.externalPath` must be the output of
- * `canonicalizeExternalPath()` — currently `path.resolve` + Unicode NFC +
- * trailing-separator strip. Zod cannot enforce this shape
- * at the schema level; `ensureExternalEntry` and `fileEntryService.findByExternalPath`
- * are the application-layer enforcement points. See `pathResolver.ts` for
- * the full contract, including deliberately deferred normalization steps
- * (case-insensitive FS dedupe, symlink target resolution).
+ * Cleanup intent stored as data — docs/references/file/file-entry-cleanup.md.
+ * 'manual' entries are preserved at zero refs; 'delete_when_unreferenced'
+ * entries may be reclaimed by FileManager's cleanup pass.
  */
-export const AbsolutePathSchema = z
-  .string()
-  .min(1)
-  .refine((s) => !s.includes('\0'), 'externalPath must not contain null bytes')
-  .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
-
-// ─── Canonical External Path (TS phantom brand) ───
-
-/**
- * A `string` already processed through `canonicalizeExternalPath`.
- *
- * This is a **TypeScript-only phantom brand** (zero runtime cost, zero wire
- * cost) that acts as a compile-time guard for every DB read/write surface on
- * `externalPath`: any query entry point that filters by `externalPath` MUST
- * narrow its input to this type, which forces callers through
- * `canonicalizeExternalPath()` instead of accepting a raw user path.
- *
- * ## Why a brand and not runtime validation
- *
- * The correctness invariant — "the string equals `canonicalizeExternalPath(x)`
- * for some `x`" — cannot be verified at runtime without re-running
- * canonicalization, which would defeat the purpose. The brand expresses
- * "this value was produced by the authorized factory" structurally, so the
- * type system (not runtime checks) enforces the contract.
- *
- * ## Authorized construction
- *
- * - **Production code**: only `canonicalizeExternalPath()` in
- *   `src/main/services/file/utils/pathResolver.ts` may produce values of this type.
- *   Other production code importing `CanonicalExternalPath` MUST receive it
- *   from that function (directly or transitively) — never via `as` cast.
- * - **Tests and fixtures**: may cast known-canonical string literals with
- *   `'/abs/path' as CanonicalExternalPath` for readability.
- * - **DB rows**: the `externalPath` column is typed as `string | null` in
- *   Drizzle (SQLite has no brand concept); upcasting into
- *   `CanonicalExternalPath` at the service boundary is acceptable because
- *   writes on that column already go through the canonicalization path.
- */
-// String-literal brand rather than a `unique symbol`: a `unique symbol` brand
-// (named or inline) is inaccessible when TS emits a large inferred aggregate
-// type that transitively embeds it (e.g. preload's
-// `export type WindowApiType = typeof api`, via `FileEntry.externalPath`),
-// triggering TS2527/TS4023. A literal-keyed brand is fully nameable across
-// modules, so it dodges that while keeping the nominal identity — a plain
-// `string` still lacks the property, so the value can only be produced by the
-// canonicalization path or an explicit `as` cast, exactly as documented above.
-export type CanonicalExternalPath = string & { readonly __brand: 'CanonicalExternalPath' }
-
-/**
- * Intersection brand carried by the `externalPath` field on the FileEntry
- * BO: a string that is both **canonical** (provenance: passed through
- * `canonicalizeAbsolutePath` / `canonicalizeExternalPath`) and **satisfies
- * the `FilePath` template-literal shape** (so it can flow into any
- * `@main/utils/file/*` API without a cast).
- *
- * Round 2 S5: the schema's `externalPath` field used to be plain
- * `AbsolutePathSchema` (inferred as `string`), forcing five production
- * sites to `as FilePath`-cast at every read. The schema now `refine`s
- * against `canonicalizeAbsolutePath` (real runtime check; rejects any
- * non-canonical input at parse time) and then `transform`s the result
- * into this intersection — so consumers reading `entry.externalPath`
- * get a value typed exactly as they need it, with the canonical
- * provenance proven at the schema boundary.
- */
-export type CanonicalFilePath = FilePath & CanonicalExternalPath
+export const CleanupPolicySchema = z.enum(['manual', 'delete_when_unreferenced'])
+export type CleanupPolicy = z.infer<typeof CleanupPolicySchema>
 
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
 //
@@ -283,6 +225,8 @@ const CommonEntryFields = {
    * every assignment site. `FileEntrySchema.parse` is the authoritative check.
    */
   ext: SafeExtSchema.nullable(),
+  /** Cleanup intent — see CleanupPolicySchema. */
+  cleanupPolicy: CleanupPolicySchema,
   /** Creation timestamp (ms epoch) */
   createdAt: TimestampSchema,
   /** Last update timestamp (ms epoch) */
@@ -293,10 +237,11 @@ const CommonEntryFields = {
  * Internal entry — Cherry owns the content at `{userData}/Data/Files/{id}.{ext}`.
  *
  * Variant-only fields: `size` (authoritative byte count), `deletedAt`
- * (optional, present and non-null when entry is trashed). `externalPath`
- * is absent on this variant — there is no user-provided path. The DB row
- * carries `externalPath: null` to satisfy the table schema; the BO
- * dispatcher drops it.
+ * (optional, present and non-null when entry is trashed), and `contentHash`
+ * (nullable while metadata is unknown, a content commit is in-flight, or a
+ * repair is pending). `externalPath` is absent on this variant — there is no
+ * user-provided path. The DB row carries
+ * `externalPath: null` to satisfy the table schema; the BO dispatcher drops it.
  */
 export const InternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
@@ -306,6 +251,8 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
+  /** Algorithm-tagged content hash. Null means unknown, in-flight, or awaiting repair. */
+  contentHash: ContentHashSchema.nullable(),
   /**
    * Trash timestamp (ms epoch). Optional — present and non-null when the
    * entry is in the trash, absent when it is live. Internal entries are the
@@ -329,29 +276,20 @@ export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
   /**
-   * Absolute filesystem path to the user-provided file. The schema runs a
-   * **real** `canonicalize` equivalence check (not just a shape match): the
-   * input must equal `canonicalizeAbsolutePath(input)`, otherwise parse
-   * rejects. Combined with the `.transform` below, this means any value the
-   * BO ever exposes is provably canonical AND carries the `FilePath` shape,
-   * eliminating the five `as FilePath` casts that used to sit at every read
-   * site (rename.ts, lifecycle.ts, danglingCache.ts, …).
+   * Absolute filesystem path to the user-provided file, as a
+   * `CanonicalFilePath` — the byte-faithful lexical form produced by
+   * `canonicalizeFilePath` (segment-resolve + trailing-strip + drive-upcase,
+   * NOT Unicode-normalized). Validated by `CanonicalFilePathSchema`, which is
+   * assert-only: this byte-faithful form is guaranteed at WRITE time
+   * (external-entry insert / rename), and on READ a stored value not already in
+   * that lexical form (a raw `./` / `..` / trailing-slash path) is REJECTED
+   * (surfaced via `rowToFileEntrySafe`'s warn-skip), never silently repaired —
+   * a byte-faithful path, including one carrying NFD Unicode, is accepted
+   * as-is. Rejecting rather than repairing keeps the lookup/dedup key stable,
+   * so a re-canonicalization migration is the only sanctioned way to fix
+   * historically non-canonical rows.
    */
-  externalPath: AbsolutePathSchema.refine((s) => {
-    // canonicalizeAbsolutePath throws on structural failures (non-absolute,
-    // contains \0) — both already surfaced by `AbsolutePathSchema`'s own
-    // refines, but Zod does not short-circuit on prior refine failure, so we
-    // must absorb the throw here. Failure → return false → schema rejects
-    // with the canonicalization message (and the prior issue is also
-    // reported, giving the caller the full picture).
-    try {
-      return s === canonicalizeAbsolutePath(s)
-    } catch {
-      return false
-    }
-  }, 'externalPath must be canonicalized via canonicalizeExternalPath() before persistence').transform(
-    (s): CanonicalFilePath => s as CanonicalFilePath
-  )
+  externalPath: CanonicalFilePathSchema
 })
 
 /**
@@ -400,7 +338,7 @@ export type DanglingState = z.infer<typeof DanglingStateSchema>
  * the file's ownership or registration status:
  * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the entry
  *   system (FileManager, versionCache, DanglingCache, …).
- * - `FilePathHandle` carries an absolute `FilePath` — the call bypasses the
+ * - `FilePathHandle` carries an absolute `AbsoluteFilePath` — the call bypasses the
  *   entry system and hits `@main/utils/file/*` directly.
  *
  * The same physical file can be referenced by either form (with different
@@ -418,7 +356,7 @@ export type FileEntryHandle = {
 
 export type FilePathHandle = {
   readonly kind: 'path'
-  readonly path: FilePath
+  readonly path: AbsoluteFilePath
 }
 
 export type FileHandle = FileEntryHandle | FilePathHandle
@@ -436,7 +374,7 @@ export const FileEntryHandleSchema = z.strictObject({
 
 export const FilePathHandleSchema = z.strictObject({
   kind: z.literal('path'),
-  path: AbsolutePathSchema
+  path: AbsoluteFilePathSchema
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
@@ -453,17 +391,16 @@ export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSch
 //
 // 1. Add a variant section below (`{domain}SourceType` / `{domain}Roles` /
 //    `{domain}RefFields` / `{domain}FileRefSchema = createRefSchema(...)`),
-//    following `tempSession` as a minimal template.
+//    following `chatMessage` as a template.
 // 2. Add a dedicated SQLite association table with FKs to `file_entry` and the
 //    owning source table so deleting the source cascades refs at the DB layer.
 // 3. Register the variant in the aggregate: add its source-type literal to
 //    `allSourceTypes` and its schema to the `FileRefSchema` union.
 // 4. Route persistent write/delete through the owning business service;
-//    `FileRefService` only exposes cross-source query/ref-count + temp helpers.
+//    `FileRefService` only exposes cross-source query/ref-count.
 //
-// `temp_session` is the exception: app-session memory only (CacheService), not
-// SQLite, pruned via orphan sweep. Knowledge files are owned by the Knowledge
-// workflow and do not register FileManager refs.
+// Knowledge files are owned by the Knowledge workflow and do not register
+// FileManager refs.
 
 // ─── Common ref infrastructure ───
 
@@ -501,35 +438,14 @@ export type BusinessRefShape = {
  * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
  * (`sourceType`, `sourceId`, `role`).
  *
- * Each sourceType variant should call this once. See the `tempSession` section
- * below for a minimal working example.
+ * Each sourceType variant should call this once. See the `chatMessage` section
+ * below for a working example.
  */
 export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
   z.object({
     ...refCommonFields,
     ...shape
   })
-
-// ─── temp_session variant ───
-//
-// Tracks transient FileEntry records (typically paste previews, draft
-// attachments) that are in use by a session and should be retained until the
-// session completes. Temp refs are backed by main-process CacheService memory,
-// not SQLite, so they disappear on app restart. Temp refs must be explicitly
-// created and removed by the session owner.
-
-export const tempSessionSourceType = 'temp_session' as const
-
-export const tempSessionRoles = ['pending'] as const
-
-/** Business fields only (no common fields like id/nodeId/timestamps) */
-export const tempSessionRefFields = {
-  sourceType: z.literal(tempSessionSourceType),
-  sourceId: z.string().min(1),
-  role: z.enum(tempSessionRoles)
-}
-
-export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
 
 // ─── chat_message variant ───
 //
@@ -540,13 +456,15 @@ export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
 //
 // `sourceId` uses `MessageIdSchema = z.uuid()` (not `z.uuidv7()`) because v1
 // legacy message IDs are UUIDv4 and are preserved verbatim during migration;
-// both formats are valid UUIDs, so `z.uuid()` accepts both. `role` is
-// `'attachment'` for both image blocks and file blocks — the single meaningful
-// relationship a file can have with a message at this stage.
+// both formats are valid UUIDs, so `z.uuid()` accepts both. Roles:
+// - `'attachment'` — image blocks and file blocks attached to the message.
+// - `'tool_output'` — a persisted oversized tool-result blob referenced by a
+//   `$persistedToolOutput` envelope in `message.data` (the blob is the only
+//   full copy; the ref keeps it alive until the message is deleted).
 
 export const chatMessageSourceType = 'chat_message' as const
 
-export const chatMessageRoles = ['attachment'] as const
+export const chatMessageRoles = ['attachment', 'tool_output'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 
 export const chatMessageRefFields = {
@@ -582,6 +500,43 @@ export const paintingRefFields = {
 }
 
 export const paintingFileRefSchema = createRefSchema(paintingRefFields)
+
+// ─── job variant ───
+//
+// Links a FileEntry to a `job` row (the generic job system). Its sole use today
+// is the async image-generation job (`imageGenerationJobHandler`): input images
+// and the edit mask are persisted as `delete_when_unreferenced` FileEntries at
+// enqueue time and referenced by id inside the job payload.
+//
+// Why a persistent ref (not just the payload id): the payload id lives in
+// `job.input` JSON, which the cleanup anti-join cannot see. Without a real ref
+// row, a job still queued or mid-poll when an interval pass fires could have
+// its inputs reclaimed out from under it once they age past the grace window,
+// breaking `read(inputFileIds)` mid-run. An FK-constrained association table
+// makes the job a first-class holder: the anti-join sees it, and deleting the
+// job row cascades the ref so the inputs become reclaimable exactly when the
+// job record is gone.
+//
+// The window is within one process run: image jobs are `recovery: 'abandon'`,
+// so a non-terminal job is cancelled at startup rather than resumed. A remote
+// poll still easily outlives the 1h grace window and several interval passes,
+// which is what the ref is for.
+//
+// `job.id` is `uuidPrimaryKeyOrdered()` — UUID v7. `z.uuid()` accepts it
+// (version-agnostic), matching the chat_message variant's forgiving stance.
+
+export const jobSourceType = 'job' as const
+
+export const jobRoles = ['input', 'mask'] as const
+export const jobRoleSchema = z.enum(jobRoles)
+
+export const jobRefFields = {
+  sourceType: z.literal(jobSourceType),
+  sourceId: z.uuid(),
+  role: jobRoleSchema
+}
+
+export const jobFileRefSchema = createRefSchema(jobRefFields)
 
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
@@ -642,9 +597,9 @@ export function tagStoredFileRef(id: string): string {
  * "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
-  tempSessionSourceType,
   chatMessageSourceType,
   paintingSourceType,
+  jobSourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
@@ -667,9 +622,9 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  * bypassed the variant-registration discipline.
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
-  tempSessionFileRefSchema,
   chatMessageFileRefSchema,
   paintingFileRefSchema,
+  jobFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema
 ])

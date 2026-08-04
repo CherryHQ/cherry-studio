@@ -1,8 +1,9 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -16,16 +17,6 @@ export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
-type ToolType = 'mcp' | 'builtin' | 'provider'
-
-type ToolMetadata = {
-  description?: string
-  name?: string
-  serverId?: string
-  serverName?: string
-  type?: ToolType
-}
-
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
 export type ToolResponseLike = McpToolResponse | NormalToolResponse
@@ -37,14 +28,6 @@ export interface ToolRenderItem {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isToolType(value: unknown): value is ToolType {
-  return value === 'mcp' || value === 'builtin' || value === 'provider'
-}
-
-function isMcpContentArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && value.every(isMcpContentBlock)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -71,28 +54,6 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
     default:
       return 'pending'
   }
-}
-
-function extractOutputMetadata(part: ToolResponsePart): { response: unknown; metadata?: ToolMetadata } {
-  const output = part.output
-  if (!isRecord(output)) return { response: output }
-
-  const metadata = isRecord(output.metadata) ? output.metadata : undefined
-  if ('content' in output || metadata) {
-    const normalizedMeta: ToolMetadata | undefined = metadata
-      ? {
-          description: typeof metadata.description === 'string' ? metadata.description : undefined,
-          name: typeof metadata.name === 'string' ? metadata.name : undefined,
-          serverId: typeof metadata.serverId === 'string' ? metadata.serverId : undefined,
-          serverName: typeof metadata.serverName === 'string' ? metadata.serverName : undefined,
-          type: isToolType(metadata.type) ? metadata.type : undefined
-        }
-      : undefined
-    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
-    return { response, metadata: normalizedMeta }
-  }
-
-  return { response: output }
 }
 
 function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
@@ -149,6 +110,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
+  if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
@@ -182,12 +144,16 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
-  if (part.state !== 'output-error') return undefined
+export function normalizeToolErrorResponse(errorText: string): unknown {
   return {
     isError: true,
-    content: [{ type: 'text', text: part.errorText || 'Error' }]
+    content: [{ type: 'text', text: errorText || 'Error' }]
   }
+}
+
+function normalizeErrorOutput(part: ToolResponsePart): unknown {
+  if (part.state !== 'output-error') return undefined
+  return normalizeToolErrorResponse(part.errorText)
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
@@ -199,7 +165,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
-  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
+  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)

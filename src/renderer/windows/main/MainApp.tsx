@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -8,15 +9,17 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
+import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
-
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
@@ -33,6 +36,7 @@ const logger = loggerService.withContext('MainApp')
 // siblings in the App JSX below, so a window's host composition is visible there.
 function MainWindowRuntime(): null {
   useWindowRuntime()
+  useMainWindowNavigation()
 
   // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
   // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
@@ -52,6 +56,20 @@ function MainWindowRuntime(): null {
   return null
 }
 
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  return (
+    <TabsProvider>
+      {providerSetupStatus === 'pending' ? <OnboardingPage /> : <AppShell />}
+      <MainWindowRuntime />
+      <PopupHost />
+      <ToastHost />
+      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+    </TabsProvider>
+  )
+}
+
 function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
@@ -63,12 +81,7 @@ function MainApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider>
-                <AppShell />
-                <MainWindowRuntime />
-                <PopupHost />
-                <ToastHost />
-              </TabsProvider>
+              <MainWindowContent />
             </CommandProvider>
           </CommandContextKeyProvider>
         </CodeStyleProvider>

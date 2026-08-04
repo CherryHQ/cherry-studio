@@ -1,4 +1,13 @@
 import { defineProvider } from './types'
+import { modeWire } from './wires'
+
+const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
+  off: 'disabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
+
+const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
 
 export default defineProvider({
   id: 'new-api',
@@ -10,7 +19,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'newapi',
-      baseUrl: 'http://localhost:3000'
+      baseUrl: 'http://localhost:3000',
+      reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       baseUrl: 'http://localhost:3000'
@@ -19,10 +29,23 @@ export default defineProvider({
       baseUrl: 'http://localhost:3000'
     }
   },
+  // Gateway-mapped delivery (same vendor-segment fallback as cherryin): a
+  // self-hosted New API can front any model, but only vendors owning a native
+  // tool factory actually receive one.
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] },
+    { id: 'url-context', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini'] }
+  ],
   metadata: {
     website: {
       docs: 'https://docs.newapi.pro',
       official: 'https://docs.newapi.pro/'
     }
-  }
+  },
+  overrides: deepSeekModels.map((modelId) => ({
+    modelId,
+    reasoningContracts: {
+      'openai-chat-completions': { wire: deepSeekThinkingWire }
+    }
+  }))
 })

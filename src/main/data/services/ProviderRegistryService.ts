@@ -4,30 +4,66 @@
  * Responsibilities:
  * - resolveModels: resolve raw SDK model entries against registry
  * - lookupModel: DB-aware single model lookup with reasoning config
- * - mergePresetModel / createCustomModel / applyCapabilityOverride / extractReasoningFormatTypes:
+ * - mergePresetModel / createCustomModel / applyCapabilityOverride:
  *   pure functions exported for ModelService and the v2 migrator (which compose them
  *   with user-row overlay logic) — kept here because they belong to the registry domain
  *   (preset → override resolution, registry-derived reasoning resolution).
  *
  * Pure JSON loading, caching, and lookups live in @cherrystudio/provider-registry
- * (RegistryLoader, buildRuntimeEndpointConfigs).
+ * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
 import { application } from '@application'
 import type {
   ProtoModelConfig,
+  ProtoProviderConfig,
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
-  ReasoningEffort as ReasoningEffortType
+  ProviderModelReasoningContract,
+  ProviderReasoningFormat,
+  ReasoningEffort as ReasoningEffortType,
+  ReasoningFormatType,
+  ReasoningWireDialect,
+  ReasoningWireProfile,
+  ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
+import {
+  buildPersistedEndpointConfigs,
+  deriveLegacyReasoningFields,
+  ENDPOINT_TYPE,
+  inferAdapterFamily,
+  inferReasoningControls,
+  inferReasoningMembership,
+  inferReasoningOwnedBy,
+  MODEL_CAPABILITY,
+  REASONING_EFFORT,
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
+import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
+import type {
+  Currency,
+  ImageGenerationSupport,
+  Model,
+  RuntimeModelPricing,
+  RuntimeParameterSupport,
+  RuntimeReasoning
+} from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
+import type {
+  ApiFeatures,
+  EndpointConfig,
+  Provider,
+  ProviderWebsites,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -42,10 +78,49 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native tools served by this host. */
+  serverTools?: ServerToolConfig[]
+  /** Registry-owned currency for provider-reported cost amounts. */
+  reportedCostCurrency?: Currency
+  /** Registry-owned Fast request transport. */
+  fastMode?: ProtoProviderConfig['fastMode']
+  /** Registry default API feature flags — the delta baseline under row overrides. */
+  apiFeatures?: ApiFeatures
+  /** Registry default chat endpoint, used when the row stores no override. */
+  defaultChatEndpoint?: EndpointType
+}
+
+/**
+ * The effective apiFeatures baseline for a preset: registry declarations
+ * layered over the app defaults. Rows store only deltas from this.
+ */
+export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null | undefined): RuntimeApiFeatures {
+  return { ...DEFAULT_API_FEATURES, ...presetApiFeatures }
+}
+
+/**
+ * Reduce a (possibly full-snapshot) apiFeatures object to the delta against
+ * its baseline — key absence means "use the baseline". Returns null when
+ * nothing differs, so a renderer echoing the merged runtime snapshot
+ * degrades to a clean delta instead of freezing the baseline into the row.
+ */
+export function diffApiFeatures(
+  merged: ApiFeatures | null | undefined,
+  baseline: Readonly<ApiFeatures>
+): ApiFeatures | null {
+  if (!merged) return null
+  const delta: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(merged)) {
+    if (value !== undefined && value !== baseline[key as keyof ApiFeatures]) {
+      delta[key] = value
+    }
+  }
+  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
 }
 
 export interface ListProviderRegistryModelsOptions {
   providerId?: string
+  presetProviderId?: string | null
   disabled?: boolean
 }
 
@@ -64,26 +139,133 @@ const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
 ]
 
-/** Default effort levels per reasoning format type (when not specified in catalog) */
-const DEFAULT_EFFORTS: Partial<Record<ReasoningFormatType, ReasoningEffortType[]>> = {
-  'openai-chat': [
-    REASONING_EFFORT.NONE,
-    REASONING_EFFORT.MINIMAL,
-    REASONING_EFFORT.LOW,
-    REASONING_EFFORT.MEDIUM,
-    REASONING_EFFORT.HIGH
-  ],
-  'openai-responses': [
-    REASONING_EFFORT.NONE,
-    REASONING_EFFORT.MINIMAL,
-    REASONING_EFFORT.LOW,
-    REASONING_EFFORT.MEDIUM,
-    REASONING_EFFORT.HIGH
-  ],
-  anthropic: [],
-  gemini: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
-  'enable-thinking': [REASONING_EFFORT.NONE, REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH],
-  'thinking-type': [REASONING_EFFORT.NONE, REASONING_EFFORT.AUTO]
+const DEFAULT_FORMAT_BY_ENDPOINT: Partial<Record<EndpointType, ReasoningFormatType>> = {
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'openai-responses',
+  [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'openai-chat',
+  [ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS]: 'openai-chat',
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'anthropic',
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'gemini',
+  [ENDPOINT_TYPE.OLLAMA_CHAT]: 'ollama',
+  [ENDPOINT_TYPE.OLLAMA_GENERATE]: 'ollama'
+}
+
+export interface ResolvedReasoningProfile {
+  format: ReasoningFormatType
+  wire: ReasoningWireProfile
+  support?: ProtoReasoningSupport
+}
+
+export interface ReasoningProviderContext {
+  id: Provider['id']
+  presetProviderId?: Provider['presetProviderId'] | null
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
+}
+
+function isEmptyPricingEcho(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const pricing = value as Partial<RuntimeModelPricing>
+  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
+    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+  return (
+    isEmptyTier(pricing.input) &&
+    isEmptyTier(pricing.output) &&
+    !pricing.cacheRead &&
+    !pricing.cacheWrite &&
+    !pricing.perImage &&
+    !pricing.perMinute
+  )
+}
+
+function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
+    perMillionTokens: tier.perMillionTokens,
+    currency: tier.currency ?? CURRENCY.USD
+  })
+
+  return {
+    input: normalizeTier(pricing.input),
+    output: normalizeTier(pricing.output),
+    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
+    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+  }
+}
+
+/**
+ * Compare user-visible pricing with a registry baseline. The v1 editor
+ * materialized an absent price as 0/0, so that empty echo is baseline-equal
+ * when the registry has no price.
+ */
+export function matchesModelPricingBaseline(value: unknown, baseline: unknown): boolean {
+  if (baseline === undefined && isEmptyPricingEcho(value)) return true
+  if (value && baseline) {
+    return isEqual(
+      normalizePricingForComparison(value as RuntimeModelPricing),
+      normalizePricingForComparison(baseline as RuntimeModelPricing)
+    )
+  }
+  return isEqual(value, baseline)
+}
+
+/** Resolve profile data without consulting model/provider ids or regexes. */
+export function resolveReasoningProfileFromRegistry(input: {
+  endpointType: EndpointType | undefined
+  format?: ProviderReasoningFormat
+  contract?: ProviderModelReasoningContract
+  wireDialect?: ReasoningWireDialect
+}): ResolvedReasoningProfile {
+  const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
+  const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
+  const formatDefault = REASONING_FORMAT_PROFILES[formatType]
+  // Priority is unchanged; only the last-resort default becomes dialect-aware,
+  // so per-model contracts and endpoint-wide wires still win outright.
+  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
+
+  return { format: formatType, support: input.contract?.support, wire }
+}
+
+/**
+ * Materialize the endpoint-projected vocabulary stored on every runtime model.
+ * Renderer consumers read this result directly; they do not repeat capability/profile inference.
+ */
+function deriveSelectableEfforts(
+  reasoning: ProtoReasoningSupport,
+  profile: ReasoningWireProfile
+): ReasoningEffortType[] {
+  if (profile.disabled) return []
+
+  const effortControl = reasoning.controls?.find((control) => control.kind === 'effort')
+  const hasDeclaredControls = reasoning.controls !== undefined
+  const hasBudget = reasoning.controls?.some((control) => control.kind === 'budget') ?? false
+  const hasToggle = reasoning.controls?.some((control) => control.kind === 'toggle') ?? false
+
+  let intrinsic: ReasoningEffortType[]
+  if (effortControl?.kind === 'effort') {
+    intrinsic = [
+      ...effortControl.values,
+      ...(hasToggle && !effortControl.values.includes(REASONING_EFFORT.NONE) ? [REASONING_EFFORT.NONE] : [])
+    ]
+  } else if (!hasDeclaredControls && reasoning.supportedEfforts?.length) {
+    intrinsic = [...reasoning.supportedEfforts]
+  } else if (hasBudget) {
+    intrinsic = [
+      ...(hasToggle ? [REASONING_EFFORT.NONE] : []),
+      REASONING_EFFORT.LOW,
+      REASONING_EFFORT.MEDIUM,
+      REASONING_EFFORT.HIGH
+    ]
+  } else if (hasToggle) {
+    intrinsic = [REASONING_EFFORT.NONE, REASONING_EFFORT.AUTO]
+  } else {
+    intrinsic = []
+  }
+
+  return intrinsic.filter((selection) => {
+    if (selection === REASONING_EFFORT.NONE) return profile.off !== undefined
+    if (selection === REASONING_EFFORT.AUTO) return profile.auto !== undefined || profile.effort !== undefined
+    return profile.effort !== undefined
+  })
 }
 
 /** Apply add/remove/force capability override on top of a base list. */
@@ -113,28 +295,42 @@ export function applyCapabilityOverride(
   return result
 }
 
-/** Pull `reasoningFormatType` per endpoint out of `endpointConfigs`. */
-export function extractReasoningFormatTypes(
-  endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined
-): Partial<Record<EndpointType, ReasoningFormatType>> | undefined {
-  if (!endpointConfigs) return undefined
-  const result: Partial<Record<EndpointType, ReasoningFormatType>> = {}
-  for (const [k, v] of Object.entries(endpointConfigs)) {
-    if (v?.reasoningFormatType) {
-      result[k as EndpointType] = v.reasoningFormatType
-    }
-  }
-  return Object.keys(result).length > 0 ? result : undefined
+/**
+ * Infer a reasoning descriptor for a model the catalog doesn't know, from the
+ * registry's ID-pattern heuristics (ingest-time only, #16598). The membership
+ * gate is built in: pass `declaredReasoning: true` to skip it when the
+ * model's REASONING capability is already declared.
+ */
+export function inferCustomModelReasoning(
+  modelId: string,
+  profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
+  options?: { declaredReasoning?: boolean }
+): RuntimeReasoning | undefined {
+  if (!options?.declaredReasoning && !inferReasoningMembership(modelId)) return undefined
+  const controls = inferReasoningControls(modelId)
+  if (!controls) return undefined
+  const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }
+  return projectRuntimeReasoning(proto, profile)
 }
 
 /** Create a minimal custom model used when a model ID has no registry match. */
-export function createCustomModel(providerId: string, modelId: string): Model {
+export function createCustomModel(
+  providerId: string,
+  modelId: string,
+  profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire
+): Model {
+  // Ingest-time heuristics: an unmatched model still gets its reasoning
+  // descriptor when the id is recognizably a reasoning SKU, so custom rows
+  // are descriptor-driven like catalog rows (#16598).
+  const reasoning = inferCustomModelReasoning(modelId, profile)
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     apiModelId: modelId,
     name: modelId,
+    ownedBy: inferReasoningOwnedBy(modelId),
     capabilities: [],
+    reasoning,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
@@ -164,6 +360,7 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
+    parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
 }
@@ -171,15 +368,15 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
 /**
  * Two-layer merge: preset → override. No user data involved.
  *
- * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
- * by `ModelService.create` and the migrator.
+ * Used by registry resolution, ModelService delta comparison/read hydration,
+ * and the v2 migrator.
  */
 export function mergePresetModel(
   presetModel: ProtoModelConfig,
   catalogOverride: ProtoProviderModelOverride | null,
   providerId: string,
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> | null,
-  defaultChatEndpoint?: EndpointType
+  profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
+  reasoningSupport?: ProtoReasoningSupport
 ): Model {
   const {
     capabilities,
@@ -192,11 +389,14 @@ export function mergePresetModel(
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   } = applyPresetAndOverride(presetModel, catalogOverride)
 
-  const reasoningFormatType = resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
-  const reasoning = resolveReasoning(presetModel, catalogOverride, reasoningFormatType)
+  const reasoning = resolveReasoning(reasoningSupport ?? presetModel.reasoning, profile)
+  const resolvedCapabilities = reasoningSupport
+    ? Array.from(new Set([...capabilities, MODEL_CAPABILITY.REASONING]))
+    : capabilities
 
   return {
     id: createUniqueModelId(providerId, presetModel.id),
@@ -205,8 +405,8 @@ export function mergePresetModel(
     name,
     description,
     family: presetModel.family,
-    ownedBy: presetModel.ownedBy,
-    capabilities,
+    ownedBy: catalogOverride?.ownedBy ?? presetModel.ownedBy,
+    capabilities: resolvedCapabilities,
     inputModalities,
     outputModalities,
     contextWindow,
@@ -215,6 +415,8 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
+    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -236,36 +438,46 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  const name = presetModel.name ?? presetModel.id
+  const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
+  const mergedPricing = presetModel.pricing
+    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
+    : catalogOverride?.pricing
   let pricing: RuntimeModelPricing | undefined
+  const parameterSupport = presetModel.parameterSupport
+    ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }
+    : catalogOverride?.parameterSupport
   let replaceWith: string | undefined
 
-  if (presetModel.pricing) {
+  if (mergedPricing?.input && mergedPricing.output) {
     pricing = {
       input: {
-        perMillionTokens: presetModel.pricing.input?.perMillionTokens ?? null,
-        currency: presetModel.pricing.input?.currency
+        perMillionTokens: mergedPricing.input.perMillionTokens ?? null,
+        currency: mergedPricing.input.currency
       },
       output: {
-        perMillionTokens: presetModel.pricing.output?.perMillionTokens ?? null,
-        currency: presetModel.pricing.output?.currency
+        perMillionTokens: mergedPricing.output.perMillionTokens ?? null,
+        currency: mergedPricing.output.currency
       },
-      cacheRead: presetModel.pricing.cacheRead
+      cacheRead: mergedPricing.cacheRead
         ? {
-            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheRead.currency
+            perMillionTokens: mergedPricing.cacheRead.perMillionTokens ?? null,
+            currency: mergedPricing.cacheRead.currency
           }
         : undefined,
-      cacheWrite: presetModel.pricing.cacheWrite
+      cacheWrite: mergedPricing.cacheWrite
         ? {
-            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheWrite.currency
+            perMillionTokens: mergedPricing.cacheWrite.perMillionTokens ?? null,
+            currency: mergedPricing.cacheWrite.currency
           }
-        : undefined
+        : undefined,
+      perImage: mergedPricing.perImage
+        ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
+        : undefined,
+      perMinute: mergedPricing.perMinute ? { price: mergedPricing.perMinute.price } : undefined
     }
   }
 
@@ -291,31 +503,32 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   }
 }
 
-/** Resolve reasoning data from preset + override, filtered by the active reasoning format type. */
+function mergeReasoningSupport(
+  preset: ProtoReasoningSupport | undefined,
+  override: ProtoReasoningSupport | undefined
+): ProtoReasoningSupport | undefined {
+  if (!preset && !override) return undefined
+  return {
+    controls: override?.controls ?? preset?.controls,
+    supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
+    thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort,
+    wireDialect: override?.wireDialect ?? preset?.wireDialect
+  }
+}
+
+/** Resolve intrinsic reasoning data and project it through the active endpoint profile. */
 function resolveReasoning(
-  presetModel: ProtoModelConfig,
-  catalogOverride: ProtoProviderModelOverride | null,
-  reasoningFormatType: ReasoningFormatType | undefined
+  reasoningSupport: ProtoReasoningSupport | undefined,
+  profile: ReasoningWireProfile
 ): RuntimeReasoning | undefined {
-  let reasoning: RuntimeReasoning | undefined
-
-  if (presetModel.reasoning) {
-    reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
-  }
-
-  if (catalogOverride?.reasoning) {
-    const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
-    reasoning = {
-      ...overrideReasoning,
-      thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits
-    }
-  }
-
-  return reasoning
+  if (!reasoningSupport) return undefined
+  return projectRuntimeReasoning(reasoningSupport, profile)
 }
 
 function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
@@ -347,35 +560,16 @@ function resolveReasoningEndpointType(
   return undefined
 }
 
-function resolveReasoningFormatType(
-  endpointTypes: EndpointType[] | undefined,
-  defaultChatEndpoint: EndpointType | undefined,
-  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined
-): ReasoningFormatType | undefined {
-  const endpointType = resolveReasoningEndpointType(endpointTypes, defaultChatEndpoint)
-  if (endpointType === undefined || !reasoningFormatTypes) {
-    return undefined
-  }
-
-  return reasoningFormatTypes[endpointType]
-}
-
-/** Convert proto reasoning data to runtime form using the active reasoning format type. */
-function extractRuntimeReasoning(
+/** Convert proto reasoning data to the provider-neutral runtime form. */
+export function projectRuntimeReasoning(
   reasoning: ProtoReasoningSupport,
-  reasoningFormatType: ReasoningFormatType | undefined
+  profile: ReasoningWireProfile
 ): RuntimeReasoning {
-  const type = reasoningFormatType ?? ''
-
-  let supportedEfforts: ReasoningEffortType[] = [...(reasoning.supportedEfforts ?? [])]
-  if (supportedEfforts.length === 0) {
-    supportedEfforts = DEFAULT_EFFORTS[type] ?? []
-  }
-
   return {
-    type,
-    supportedEfforts,
-    thinkingTokenLimits: reasoning.thinkingTokenLimits
+    controls: reasoning.controls,
+    selectableEfforts: deriveSelectableEfforts(reasoning, profile),
+    thinkingTokenLimits: reasoning.thinkingTokenLimits,
+    defaultEffort: reasoning.defaultEffort
   }
 }
 
@@ -383,8 +577,8 @@ function extractRuntimeReasoning(
  * Bridges the read-only provider registry (JSON) with SQLite user data.
  *
  * This service handles operations that require merging preset model/provider
- * data from the registry package with user-specific configuration stored in
- * the database (e.g. reasoning format overrides from `user_provider`).
+ * data from the registry package with user-specific connection facts stored
+ * in the database (for example, the active endpoint type).
  *
  * It does **not** own any database table and does **not** access the
  * database directly. User data is obtained via `ProviderService`.
@@ -412,10 +606,44 @@ class ProviderRegistryService {
     this.loader = null
   }
 
-  private findRegistryProvider(providerId: string) {
+  private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {
     return this.getLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
+  }
+
+  /**
+   * Resolve the registry preset that owns defaults for a runtime provider.
+   * Canonical registry providers resolve to themselves; custom providers fall
+   * back through their persisted `presetProviderId`.
+   */
+  private resolveProviderPreset(
+    providerId: string,
+    presetProviderId?: string | null,
+    lookupPersistedPreset = true
+  ): ProtoProviderConfig | null {
+    // A persisted null is authoritative provenance for a fully custom
+    // provider. Do not let a future registry entry with the same id silently
+    // reclassify the row as a preset.
+    if (presetProviderId === null) return null
+
+    const direct = this.findRegistryProvider(providerId)
+    if (direct) return direct
+
+    let fallbackId: string | null | undefined = presetProviderId
+    if (fallbackId === undefined && lookupPersistedPreset) {
+      try {
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId ?? null
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          return null
+        }
+        throw error
+      }
+    }
+
+    if (fallbackId === null) return null
+    return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
   }
 
   /**
@@ -435,18 +663,21 @@ class ProviderRegistryService {
     }
   }
 
-  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string | null): ProviderDisplayMetadata {
     try {
-      const provider =
-        this.findRegistryProvider(providerId) ??
-        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
+      const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
       return {
         description: provider?.description,
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
-        authOptional: provider?.authOptional
+        authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools,
+        reportedCostCurrency: provider?.reportedCostCurrency,
+        fastMode: provider?.fastMode,
+        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
@@ -455,60 +686,213 @@ class ProviderRegistryService {
   }
 
   /**
-   * Get reasoning config from registry providers.json only (no DB).
+   * Merge persisted endpoint configs with the CURRENT registry at read time
+   * (#17096). The seeder is insert-only, so a row's endpoint set freezes at
+   * first seed — registry additions (new endpoint types, changed
+   * adapterFamily/modelsApiUrls) would otherwise never reach existing rows.
    *
-   * Resolves `defaultChatEndpoint` and `reasoningFormatTypes` for a provider
-   * by looking up its `endpointConfigs` in the shipped registry data.
+   * Ownership per field: `adapterFamily` / `modelsApiUrls` are registry-owned
+   * (registry wins, row is a legacy fallback); `baseUrl` is user-owned (row
+   * wins). The key set is the union of registry and row keys, so a registry
+   * that gains an endpoint type surfaces it with zero data migration.
    *
-   * @param providerId - The provider to look up
-   * @returns Registry-level reasoning config (may be overridden by user DB values)
+   * Custom providers (no registry preset) keep their row configs, with
+   * `adapterFamily` inferred from the endpoint type when absent — mirroring
+   * the historical write-path backfill. Outputs are rebuilt field by field,
+   * so legacy registry-only row fields (e.g. `reasoningFormatType`) never
+   * cross into runtime state.
    */
-  private getRegistryReasoningConfig(providerId: string): {
-    defaultChatEndpoint?: EndpointType
-    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  } {
-    const provider = this.findRegistryProvider(providerId)
-    const endpointConfigs = provider
-      ? (buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<Record<EndpointType, EndpointConfig>> | null)
-      : null
+  mergeEndpointConfigs(
+    rowConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null | undefined,
+    providerId: string,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    try {
+      // lookupPersistedPreset=false — called from rowToRuntimeProvider; a DB
+      // read-back here would recurse (same guard as getProviderDisplayMetadata).
+      const preset = this.resolveProviderPreset(providerId, presetProviderId, false)
+      const presetConfigs = preset
+        ? (buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
+            Record<EndpointType, EndpointConfig>
+          > | null)
+        : null
 
-    return {
-      defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined,
-      reasoningFormatTypes: extractReasoningFormatTypes(endpointConfigs)
+      if (!rowConfigs && !presetConfigs) return null
+
+      const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
+      const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+      for (const ep of keys) {
+        const presetConfig = presetConfigs?.[ep]
+        const rowConfig = rowConfigs?.[ep]
+        if (!presetConfig && !rowConfig) continue
+        const config: EndpointConfig = {
+          adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
+        }
+        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+        if (baseUrl !== undefined) config.baseUrl = baseUrl
+        if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        merged[ep] = config
+      }
+      return Object.keys(merged).length > 0 ? merged : null
+    } catch (error) {
+      logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
+      return rowConfigs ?? null
     }
   }
 
   /**
-   * Get effective reasoning config by merging registry defaults with user DB overrides.
-   *
-   * Priority: user_provider DB values > registry providers.json defaults.
-   * Obtains user provider data via ProviderService (does not access DB directly).
-   *
-   * @param providerId - The provider to resolve config for
-   * @returns Merged reasoning config with user overrides applied
+   * Return only the requested provider-level preset fields. The effective
+   * registry preset is selected once; models retain the runtime provider ID.
    */
-  private getEffectiveReasoningConfig(providerId: string): {
-    defaultChatEndpoint?: EndpointType
-    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  } {
-    const registryConfig = this.getRegistryReasoningConfig(providerId)
+  getProviderPreset(
+    providerId: string,
+    fields: readonly ProviderPresetField[],
+    presetProviderId?: string | null
+  ): ProviderPreset {
+    const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
+    const result: ProviderPreset = {}
 
+    for (const field of new Set(fields)) {
+      if (field === 'endpointConfigs') {
+        result.endpointConfigs = presetProvider
+          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+              Record<EndpointType, EndpointConfig>
+            > | null)
+          : null
+      } else if (field === 'models') {
+        result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
+      }
+    }
+
+    return result
+  }
+
+  private getEffectiveProviderContext(providerId: string): ReasoningProviderContext {
+    const registryProvider = this.findRegistryProvider(providerId)
     try {
-      const providerService = getDataService('ProviderService')
-      const provider = providerService.getByProviderId(providerId)
-      const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
-      const reasoningFormatTypes =
-        extractReasoningFormatTypes(provider.endpointConfigs) ?? registryConfig.reasoningFormatTypes
-
-      return { defaultChatEndpoint, reasoningFormatTypes }
+      const provider = getDataService('ProviderService').getByProviderId(providerId)
+      const presetProviderId = provider.presetProviderId ?? null
+      return {
+        id: provider.id,
+        presetProviderId,
+        defaultChatEndpoint:
+          provider.defaultChatEndpoint ??
+          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
+      }
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        return registryConfig
+        return {
+          id: providerId,
+          presetProviderId: registryProvider?.presetProviderId,
+          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined
+        }
       }
-
-      logger.error('Failed to fetch provider for reasoning config', error as Error)
+      logger.error('Failed to fetch provider for reasoning profile', error as Error)
       throw error
     }
+  }
+
+  private findProfileProvider(context: Pick<ReasoningProviderContext, 'id' | 'presetProviderId'>) {
+    if (context.presetProviderId === null) return undefined
+    return (
+      this.findRegistryProvider(context.id) ??
+      (context.presetProviderId ? this.findRegistryProvider(context.presetProviderId) : undefined)
+    )
+  }
+
+  private resolveProfileForModelData(
+    context: ReasoningProviderContext,
+    presetModel: ProtoModelConfig | null,
+    registryOverride: ProtoProviderModelOverride | null,
+    fallbackModelId: string
+  ): ResolvedReasoningProfile {
+    const profileProvider = this.findProfileProvider(context)
+    const endpointType = resolveReasoningEndpointType(
+      registryOverride?.endpointTypes,
+      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+    )
+    const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
+    const inferredControls =
+      presetModel?.reasoning || contract?.support || !inferReasoningMembership(fallbackModelId)
+        ? undefined
+        : inferReasoningControls(fallbackModelId)
+    const reasoning =
+      mergeReasoningSupport(presetModel?.reasoning, contract?.support) ??
+      (inferredControls ? { controls: inferredControls } : undefined)
+    const resolved = resolveReasoningProfileFromRegistry({
+      endpointType,
+      format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
+      contract,
+      wireDialect: reasoning?.wireDialect
+    })
+    return { ...resolved, support: reasoning }
+  }
+
+  /** Resolve the main-only wire profile for one already materialized request model. */
+  resolveReasoningProfile(
+    provider: ReasoningProviderContext,
+    model: Model,
+    endpointType?: EndpointType
+  ): ResolvedReasoningProfile {
+    const profileProvider = this.findProfileProvider(provider)
+    const effectiveEndpoint =
+      endpointType ?? resolveReasoningEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
+    const providerIds = Array.from(
+      new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
+    )
+    const modelIds = Array.from(
+      new Set([model.apiModelId, model.presetModelId].filter((value): value is string => !!value))
+    )
+    let contract: ProviderModelReasoningContract | undefined
+    let matchedOverride: ProtoProviderModelOverride | null = null
+    for (const providerId of providerIds) {
+      for (const modelId of modelIds) {
+        const candidate = this.getLoader().findOverride(providerId, modelId)
+        contract = effectiveEndpoint ? candidate?.reasoningContracts?.[effectiveEndpoint] : undefined
+        if (contract) matchedOverride = candidate
+        if (contract) break
+      }
+      if (contract) break
+    }
+
+    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+
+    // The dialect is a CATALOG fact that is deliberately not persisted on the
+    // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
+    // resolvable `apiModelId`, no `presetModelId` — must re-resolve it here.
+    // Without this the row silently takes the newer wire and Claude <=4.5 /
+    // Gemini 2.x emit a dialect their API rejects. Support resolution above is
+    // untouched: controls still come from the row, only the dialect is looked up.
+    const wireDialect =
+      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+
+    const resolved = resolveReasoningProfileFromRegistry({
+      endpointType: effectiveEndpoint,
+      format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
+      contract,
+      wireDialect
+    })
+    return { ...resolved, support }
+  }
+
+  resolveRegistryModelProfile(
+    providerId: string,
+    presetModel: ProtoModelConfig,
+    registryOverride: ProtoProviderModelOverride | null,
+    defaultChatEndpoint?: EndpointType
+  ): ResolvedReasoningProfile {
+    const registryProvider = this.findRegistryProvider(providerId)
+    return this.resolveProfileForModelData(
+      {
+        id: providerId,
+        presetProviderId: registryProvider?.presetProviderId,
+        defaultChatEndpoint: defaultChatEndpoint ?? registryProvider?.defaultChatEndpoint ?? undefined
+      },
+      presetModel,
+      registryOverride,
+      registryOverride?.apiModelId ?? presetModel.id
+    )
   }
 
   /**
@@ -528,29 +912,26 @@ class ProviderRegistryService {
   lookupModel(
     providerId: string,
     modelId: string,
-    reasoningConfigCache?: Map<
-      string,
-      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
-    >
+    providerContextCache?: Map<string, ReasoningProviderContext>
   ): {
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
-    defaultChatEndpoint?: EndpointType
-    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+    reasoningProfile: ResolvedReasoningProfile
   } {
     const loader = this.getLoader()
-    const registryOverride = loader.findOverride(providerId, modelId)
-    const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
-    // `getEffectiveReasoningConfig` reads the provider row from the DB; when an
-    // optional cache is supplied (batch enrichment in `ModelService.list`),
-    // resolve it once per provider instead of once per model.
-    let reasoningConfig = reasoningConfigCache?.get(providerId)
-    if (!reasoningConfig) {
-      reasoningConfig = this.getEffectiveReasoningConfig(providerId)
-      reasoningConfigCache?.set(providerId, reasoningConfig)
-    }
+    const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
+    providerContextCache?.set(providerId, providerContext)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
+    const presetModel =
+      loader.findModel(registryOverride?.modelId ?? modelId) ??
+      (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
 
-    return { presetModel, registryOverride, ...reasoningConfig }
+    return {
+      presetModel,
+      registryOverride,
+      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId)
+    }
   }
 
   /**
@@ -572,7 +953,8 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const { defaultChatEndpoint, reasoningFormatTypes } = this.getEffectiveReasoningConfig(providerId)
+    const providerContext = this.getEffectiveProviderContext(providerId)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -582,16 +964,19 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(providerId, modelId)
-      const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
+      const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
+      const presetModel =
+        loader.findModel(registryOverride?.modelId ?? modelId) ??
+        (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
+      const reasoningProfile = this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId)
 
       if (presetModel) {
         const model = mergePresetModel(
           presetModel,
           registryOverride,
           providerId,
-          reasoningFormatTypes,
-          defaultChatEndpoint
+          reasoningProfile.wire,
+          reasoningProfile.support
         )
         // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
         // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
@@ -606,8 +991,46 @@ class ProviderRegistryService {
           presetModelId: presetModel.id
         })
       } else {
-        results.push(createCustomModel(providerId, modelId))
+        results.push(createCustomModel(providerId, modelId, reasoningProfile.wire))
       }
+    }
+
+    return results
+  }
+
+  private listProviderPresetModels(
+    providerId: string,
+    presetProvider: ProtoProviderConfig,
+    includeDisabled = false
+  ): Model[] {
+    const loader = this.getLoader()
+    const overrides = loader.getOverridesForProvider(presetProvider.id)
+    const providerContext: ReasoningProviderContext = {
+      id: providerId,
+      presetProviderId: presetProvider.id,
+      defaultChatEndpoint: presetProvider.defaultChatEndpoint ?? undefined
+    }
+    const results: Model[] = []
+
+    for (const override of overrides) {
+      if ((override.disabled ?? false) !== includeDisabled) continue
+
+      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+      const reasoningProfile = this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        override,
+        override.apiModelId ?? override.modelId
+      )
+      const model = mergePresetModel(presetModel, override, providerId, reasoningProfile.wire, reasoningProfile.support)
+      const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
+      results.push({
+        ...model,
+        id: createUniqueModelId(providerId, apiModelId),
+        providerId,
+        apiModelId,
+        presetModelId: presetModel.id
+      })
     }
 
     return results
@@ -615,17 +1038,19 @@ class ProviderRegistryService {
 
   listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
     const loader = this.getLoader()
-    const overrides = options.providerId
-      ? loader.getOverridesForProvider(options.providerId)
-      : loader.loadProviderModels()
     const includeDisabled = options.disabled ?? false
-    const reasoningConfigByProvider = new Map<
-      string,
-      {
-        defaultChatEndpoint?: EndpointType
-        reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-      }
-    >()
+
+    if (options.providerId) {
+      const presetProvider = this.resolveProviderPreset(
+        options.providerId,
+        options.presetProviderId,
+        options.presetProviderId === undefined
+      )
+      return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
+    }
+
+    const overrides = loader.loadProviderModels()
+    const providerContextByProvider = new Map<string, ReasoningProviderContext>()
     const results: Model[] = []
 
     for (const override of overrides) {
@@ -638,18 +1063,29 @@ class ProviderRegistryService {
       // single-provider entries.
       const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
 
-      let reasoningConfig = reasoningConfigByProvider.get(override.providerId)
-      if (!reasoningConfig) {
-        reasoningConfig = this.getRegistryReasoningConfig(override.providerId)
-        reasoningConfigByProvider.set(override.providerId, reasoningConfig)
+      let providerContext = providerContextByProvider.get(override.providerId)
+      if (!providerContext) {
+        const registryProvider = this.findRegistryProvider(override.providerId)
+        providerContext = {
+          id: override.providerId,
+          presetProviderId: registryProvider?.presetProviderId,
+          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined
+        }
+        providerContextByProvider.set(override.providerId, providerContext)
       }
 
+      const reasoningProfile = this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        override,
+        override.apiModelId ?? override.modelId
+      )
       const model = mergePresetModel(
         presetModel,
         override,
         override.providerId,
-        reasoningConfig.reasoningFormatTypes,
-        reasoningConfig.defaultChatEndpoint
+        reasoningProfile.wire,
+        reasoningProfile.support
       )
 
       const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId

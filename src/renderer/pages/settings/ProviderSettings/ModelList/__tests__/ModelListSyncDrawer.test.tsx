@@ -36,6 +36,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
   getModelLogoRef: () => undefined
@@ -156,6 +164,7 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
+    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
@@ -165,7 +174,7 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('custom')).toBeInTheDocument()
-    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.group.ungrouped')).not.toBeInTheDocument()
     expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
   })
 
@@ -359,11 +368,19 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).not.toBeDisabled()
   })
 
-  it('filters stale models from the filter tabs', async () => {
+  it('keeps the destructive stale filter clickable immediately after All when horizontally scrolled', async () => {
     const user = userEvent.setup()
     renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
 
-    await user.click(screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' }))
+    const tabList = screen.getByRole('tablist')
+    const tabs = screen.getAllByRole('tab')
+    const staleTab = screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' })
+
+    expect(tabs[0]).toHaveAccessibleName('models.all')
+    expect(tabs[1]).toBe(staleTab)
+
+    fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
+    await user.click(staleTab)
 
     await waitFor(() => {
       expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()

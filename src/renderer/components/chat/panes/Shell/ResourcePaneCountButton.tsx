@@ -22,7 +22,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
       actions.close()
       return
     }
-    actions.tryOpen(RESOURCE_PANE_TAB)
+    actions.tryOpen(RESOURCE_PANE_TAB, { userInitiated: true })
   }, [actions, active])
 
   if (!actions.canOpen(RESOURCE_PANE_TAB)) return null
@@ -35,7 +35,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
         variant="ghost"
         aria-label={title}
         className={cn(
-          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-foreground-muted text-xs shadow-none',
+          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-muted-foreground text-xs shadow-none',
           'hover:bg-accent hover:text-foreground',
           active && 'bg-secondary text-secondary-foreground hover:bg-secondary-hover hover:text-secondary-foreground',
           '[&_svg]:!size-3.5 [-webkit-app-region:none]',
@@ -47,7 +47,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
         <span>{label}</span>
         <span
           className={cn(
-            'text-foreground-muted group-hover:text-foreground-secondary',
+            'text-muted-foreground group-hover:text-foreground',
             active && 'text-secondary-foreground group-hover:text-secondary-foreground'
           )}>
           {count}

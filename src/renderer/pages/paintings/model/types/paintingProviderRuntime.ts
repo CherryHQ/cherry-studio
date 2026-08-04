@@ -1,6 +1,6 @@
 import { withoutTrailingSlash } from '@renderer/utils/api'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { ApiKeyEntry, EndpointConfig, Provider } from '@shared/data/types/provider'
 
 export interface PaintingProviderRuntime {
   id: string
@@ -18,26 +18,21 @@ export interface PaintingProviderRuntime {
  */
 const OPENAI_COMPAT_IMAGE_PROVIDER_IDS = new Set(['new-api', 'cherryin', 'aionly'])
 
-/**
- * Defaults only when `endpointConfigs` cannot supply a base — painting-local, not shared with global provider presets.
- */
-const OPENAI_COMPAT_DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
-  cherryin: 'https://open.cherryin.net',
-  'new-api': 'http://localhost:3000',
-  aionly: 'https://api.aiionly.com'
-}
-
 export function isPaintingNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>) {
-  return OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) || provider.presetProviderId === 'new-api'
+  return (
+    OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) ||
+    (provider.presetProviderId != null && OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.presetProviderId))
+  )
 }
 
-function baseUrlFromEndpointConfigs(provider: Provider): string {
-  const endpointConfigs = provider.endpointConfigs
+function baseUrlFromEndpointConfigs(
+  endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  preferred: Provider['defaultChatEndpoint']
+): string {
   if (!endpointConfigs) {
     return ''
   }
 
-  const preferred = provider.defaultChatEndpoint
   const raw =
     endpointConfigs[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl ||
     (preferred ? endpointConfigs[preferred]?.baseUrl : undefined) ||
@@ -47,22 +42,15 @@ function baseUrlFromEndpointConfigs(provider: Provider): string {
   return raw ? withoutTrailingSlash(raw) : ''
 }
 
-function openAiCompatDefaultBaseUrl(provider: Pick<Provider, 'id' | 'presetProviderId'>): string {
-  const fromId = OPENAI_COMPAT_DEFAULT_BASE_URLS[provider.id]
-  if (fromId) {
-    return fromId
-  }
-
-  const preset = provider.presetProviderId
-  return preset ? (OPENAI_COMPAT_DEFAULT_BASE_URLS[preset] ?? '') : ''
-}
-
-export function resolvePaintingApiHost(provider?: Provider): string {
+export function resolvePaintingApiHost(
+  provider?: Provider,
+  presetEndpointConfigs?: Provider['endpointConfigs'] | null
+): string {
   if (!provider) {
     return ''
   }
 
-  const configured = baseUrlFromEndpointConfigs(provider)
+  const configured = baseUrlFromEndpointConfigs(provider.endpointConfigs, provider.defaultChatEndpoint)
   if (configured) {
     return configured
   }
@@ -71,8 +59,7 @@ export function resolvePaintingApiHost(provider?: Provider): string {
     return ''
   }
 
-  const fallback = openAiCompatDefaultBaseUrl(provider)
-  return fallback ? withoutTrailingSlash(fallback) : ''
+  return baseUrlFromEndpointConfigs(presetEndpointConfigs ?? undefined, provider.defaultChatEndpoint)
 }
 
 /** First enabled, trimmed, non-empty key — rotation is intentionally out of scope here. */
@@ -91,7 +78,8 @@ export function pickFirstEnabledApiKey(apiKeys: ApiKeyEntry[] | undefined): stri
 export function createPaintingProviderRuntime(
   provider: Provider | undefined,
   providerId: string,
-  apiKey: string
+  apiKey: string,
+  presetEndpointConfigs?: Provider['endpointConfigs'] | null
 ): PaintingProviderRuntime {
   return {
     id: provider?.id || providerId,
@@ -99,7 +87,7 @@ export function createPaintingProviderRuntime(
     presetProviderId: provider?.presetProviderId,
     defaultChatEndpoint: provider?.defaultChatEndpoint,
     isEnabled: provider?.isEnabled ?? false,
-    apiHost: resolvePaintingApiHost(provider),
+    apiHost: resolvePaintingApiHost(provider, presetEndpointConfigs),
     getApiKey: async () => apiKey
   }
 }

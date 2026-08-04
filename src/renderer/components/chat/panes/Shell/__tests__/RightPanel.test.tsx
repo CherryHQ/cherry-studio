@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,7 @@ import {
   RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
   RightPanelShortcut,
@@ -21,9 +22,30 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
-}))
+vi.mock('@renderer/components/ErrorBoundary', async () => {
+  const { Component } = await import('react')
+
+  class MockErrorBoundary extends Component<
+    PropsWithChildren<{ onError?: (error: Error, info: ErrorInfo) => void }>,
+    { error: Error | null }
+  > {
+    state = { error: null }
+
+    static getDerivedStateFromError(error: Error) {
+      return { error }
+    }
+
+    componentDidCatch(error: Error, info: ErrorInfo) {
+      this.props.onError?.(error, info)
+    }
+
+    render() {
+      return this.state.error ? <div role="alert">render error</div> : this.props.children
+    }
+  }
+
+  return { ErrorBoundary: MockErrorBoundary }
+})
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
   default: ({
@@ -75,15 +97,22 @@ vi.mock('react-i18next', () => ({
 interface TestScope {
   firstKey: string
   firstReadiness: RightPanelReadiness
+  firstHeaderMode?: 'shell' | 'content'
+  firstShouldThrow?: boolean
   secondReadiness: RightPanelReadiness
 }
 
-function StatefulPanel({ panelId }: RightPanelComponentProps<TestScope>) {
+function StatefulPanel({ panelId, scope }: RightPanelComponentProps<TestScope>) {
   const [count, setCount] = useState(0)
+  if (panelId === 'first' && scope.firstShouldThrow) throw new Error('render failed')
+
   return (
-    <button type="button" onClick={() => setCount((current) => current + 1)}>
-      {panelId}:{count}
-    </button>
+    <>
+      {panelId === 'first' && scope.firstHeaderMode === 'content' ? <RightPanelHeaderControls canMaximize /> : null}
+      <button type="button" onClick={() => setCount((current) => current + 1)}>
+        {panelId}:{count}
+      </button>
+    </>
   )
 }
 
@@ -95,6 +124,7 @@ const capabilities = [
       instanceKey: scope.firstKey,
       title: 'First',
       readiness: scope.firstReadiness,
+      headerMode: scope.firstHeaderMode,
       canMaximize: true
     })
   },
@@ -309,6 +339,50 @@ describe('RightPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('lets a content-composed panel replace the shell header', () => {
+    render(
+      <Harness defaultOpen scope={{ ...readyScope, firstHeaderMode: 'content' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.queryByTestId('shell-tab-list')).toBeNull()
+    expect(screen.getByText('first:0')).toBeInTheDocument()
+  })
+
+  it('keeps shell controls available when a content-composed panel fails to render', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const scope = { ...readyScope, firstHeaderMode: 'content' as const }
+
+    const { rerender } = render(
+      <Harness defaultOpen scope={scope}>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+
+    rerender(
+      <Harness defaultOpen scope={{ ...scope, firstShouldThrow: true }}>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('render error')
+    expect(screen.getByTestId('shell-tab-list')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+
+    consoleError.mockRestore()
   })
 
   it('rejects duplicate panel ids', () => {

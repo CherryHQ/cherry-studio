@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
@@ -8,16 +8,16 @@ import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorContent from './BaseNavigatorContent'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
-import BaseNavigatorSearch from './BaseNavigatorSearch'
 
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
   groups: Group[]
+  isLoading: boolean
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
@@ -34,6 +34,7 @@ interface BaseNavigatorProps {
 const BaseNavigator = ({
   bases,
   groups,
+  isLoading,
   width,
   selectedBaseId,
   onSelectBase,
@@ -47,12 +48,8 @@ const BaseNavigator = ({
   onResizeStart
 }: BaseNavigatorProps) => {
   const { t } = useTranslation()
-  const [searchValue, setSearchValue] = useState('')
 
-  const knowledgeBaseGroupSections = useMemo(
-    () => buildKnowledgeBaseGroupSections(bases, groups, searchValue),
-    [bases, groups, searchValue]
-  )
+  const knowledgeBaseGroupSections = useMemo(() => buildKnowledgeBaseGroupSections(bases, groups, ''), [bases, groups])
 
   const groupById = useMemo(() => {
     return new Map(groups.map((group) => [group.id, group]))
@@ -70,24 +67,24 @@ const BaseNavigator = ({
   )
 
   return (
-    <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
-        <div className="flex shrink-0 items-center gap-2 p-3">
-          <div className="min-w-0 flex-1">
-            <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
-          </div>
-          <Button
+    <div data-ui="knowledge.navigation" style={{ width }} className="relative h-full min-h-0 shrink-0">
+      {/* `p-1.5` and the padding-free rows below match the assistant and agent rails'
+          `ResourceList.Frame`, so the three sidebars indent identically. */}
+      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px] p-1.5">
+        <div className="flex shrink-0 flex-col gap-2">
+          {/* Same borderless header item the assistant and agent rails use, so the three
+              sidebars read as one family. */}
+          <ResourceList.HeaderItem
             type="button"
-            variant="outline"
-            size="icon-sm"
-            className="size-8 shrink-0 rounded-[10px]"
-            aria-label={t('common.add')}
-            onClick={() => onCreateBase()}>
-            <Plus className="size-3.5" />
-          </Button>
+            icon={<Plus />}
+            label={t('knowledge.add.title')}
+            aria-label={t('knowledge.add.title')}
+            onClick={() => onCreateBase()}
+          />
         </div>
 
         <BaseNavigatorContent
+          isLoading={isLoading}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}

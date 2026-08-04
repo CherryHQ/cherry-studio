@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -9,6 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
@@ -65,7 +65,11 @@ export async function registerIpc() {
 
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    const sessions = [
+      session.defaultSession,
+      session.fromPartition('persist:webview'),
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    ]
 
     try {
       await Promise.all(
@@ -130,70 +134,7 @@ export async function registerIpc() {
     return isPathInside(childPath, parentPath)
   })
 
-  // Set app data path
-  //
-  // TODO(v2): This handler is incompatible with the frozen path registry
-  // established by Application.bootstrap(). Calling app.setPath('userData')
-  // here mutates Electron's path while application.getPath('app.userdata')
-  // keeps returning the boot-time value until the renderer triggers a
-  // relaunch (which it currently always does — see BasicDataSettings.tsx
-  // L186/203/322). When the v1 path-change flow is migrated to
-  // BootConfigService, redesign this handler so the app data path can only
-  // be changed via boot-config + restart, eliminating the divergence window.
-  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    // updateAppDataConfig(filePath)
-    // app.setPath('userData', filePath)
-    // TODO: will refactor in v2
-    return filePath
-  })
-
-  ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
-    return process.argv
-      .slice(1)
-      .find((arg) => arg.startsWith('--new-data-path='))
-      ?.split('--new-data-path=')[1]
-  })
-
-  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      w.webContents.session.flushStorageData()
-      await w.webContents.session.cookies.flushStore()
-      await w.webContents.session.closeAllConnections()
-    }
-
-    session.defaultSession.flushStorageData()
-    await session.defaultSession.cookies.flushStore()
-    await session.defaultSession.closeAllConnections()
-  })
-
-  ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
-    return fs.readdirSync(path).length > 0
-  })
-
-  // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
-    try {
-      await fs.promises.cp(oldPath, newPath, {
-        recursive: true,
-        filter: (src) => {
-          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
-            return false
-          }
-          return true
-        }
-      })
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to copy user data:', error)
-      return { success: false, error: error.message }
-    }
-  })
-
-  // Application_Relaunch migrated to IpcApi (`app.relaunch`); preventQuit/allowQuit stay on
-  // Application.registerApplicationIpc().
-
-  // Reset all data (factory reset)
-  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
+  // Application_Relaunch is registered by Application.registerApplicationIpc()
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
@@ -241,10 +182,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
     searchListDirectoryEntries(dirPath, options)
