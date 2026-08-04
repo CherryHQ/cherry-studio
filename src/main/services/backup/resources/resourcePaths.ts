@@ -1,6 +1,6 @@
 import { isSafeRelativeSubpath, portableCollisionKey, toRelativeSegments } from '@main/utils/relativePath'
 
-import { BACKUP_CEILINGS } from './ceilings'
+import { BACKUP_CEILINGS } from '../ceilings'
 
 /**
  * The subset of {@link BACKUP_CEILINGS} this validator reads. Declared
