@@ -1,4 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
+index c180815..d39bc34 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -3474,7 +3474,7 @@ var AnthropicMessagesLanguageModel = class {
@@ -37,6 +38,7 @@ diff --git a/dist/index.js b/dist/index.js
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/index.mjs b/dist/index.mjs
+index fe20f4d..e58418f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -3525,7 +3525,7 @@ var AnthropicMessagesLanguageModel = class {
@@ -75,6 +77,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
+index b408db2..7cbffe6 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1521,7 +1521,7 @@ async function prepareTools({
@@ -86,6 +89,15 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3272,7 +3272,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
 @@ -3468,7 +3468,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
@@ -122,6 +134,7 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 168f139..7365bc0 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1536,7 +1536,7 @@ async function prepareTools({
@@ -133,6 +146,15 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -3313,7 +3313,7 @@ function sanitizeSchema(schema) {
+         ])
+       );
+     }
+-    result.additionalProperties = false;
++    result.additionalProperties = schema.additionalProperties === true ? true : false;
+     if (schema.required != null) {
+       result.required = schema.required;
+     }
 @@ -3509,7 +3509,7 @@ var AnthropicMessagesLanguageModel = class {
        warnings.push({
          type: "compatibility",
