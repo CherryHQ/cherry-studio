@@ -76,6 +76,7 @@ describe('CodeBlockView', () => {
     )
 
     expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveTextContent('const value = 1')
+    expect(screen.getByRole('textbox', { name: 'Code editor' }).closest('[data-ui~="part:code-block"]')).not.toBeNull()
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 

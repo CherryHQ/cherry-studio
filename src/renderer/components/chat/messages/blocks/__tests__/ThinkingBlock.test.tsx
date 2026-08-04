@@ -105,6 +105,9 @@ describe('ThinkingBlock', () => {
       // User should see the thinking content
       expect(screen.getByText('Markdown: Deep thoughts about AI')).toBeInTheDocument()
       expect(screen.getByTestId('mock-marquee-component')).toBeInTheDocument()
+      expect(
+        screen.getByText('Markdown: Deep thoughts about AI').closest('[data-ui~="part:message-reasoning"]')
+      ).not.toBeNull()
     })
 
     it('should not render when content is empty', () => {

@@ -638,6 +638,7 @@ const TranslatePage: FC = () => {
 
   return (
     <div
+      data-ui="translate.view"
       className="relative flex h-full flex-col overflow-hidden bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
