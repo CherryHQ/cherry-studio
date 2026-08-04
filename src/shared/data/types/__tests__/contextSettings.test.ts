@@ -7,10 +7,10 @@ import {
 } from '../contextSettings'
 
 describe('contextSettings schemas', () => {
-  it('defaults: enabled + compress on, 100k threshold, no model', () => {
+  it('defaults: enabled + compress on, 50k threshold, no model', () => {
     expect(DEFAULT_CONTEXT_SETTINGS).toEqual({
       enabled: true,
-      truncateThreshold: 100_000,
+      truncateThreshold: 50_000,
       compress: { enabled: true, modelId: null }
     })
     expect(() => EffectiveContextSettingsSchema.parse(DEFAULT_CONTEXT_SETTINGS)).not.toThrow()

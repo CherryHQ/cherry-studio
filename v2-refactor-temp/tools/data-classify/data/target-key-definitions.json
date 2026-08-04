@@ -182,7 +182,7 @@
     {
       "targetKey": "chat.context_settings.truncate_threshold",
       "type": "number",
-      "defaultValue": 100000,
+      "defaultValue": 50000,
       "status": "classified",
       "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
     },

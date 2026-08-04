@@ -52,7 +52,7 @@ export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSc
  *  and the default agree out of the box. */
 export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   enabled: true,
-  truncateThreshold: 100_000,
+  truncateThreshold: 50_000,
   compress: {
     enabled: true,
     modelId: null

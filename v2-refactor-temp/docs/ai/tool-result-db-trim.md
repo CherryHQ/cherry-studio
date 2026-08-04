@@ -23,7 +23,7 @@
 
 ### 2. message.data:结构化 persisted 部分
 
-超过 `truncateThreshold`(默认 100k 字符)的 tool-result,持久化时 output 替换为:
+超过 `truncateThreshold`(默认 50k 字符)的 tool-result,持久化时 output 替换为:
 
 ```ts
 { kind: 'persisted-text', fileEntryId, head, tail, totalChars, totalLines }

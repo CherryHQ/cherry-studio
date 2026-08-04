@@ -148,7 +148,7 @@ describe('executeFsRead — content handling', () => {
   // CONTEXT_PERSIST_THRESHOLD_CHARS) instead of staying pinned to the
   // compile-time default. The cap rides the request as `toolOutputCharCap`.
   it('honors a per-request cap below the compile-time default', async () => {
-    // ~20k chars: fine under the 100k default, over a 10k request cap.
+    // ~20k chars: fine under the 50k default, over a 10k request cap.
     const p = writeBlob('mid.txt', Array.from({ length: 20 }, () => 'x'.repeat(1000)).join('\n'))
 
     const withDefault = await executeFsRead({ path: p }, new Set([p]))
@@ -164,9 +164,12 @@ describe('executeFsRead — content handling', () => {
   })
 
   it('honors paging on oversized files instead of erroring', async () => {
+    // 200k chars total (oversized), paged down to ~20k so the page itself
+    // stays well under the per-call cap — the point is that paging rescues a
+    // file the whole-file read would reject, not that a page may ride the cap.
     const p = writeBlob('big2.txt', Array.from({ length: 200 }, () => 'x'.repeat(1000)).join('\n'))
-    const out = await read({ path: p, offset: 1, limit: 50 })
-    expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 50 })
+    const out = await read({ path: p, offset: 1, limit: 20 })
+    expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 20 })
   })
 
   it('returns a long single line in full — no per-line truncation', async () => {

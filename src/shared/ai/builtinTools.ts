@@ -174,7 +174,7 @@ export const FS_READ_TOOL_NAME = 'fs_read'
  * the threshold into a user setting; when it does, wire BOTH sides to the
  * resolved setting, never split this back into two literals.
  */
-export const CONTEXT_PERSIST_THRESHOLD_CHARS = 100_000
+export const CONTEXT_PERSIST_THRESHOLD_CHARS = 50_000
 
 // ── kb_read ──────────────────────────────────────────────────────
 
