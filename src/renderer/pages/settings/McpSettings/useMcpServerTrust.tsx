@@ -5,7 +5,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProtocolInstallWarningContent from './ProtocolInstallWarning'
-import { ensureServerTrusted as ensureServerTrustedCore, getCommandPreview } from './utils'
+import { ensureServerTrusted as ensureServerTrustedCore } from './utils'
 
 /**
  * Hook for handling MCP server trust verification
@@ -22,16 +22,11 @@ export const useMcpServerTrust = (updateServer: (body: UpdateMcpServerDto) => vo
    */
   const requestConfirm = useCallback(
     async (server: McpServer): Promise<boolean> => {
-      const commandPreview = getCommandPreview(server)
       return popup.confirm({
         centered: true,
         title: t('settings.mcp.protocolInstallWarning.title'),
         content: (
-          <ProtocolInstallWarningContent
-            message={t('settings.mcp.protocolInstallWarning.message')}
-            commandLabel={t('settings.mcp.protocolInstallWarning.command')}
-            commandPreview={commandPreview}
-          />
+          <ProtocolInstallWarningContent message={t('settings.mcp.protocolInstallWarning.message')} server={server} />
         ),
         okText: t('settings.mcp.protocolInstallWarning.run'),
         cancelText: t('common.cancel'),

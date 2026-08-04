@@ -105,6 +105,22 @@ describe('useKnowledgeBases', () => {
     expect(result.current.error).toBe(error)
     expect(result.current.refetch).toBe(refetch)
   })
+
+  it('passes an explicit activation boundary to DataApi', () => {
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeBases({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      query: { page: 1, limit: 100 },
+      enabled: false
+    })
+  })
 })
 
 describe('useCreateKnowledgeBase', () => {

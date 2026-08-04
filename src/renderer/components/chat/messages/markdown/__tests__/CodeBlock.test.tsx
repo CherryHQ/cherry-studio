@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => {
     getCodeBlockId: vi.fn(),
     isCodeFenceIncomplete: false,
     renderConfig: { codeFancyBlock: true },
-    messageListUi: { readonly: false },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
       <div>
@@ -46,8 +45,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mocks.renderConfig,
-  useOptionalMessageListActions: () => mocks.messageListActions,
-  useOptionalMessageListUi: () => mocks.messageListUi
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -99,7 +97,6 @@ describe('CodeBlock', () => {
     vi.clearAllMocks()
     mocks.isWin = false
     mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
-    mocks.messageListUi = { readonly: false }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isCodeFenceIncomplete = false
@@ -207,19 +204,6 @@ describe('CodeBlock', () => {
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
     })
 
-    it('should pass editable=false for standard code blocks in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
-
-      render(<CodeBlock {...defaultProps} />)
-
-      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          editable: false
-        }),
-        undefined
-      )
-    })
-
     it('should pass editable=false for standard code blocks when saving is unavailable', () => {
       mocks.messageListActions = {}
 
@@ -259,8 +243,8 @@ describe('CodeBlock', () => {
       )
     })
 
-    it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
+    it('should pass editable=false for HTML artifacts when saving is unavailable', () => {
+      mocks.messageListActions = {}
       const htmlProps = {
         ...defaultProps,
         className: 'language-html',

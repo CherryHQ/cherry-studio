@@ -133,7 +133,6 @@ describe('MessageMenuBar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
@@ -148,7 +147,6 @@ describe('MessageMenuBar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}

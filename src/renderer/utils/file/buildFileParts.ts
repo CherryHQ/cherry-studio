@@ -16,7 +16,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { createFilePathHandle } from '@shared/utils/file'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
   part: FileUIPart,
@@ -75,7 +75,7 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
-        url: `file://${physicalPath}`,
+        url: toFileUrl(physicalPath),
         filename: attachment.origin_name || attachment.name
       }
       return withComposerFilePartMeta(basePart, attachment, entry.id)

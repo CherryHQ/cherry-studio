@@ -56,7 +56,6 @@ export interface MessageMenuBarActionContext {
   messageForExport: MessageExportView
   messageContainerRef: RefObject<HTMLDivElement>
   mainTextContent: string
-  toolbarButtonIds: ReadonlySet<MessageMenuBarButtonId>
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
   copied: boolean
@@ -71,6 +70,7 @@ export interface MessageMenuBarActionContext {
   isSelectedForContext: boolean
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditingMessage?: (messageId: string) => void
   onSelectContext?: (messageId: string) => void
@@ -99,6 +99,7 @@ export type MessageMenuBarTranslationItem =
   | {
       key: string
       label: string
+      enabled?: boolean
       onSelect: () => void | Promise<void>
     }
   | {
@@ -117,7 +118,7 @@ function toolbarAvailability(
   isVisible: (context: MessageMenuBarActionContext) => boolean = () => true
 ) {
   return (context: MessageMenuBarActionContext): ActionAvailabilityInput => {
-    const visible = context.toolbarButtonIds.has(id) && isVisible(context)
+    const visible = isVisible(context)
     return {
       visible,
       enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
@@ -333,15 +334,14 @@ registerToolbarAction({
   label: ({ t }) => t('chat.translate'),
   icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
   availability: (context) => {
-    const visibleInToolbar = context.toolbarButtonIds.has('translate')
-    const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
+    const canTranslate =
+      !!context.actions.translateMessage &&
+      (context.translateLanguages.length > 0 || !!context.actions.requestTranslationLanguages)
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
     const visible =
-      visibleInToolbar &&
-      !context.isUserMessage &&
-      (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
+      !context.isUserMessage && (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
 
     return {
       visible,
@@ -358,7 +358,10 @@ registerToolbarAction({
   label: ({ t }) => t('chat.message.useful.label'),
   icon: ({ isSelectedForContext }) =>
     isSelectedForContext ? <ThumbsUp size={17.5} fill="var(--primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
-  availability: toolbarAvailability('useful', ({ isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped)
+  availability: toolbarAvailability(
+    'useful',
+    ({ actions, isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped && !!actions.setActiveBranch
+  )
 })
 
 registerToolbarAction({
@@ -386,8 +389,8 @@ registerToolbarAction({
           destructive: true
         }
       : undefined,
-  availability: ({ actions, isProcessing, message, t, toolbarButtonIds }) => {
-    const visible = toolbarButtonIds.has('delete') && !!actions.deleteMessage
+  availability: ({ actions, isProcessing, message, t }) => {
+    const visible = !!actions.deleteMessage
     const deleteAvailability = actions.getMessageDeleteAvailability?.(message.id) ?? { enabled: true }
     const reason = getMessageDeleteUnavailableText(
       deleteAvailability.enabled ? undefined : deleteAvailability.reason,
@@ -581,6 +584,24 @@ export function resolveMessageMenuBarTranslationItems(
         }
       }))
     : []
+
+  if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
+    const retryTranslationLanguages = actions.retryTranslationLanguages
+    if (context.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
+      items.push({
+        key: 'translate-retry',
+        label: t('common.retry'),
+        onSelect: () => retryTranslationLanguages()
+      })
+    } else {
+      items.push({
+        key: 'translate-loading',
+        label: t('common.loading'),
+        enabled: false,
+        onSelect: () => undefined
+      })
+    }
+  }
 
   if (!hasTranslationBlocks) return items
 
