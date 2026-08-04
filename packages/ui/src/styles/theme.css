@@ -315,6 +315,8 @@
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-border-selected: var(--border-selected);
+  --color-control-accent: var(--control-accent);
+  --color-control-accent-foreground: var(--control-accent-foreground);
   --color-link: var(--link);
   --color-success: var(--success);
   --color-success-subtle: var(--success-subtle);
@@ -387,6 +389,7 @@
   --font-weight-regular: var(--cs-font-weight-regular);
   --font-weight-medium: var(--cs-font-weight-medium);
   --font-weight-bold: var(--cs-font-weight-bold);
+  --icon-stroke: var(--cs-icon-stroke);
   --font-size-body-xs: var(--cs-font-size-body-xs);
   --font-size-body-sm: var(--cs-font-size-body-sm);
   --font-size-body-md: var(--cs-font-size-body-md);

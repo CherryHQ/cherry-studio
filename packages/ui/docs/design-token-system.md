@@ -39,7 +39,7 @@ foundation values
               │
               ▼
 controlled runtime inputs
-  (--cs-theme-primary, --cs-theme-primary-foreground)
+  (--cs-theme-control-accent, --cs-theme-control-accent-foreground)
               │
               ▼
 public semantic contract
@@ -76,13 +76,14 @@ This contract includes:
 6. a machine-readable registry and syntax-aware exact-migration codemod;
 7. owner-local values for historical rendering that has no stable shared semantic role;
 8. renderer boundary checks that keep removed compatibility layers and authored `--color-*` usage from returning.
+9. the shared Lucide icon stroke used across product and shared UI components.
 
 This contract does not include:
 
 - contextual or review-only migration rules that require UI judgment;
 - promotion of historical or owner-local values without semantic and visual review;
 - renaming every primitive to a new reference-token namespace;
-- redesigning spacing, typography, shadow, or motion scales;
+- redesigning spacing, typography, shadow, or motion scales beyond the shared icon stroke;
 - adopting DTCG JSON as a required build input;
 - changing the current visual palette merely to resemble a Shadcn demo theme.
 
@@ -110,19 +111,18 @@ product role.
 `theme-input.css` owns the small, explicit set of values that runtime theme code may write:
 
 ```css
---cs-theme-primary
---cs-theme-primary-foreground
+--cs-theme-control-accent
+--cs-theme-control-accent-foreground
 ```
 
-These variables are inputs, not design semantics. The host theme service writes them; `shadcn.css` decides which
-official role consumes them. Components must not consume them directly, and the Tailwind generator must not emit
+These variables are inputs, not design semantics. The host theme service writes them; the semantic layers decide
+which public roles consume them. Components must not consume them directly, and the Tailwind generator must not emit
 `--color-theme-*` aliases for them. Every input must be registered in `RUNTIME_THEME_INPUT_TOKENS`, have an
 authored foundation fallback, and have a real runtime producer plus a semantic consumer.
 
-This boundary deliberately avoids asserting that a user-selected color is permanently identical to Shadcn
-`primary`. The host writes the primary surface and its derived contrast-safe foreground as one runtime theme
-operation. A future consumer-backed theme model may route the same inputs to different semantic roles without
-changing component APIs.
+The host writes the selected control accent and its derived contrast-safe foreground as one runtime theme
+operation. Shadcn `primary` remains a neutral strong-action role; the product layer routes the runtime pair to
+`control-accent` / `control-accent-foreground`. `link` remains on the fixed light/dark blue scale.
 
 Renderer-only runtime settings are not shared theme inputs. For example, user-selected UI and code fonts are
 written as `--app-user-font-family` and `--app-user-code-font-family` and consumed only by the renderer-owned
@@ -312,7 +312,8 @@ The contract preserves current design decisions by using the existing semantic l
 | `foreground` | `--cs-foreground` |
 | `card` / `card-foreground` | `--cs-card` / `--cs-card-foreground` |
 | `popover` / `popover-foreground` | `--cs-popover` / `--cs-popover-foreground` |
-| `primary` / `primary-foreground` | paired runtime primary inputs |
+| `primary` / `primary-foreground` | neutral `--cs-primary` / `--cs-primary-foreground` providers |
+| `control-accent` / `control-accent-foreground` | paired runtime theme inputs in the product contract |
 | `secondary` / `secondary-foreground` | `--cs-secondary` / `--cs-secondary-foreground` |
 | `muted` / `muted-foreground` | `--cs-muted` / `--cs-muted-foreground` |
 | `accent` / `accent-foreground` | `--cs-accent` / `--cs-accent-foreground` |
@@ -340,8 +341,8 @@ with:
 
 Foreground roles use solid providers so their resolved foreground color does not change with the surface beneath
 them. Contrast still depends on the foreground/background pair and must be validated on every supported surface.
-`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode and
-`--cs-blue-400` in dark mode.
+`--link` is independent from both `--primary` and the runtime `--control-accent`; clickable text uses the fixed blue
+scale (`--cs-blue-600` in light mode and `--cs-blue-400` in dark mode).
 
 The feedback intents are:
 
@@ -419,20 +420,18 @@ theme mappings continue to work, but changing their architecture requires separa
 
 Initial supported modes are `:root` and `.dark`.
 
-The current runtime primary inputs are declared in `theme-input.css` and remain supported:
+The runtime control-accent inputs are declared in `theme-input.css`:
 
 ```css
---cs-theme-primary
---cs-theme-primary-foreground
+--cs-theme-control-accent
+--cs-theme-control-accent-foreground
 ```
 
-`useUserTheme` writes the selected primary and derives its foreground by choosing the black or white value with
-the stronger WCAG contrast ratio. `--ring` resolves independently through the mode-aware `--cs-ring` provider, so
-an extreme user primary such as white in light mode or black in dark mode cannot also make the focus indicator
-disappear. Runtime code still does not mutate official semantics, `--color-primary`, or component variables
-directly. Renderer-owned font selection is separate from this shared graph and writes only host-local
-`--app-user-*` variables. The current primary connection is a compatibility mapping, not a promise that runtime
-selection and Shadcn primary are the same concept forever.
+`useUserTheme` writes the selected accent and derives its foreground by choosing the black or white value with
+the stronger WCAG contrast ratio. Neutral `--primary` and mode-aware `--ring` remain independent, so an extreme
+user accent cannot make strong actions or focus indicators disappear. Runtime code still does not mutate public
+semantics, generated `--color-*` adapters, or component variables directly. Renderer-owned font selection is
+separate from this shared graph and writes only host-local `--app-user-*` variables.
 
 Rules:
 

@@ -12,7 +12,7 @@
 
 :root {
   /* Brand Colors */
-  --cs-primary: var(--cs-brand-500);
+  --cs-primary: var(--cs-neutral-900);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
@@ -20,9 +20,9 @@
   --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
-  --cs-background: var(--cs-white);
+  --cs-background: #ffffff;
   --cs-background-subtle: oklch(0 0 0 / 0.02);
-  --cs-foreground: oklch(0.213 0 0);
+  --cs-foreground: #1a1c1f;
   --cs-muted-foreground: oklch(0.556 0 0);
   --cs-foreground-tertiary: oklch(0.669 0 0);
   --cs-foreground-disabled: var(--cs-foreground-tertiary);
@@ -49,7 +49,7 @@
   --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.9672 0 0);
+  --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0.97 0 0);
 
   /* Surface-paired foregrounds */
@@ -95,14 +95,15 @@
 
 /* Dark Mode */
 .dark {
+  --cs-primary: var(--cs-neutral-100);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
   --cs-info: var(--cs-blue-400);
 
   /* Background & Foreground */
-  --cs-background: oklch(0.209 0 0 / 0.55);
+  --cs-background: #1515148c;
   --cs-background-subtle: oklch(1 0 0 / 0.02);
-  --cs-foreground: oklch(0.931 0 0);
+  --cs-foreground: #e8e9eb;
   --cs-muted-foreground: oklch(0.708 0 0);
   --cs-foreground-tertiary: oklch(0.559 0 0);
 
@@ -117,8 +118,8 @@
   --cs-border-strong: oklch(1 0 0 / 0.2);
   --cs-border-selected: oklch(1 0 0 / 0.3);
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Ring (Focus) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
@@ -129,7 +130,7 @@
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.2393 0 0);
+  --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(0.269 0 0);
 
   /* Surface-paired foregrounds */

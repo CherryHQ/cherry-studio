@@ -16,8 +16,8 @@
   --card-foreground: var(--cs-card-foreground);
   --popover: var(--cs-popover);
   --popover-foreground: var(--cs-popover-foreground);
-  --primary: var(--cs-theme-primary);
-  --primary-foreground: var(--cs-theme-primary-foreground);
+  --primary: var(--cs-primary);
+  --primary-foreground: var(--cs-primary-foreground);
   --secondary: var(--cs-secondary);
   --secondary-foreground: var(--cs-secondary-foreground);
   --muted: var(--cs-muted);
