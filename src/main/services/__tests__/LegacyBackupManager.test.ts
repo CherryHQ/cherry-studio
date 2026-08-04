@@ -182,6 +182,7 @@ vi.mock('fs-extra', () => ({
     remove: vi.fn(),
     rename: vi.fn(),
     ensureDir: vi.fn(),
+    chmod: vi.fn(),
     emptyDir: vi.fn(),
     copy: vi.fn(),
     readdir: vi.fn(),
@@ -209,6 +210,7 @@ vi.mock('fs-extra', () => ({
   remove: vi.fn(),
   rename: vi.fn(),
   ensureDir: vi.fn(),
+  chmod: vi.fn(),
   emptyDir: vi.fn(),
   copy: vi.fn(),
   readdir: vi.fn(),
@@ -315,6 +317,7 @@ const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
 
 const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   size,
+  mode: 0o644,
   isDirectory: () => type === 'directory',
   isFile: () => type === 'file',
   isSymbolicLink: () => type === 'symlink'
@@ -1261,7 +1264,9 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     vi.clearAllMocks()
     backupManager = new BackupManager()
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
   })
 
@@ -1383,6 +1388,36 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(fs.ensureDir).toHaveBeenCalledWith('/dest/nested')
     expect(fs.copy).toHaveBeenCalledWith('/src/nested/child.txt', '/dest/nested/child.txt')
     expect(onProgress).toHaveBeenCalledWith(5)
+  })
+
+  it('should abort an in-progress file copy', async () => {
+    const controller = new AbortController()
+    const onProgress = vi.fn()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('large.bin')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 1024) as never)
+    vi.mocked(fs.createReadStream).mockReturnValue(new Readable({ read() {} }) as never)
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        }
+      }) as never
+    )
+
+    const result = (backupManager as any)
+      .copyDirWithProgress('/src', '/dest', onProgress, {
+        dereferenceSymlinks: true,
+        signal: controller.signal
+      })
+      .catch((error: unknown) => error)
+
+    await vi.waitFor(() => expect(fs.createReadStream).toHaveBeenCalledWith('/src/large.bin'))
+    controller.abort()
+
+    await expect(result).resolves.toMatchObject({ name: 'AbortError' })
+    expect(fs.remove).toHaveBeenCalledWith('/dest/large.bin')
+    expect(fs.chmod).not.toHaveBeenCalled()
+    expect(onProgress).not.toHaveBeenCalled()
   })
 
   it('should skip symlinks during restore copy', async () => {

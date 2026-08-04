@@ -1747,7 +1747,17 @@ class BackupManager {
               this.logSkippedSymlink(sourcePath, error)
             }
           } else if (entry.stats.isFile()) {
-            if (entry.isSymlink) {
+            if (copyOptions.signal) {
+              try {
+                await pipeline(fs.createReadStream(sourcePath), fs.createWriteStream(destPath), {
+                  signal: copyOptions.signal
+                })
+                await fs.chmod(destPath, entry.stats.mode)
+              } catch (error) {
+                await fs.remove(destPath).catch(() => {})
+                throw error
+              }
+            } else if (entry.isSymlink) {
               await fs.copy(sourcePath, destPath, { dereference: true })
             } else {
               await fs.copy(sourcePath, destPath)
