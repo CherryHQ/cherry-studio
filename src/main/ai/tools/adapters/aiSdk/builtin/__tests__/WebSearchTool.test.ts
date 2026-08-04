@@ -90,6 +90,10 @@ describe('web_search', () => {
     expect(searchEntry.name).toBe(WEB_SEARCH_TOOL_NAME)
     expect(searchEntry.namespace).toBe('web')
     expect(searchEntry.defer).toBe('auto')
+    // Entity codec, not blanket truncatable:false — content trims per-entity
+    // while the id/url/title citation anchors ride the skeleton.
+    expect(searchEntry.truncatable).toBeUndefined()
+    expect(searchEntry.codec).toBeDefined()
   })
 
   it('calls WebSearchService.searchKeywords with the request abort signal', async () => {
