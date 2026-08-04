@@ -155,6 +155,26 @@ describe('Knowledge base schemas', () => {
     }
   })
 
+  it('accepts a BM25-only restore and rejects half-set embedding config', () => {
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: null,
+        embeddingModelId: null
+      }).success
+    ).toBe(true)
+
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: 3072,
+        embeddingModelId: null
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects extra fields in restore-base DTOs', () => {
     expect(
       RestoreKnowledgeBaseSchema.safeParse({

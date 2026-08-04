@@ -277,7 +277,7 @@ function RightPaneContents({
             onResize: setPaneWidth,
             invert: true
           })}
-          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
           <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />
         </div>
       )}

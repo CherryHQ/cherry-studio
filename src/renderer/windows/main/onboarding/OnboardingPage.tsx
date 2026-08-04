@@ -59,7 +59,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
-  const [, updateOnboardingPreferences] = useMultiplePreferences(
+  const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -131,6 +131,10 @@ export default function OnboardingPage() {
   const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
     try {
+      if (privacyAccepted && policyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+        return true
+      }
+
       await updateOnboardingPreferences(
         privacyAccepted
           ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
@@ -143,7 +147,7 @@ export default function OnboardingPage() {
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [privacyAccepted, t, updateOnboardingPreferences])
+  }, [policyVersion, privacyAccepted, t, updateOnboardingPreferences])
 
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {
@@ -277,7 +281,7 @@ export default function OnboardingPage() {
               <SelectTrigger
                 aria-label={t('common.language')}
                 size="sm"
-                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <Languages className="size-3.5" />
                 <SelectValue>{displayLanguageLabel}</SelectValue>
               </SelectTrigger>

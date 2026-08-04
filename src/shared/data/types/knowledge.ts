@@ -610,16 +610,16 @@ export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
-export const RestoreKnowledgeBaseSchema = z.strictObject({
-  sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
-  name: z.string().trim().min(1),
-  // Dimensions must be the resolved embedding vector size for embeddingModelId.
-  // Automatic callers should fill this from AI Core dimension detection; manual
-  // callers are responsible for confirming the value matches the selected model.
-  // Restore validates shape only and does not probe the model again server-side.
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1)
-})
+export const RestoreKnowledgeBaseSchema = z
+  .strictObject({
+    sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
+    name: z.string().trim().min(1),
+    // A vector restore supplies the resolved model and vector size; a BM25-only
+    // restore supplies null for both. The renderer probes dimensions when needed.
+    dimensions: z.number().int().positive().nullable(),
+    embeddingModelId: z.string().trim().min(1).nullable()
+  })
+  .superRefine(refineRuntimeConfig)
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 // Restore is a partial operation: root items whose source is genuinely gone are skipped rather

@@ -57,6 +57,10 @@ type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputT
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
+// A fresh empty array per render would cascade through trustedCitations into
+// ChatMarkdown's components map and force Streamdown to re-render (and
+// re-animate) every markdown block on each streaming tick.
+const EMPTY_CITATIONS: Citation[] = []
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
   return isComposerInputTokenKind(token.kind)
@@ -227,7 +231,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (
@@ -235,7 +239,7 @@ function CollapsibleUserMessageContent({
           type="button"
           aria-expanded={isExpanded}
           aria-controls={contentId}
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle)}>
           <span className="shrink-0 font-normal leading-5">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
@@ -256,7 +260,7 @@ const MainTextBlock: React.FC<Props> = ({
   content,
   inlineHtmlPreviewMode,
   isStreaming,
-  citations = [],
+  citations = EMPTY_CITATIONS,
   citationReferences,
   messageCitations,
   toolCitationProjection,
@@ -346,7 +350,7 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [citationReferences, citations, toolCitations]
   )
-  const toolCitedCitations = toolCitations?.projection.cited ?? []
+  const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
   const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
   const composerMarkdownContent = useMemo(() => {
