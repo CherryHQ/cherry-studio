@@ -42,7 +42,6 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
-  canModelUseAssistantWebSearch,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
@@ -589,7 +588,6 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -597,10 +595,13 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
+      // an ungated providers list. This duplicate read the composer's own list, which is deferred
+      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
+      // setting for every model whose search is provider-native.
       const extraSettings: {
-        enableWebSearch: boolean
         reasoning_effort?: ReasoningEffortOption
-      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      } = {}
       if (reasoningOverride?.assistantId === assistant.id) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }
