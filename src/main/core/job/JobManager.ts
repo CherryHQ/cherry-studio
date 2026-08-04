@@ -1,6 +1,7 @@
 import { serialize } from 'node:v8'
 
 import { application } from '@application'
+import type { SharedCacheSetEntry } from '@data/CacheService'
 import type { InsertJobRow, JobRow } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -18,6 +19,7 @@ import {
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -51,6 +53,16 @@ const DEFAULT_RETRY_POLICY: RetryPolicy = {
 const MAX_INPUT_BYTES = 1_048_576 // 1MB
 const MAX_CANCEL_REASON_CHARS = 500
 const MAX_BATCH_STATE_SYNC_BYTES = 4 * 1024 * 1024
+/**
+ * Admission ceilings for one batch, checked before any row is persisted. The
+ * per-entry `MAX_INPUT_BYTES` cap alone bounds nothing in aggregate: enough
+ * individually-legal entries would sit in the main process at once and hold the
+ * synchronous write transaction open for the whole insert. Both limits leave
+ * ample headroom over the 2,500 small-job admission this API targets.
+ */
+const MAX_BATCH_ENTRIES = 5_000
+const MAX_BATCH_INPUT_BYTES = 32 * 1024 * 1024
+const JOB_BATCH_TOO_LARGE = 'JOB_BATCH_TOO_LARGE'
 const JOB_STATE_CACHE_TTL_MS = 60_000
 
 const DEFAULT_GLOBAL_MAX_CONCURRENCY = 50
@@ -90,11 +102,25 @@ interface PreparedEnqueue {
   handler: JobHandler
   queueName: string
   insertRow: InsertJobRow
+  /** Serialized `input` length, reused by the batch byte budget. */
+  inputJsonLength: number
+}
+
+/**
+ * Handler and clock resolved once for a homogeneous batch. Sharing one
+ * timestamp also gives every entry without an explicit `scheduledAt` the same
+ * default instead of a per-entry `Date.now()` drift.
+ */
+interface PrepareEnqueueContext {
+  handler: JobHandler
+  now: number
 }
 
 interface PersistedEnqueueBatch {
+  /** One entry per input entry, in input order — may repeat a created row. */
   snapshots: JobSnapshot[]
-  insertedIds: string[]
+  /** Newly inserted rows only, 1:1 with the INSERT, no duplicates. */
+  created: JobSnapshot[]
 }
 
 /**
@@ -852,14 +878,13 @@ export class JobManager extends BaseService {
    * at the call sites AFTER their idempotency check, so an idempotency hit
    * does not register a stray in-memory queue entry.
    */
-  private prepareEnqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions): PreparedEnqueue {
-    const handler = this.handlers.get(type)
-    if (!handler) {
-      throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
-        type,
-        knownTypes: Array.from(this.handlers.keys())
-      })
-    }
+  private prepareEnqueue<K extends JobType>(
+    type: K,
+    input: JobPayloadOf<K>,
+    opts: EnqueueOptions,
+    ctx: PrepareEnqueueContext = { handler: this.resolveHandler(type), now: Date.now() }
+  ): PreparedEnqueue {
+    const { handler, now } = ctx
 
     if (opts.idempotencyKey === '') {
       throw this.makeError('JOB_INVALID_IDEMPOTENCY_KEY', 'idempotencyKey must not be empty', { type })
@@ -894,7 +919,6 @@ export class JobManager extends BaseService {
     }
 
     const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
-    const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
     const maxAttempts = opts.maxAttempts ?? handler.defaultRetryPolicy?.maxAttempts ?? DEFAULT_RETRY_POLICY.maxAttempts
@@ -916,7 +940,19 @@ export class JobManager extends BaseService {
       timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
     }
 
-    return { handler, queueName, insertRow }
+    return { handler, queueName, insertRow, inputJsonLength }
+  }
+
+  /** Resolve a registered handler or throw the typed unknown-type error. */
+  private resolveHandler<K extends JobType>(type: K): JobHandler {
+    const handler = this.handlers.get(type)
+    if (!handler) {
+      throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
+        type,
+        knownTypes: Array.from(this.handlers.keys())
+      })
+    }
+    return handler
   }
 
   /**
@@ -1057,13 +1093,39 @@ export class JobManager extends BaseService {
    * Atomically enqueue a homogeneous batch. Every entry is validated before
    * the write transaction begins; results preserve input order and active
    * idempotency matches reuse their existing handles.
+   *
+   * @throws {EnqueueBatchValidationError} aggregating every invalid entry
+   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
+   * @throws Error with code `JOB_BATCH_TOO_LARGE` if the batch exceeds the entry
+   *   count or aggregate input-byte ceiling
    */
   enqueueBatch<K extends JobType>(type: K, entries: readonly EnqueueBatchEntry<K>[]): JobHandle[] {
     if (entries.length === 0) return []
     const prepared = this.prepareEnqueueBatch(type, entries)
+    // `withWriteTx` is synchronous, so the batch is committed once it returns.
     const persisted = application.get('DbService').withWriteTx((tx) => this.persistEnqueueBatchTx(tx, prepared))
     const handles = persisted.snapshots.map((snapshot) => this.handleFor(snapshot))
-    this.scheduleEnqueueBatchPostCommit(type, persisted.insertedIds, prepared[0].handler.defaultConcurrency ?? 1)
+    // Run the effects inline, on the committed snapshots, the way `enqueue`
+    // does. Deferring them by a microtask would let the caller's remaining
+    // synchronous code (`cancel` / `cancelMany` finalize rows without yielding)
+    // move these jobs on before we publish, so we would overwrite a terminal
+    // snapshot with a stale `pending` one that nothing ever corrects.
+    try {
+      this.runEnqueueBatchPostCommit(
+        'enqueueBatch',
+        type,
+        persisted.created,
+        prepared[0].handler.defaultConcurrency ?? 1
+      )
+    } catch (err) {
+      // The rows are already committed — a post-commit failure must not reach
+      // the caller as an enqueue error, or it would assume a rollback.
+      logger.error('enqueueBatch: post-commit side effects failed', {
+        type,
+        count: persisted.created.length,
+        err
+      })
+    }
     return handles
   }
 
@@ -1071,23 +1133,45 @@ export class JobManager extends BaseService {
    * Transactional batch variant. The caller must let any thrown error escape
    * its synchronous `withWriteTx` callback so every chunk rolls back together.
    * Post-commit effects are deferred by one microtask, matching `enqueueTx`.
+   *
+   * @throws {EnqueueBatchValidationError} aggregating every invalid entry
+   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
+   * @throws Error with code `JOB_BATCH_TOO_LARGE` if the batch exceeds the entry
+   *   count or aggregate input-byte ceiling
    */
   enqueueBatchTx<K extends JobType>(tx: DbOrTx, type: K, entries: readonly EnqueueBatchEntry<K>[]): JobHandle[] {
     if (entries.length === 0) return []
     const prepared = this.prepareEnqueueBatch(type, entries)
     const persisted = this.persistEnqueueBatchTx(tx, prepared)
     const handles = persisted.snapshots.map((snapshot) => this.handleFor(snapshot))
-    this.scheduleEnqueueBatchPostCommit(type, persisted.insertedIds, prepared[0].handler.defaultConcurrency ?? 1)
+    this.scheduleEnqueueBatchPostCommit(
+      type,
+      persisted.created.map((snapshot) => snapshot.id),
+      prepared[0].handler.defaultConcurrency ?? 1
+    )
     return handles
   }
 
   private prepareEnqueueBatch<K extends JobType>(type: K, entries: readonly EnqueueBatchEntry<K>[]): PreparedEnqueue[] {
+    if (entries.length > MAX_BATCH_ENTRIES) {
+      throw this.makeError(JOB_BATCH_TOO_LARGE, `Job batch exceeds ${MAX_BATCH_ENTRIES} entries`, {
+        type,
+        count: entries.length,
+        maxEntries: MAX_BATCH_ENTRIES
+      })
+    }
+
+    // The batch is homogeneous, so the handler lookup and the `scheduledAt`
+    // default are resolved once and shared by every entry.
+    const ctx: PrepareEnqueueContext = { handler: this.resolveHandler(type), now: Date.now() }
     const prepared: PreparedEnqueue[] = []
     const failures: EnqueueBatchValidationFailure[] = []
+    let totalInputBytes = 0
 
     entries.forEach((entry, index) => {
+      let entryPrepared: PreparedEnqueue
       try {
-        prepared.push(this.prepareEnqueue(type, entry.input, entry.options ?? {}))
+        entryPrepared = this.prepareEnqueue(type, entry.input, entry.options ?? {}, ctx)
       } catch (error) {
         const typed = error as { code?: unknown; message?: unknown; params?: unknown }
         failures.push({
@@ -1098,7 +1182,28 @@ export class JobManager extends BaseService {
             ? { params: typed.params as Record<string, unknown> }
             : {})
         })
+        return
       }
+
+      // Aggregate overflow rejects the whole batch rather than joining the
+      // per-entry failures, so it escapes here instead of being collected —
+      // stopping preparation rather than building out a batch we refuse.
+      totalInputBytes += entryPrepared.inputJsonLength
+      if (totalInputBytes > MAX_BATCH_INPUT_BYTES) {
+        throw this.makeError(JOB_BATCH_TOO_LARGE, `Job batch input exceeds ${MAX_BATCH_INPUT_BYTES} bytes`, {
+          type,
+          // Where it tipped over — overflowing at entry 37 of 5,000 and at the
+          // last entry are different producer bugs.
+          index,
+          sizeBytesAtLeast: totalInputBytes,
+          maxInputBytes: MAX_BATCH_INPUT_BYTES
+        })
+      }
+
+      // Allocate the row id here so `BEGIN IMMEDIATE` never covers id
+      // generation — `createManyTx` then only chunks the INSERTs.
+      entryPrepared.insertRow.id = uuidv7()
+      prepared.push(entryPrepared)
     })
 
     if (failures.length > 0) throw new EnqueueBatchValidationError(failures)
@@ -1146,10 +1251,16 @@ export class JobManager extends BaseService {
         if (!snapshot) throw new Error(`Missing created job at batch index ${resolution.createdIndex}`)
         return snapshot
       }),
-      insertedIds: created.map((snapshot) => snapshot.id)
+      created
     }
   }
 
+  /**
+   * Post-commit path for `enqueueBatchTx`. The caller still owns the
+   * transaction, so the rows are re-read one microtask later: a rollback
+   * leaves none (discard the resolvers and stop) and the caller's remaining
+   * synchronous code may already have moved the survivors on.
+   */
   private scheduleEnqueueBatchPostCommit(type: string, insertedIds: readonly string[], concurrency: number): void {
     if (insertedIds.length === 0) return
 
@@ -1161,51 +1272,79 @@ export class JobManager extends BaseService {
         for (const id of missingIds) this.finishedResolvers.delete(id)
 
         if (persisted.length === 0) {
-          logger.warn('enqueueBatch: rows absent after tx — rolled back, resolvers discarded', {
+          logger.warn('enqueueBatchTx: rows absent after tx — rolled back, resolvers discarded', {
             type,
             count: insertedIds.length
           })
           return
         }
 
-        try {
-          this.publishBatchState(persisted)
-        } catch (err) {
-          logger.error('enqueueBatch: state publication failed', { type, count: persisted.length, err })
-        }
-
-        logger.info('Job batch enqueued', {
-          type,
-          inserted: persisted.length,
-          missing: missingIds.length
-        })
-
-        if (this._isShuttingDown) return
-
-        const pendingQueues = new Set<string>()
-        const delayedSnapshots: JobSnapshot[] = []
-        for (const snapshot of persisted) {
-          this.ensureQueue(snapshot.queue, concurrency)
-          if (snapshot.status === 'pending') pendingQueues.add(snapshot.queue)
-          else if (snapshot.status === 'delayed') delayedSnapshots.push(snapshot)
-        }
-        for (const snapshot of delayedSnapshots) {
-          try {
-            this.armDelayedJob(snapshot)
-          } catch (err) {
-            logger.error('enqueueBatch: delayed job arming failed', {
-              type,
-              id: snapshot.id,
-              queue: snapshot.queue,
-              err
-            })
-          }
-        }
-        for (const queue of pendingQueues) void this.dispatch(queue)
+        this.runEnqueueBatchPostCommit('enqueueBatchTx', type, persisted, concurrency, missingIds.length)
       } catch (err) {
-        logger.error('enqueueBatch: post-commit side effects failed', { type, count: insertedIds.length, err })
+        // A microtask has no caller — an uncaught throw here would surface as
+        // a process-level uncaughtException.
+        logger.error('enqueueBatchTx: post-commit side effects failed', { type, count: insertedIds.length, err })
       }
     })
+  }
+
+  /**
+   * Publish, arm, and dispatch a freshly committed batch. `snapshots` must be
+   * the inserted rows only — deduplicated and one per row, since
+   * `publishBatchState` rejects a duplicate cache key. `variant` names the
+   * calling API so an operator can tell the inline path from the deferred one.
+   */
+  private runEnqueueBatchPostCommit(
+    variant: 'enqueueBatch' | 'enqueueBatchTx',
+    type: string,
+    snapshots: readonly JobSnapshot[],
+    concurrency: number,
+    missingCount = 0
+  ): void {
+    if (snapshots.length === 0) return
+
+    try {
+      this.publishBatchState(snapshots)
+    } catch (err) {
+      logger.error(`${variant}: state publication failed`, { type, count: snapshots.length, err })
+    }
+
+    logger.info('Job batch enqueued', {
+      variant,
+      type,
+      inserted: snapshots.length,
+      missing: missingCount
+    })
+
+    if (this._isShuttingDown) {
+      // Recovery resurrects these rows on the next start. Logged rather than
+      // returned silently: the line above just reported a successful admission.
+      logger.warn(`${variant}: post-commit dispatch skipped — shutting down`, { type, count: snapshots.length })
+      return
+    }
+
+    const pendingQueues = new Set<string>()
+    const delayedSnapshots: JobSnapshot[] = []
+    for (const snapshot of snapshots) {
+      this.ensureQueue(snapshot.queue, concurrency)
+      if (snapshot.status === 'pending') pendingQueues.add(snapshot.queue)
+      else if (snapshot.status === 'delayed') delayedSnapshots.push(snapshot)
+    }
+    for (const snapshot of delayedSnapshots) {
+      try {
+        // Best-effort: the delayed-promotion sweep re-promotes a due row within
+        // DELAYED_PROMOTION_INTERVAL_MS, so a failed arm is late, not lost.
+        this.armDelayedJob(snapshot)
+      } catch (err) {
+        logger.error(`${variant}: delayed job arming failed`, {
+          type,
+          id: snapshot.id,
+          queue: snapshot.queue,
+          err
+        })
+      }
+    }
+    for (const queue of pendingQueues) void this.dispatch(queue)
   }
 
   /**
@@ -2498,19 +2637,17 @@ export class JobManager extends BaseService {
   }
 
   private publishBatchState(snapshots: readonly JobSnapshot[]): void {
-    const entries = snapshots.map((snapshot) => ({
-      key: `${JOB_STATE_KEY_PREFIX}${snapshot.id}` as const,
-      value: snapshot,
-      ttl: JOB_STATE_CACHE_TTL_MS
-    }))
-
     // Per-entry V8 serialization headers make this sum conservative relative
     // to one structured-clone message, while letting us stop before allocating
     // an oversized aggregate buffer. Cache misses already fall back to DataApi.
+    // Entries are built alongside the estimate so an over-budget batch stops
+    // allocating wrappers for the snapshots it will never publish.
+    const entries: SharedCacheSetEntry[] = []
     let estimatedBytes = serialize({ type: 'shared', entries: [] }).byteLength
     const expireAt = Date.now() + JOB_STATE_CACHE_TTL_MS
-    for (const { key, value } of entries) {
-      estimatedBytes += serialize({ key, value, expireAt }).byteLength
+    for (const snapshot of snapshots) {
+      const key = `${JOB_STATE_KEY_PREFIX}${snapshot.id}` as const
+      estimatedBytes += serialize({ key, value: snapshot, expireAt }).byteLength
       if (estimatedBytes > MAX_BATCH_STATE_SYNC_BYTES) {
         logger.warn('Job batch state publication skipped: IPC budget exceeded', {
           count: snapshots.length,
@@ -2519,6 +2656,7 @@ export class JobManager extends BaseService {
         })
         return
       }
+      entries.push({ key, value: snapshot, ttl: JOB_STATE_CACHE_TTL_MS })
     }
 
     application.get('CacheService').setSharedMany(entries)

@@ -29,11 +29,11 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
-import { EnqueueBatchValidationError } from '@main/core/job/types'
+import { EnqueueBatchValidationError, JOB_STATE_KEY_PREFIX } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -1183,6 +1183,155 @@ describe('JobManager integration', () => {
       expect(cache.setSharedMany).not.toHaveBeenCalled()
       expect((jobManager as unknown as { queues: Map<string, unknown> }).queues.size).toBe(0)
       expect((jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers.size).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rejects an unregistered type once instead of aggregating a failure per entry', async () => {
+      const { scheduler, jobManager } = await bootstrapManager()
+      const dbService = MockMainDbServiceExport.dbService
+      dbService.withWriteTx.mockClear()
+
+      let thrown: unknown
+      try {
+        jobManager.enqueueBatch(
+          'batch.unregistered' as never,
+          [{ input: { message: 'a' } }, { input: { message: 'b' } }] as never
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).not.toBeInstanceOf(EnqueueBatchValidationError)
+      expect((thrown as { code?: string }).code).toBe('JOB_UNKNOWN_TYPE')
+      expect(dbService.withWriteTx).not.toHaveBeenCalled()
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rejects a batch over the entry ceiling before touching the database', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.too-many', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const dbService = MockMainDbServiceExport.dbService
+      dbService.withWriteTx.mockClear()
+
+      let thrown: unknown
+      try {
+        jobManager.enqueueBatch(
+          'batch.too-many' as never,
+          Array.from({ length: 5_001 }, (_, index) => ({ input: { message: `job-${index}` } })) as never
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect((thrown as { code?: string }).code).toBe('JOB_BATCH_TOO_LARGE')
+      expect((thrown as { params?: { maxEntries?: number } }).params?.maxEntries).toBe(5_000)
+      expect(dbService.withWriteTx).not.toHaveBeenCalled()
+      expect(jobService.count({ type: 'batch.too-many' })).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rejects a batch whose aggregate input exceeds the byte budget, even with legal entries', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.too-heavy', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const dbService = MockMainDbServiceExport.dbService
+      dbService.withWriteTx.mockClear()
+
+      // Each entry stays under the 1 MiB per-input cap; only the sum overflows.
+      const entries = Array.from({ length: 40 }, (_, index) => ({
+        input: { message: `${index}:${'x'.repeat(1_000_000)}` }
+      }))
+
+      let thrown: unknown
+      try {
+        jobManager.enqueueBatch('batch.too-heavy' as never, entries as never)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).not.toBeInstanceOf(EnqueueBatchValidationError)
+      expect((thrown as { code?: string }).code).toBe('JOB_BATCH_TOO_LARGE')
+      expect(dbService.withWriteTx).not.toHaveBeenCalled()
+      expect(jobService.count({ type: 'batch.too-heavy' })).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('publishes committed rows inline, so a same-tick cancel is not clobbered by a stale snapshot', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.sync-publish', makeSlowHandler('abandon') as JobHandler]]
+      })
+      jobManager.pause('hold batch at rest')
+      const cache = MockMainCacheServiceExport.cacheService
+      cache.setSharedMany.mockClear()
+
+      const handles = jobManager.enqueueBatch(
+        'batch.sync-publish' as never,
+        [{ input: { message: 'a' } }, { input: { message: 'b' } }] as never
+      )
+
+      // No await: deferring publication by a microtask would leave this at 0.
+      expect(cache.setSharedMany).toHaveBeenCalledTimes(1)
+
+      // `cancel` finalizes a pending row and publishes `cancelled` without
+      // yielding, so a deferred batch publish would overwrite it with `pending`
+      // — and nothing republishes a terminal row.
+      void jobManager.cancel(handles[0].id)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(
+        MockMainCacheServiceUtils.getSharedCacheValue(`${JOB_STATE_KEY_PREFIX}${handles[0].id}` as never)
+      ).toMatchObject({ status: 'cancelled' })
+      expect(cache.setSharedMany).toHaveBeenCalledTimes(1)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('pre-allocates row ids before opening the write transaction', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.preallocated-ids', makeSlowHandler('abandon') as JobHandler]]
+      })
+      jobManager.pause('hold id batch at rest')
+      const createManyTx = vi.spyOn(jobService, 'createManyTx')
+
+      const handles = jobManager.enqueueBatch(
+        'batch.preallocated-ids' as never,
+        Array.from({ length: 3 }, (_, index) => ({ input: { message: `job-${index}` } })) as never
+      )
+
+      const [, dtos] = createManyTx.mock.calls[0]
+      expect(dtos.map((dto) => dto.id)).toEqual(handles.map((handle) => handle.id))
+      createManyTx.mockRestore()
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('gives every entry without an explicit scheduledAt one shared batch timestamp', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['batch.shared-clock', makeSlowHandler('abandon') as JobHandler]]
+      })
+      jobManager.pause('hold clock batch at rest')
+
+      // A monotonically advancing clock: a per-entry `Date.now()` would hand
+      // every row a different default, so an identical value pins the hoist.
+      let tick = 1_700_000_000_000
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => tick++)
+      let handles: JobHandle[]
+      try {
+        handles = jobManager.enqueueBatch(
+          'batch.shared-clock' as never,
+          Array.from({ length: 5 }, (_, index) => ({ input: { message: `job-${index}` } })) as never
+        )
+      } finally {
+        nowSpy.mockRestore()
+      }
+
+      expect(new Set(handles.map((handle) => handle.snapshot.scheduledAt)).size).toBe(1)
+      expect(handles.every((handle) => handle.snapshot.status === 'pending')).toBe(true)
 
       await teardownManager(scheduler, jobManager)
     })

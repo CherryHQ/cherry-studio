@@ -194,6 +194,10 @@ export class JobService {
    * keeps all chunks atomic. UUIDs are assigned before INSERT so the returned
    * snapshots can be restored to input order without relying on SQLite's
    * unspecified RETURNING order.
+   *
+   * Prefer allocating `dto.id` before opening the transaction — `JobManager`'s
+   * batch enqueue does — so this holds the write lock for the INSERTs alone.
+   * The fallback below only covers callers that pass id-less rows.
    */
   createManyTx(tx: DbOrTx, dtos: readonly InsertJobRow[]): JobSnapshot[] {
     if (dtos.length === 0) return []
