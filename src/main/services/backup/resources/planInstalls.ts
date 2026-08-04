@@ -23,8 +23,8 @@ import { findCrossDeviceEndpoint, findUnsafeAncestor } from '@main/utils/file'
 import type { AdmittedResource } from '../admission/verify'
 import { ResourceInstallPlanError } from '../errors'
 import { type BackupPlatform, isPathContainedIn } from '../portability/managedPathRebase'
-import { type ResourcePathCandidate, type TargetState, validateResourcePaths } from '../resourcePaths'
 import { BACKUP_RESOURCE_KINDS, type BackupResourceKind, RESOURCE_ROOT_BY_KIND, type ResourceRoots } from './adapters'
+import { type ResourcePathCandidate, type TargetState, validateResourcePaths } from './resourcePaths'
 
 export interface PlanInstallsInput {
   /** Verified units from admission, still sitting in the admission staging tree. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_CEILINGS } from '../ceilings'
+import { BACKUP_CEILINGS } from '../../ceilings'
 import { type ResourcePathCandidate, validateResourcePaths } from '../resourcePaths'
 
 function candidate(overrides: Partial<ResourcePathCandidate> = {}): ResourcePathCandidate {

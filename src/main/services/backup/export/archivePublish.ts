@@ -21,7 +21,7 @@ import {
 import { hashDirectoryUnit, sha256FileCancellable } from '../hashing'
 import { type BackupManifest, parseBackupManifest } from '../manifest'
 import { ResourceCoverageIndex } from '../resourceCoverageIndex'
-import { validateResourcePathSet } from '../resourcePaths'
+import { validateResourcePathSet } from '../resources/resourcePaths'
 import { archiveDurability } from './archiveDurability'
 import { verifyArchiveReadback } from './archiveReadback'
 
