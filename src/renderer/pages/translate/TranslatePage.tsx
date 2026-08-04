@@ -44,7 +44,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isNonChatModel } from '@shared/utils/model'
-import { isEmpty, throttle } from 'es-toolkit/compat'
+import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -59,7 +59,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-const MARKDOWN_RENDER_THROTTLE_MS = 150
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -159,18 +158,37 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
-
+  const smoothUpdateRef = useRef<(text: string, isComplete: boolean) => void>(() => {})
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
+    onResponse: (text, isComplete) => smoothUpdateRef.current(text, isComplete)
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const markdownRenderSeq = useRef(0)
+  const [settledTick, setSettledTick] = useState(0)
+  const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    streamDone: !isTranslating,
+    initialText: translateOutput,
+    onSettled: () => setSettledTick((tick) => tick + 1)
+  })
+  smoothUpdateRef.current = smoothUpdate
+
+  // A new stream discards whatever Markdown the previous output settled into:
+  // drop it up front and invalidate any in-flight parse.
+  const smoothReset = useCallback(
+    (text = '') => {
+      markdownRenderSeq.current += 1
+      setRenderedMarkdown('')
+      smoothResetBase(text)
+    },
+    [smoothResetBase]
+  )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -403,38 +421,37 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  // Smooth-stream updates land per animation frame, and parsing the whole
-  // accumulated document on every frame grows quadratic. Pace renders and
-  // let the trailing edge catch the final snapshot.
-  const markdownRenderSeq = useRef(0)
-  const throttledMarkdownRender = useMemo(
-    () =>
-      throttle(
-        async (text: string) => {
-          const seq = ++markdownRenderSeq.current
-          const markdown = await shikiMarkdownIt(text)
-          if (seq === markdownRenderSeq.current) {
-            setRenderedMarkdown(markdown)
-          }
-        },
-        MARKDOWN_RENDER_THROTTLE_MS,
-        { edges: ['leading', 'trailing'] }
-      ),
-    [shikiMarkdownIt]
-  )
+  // Markdown/Shiki parses the whole document, so running it per streamed
+  // frame grows quadratically. Streamed output stays plain text; the single
+  // parse happens when useSmoothStream reports the queue drained, and the
+  // sequence guard keeps a slow parse from overwriting newer output.
+  const translateOutputRef = useRef(translateOutput)
+  useEffect(() => {
+    translateOutputRef.current = translateOutput
+  })
 
   useEffect(() => {
-    return () => throttledMarkdownRender.cancel()
-  }, [throttledMarkdownRender])
-
-  useEffect(() => {
-    if (!enableMarkdown || !translateOutput) {
-      throttledMarkdownRender.cancel()
+    if (!enableMarkdown) {
+      markdownRenderSeq.current += 1
       setRenderedMarkdown('')
       return
     }
-    void throttledMarkdownRender(translateOutput)
-  }, [enableMarkdown, translateOutput, throttledMarkdownRender])
+    const text = translateOutputRef.current
+    if (!text) {
+      setRenderedMarkdown('')
+      return
+    }
+    const seq = ++markdownRenderSeq.current
+    let cancelled = false
+    void shikiMarkdownIt(text).then((markdown) => {
+      if (!cancelled && seq === markdownRenderSeq.current) {
+        setRenderedMarkdown(markdown)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [enableMarkdown, settledTick, shikiMarkdownIt])
 
   const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
 
