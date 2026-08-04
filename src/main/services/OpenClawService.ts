@@ -72,6 +72,10 @@ type OpenClawValidationIssue = {
 }
 
 type OpenClawConfigSchemaNode = {
+  type?: string | string[]
+  const?: unknown
+  enum?: unknown[]
+  $ref?: string
   properties?: Record<string, OpenClawConfigSchemaNode>
   additionalProperties?: boolean | OpenClawConfigSchemaNode
   items?: OpenClawConfigSchemaNode | OpenClawConfigSchemaNode[]
@@ -101,36 +105,153 @@ function isCherryManagedConfigPath(configPath: string): boolean {
   return configPath.startsWith('models.providers.cherry-')
 }
 
-function findSchemaNode(
+const PERMISSIVE_CONFIG_SCHEMA: OpenClawConfigSchemaNode = {}
+
+function schemaIncludesType(schema: OpenClawConfigSchemaNode, type: string): boolean {
+  if (schema.type === undefined) return true
+  return Array.isArray(schema.type) ? schema.type.includes(type) : schema.type === type
+}
+
+function combineSchemaConstraints(schemas: OpenClawConfigSchemaNode[]): OpenClawConfigSchemaNode {
+  if (schemas.length === 1) return schemas[0]
+  return { allOf: schemas }
+}
+
+function findSchemaAtPath(
   schema: OpenClawConfigSchemaNode,
   [segment, ...remaining]: string[]
 ): OpenClawConfigSchemaNode | undefined {
   if (segment === undefined) return schema
 
-  const directChildren: OpenClawConfigSchemaNode[] = []
-  if (segment === '*') {
-    if (typeof schema.additionalProperties === 'object') directChildren.push(schema.additionalProperties)
-  } else if (segment === '[]') {
-    if (Array.isArray(schema.items)) directChildren.push(...schema.items)
-    else if (schema.items) directChildren.push(schema.items)
+  let directChild: OpenClawConfigSchemaNode | undefined
+  if (segment === '[]') {
+    if (!schemaIncludesType(schema, 'array')) return undefined
+    if (Array.isArray(schema.items)) directChild = { anyOf: schema.items }
+    else directChild = schema.items ?? PERMISSIVE_CONFIG_SCHEMA
   } else {
-    const property = schema.properties?.[segment]
-    if (property) directChildren.push(property)
+    if (!schemaIncludesType(schema, 'object')) return undefined
+    const property = segment === '*' ? undefined : schema.properties?.[segment]
+    if (property) directChild = property
+    else if (typeof schema.additionalProperties === 'object') directChild = schema.additionalProperties
+    else if (schema.additionalProperties !== false) directChild = PERMISSIVE_CONFIG_SCHEMA
+    else return undefined
   }
 
-  for (const child of directChildren) {
-    const found = findSchemaNode(child, remaining)
-    if (found) return found
+  const constraints: OpenClawConfigSchemaNode[] = []
+  const directConstraint = findSchemaAtPath(directChild, remaining)
+  if (!directConstraint) return undefined
+  constraints.push(directConstraint)
+
+  for (const branch of schema.allOf ?? []) {
+    const branchConstraint = findSchemaAtPath(branch, [segment, ...remaining])
+    if (!branchConstraint) return undefined
+    constraints.push(branchConstraint)
   }
-  for (const branch of [...(schema.anyOf ?? []), ...(schema.oneOf ?? []), ...(schema.allOf ?? [])]) {
-    const found = findSchemaNode(branch, [segment, ...remaining])
-    if (found) return found
+
+  for (const alternatives of [schema.anyOf, schema.oneOf]) {
+    if (!alternatives) continue
+    const branchConstraints = alternatives.flatMap((branch) => {
+      const branchConstraint = findSchemaAtPath(branch, [segment, ...remaining])
+      return branchConstraint ? [branchConstraint] : []
+    })
+    if (branchConstraints.length === 0) return undefined
+    constraints.push(branchConstraints.length === 1 ? branchConstraints[0] : { anyOf: branchConstraints })
   }
-  return undefined
+
+  return combineSchemaConstraints(constraints)
 }
 
 function schemaSupportsPath(schema: OpenClawConfigSchemaNode, pathSegments: string[]): boolean {
-  return findSchemaNode(schema, pathSegments) !== undefined
+  return findSchemaAtPath(schema, pathSegments) !== undefined
+}
+
+function schemaTypeMatches(type: string | string[] | undefined, value: unknown): boolean {
+  if (type === undefined) return true
+  const types = Array.isArray(type) ? type : [type]
+  return types.some((candidate) => {
+    if (candidate === 'null') return value === null
+    if (candidate === 'array') return Array.isArray(value)
+    if (candidate === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value)
+    if (candidate === 'integer') return typeof value === 'number' && Number.isInteger(value)
+    return typeof value === candidate
+  })
+}
+
+function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: unknown): boolean {
+  if (!schemaTypeMatches(schema.type, value)) return false
+  if (schema.const !== undefined && !Object.is(schema.const, value)) return false
+  if (schema.enum !== undefined && !schema.enum.some((candidate) => Object.is(candidate, value))) return false
+  if (schema.anyOf !== undefined && !schema.anyOf.some((branch) => schemaValueMatches(branch, value))) return false
+  if (schema.oneOf !== undefined && !schema.oneOf.some((branch) => schemaValueMatches(branch, value))) return false
+  if (schema.allOf !== undefined && !schema.allOf.every((branch) => schemaValueMatches(branch, value))) return false
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return true
+
+  return Object.entries(schema.properties ?? {}).every(
+    ([key, property]) => !(key in value) || schemaValueMatches(property, (value as Record<string, unknown>)[key])
+  )
+}
+
+function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: unknown): unknown {
+  if (Array.isArray(value)) {
+    if (schema.items === undefined) return value
+    return value.map((item, index) => {
+      const itemSchema = Array.isArray(schema.items) ? schema.items[index] : schema.items
+      return itemSchema ? projectSchemaSupportedValue(itemSchema, item) : item
+    })
+  }
+
+  if (value === null || typeof value !== 'object') return value
+  if (schema.properties === undefined && schema.additionalProperties === undefined) return value
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, childValue]) => {
+      const property = schema.properties?.[key]
+      if (property) return [[key, projectSchemaSupportedValue(property, childValue)]]
+      if (typeof schema.additionalProperties === 'object') {
+        return [[key, projectSchemaSupportedValue(schema.additionalProperties, childValue)]]
+      }
+      return schema.additionalProperties === false ? [] : [[key, childValue]]
+    })
+  )
+}
+
+function mergeAlternativeProjections(values: unknown[]): unknown {
+  if (values.length === 1) return values[0]
+  if (values.every(Array.isArray)) {
+    const arrays = values as unknown[][]
+    return Array.from({ length: Math.max(...arrays.map((value) => value.length)) }, (_, index) =>
+      mergeAlternativeProjections(arrays.flatMap((value) => (index in value ? [value[index]] : [])))
+    )
+  }
+  if (values.every((value) => value !== null && typeof value === 'object' && !Array.isArray(value))) {
+    const objects = values as Record<string, unknown>[]
+    return Object.fromEntries(
+      [...new Set(objects.flatMap((value) => Object.keys(value)))].map((key) => [
+        key,
+        mergeAlternativeProjections(objects.flatMap((value) => (key in value ? [value[key]] : [])))
+      ])
+    )
+  }
+  return values[0]
+}
+
+function projectSchemaSupportedValue(schema: OpenClawConfigSchemaNode, value: unknown): unknown {
+  let projected = projectDirectSchemaValue(schema, value)
+
+  for (const branch of schema.allOf ?? []) {
+    projected = projectSchemaSupportedValue(branch, projected)
+  }
+
+  for (const alternatives of [schema.anyOf, schema.oneOf]) {
+    if (!alternatives || alternatives.length === 0) continue
+    const matchingAlternatives = alternatives.filter((branch) => schemaValueMatches(branch, value))
+    const selectedAlternatives = matchingAlternatives.length > 0 ? matchingAlternatives : alternatives
+    projected = mergeAlternativeProjections(
+      selectedAlternatives.map((branch) => projectSchemaSupportedValue(branch, projected))
+    )
+  }
+
+  return projected
 }
 
 function pickSchemaSupportedProperties(
@@ -140,7 +261,9 @@ function pickSchemaSupportedProperties(
 ): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
 
-  return Object.fromEntries(Object.entries(value).filter(([key]) => schemaSupportsPath(schema, [...basePath, key])))
+  const schemaNode = findSchemaAtPath(schema, basePath)
+  if (!schemaNode) return {}
+  return projectSchemaSupportedValue(schemaNode, value) as Record<string, unknown>
 }
 
 class OpenClawPreflightError extends Error {
@@ -452,11 +575,22 @@ export class OpenClawService extends BaseService {
         ...runtime.env,
         OPENCLAW_CONFIG_PATH: configPath
       })
-      return this.parseValidationResult(result)
+      const report = this.parseValidationResult(result)
+      if (report.path === undefined || path.resolve(report.path) !== path.resolve(configPath)) {
+        logger.warn('OpenClaw config validation used an unexpected config path', {
+          expectedPath: configPath,
+          reportedPath: report.path ?? null
+        })
+        throw new OpenClawPreflightError(
+          'binary_incompatible',
+          t('openclaw.errors.binary_incompatible', { details: '' })
+        )
+      }
+      return report
     } catch (error) {
       const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
       logger.warn('OpenClaw config validation failed', { summary })
-      if (error instanceof OpenClawPreflightError && error.kind === 'preflight_failed') {
+      if (error instanceof OpenClawPreflightError) {
         throw error
       }
       throw new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed'))
@@ -1118,11 +1252,16 @@ export class OpenClawService extends BaseService {
       const existingModelMap = new Map((existingProvider?.models ?? []).map((model) => [model.id, model]))
       config.models = config.models || { mode: 'merge', providers: {} }
       const providerHeaders = (provider as OpenClawSyncProvider).headers
+      const existingProviderOverrides = pickSchemaSupportedProperties(
+        configSchema,
+        providerSchemaPath,
+        existingProvider
+      )
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
 
       const openclawProvider: OpenClawProviderConfig = {
-        ...pickSchemaSupportedProperties(configSchema, providerSchemaPath, existingProvider),
+        ...existingProviderOverrides,
         baseUrl,
         apiKey,
         api: apiType,
@@ -1146,7 +1285,8 @@ export class OpenClawService extends BaseService {
         })
       }
       if (supportsProviderField('headers')) {
-        const headers = { ...providerHeaders, ...existingProvider?.headers }
+        const existingHeaders = existingProviderOverrides.headers as Record<string, string> | undefined
+        const headers = { ...providerHeaders, ...existingHeaders }
         if (Object.keys(headers).length > 0) openclawProvider.headers = headers
       } else {
         delete openclawProvider.headers
