@@ -5199,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modele locale",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6778,6 +6778,7 @@
         "allStatuses": "Toate statusurile",
         "allTypes": "Toate tipurile",
         "builtinOnly": "Doar încorporat",
+        "label": "Filtru",
         "status": "Filtrare după stare",
         "type": "Filtrare după tip"
       },
@@ -6844,6 +6845,9 @@
         "loadError": "Eroare obținere prompturi",
         "noPromptsAvailable": "Nu există prompturi disponibile",
         "requiredField": "Câmp obligatoriu"
+      },
+      "protocolInstall": {
+        "title": "Instalează MCP"
       },
       "protocolInstallWarning": {
         "command": "Comandă pornire",

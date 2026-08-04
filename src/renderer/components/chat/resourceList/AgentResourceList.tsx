@@ -45,6 +45,7 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
   onAddAgent?: () => void | Promise<void>
@@ -64,6 +65,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  dataEnabled = true,
   historyRecordsActive = false,
   agentSessionsSource,
   onAddAgent,
@@ -98,7 +100,7 @@ export function AgentResourceList({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent')
+  } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
@@ -191,10 +193,16 @@ export function AgentResourceList({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from classic-layout rail', { agentId, err })
         toast.error(t('common.error'))
+        return
+      }
+
+      try {
+        await refetchAgents()
+      } catch (err) {
+        logger.warn('Failed to refresh agents after toggling pin from classic-layout rail', { agentId, err })
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]

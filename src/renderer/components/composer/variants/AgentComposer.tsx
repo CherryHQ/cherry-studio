@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -679,6 +680,8 @@ const AgentComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const {
@@ -755,8 +758,28 @@ const AgentComposerInner = ({
   const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
   const workspaceWarning =
     resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const skillsDataEnabled =
+    selectedSkills.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+    rootPanelVisible ||
+    skillsPanelVisible
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath, {
+    enabled: skillsDataEnabled
+  })
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
@@ -965,8 +988,6 @@ const AgentComposerInner = ({
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
   // it with the current (possibly stale) closure, so an externally installed/removed skill would
   // otherwise only appear on the next open (mirrors the MCP status panel).
-  const quickPanel = useOptionalQuickPanel()
-  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
@@ -1523,6 +1544,7 @@ const AgentComposerInner = ({
           enableSpellCheck={enableSpellCheck}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
+          railGutterPx={railGutterPx}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}
@@ -1566,6 +1588,8 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1637,6 +1661,7 @@ const MissingAgentHomeComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode={narrowMode}
+        railGutterPx={railGutterPx}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

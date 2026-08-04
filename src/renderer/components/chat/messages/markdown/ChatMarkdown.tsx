@@ -12,8 +12,9 @@ import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
 import { HtmlArtifactPopupHost } from '../../HtmlArtifactView'
+import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
+import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
-import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 interface Props {
   block: MarkdownSource
@@ -29,6 +30,7 @@ export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+const EMPTY_CITATION_REGISTRY: ReadonlyMap<number, Citation> = new Map()
 
 const ChatMarkdown: FC<Props> = ({
   block,
@@ -61,17 +63,11 @@ const ChatMarkdown: FC<Props> = ({
   }, [block.status, block.content, inlineHtmlPreviewMode, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const citationRegistry = useMemo(
-    () => new Map((trustedCitations ?? []).map((citation) => [citation.number, citation])),
-    [trustedCitations]
-  )
-  const chatComponents = useChatMarkdownComponents({
-    blockId: block.id,
-    inlineHtmlPreviewMode,
-    hasStyleElement,
-    isStreaming,
-    citationRegistry
-  })
+  const citationRegistry = useMemo(() => {
+    if (!trustedCitations?.length) return EMPTY_CITATION_REGISTRY
+    return new Map(trustedCitations.map((citation) => [citation.number, citation]))
+  }, [trustedCitations])
+  const chatComponents = hasStyleElement ? CHAT_MARKDOWN_COMPONENTS_WITH_STYLE : CHAT_MARKDOWN_COMPONENTS
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]
@@ -105,7 +101,15 @@ const ChatMarkdown: FC<Props> = ({
     </Markdown>
   )
 
-  return inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer
+  return (
+    <ChatMarkdownRenderProvider
+      blockId={block.id}
+      citationRegistry={citationRegistry}
+      inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+      isStreaming={isStreaming}>
+      {inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer}
+    </ChatMarkdownRenderProvider>
+  )
 }
 
 export default ChatMarkdown
