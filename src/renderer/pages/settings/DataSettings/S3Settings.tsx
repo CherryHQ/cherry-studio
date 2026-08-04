@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
@@ -31,7 +31,6 @@ const S3Settings: FC = () => {
   const [s3AccessKeyId, setS3AccessKeyId] = usePreference('data.backup.s3.access_key_id')
   const [s3SecretAccessKey, setS3SecretAccessKey] = usePreference('data.backup.s3.secret_access_key')
   const [s3Root, setS3Root] = usePreference('data.backup.s3.root')
-  const [s3SkipBackupFile, setS3SkipBackupFile] = usePreference('data.backup.s3.skip_backup_file')
   const [s3SyncInterval, setS3SyncInterval] = usePreference('data.backup.s3.sync_interval')
   const [s3MaxBackups, setS3MaxBackups] = usePreference('data.backup.s3.max_backups')
 
@@ -244,14 +243,6 @@ const S3Settings: FC = () => {
             { label: '50', value: 50 }
           ]}
         />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
-        <Switch checked={s3SkipBackupFile} onCheckedChange={(value) => void setS3SkipBackupFile(value)} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
       </SettingRow>
       {s3SyncInterval > 0 && (
         <>

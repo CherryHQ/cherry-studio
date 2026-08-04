@@ -1,4 +1,4 @@
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -7,7 +7,6 @@ import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -29,7 +28,6 @@ const LocalBackupSettings: React.FC = () => {
   const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
   const [localBackupDir, setLocalBackupDir] = usePreference('data.backup.local.dir')
   const [localBackupMaxBackups, setLocalBackupMaxBackups] = usePreference('data.backup.local.max_backups')
-  const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
@@ -261,17 +259,6 @@ const LocalBackupSettings: React.FC = () => {
             { label: '50', value: 50 }
           ]}
         />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch
-          checked={localBackupSkipBackupFile}
-          onCheckedChange={(value) => void setLocalBackupSkipBackupFile(value)}
-        />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
       {localBackupSync && localBackupSyncInterval > 0 && (
         <>

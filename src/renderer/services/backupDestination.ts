@@ -18,6 +18,12 @@ export type { BackupDestinationId }
  * filename, uploading, pruning old archives — is main's, because it has to work
  * without a window open. What is left is the part that genuinely belongs to a
  * window: asking, and telling the user how it went.
+ *
+ * NO PRESET CHOICE. Backup v2 has exactly one, Full
+ * (docs/references/backup/README.md §1), so `data.backup.*.skip_backup_file`
+ * has no reader. The switches that wrote it are gone; the keys stay because
+ * they are generated from the data-classification source, and a stale `true`
+ * in an upgraded profile now means nothing rather than a quietly smaller backup.
  */
 
 /**
