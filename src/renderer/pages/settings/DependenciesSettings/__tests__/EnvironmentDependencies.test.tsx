@@ -240,13 +240,13 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
-    expect(screen.getAllByRole('listitem').at(-1)).toHaveTextContent('BabelDOC')
+    expect(screen.getByText('BabelDOC Stream')).toBeInTheDocument()
   })
 
   it('renders the BabelDOC preset with its bundled image icon (not the fallback glyph)', async () => {
     render(<EnvironmentDependencies />)
 
-    const card = (await screen.findByText('BabelDOC')).closest<HTMLElement>('[role="listitem"]')
+    const card = (await screen.findByText('BabelDOC Stream')).closest<HTMLElement>('[role="listitem"]')
     expect(card).not.toBeNull()
     // BabelDOC has no iconify mark, so it must resolve to the bundled PNG — dropping the `name`
     // prop would silently fall back to the Terminal glyph and this src would disappear.
@@ -260,20 +260,20 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByLabelText('settings.dependencies.installSettings.title')).toBeInTheDocument()
   })
 
-  it('lets the user install the BabelDOC dependency', async () => {
+  it('lets the user install the BabelDOC Stream dependency', async () => {
     setSnapshots({
-      babeldoc: {
-        name: 'babeldoc',
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
         application: { status: 'absent' },
         availability: { source: 'none' }
       }
     })
     render(<EnvironmentDependencies />)
-    const card = (await screen.findByText('BabelDOC')).closest('[role="listitem"]') as HTMLElement
+    const card = (await screen.findByText('BabelDOC Stream')).closest('[role="listitem"]') as HTMLElement
 
     fireEvent.click(within(card).getByRole('button', { name: 'settings.mcp.install' }))
 
-    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'babeldoc' }))
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'babeldoc-stream' }))
   })
 
   it('keeps a system preset display-only, never shadowing it with a managed copy', async () => {

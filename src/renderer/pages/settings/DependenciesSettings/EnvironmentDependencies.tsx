@@ -84,7 +84,7 @@ type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_block
 // Tools whose brand mark isn't in an icon font (iconify) ship a bundled image instead, keyed by
 // preset name. Lives here rather than on the shared preset, which must not import renderer assets.
 const TOOL_IMAGE_ICONS: Record<string, string> = {
-  babeldoc: babeldocIcon
+  'babeldoc-stream': babeldocIcon
 }
 
 const ToolIcon: FC<{ name?: string; icon?: string; className?: string }> = ({ name, icon, className }) => {

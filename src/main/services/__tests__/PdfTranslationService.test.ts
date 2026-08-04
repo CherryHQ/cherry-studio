@@ -50,15 +50,27 @@ vi.mock('@main/core/lifecycle', () => {
 
 const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
 const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf') as AbsoluteFilePath
-const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc')
+const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc-stream')
 
-const binaryManager = { getState: vi.fn() }
+const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
   acquireLease: vi.fn(),
   ensureValidApiKey: vi.fn(),
   getCurrentConfig: vi.fn(),
   releaseLease: vi.fn()
 }
+const streamEvent = (event: Record<string, unknown>) =>
+  `${JSON.stringify({ schema: 'babeldoc-stream/v1', ...event })}\n`
+const finishEvent = () =>
+  streamEvent({
+    type: 'finish',
+    result: {
+      original_pdf_path: SOURCE_PATH,
+      mono_pdf_path: null,
+      dual_pdf_path: null,
+      total_seconds: 1
+    }
+  })
 
 const { PdfTranslationService } = await import('../PdfTranslationService')
 
@@ -86,8 +98,12 @@ describe('PdfTranslationService', () => {
       isEnabled: true,
       name: 'GPT-4.1'
     })
-    binaryManager.getState.mockReturnValue({
-      tools: { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.3' } }
+    binaryManager.getToolSnapshots.mockResolvedValue({
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
+        availability: { source: 'mise', path: MANAGED_BINARY },
+        application: { status: 'applied' }
+      }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)
     apiGateway.ensureValidApiKey.mockResolvedValue('cs-sk-test')
@@ -107,7 +123,11 @@ describe('PdfTranslationService', () => {
       fs.mkdirSync(outputDir, { recursive: true })
       const targetLanguage = args[args.indexOf('--lang-out') + 1]
       fs.writeFileSync(path.join(outputDir, `research paper.no_watermark.${targetLanguage}.mono.pdf`), '%PDF-mono')
-      queueMicrotask(() => child.emit('close', 0, null))
+      queueMicrotask(() => {
+        child.stdout.write(finishEvent())
+        child.stdout.end()
+        child.emit('close', 0, null)
+      })
       return child
     })
   })
@@ -127,7 +147,7 @@ describe('PdfTranslationService', () => {
       targetLangCode: 'zh-cn'
     })
 
-    expect(binaryManager.getState).toHaveBeenCalledTimes(1)
+    expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
     expect(apiGateway.acquireLease).toHaveBeenCalledTimes(1)
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -144,6 +164,7 @@ describe('PdfTranslationService', () => {
         'en-US',
         '--lang-out',
         'zh-CN',
+        '--progress-json',
         '--watermark-output-mode',
         'no_watermark',
         '--no-dual'
@@ -158,6 +179,7 @@ describe('PdfTranslationService', () => {
     expect(mocks.spawn.mock.calls[0][2].env).toEqual(
       expect.objectContaining({ HOME: expect.stringContaining('runtime') })
     )
+    expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('PYTHONPATH')
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).not.toContain('--no-mono')
     expect(args).not.toContain('--auto-enable-ocr-workaround')
@@ -171,9 +193,8 @@ describe('PdfTranslationService', () => {
     })
   })
 
-  it('streams validated monotonic progress from the BabelDOC adapter', async () => {
-    let adapterPath = ''
-    mocks.spawn.mockImplementationOnce((_command: string, args: string[], options: { env: Record<string, string> }) => {
+  it('streams validated monotonic progress from the BabelDOC Stream protocol', async () => {
+    mocks.spawn.mockImplementationOnce((_command: string, args: string[]) => {
       const child = new EventEmitter() as EventEmitter & {
         stderr: PassThrough
         stdout: PassThrough
@@ -183,17 +204,15 @@ describe('PdfTranslationService', () => {
       child.stdout = new PassThrough()
       child.kill = vi.fn()
 
-      adapterPath = path.join(options.env.PYTHONPATH, 'sitecustomize.py')
-      expect(fs.existsSync(adapterPath)).toBe(true)
-      expect(fs.readFileSync(adapterPath, 'utf8')).toContain('if event_type == "error":')
       const outputDir = args[args.indexOf('--output') + 1]
       fs.writeFileSync(path.join(outputDir, 'research paper.no_watermark.zh-CN.mono.pdf'), '%PDF-mono')
       queueMicrotask(() => {
-        child.stdout.write('doclayout onnx model not found or corrupted, downloading...\n')
-        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":12.4}\n')
-        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__not-json\n')
-        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Translate Paragraphs","progress":55.4}\n')
-        child.stdout.write('__CHERRY_BABELDOC_PROGRESS__{"stage":"Parse PDF","progress":40}\n')
+        child.stderr.write('doclayout onnx model not found or corrupted, downloading...\n')
+        child.stdout.write(streamEvent({ type: 'progress', stage: 'Parse PDF', progress: 12.4 }))
+        child.stdout.write('not-json\n')
+        child.stdout.write(streamEvent({ type: 'progress', stage: 'Translate Paragraphs', progress: 55.4 }))
+        child.stdout.write(streamEvent({ type: 'progress', stage: 'Parse PDF', progress: 40 }))
+        child.stdout.write(finishEvent())
         child.stdout.end()
         child.emit('close', 0, null)
       })
@@ -226,7 +245,7 @@ describe('PdfTranslationService', () => {
       { stage: 'translating', progress: 55 },
       { stage: 'rendering', progress: 100 }
     ])
-    expect(fs.existsSync(adapterPath)).toBe(false)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored malformed BabelDOC Stream event')
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
@@ -247,9 +266,18 @@ describe('PdfTranslationService', () => {
 
   it.each([
     ['missing', {}],
-    ['outdated', { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.2' } }]
-  ])('requires the pinned BabelDOC version to be installed manually when it is %s', async (_case, tools) => {
-    binaryManager.getState.mockReturnValueOnce({ tools })
+    [
+      'not applied',
+      {
+        'babeldoc-stream': {
+          name: 'babeldoc-stream',
+          availability: { source: 'none' },
+          application: { status: 'absent' }
+        }
+      }
+    ]
+  ])('requires BabelDOC to be installed manually when it is %s', async (_case, snapshots) => {
+    binaryManager.getToolSnapshots.mockResolvedValueOnce(snapshots)
     const service = new PdfTranslationService()
 
     const translation = service.translate({
@@ -279,9 +307,9 @@ describe('PdfTranslationService', () => {
       child.stdout = new PassThrough()
       child.kill = vi.fn()
       queueMicrotask(() => {
-        child.stdout.write('__CHERRY_BABELDOC_ERROR__{"name":"ScannedPDFError","message":"Scanned PDF detected."}\n')
+        child.stdout.write(streamEvent({ type: 'error', name: 'ScannedPDFError', message: 'Scanned PDF detected.' }))
         child.stdout.end()
-        child.emit('close', 0, null)
+        child.emit('close', 1, null)
       })
       return child
     })
@@ -435,10 +463,12 @@ describe('PdfTranslationService', () => {
     // gateway's own ref-counted concern (covered in ApiGatewayService tests), not the service's.
     expect(apiGateway.acquireLease).toHaveBeenCalledTimes(2)
 
+    children.get('job-first')!.stdout.write(finishEvent())
     children.get('job-first')!.emit('close', 0, null)
     await first
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
 
+    children.get('job-second')!.stdout.write(finishEvent())
     children.get('job-second')!.emit('close', 0, null)
     await second
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(2)
@@ -481,7 +511,7 @@ describe('PdfTranslationService', () => {
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-nonzero-exit'))).toBe(false)
   })
 
-  it('surfaces the OCR message and warns when the progress adapter fails on a scanned PDF', async () => {
+  it('surfaces the OCR message from stderr when the JSON writer fails before emitting an event', async () => {
     mocks.spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & {
         stderr: PassThrough
@@ -492,7 +522,6 @@ describe('PdfTranslationService', () => {
       child.stdout = new PassThrough()
       child.kill = vi.fn()
       queueMicrotask(() => {
-        child.stderr.write('Cherry Studio progress adapter failed: cannot patch create_progress_handler\n')
         child.stderr.write('babeldoc.exceptions.ScannedPDFError: Scanned PDF detected.\n')
         child.stderr.end()
         child.emit('close', 1, null)
@@ -502,7 +531,7 @@ describe('PdfTranslationService', () => {
     const service = new PdfTranslationService()
 
     const translation = service.translate({
-      jobId: 'job-adapter-scanned',
+      jobId: 'job-early-scanned',
       modelId: 'openai::gpt-4.1-internal',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
@@ -510,19 +539,12 @@ describe('PdfTranslationService', () => {
     })
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      expect.stringContaining('progress adapter failed'),
-      expect.objectContaining({ jobId: 'job-adapter-scanned' })
-    )
     // OCR-required is an expected user condition (IpcError) → logged at warn, never error.
     expect(mockMainLoggerService.error).not.toHaveBeenCalled()
-    expect(fs.existsSync(path.join(TEST_ROOT, 'job-adapter-scanned'))).toBe(false)
+    expect(fs.existsSync(path.join(TEST_ROOT, 'job-early-scanned'))).toBe(false)
   })
 
-  it('reports OCR-required for a scanned PDF that exits 0 without producing output', async () => {
-    // BabelDOC 0.6.3 only logs the scanned-PDF error and breaks, so the sidecar can exit 0 with no
-    // output file. The scanned-PDF match must win over the successful exit code, otherwise the run
-    // resolves and then degrades into a generic "missing output" error.
+  it('reports OCR-required for a scanned PDF that exits 0 before its JSON writer starts', async () => {
     mocks.spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & {
         stderr: PassThrough
@@ -533,7 +555,6 @@ describe('PdfTranslationService', () => {
       child.stdout = new PassThrough()
       child.kill = vi.fn()
       queueMicrotask(() => {
-        child.stderr.write('Cherry Studio progress adapter failed: cannot patch create_progress_handler\n')
         child.stderr.write('babeldoc.exceptions.ScannedPDFError: Scanned PDF detected.\n')
         child.stderr.end()
         child.emit('close', 0, null)
@@ -552,6 +573,33 @@ describe('PdfTranslationService', () => {
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-exit-zero'))).toBe(false)
+  })
+
+  it('rejects an exit-zero sidecar that omits the terminal finish event', async () => {
+    mocks.spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & {
+        stderr: PassThrough
+        stdout: PassThrough
+        kill: ReturnType<typeof vi.fn>
+      }
+      child.stderr = new PassThrough()
+      child.stdout = new PassThrough()
+      child.kill = vi.fn()
+      queueMicrotask(() => child.emit('close', 0, null))
+      return child
+    })
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-missing-finish',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toThrow('without a finish event')
+    expect(fs.existsSync(path.join(TEST_ROOT, 'job-missing-finish'))).toBe(false)
   })
 
   it('sweeps stale temp output directories on init', async () => {
