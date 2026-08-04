@@ -1437,6 +1437,8 @@ export class ClaudeCodeStreamAdapter {
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
+      status: 'done',
+      phase: 'agent-session',
       trigger: metadata.trigger,
       completedAt: new Date().toISOString(),
       preTokens: metadata.pre_tokens
