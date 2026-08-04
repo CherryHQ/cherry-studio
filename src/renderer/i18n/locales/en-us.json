@@ -1595,7 +1595,6 @@
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
-      "url_context": "URL Context",
       "web_search": {
         "builtin": {
           "disabled_content": "The current model does not support web search",
@@ -1612,13 +1611,16 @@
           "description": "Do not enable web search",
           "label": "Disable Web Search"
         },
+        "route": {
+          "builtin": "Searches with the model's built-in tool",
+          "client": "Searches with {{provider}}"
+        },
         "settings": "Web Search Settings"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "url_context": "Gemini does not support using url context and function calling simultaneously"
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously"
       }
     },
     "message": {
@@ -4275,6 +4277,7 @@
       "cutoff": "Truncating search content...",
       "fetch_complete": "{{count}} search result(s)",
       "fetch_empty": "No search results found",
+      "fetch_opaque": "Searched by the model",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
@@ -8073,6 +8076,10 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
+        "client_tools_preferred": {
+          "description": "Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "Prefer configured search services"
+        },
         "compression": {
           "cutoff": {
             "limit": {

@@ -16,6 +16,7 @@ export function useProviderMeta(providerId: string) {
     const isDmxapi = provider ? matchesPreset(provider, 'dmxapi') : false
 
     return {
+      provider,
       fancyProviderName: provider ? getFancyProviderName(provider) : '',
       officialWebsite: provider?.websites?.official,
       apiKeyWebsite: provider?.websites?.apiKey,

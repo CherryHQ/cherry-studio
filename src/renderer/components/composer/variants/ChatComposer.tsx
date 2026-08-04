@@ -42,7 +42,6 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
-  canModelUseAssistantWebSearch,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
@@ -147,7 +146,6 @@ export interface ChatComposerProps {
       fastMode?: boolean
     }
   ) => void | Promise<void>
-  captureLocalSendScrollEligibility?: () => void
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -326,7 +324,6 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
-  captureLocalSendScrollEligibility,
   sendDisabled,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -380,7 +377,6 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
-            captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
             sendDisabled={sendDisabled}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -416,7 +412,6 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
-  captureLocalSendScrollEligibility,
   sendDisabled = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -589,7 +584,6 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -597,10 +591,13 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
+      // an ungated providers list. This duplicate read the composer's own list, which is deferred
+      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
+      // setting for every model whose search is provider-native.
       const extraSettings: {
-        enableWebSearch: boolean
         reasoning_effort?: ReasoningEffortOption
-      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      } = {}
       if (reasoningOverride?.assistantId === assistant.id) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }
@@ -1136,8 +1133,7 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       setIsSending(true)
 
       try {
@@ -1158,7 +1154,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [captureLocalSendScrollEligibility, onSend, saveHistory]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1369,7 +1365,6 @@ const ChatComposerInner = ({
         return
       }
 
-      captureLocalSendScrollEligibility?.()
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
@@ -1383,7 +1378,7 @@ const ChatComposerInner = ({
       const previousKnowledgeBases = selectedKnowledgeBases
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         setText(previousText)
         setFiles(previousFiles)
@@ -1396,7 +1391,6 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
-      captureLocalSendScrollEligibility,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
