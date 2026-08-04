@@ -40,7 +40,10 @@ function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
   return child
 }
 
-function createRuntimeConfigSchema(modelFields = ['contextWindow', 'maxTokens', 'reasoning', 'input', 'cost']) {
+function createRuntimeConfigSchema(
+  modelFields = ['contextWindow', 'maxTokens', 'reasoning', 'input', 'cost'],
+  providerFields = ['headers']
+) {
   return {
     type: 'object',
     properties: {
@@ -52,7 +55,7 @@ function createRuntimeConfigSchema(modelFields = ['contextWindow', 'maxTokens', 
             additionalProperties: {
               type: 'object',
               properties: {
-                headers: {},
+                ...Object.fromEntries(providerFields.map((field) => [field, {}])),
                 models: {
                   type: 'array',
                   items: {
@@ -311,6 +314,33 @@ describe('OpenClawService gateway status state machine', () => {
           env: { PATH: '/mock/bin' }
         })
       ).resolves.toEqual(schema)
+    })
+
+    it('uses a dedicated bounded capture limit for the runtime schema', async () => {
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify(schema),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: '/mock/bin/openclaw',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
+      expect(runOpenClawCommandSpy).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'schema'],
+        {
+          PATH: '/mock/bin',
+          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
+        },
+        { stdoutLimitBytes: 32 * 1024 * 1024 }
+      )
     })
 
     it('accepts a runtime schema larger than the diagnostic capture limit', async () => {
@@ -1381,7 +1411,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(written.update.checkOnStart).toBe(true)
     })
 
-    it('rebuilds the Cherry-managed providers from current data while preserving external config', async () => {
+    it('removes stale Cherry providers while preserving supported hand edits on the selected provider', async () => {
       fs.writeFileSync(
         path.join(configDir, 'openclaw.json'),
         JSON.stringify({
@@ -1389,6 +1419,9 @@ describe('OpenClawService gateway status state machine', () => {
             mode: 'merge',
             providers: {
               'cherry-openai': {
+                baseUrl: 'https://manual.example.com',
+                apiKey: 'manual-key',
+                api: 'anthropic-messages',
                 headers: { 'User-Agent': 'OpenClaw', 'X-Manual': 'keep' },
                 models: [
                   {
@@ -1449,13 +1482,13 @@ describe('OpenClawService gateway status state machine', () => {
         baseUrl: 'https://api.openai.com/v1',
         apiKey: 'sk-test',
         api: 'openai-completions',
-        headers: { 'User-Agent': 'Cherry Studio', 'X-Synced': 'synced' },
+        headers: { 'User-Agent': 'OpenClaw', 'X-Synced': 'synced', 'X-Manual': 'keep' },
         models: [
           {
             id: 'gpt-4o',
             name: 'GPT-4o',
-            contextWindow: 128000,
-            maxTokens: 16384,
+            contextWindow: 200000,
+            maxTokens: 32000,
             reasoning: true,
             input: ['text', 'image'],
             cost: { input: 2, output: 8 }
@@ -1470,8 +1503,8 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
-    it('emits only Cherry-managed optional fields supported by the resolved OpenClaw schema', async () => {
-      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow', 'reasoning', 'input']))
+    it('emits only optional provider and model fields supported by the resolved OpenClaw schema', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow', 'reasoning', 'input'], []))
       fs.writeFileSync(
         path.join(configDir, 'openclaw.json'),
         JSON.stringify({ tools: { web: { fetch: { ssrfPolicy: { allowPrivateNetwork: false } } } } })
@@ -1500,7 +1533,6 @@ describe('OpenClawService gateway status state machine', () => {
         baseUrl: 'https://api.openai.com/v1',
         apiKey: 'sk-test',
         api: 'openai-completions',
-        headers: { 'X-Synced': 'synced' },
         models: [
           {
             id: 'gpt-4o',

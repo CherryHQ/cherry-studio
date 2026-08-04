@@ -42,6 +42,7 @@ const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.
 const DEFAULT_GATEWAY_PORT = 18790
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
+const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
 const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
 const OPENCLAW_CONFIG_FILE_MODE = 0o600
@@ -61,7 +62,7 @@ type OpenClawCommandResult = {
 }
 
 type OpenClawCommandOptions = {
-  captureFullStdout?: boolean
+  stdoutLimitBytes?: number
 }
 
 type OpenClawValidationIssue = {
@@ -130,6 +131,16 @@ function findSchemaNode(
 
 function schemaSupportsPath(schema: OpenClawConfigSchemaNode, pathSegments: string[]): boolean {
   return findSchemaNode(schema, pathSegments) !== undefined
+}
+
+function pickSchemaSupportedProperties(
+  schema: OpenClawConfigSchemaNode,
+  basePath: string[],
+  value: unknown
+): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  return Object.fromEntries(Object.entries(value).filter(([key]) => schemaSupportsPath(schema, [...basePath, key])))
 }
 
 class OpenClawPreflightError extends Error {
@@ -311,7 +322,7 @@ export class OpenClawService extends BaseService {
         return
       }
 
-      const stdoutCapture = this.createOutputCapture(options.captureFullStdout ? null : undefined)
+      const stdoutCapture = this.createOutputCapture(options.stdoutLimitBytes)
       const stderrCapture = this.createOutputCapture()
       let outputTruncated = false
       let settled = false
@@ -353,14 +364,14 @@ export class OpenClawService extends BaseService {
     })
   }
 
-  private createOutputCapture(limitBytes: number | null = OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES) {
+  private createOutputCapture(limitBytes = OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES) {
     const chunks: Buffer[] = []
     let capturedBytes = 0
 
     return {
       append: (chunk: Buffer | string): boolean => {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        const remaining = limitBytes === null ? bytes.length : Math.max(0, limitBytes - capturedBytes)
+        const remaining = Math.max(0, limitBytes - capturedBytes)
         const retainedBytes = Math.min(bytes.length, remaining)
         if (retainedBytes > 0) {
           chunks.push(bytes.subarray(0, retainedBytes))
@@ -484,7 +495,7 @@ export class OpenClawService extends BaseService {
           ...runtime.env,
           OPENCLAW_CONFIG_PATH: openclawConfigPath()
         },
-        { captureFullStdout: true }
+        { stdoutLimitBytes: OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES }
       )
     } catch (error) {
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
@@ -1094,22 +1105,30 @@ export class OpenClawService extends BaseService {
         apiKey = this.getNoKeyPlaceholder(provider) ?? 'no-key-required'
       }
 
-      // Rebuild Cherry Studio's managed provider area from current provider data.
-      // Non-Cherry providers and all other top-level OpenClaw config remain user-owned.
+      // Remove inactive Cherry-generated providers. On the selected provider, retain only
+      // hand-edited fields supported by the live OpenClaw schema; Cherry-owned identity,
+      // endpoint, credential, and model-name fields are always regenerated below.
+      const providerSchemaPath = ['models', 'providers', '*']
+      const modelSchemaPath = [...providerSchemaPath, 'models', '[]']
+      const providers = config.models?.providers ?? {}
       const externalProviders = Object.fromEntries(
-        Object.entries(config.models?.providers ?? {}).filter(([key]) => !key.startsWith('cherry-'))
+        Object.entries(providers).filter(([key]) => !key.startsWith('cherry-'))
       )
+      const existingProvider = providers[providerKey]
+      const existingModelMap = new Map((existingProvider?.models ?? []).map((model) => [model.id, model]))
       config.models = config.models || { mode: 'merge', providers: {} }
       const providerHeaders = (provider as OpenClawSyncProvider).headers
-      const supportsModelField = (field: string) =>
-        schemaSupportsPath(configSchema, ['models', 'providers', '*', 'models', '[]', field])
+      const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
+      const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
 
       const openclawProvider: OpenClawProviderConfig = {
+        ...pickSchemaSupportedProperties(configSchema, providerSchemaPath, existingProvider),
         baseUrl,
         apiKey,
         api: apiType,
         models: provider.models.map((m) => {
           const synced = m as OpenClawSyncModel
+          const existing = existingModelMap.get(m.id)
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1119,14 +1138,18 @@ export class OpenClawService extends BaseService {
               : {}),
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
             ...(supportsModelField('cost') && synced.cost ? { cost: synced.cost } : {}),
+            ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
+            ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
             id: m.id,
-            name: m.name,
-            ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {})
+            name: m.name
           }
         })
       }
-      if (providerHeaders && Object.keys(providerHeaders).length > 0) {
-        openclawProvider.headers = { ...providerHeaders }
+      if (supportsProviderField('headers')) {
+        const headers = { ...providerHeaders, ...existingProvider?.headers }
+        if (Object.keys(headers).length > 0) openclawProvider.headers = headers
+      } else {
+        delete openclawProvider.headers
       }
 
       // Set gateway mode to local (required for gateway to start)
