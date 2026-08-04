@@ -33,8 +33,22 @@
     {
       "idx": 4,
       "version": "6",
-      "when": 1785766113565,
-      "tag": "0004_tense_korath",
+      "when": 1785735707223,
+      "tag": "0004_fresh_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785835011932,
+      "tag": "0005_large_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785835056271,
+      "tag": "0006_slimy_tarot",
       "breakpoints": true
     }
   ]

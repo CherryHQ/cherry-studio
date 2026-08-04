@@ -69,6 +69,60 @@ function partsWithDuplicateFile(fileEntryId: string): MessageData {
   }
 }
 
+function partsWithPersistedToolOutput(fileEntryId: string): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'ran a tool' },
+      {
+        type: 'tool-run_cmd',
+        toolCallId: 'call-1',
+        state: 'output-available',
+        input: {},
+        output: {
+          $persistedToolOutput: {
+            fileEntryId,
+            vfsFilename: 'vfs_0123456789abcdef.txt',
+            head: 'head excerpt',
+            tail: 'tail excerpt',
+            totalChars: 200_000,
+            totalLines: 5_000,
+            shape: 'text'
+          }
+        }
+      }
+    ] as MessageData['parts']
+  }
+}
+
+function partsWithEntitiesToolOutput(fileEntryIds: string[]): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'fetched several pages' },
+      {
+        type: 'tool-web_fetch',
+        toolCallId: 'call-1',
+        state: 'output-available',
+        input: {},
+        output: {
+          $persistedToolOutput: {
+            shape: 'entities',
+            skeleton: fileEntryIds.map((_, i) => ({ id: `cite-${i}`, content: 'snippet…' })),
+            blobRefs: fileEntryIds.map((fileEntryId, i) => ({
+              key: `/${i}/content`,
+              fileEntryId,
+              vfsFilename: `vfs_${i}.txt`,
+              head: 'head excerpt',
+              tail: 'tail excerpt',
+              totalChars: 100_000,
+              totalLines: 2_000
+            }))
+          }
+        }
+      }
+    ] as MessageData['parts']
+  }
+}
+
 describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
@@ -1148,6 +1202,95 @@ describe('MessageService', () => {
         .where(eq(chatMessageFileRefTable.sourceId, message.id))
       expect(refs).toHaveLength(1)
       expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: message.id, role: 'attachment' })
+    })
+
+    it('writes a tool_output ref for a persisted tool-output envelope', async () => {
+      const topicId = 'topic-ref-tool-output'
+      const fileId = '019606a0-0000-7000-8000-00000000fa08'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: partsWithPersistedToolOutput(fileId),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: message.id, role: 'tool_output' })
+    })
+
+    it('writes one tool_output ref per blob of an entities envelope', async () => {
+      const topicId = 'topic-ref-tool-output-entities'
+      const fileIds = [
+        '019606a0-0000-7000-8000-00000000fb01',
+        '019606a0-0000-7000-8000-00000000fb02',
+        '019606a0-0000-7000-8000-00000000fb03'
+      ]
+      await seedTopicWithRoot(topicId)
+      for (const fileId of fileIds) await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: partsWithEntitiesToolOutput(fileIds),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(3)
+      expect(refs.map((ref) => ref.fileEntryId).sort()).toEqual(fileIds)
+      expect(refs.every((ref) => ref.role === 'tool_output')).toBe(true)
+    })
+
+    it('drops the tool_output ref when the envelope leaves the message data', async () => {
+      const topicId = 'topic-ref-tool-output-drop'
+      const fileId = '019606a0-0000-7000-8000-00000000fa09'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: partsWithPersistedToolOutput(fileId),
+        status: 'success'
+      })
+      messageService.update(message.id, { data: mainText('rewritten') })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(0)
+    })
+
+    it('addToolOutputFileRef is idempotent and no-ops for missing messages', async () => {
+      const topicId = 'topic-ref-provisional'
+      const fileId = '019606a0-0000-7000-8000-00000000fa0b'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText('streaming…'),
+        status: 'pending'
+      })
+
+      expect(messageService.addToolOutputFileRef(message.id, fileId)).toBe(true)
+      expect(messageService.addToolOutputFileRef(message.id, fileId)).toBe(false)
+      expect(messageService.addToolOutputFileRef('019606a0-dead-7000-8000-000000000000', fileId)).toBe(false)
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, role: 'tool_output' })
     })
   })
 

@@ -4,7 +4,7 @@ vi.mock('@application', () => ({
   application: { get: () => ({ search: () => [] }) }
 }))
 
-import { READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { FS_READ_TOOL_NAME, READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { ToolRegistry } from '../../registry'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
@@ -27,6 +27,7 @@ describe('registerBuiltinTools', () => {
     expect(reg.has(GENERATE_IMAGE_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.has(FS_READ_TOOL_NAME)).toBe(true)
   })
 
   it('gates read_file on file attachments', () => {

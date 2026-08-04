@@ -16,7 +16,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
+import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ActiveNodeStrategy,
@@ -25,6 +25,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
   type BranchMessagesResponse,
@@ -134,6 +135,7 @@ function rowToMessage(row: MessageRow): Message {
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     messageSnapshot: parseJson(row.messageSnapshot),
     stats: parseJson(row.stats),
+    compactionSummary: row.compactionSummary ?? null,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -207,17 +209,26 @@ function extractPreview(message: Message): string {
   return ''
 }
 
-function extractChatMessageFileEntryIds(data: MessageData | null | undefined): string[] {
-  const ids: string[] = []
+type ChatMessageFileRefEntry = { fileEntryId: string; role: (typeof chatMessageRoles)[number] }
+
+function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatMessageFileRefEntry[] {
+  const refs: ChatMessageFileRefEntry[] = []
   const seen = new Set<string>()
-  for (const part of data?.parts ?? []) {
-    if (part.type !== 'file') continue
-    const fileEntryId = readCherryMeta(part)?.fileEntryId
-    if (!fileEntryId || seen.has(fileEntryId)) continue
-    seen.add(fileEntryId)
-    ids.push(fileEntryId)
+  const add = (fileEntryId: string | undefined, role: ChatMessageFileRefEntry['role']) => {
+    if (!fileEntryId) return
+    const key = `${role}:${fileEntryId}`
+    if (seen.has(key)) return
+    seen.add(key)
+    refs.push({ fileEntryId, role })
   }
-  return ids
+  for (const part of data?.parts ?? []) {
+    if (part.type === 'file') {
+      add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
+      for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
+    }
+  }
+  return refs
 }
 
 function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<string> {
@@ -237,22 +248,25 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
 function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
-  const fileEntryIds = extractChatMessageFileEntryIds(data)
-  if (fileEntryIds.length === 0) return
+  const refs = extractChatMessageFileRefs(data)
+  if (refs.length === 0) return
 
-  const existingIds = selectExistingFileEntryIdsTx(tx, fileEntryIds)
+  const existingIds = selectExistingFileEntryIdsTx(
+    tx,
+    refs.map((r) => r.fileEntryId)
+  )
   const now = Date.now()
   const rows: Array<typeof chatMessageFileRefTable.$inferInsert> = []
-  for (const fileEntryId of fileEntryIds) {
+  for (const { fileEntryId, role } of refs) {
     if (!existingIds.has(fileEntryId)) continue
-    rows.push({ fileEntryId, sourceId: messageId, role: 'attachment', createdAt: now, updatedAt: now })
+    rows.push({ fileEntryId, sourceId: messageId, role, createdAt: now, updatedAt: now })
   }
 
-  if (rows.length !== fileEntryIds.length) {
+  if (rows.length !== refs.length) {
     logger.warn('Dropped chat message file refs without matching file_entry', {
       messageId,
-      dropped: fileEntryIds.length - rows.length,
-      total: fileEntryIds.length
+      dropped: refs.length - rows.length,
+      total: refs.length
     })
   }
 
@@ -825,6 +839,14 @@ export class MessageService {
     })
   }
 
+  /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
+  setCompactionSummary(id: string, summary: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id)).run()
+    })
+    logger.info('Set message compactionSummary', { id, length: summary.length })
+  }
+
   search(query: MessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
@@ -1346,7 +1368,7 @@ export class MessageService {
   }
 
   /**
-   * Internal AI-runtime finalizer. Content/status and runtime timing are
+   * Internal AI-runtime finalizer. Content/status and runtime stats are
    * message-owned; the merge preserves the existing record-owned usage
    * projection and never accepts usage/cost from this caller.
    */
@@ -1390,6 +1412,29 @@ export class MessageService {
     const finalized = this.getById(id)
     if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
     return finalized
+  }
+
+  /**
+   * Provisional `tool_output` file ref written at offload time, before the
+   * assistant turn finalizes. Protects a freshly-created
+   * `delete_when_unreferenced` blob from the entry-cleanup reaper during turns
+   * longer than the 1h create grace; `finalizeAssistantMessage`'s ref replace
+   * later converges the set to the final parts. Returns false (no-op) when the
+   * message row doesn't exist — a FK violation would not be absorbed by the
+   * conflict clause — or when the ref is already present.
+   */
+  addToolOutputFileRef(messageId: string, fileEntryId: string): boolean {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.id, messageId)).get()
+      if (!row) return false
+      const now = Date.now()
+      const result = tx
+        .insert(chatMessageFileRefTable)
+        .values({ fileEntryId, sourceId: messageId, role: 'tool_output', createdAt: now, updatedAt: now })
+        .onConflictDoNothing()
+        .run()
+      return result.changes > 0
+    })
   }
 
   /**
@@ -1823,6 +1868,10 @@ export class MessageService {
       copiedActiveNodeId = copiedMessage.id
     }
 
+    // File refs are NOT re-derived here: the sole caller (TopicService.duplicate)
+    // copies the source rows' refs verbatim by source-id map afterwards
+    // (role-preserving, so `tool_output` refs ride along) — deriving them here
+    // too would collide on the (entry, source, role) unique index.
     return { copiedMessageIds, copiedActiveNodeId }
   }
 

@@ -151,7 +151,8 @@ function modelLabelsForAgent(resource: AgentDetail): ModelLabels {
   return {
     modelId: resource.model ?? null,
     planModelId: resource.planModel ?? null,
-    smallModelId: resource.smallModel ?? null
+    smallModelId: resource.smallModel ?? null,
+    contextCompressModelId: null
   }
 }
 

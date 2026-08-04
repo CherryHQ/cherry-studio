@@ -1591,7 +1591,6 @@
         "image_or_document": "Télécharger une image ou un document",
         "upload_from_local": "Télécharger un fichier local..."
       },
-      "url_context": "Contexte de la page web",
       "web_search": {
         "builtin": {
           "disabled_content": "Le modèle actuel ne prend pas en charge la recherche web",
@@ -1613,8 +1612,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
-        "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
+        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions"
       }
     },
     "message": {

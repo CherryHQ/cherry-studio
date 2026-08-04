@@ -190,6 +190,17 @@ describe('useSessions', () => {
     vi.clearAllMocks()
   })
 
+  it('keeps progressive session sources on first-page revalidation', () => {
+    renderHook(() => useSessions(undefined, { pinned: false }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      query: { pinned: false },
+      limit: 20,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false }
+    })
+  })
+
   it('returns empty sessions when agentId is null', () => {
     mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
 

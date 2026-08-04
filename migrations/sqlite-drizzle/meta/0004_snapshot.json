@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c1980335-97f0-4cbc-88ab-610154c19c73",
+  "id": "77dab5b3-daaf-4669-bf97-c1801025f509",
   "prevId": "ef12a49f-fae9-44eb-831a-c668131c952e",
   "tables": {
     "agent": {
@@ -536,13 +536,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "last_activity_at": {
-          "name": "last_activity_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -559,29 +552,14 @@
         }
       },
       "indexes": {
-        "agent_session_created_at_id_idx": {
-          "name": "agent_session_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_last_activity_at_id_idx": {
-          "name": "agent_session_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_agent_id_last_activity_at_id_idx": {
-          "name": "agent_session_agent_id_last_activity_at_id_idx",
-          "columns": ["agent_id", "\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
         },
-        "agent_session_updated_at_id_idx": {
-          "name": "agent_session_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -653,13 +631,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "model_id": {
@@ -1939,7 +1910,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output')"
         }
       }
     },
@@ -3272,13 +3243,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "siblings_group_id": {
           "name": "siblings_group_id",
           "type": "integer",
@@ -3303,6 +3267,13 @@
         },
         "stats": {
           "name": "stats",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "compaction_summary": {
+          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4017,13 +3988,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "last_activity_at": {
-          "name": "last_activity_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -4047,19 +4011,9 @@
         }
       },
       "indexes": {
-        "topic_created_at_id_idx": {
-          "name": "topic_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_last_activity_at_id_idx": {
-          "name": "topic_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_updated_at_id_idx": {
-          "name": "topic_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "topic_updated_at_idx": {
+          "name": "topic_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         },
         "topic_order_key_idx": {
@@ -4070,16 +4024,6 @@
         "topic_assistant_id_idx": {
           "name": "topic_assistant_id_idx",
           "columns": ["assistant_id"],
-          "isUnique": false
-        },
-        "topic_assistant_id_created_at_id_idx": {
-          "name": "topic_assistant_id_created_at_id_idx",
-          "columns": ["assistant_id", "\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_assistant_id_last_activity_at_id_idx": {
-          "name": "topic_assistant_id_last_activity_at_id_idx",
-          "columns": ["assistant_id", "\"last_activity_at\" desc", "id"],
           "isUnique": false
         }
       },
@@ -4600,72 +4544,9 @@
   },
   "internal": {
     "indexes": {
-      "agent_session_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_agent_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
             "isExpression": true
           }
         }

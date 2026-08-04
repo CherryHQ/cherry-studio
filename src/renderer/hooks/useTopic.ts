@@ -274,7 +274,8 @@ export function useTopics(opts: {
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts.enabled
+    enabled: opts.enabled,
+    swrOptions: { revalidateAll: false }
   })
   const topics = useInfiniteFlatItems(pages)
   return {
