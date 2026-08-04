@@ -15,11 +15,22 @@ export interface UseFullTextSearchReturn {
   reset: () => void
   isSearching: boolean
   results: SearchResult[]
+  /**
+   * The keyword `results` were produced from. Lags the live input across the debounce
+   * and the async scan, so consumers must highlight and locate with THIS, not with
+   * whatever is currently typed — the two disagree for as long as a search is pending.
+   */
+  resultsKeyword: string
+  /**
+   * All three count keyword occurrences, not matched notes: `total` is
+   * `nameMatches + contentMatches`, and a note matching in both places contributes to
+   * both lanes. Reporting one note per hit would disagree with the result list, which
+   * now shows every occurrence.
+   */
   stats: {
     total: number
-    fileNameMatches: number
+    nameMatches: number
     contentMatches: number
-    bothMatches: number
   }
   error: Error | null
 }
@@ -32,12 +43,12 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
 
   const [isSearching, setIsSearching] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
+  const [resultsKeyword, setResultsKeyword] = useState('')
   const [error, setError] = useState<Error | null>(null)
   const [stats, setStats] = useState({
     total: 0,
-    fileNameMatches: 0,
-    contentMatches: 0,
-    bothMatches: 0
+    nameMatches: 0,
+    contentMatches: 0
   })
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -69,7 +80,8 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
   const reset = useCallback(() => {
     cancel()
     setResults([])
-    setStats({ total: 0, fileNameMatches: 0, contentMatches: 0, bothMatches: 0 })
+    setResultsKeyword('')
+    setStats({ total: 0, nameMatches: 0, contentMatches: 0 })
     setError(null)
   }, [cancel])
 
@@ -83,7 +95,8 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
 
       if (!keyword) {
         setResults([])
-        setStats({ total: 0, fileNameMatches: 0, contentMatches: 0, bothMatches: 0 })
+        setResultsKeyword('')
+        setStats({ total: 0, nameMatches: 0, contentMatches: 0 })
         return
       }
 
@@ -107,14 +120,16 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
 
         const limitedResults = searchResults.slice(0, maxResultsRef.current)
 
+        const nameMatches = limitedResults.reduce((sum, r) => sum + r.nameMatchCount, 0)
+        const contentMatches = limitedResults.reduce((sum, r) => sum + (r.matches?.length ?? 0), 0)
         const newStats = {
-          total: limitedResults.length,
-          fileNameMatches: limitedResults.filter((r) => r.matchType === 'filename').length,
-          contentMatches: limitedResults.filter((r) => r.matchType === 'content').length,
-          bothMatches: limitedResults.filter((r) => r.matchType === 'both').length
+          total: nameMatches + contentMatches,
+          nameMatches,
+          contentMatches
         }
 
         setResults(limitedResults)
+        setResultsKeyword(keyword.trim())
         setStats(newStats)
       } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') {
@@ -154,6 +169,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
     reset,
     isSearching,
     results,
+    resultsKeyword,
     stats,
     error
   }

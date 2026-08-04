@@ -5,6 +5,13 @@ export interface RichEditorProps {
   placeholder?: string
   /** Enable in-editor content search UI */
   enableContentSearch?: boolean
+  /**
+   * Keyword highlighted in the rendered document on behalf of a search UI outside
+   * the editor, without opening the find bar. Declarative on purpose: the editor is
+   * remounted on view-mode changes, and a prop re-applies itself where an imperative
+   * call would be lost. Requires `enableContentSearch`.
+   */
+  searchHighlightKeyword?: string
   /** Callback when content changes (plain text) */
   onContentChange?: (content: string) => void
   /** Callback when HTML content changes */
@@ -107,6 +114,23 @@ export interface RichEditorRef {
   setScrollTop: (value: number) => void
   /** Scroll to specific line number in markdown */
   scrollToLine: (lineNumber: number, options?: { highlight?: boolean; lineContent?: string }) => void
+  /**
+   * Emphasise and scroll to one match of `keyword`, resolving `activeIndex` against
+   * the matches on the given markdown line only — an ordinal counted over the
+   * markdown source cannot be trusted document-wide, because syntax characters the
+   * source contains are not rendered. Requires `enableContentSearch`.
+   */
+  focusSearchMatch: (
+    keyword: string,
+    location: {
+      /** Ordinal of the hit within its markdown line. */
+      activeIndex: number
+      /** How many hits that line had, so a block covering several lines can be detected. */
+      lineMatchCount: number
+      lineNumber: number
+      lineContent?: string
+    }
+  ) => void
   // Dynamic command management
   /** Register a new command/toolbar item */
   registerCommand: (cmd: Command) => void

@@ -4534,10 +4534,9 @@
       "metadata_pending": "The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
-      "both": "Name+Content",
-      "content": "Content",
       "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
       "more_matches": "more matches",
+      "no_results": "No results found",
       "searching": "Searching...",
       "show_less": "Show less"
     },

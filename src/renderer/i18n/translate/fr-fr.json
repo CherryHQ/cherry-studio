@@ -4506,10 +4506,9 @@
       "metadata_pending": "La note a été enregistrée, mais ses métadonnées de fichier sont encore en cours de récupération. Ne réessayez pas cet enregistrement."
     },
     "search": {
-      "both": "Nom + Contenu",
-      "content": "contenu",
       "found_results": "{{count}} résultat(s) trouvé(s) (nom : {{nameCount}}, contenu : {{contentCount}})",
       "more_matches": "Correspondance",
+      "no_results": "[to be translated]:No results found",
       "searching": "Recherche en cours...",
       "show_less": "Replier"
     },

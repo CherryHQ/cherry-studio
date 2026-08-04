@@ -4506,10 +4506,9 @@
       "metadata_pending": "La nota se guardó, pero sus metadatos de archivo aún se están recuperando. No vuelva a intentar este guardado."
     },
     "search": {
-      "both": "Nombre + Contenido",
-      "content": "contenido",
       "found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
       "more_matches": "Una coincidencia",
+      "no_results": "[to be translated]:No results found",
       "searching": "Buscando...",
       "show_less": "Recoger"
     },

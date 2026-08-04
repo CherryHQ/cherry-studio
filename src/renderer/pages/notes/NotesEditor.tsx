@@ -26,10 +26,21 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  /** Keyword from the sidebar search, highlighted in the rendered note. */
+  searchHighlightKeyword?: string
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({
+    activeNodeId,
+    currentContent,
+    contentLoadError,
+    tokenCount,
+    onMarkdownChange,
+    editorRef,
+    codeEditorRef,
+    searchHighlightKeyword
+  }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const { activeCmTheme } = useCodeStyle()
@@ -118,6 +129,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               autoFocus={currentContent.trim().length === 0}
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
+              searchHighlightKeyword={searchHighlightKeyword}
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
               wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
               isFullWidth

@@ -39,7 +39,9 @@ export function FileTree(props: FileTreeProps) {
     onMove,
     renameSlot,
     animationSlot,
+    renderName,
     renderRowExtras,
+    renderRowBelow,
     getMenuItems,
     fileIcon,
     folderIcon,
@@ -70,13 +72,15 @@ export function FileTree(props: FileTreeProps) {
         args={args}
         renameSlot={renameSlot}
         animationSlot={animationSlot}
+        renderName={renderName}
         renderRowExtras={renderRowExtras}
+        renderRowBelow={renderRowBelow}
         getMenuItems={getMenuItems}
         fileIcon={fileIcon}
         folderIcon={folderIcon}
       />
     ),
-    [renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon]
+    [renameSlot, animationSlot, renderName, renderRowExtras, renderRowBelow, getMenuItems, fileIcon, folderIcon]
   )
 
   const defaultRenderList = useCallback(

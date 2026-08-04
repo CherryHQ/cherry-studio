@@ -1,10 +1,11 @@
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import HighlightText from '@renderer/components/HighlightText'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { FilePlus, Folder, FolderUp, Loader2, RefreshCw, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +14,8 @@ import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'
 import { useNotesFileUpload } from './hooks/useNotesFileUpload'
 import { useNotesMenu } from './hooks/useNotesMenu'
+import NotesSearchMatchList from './NotesSearchMatchList'
+import { SEARCH_HIGHLIGHT_CLASS } from './searchHighlight'
 
 interface NotesSidebarProps {
   onCreateFolder: (name: string, targetFolderId?: string) => void
@@ -25,6 +28,11 @@ interface NotesSidebarProps {
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
+  /**
+   * The keyword currently driving the sidebar search, or '' when search is closed or
+   * empty. Lets the page mirror the search into the open note's editor.
+   */
+  onSearchKeywordChange?: (keyword: string) => void
   notesTree: NotesTreeNode[]
   activeFilePath?: string
   sortType: NotesSortType
@@ -79,6 +87,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
+  onSearchKeywordChange,
   notesTree,
   activeFilePath,
   sortType,
@@ -136,12 +145,32 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     reset,
     isSearching,
     results: searchResults,
+    resultsKeyword,
     stats: searchStats
   } = useFullTextSearch(searchOptions)
 
   useEffect(() => {
     notesTreeRef.current = notesTree
   }, [notesTree])
+
+  // Mirror the effective keyword out so the page can highlight it in the open note.
+  const effectiveSearchKeyword = isShowSearch ? resultsKeyword : ''
+  const searchKeywordChangeRef = useRef(onSearchKeywordChange)
+  searchKeywordChangeRef.current = onSearchKeywordChange
+
+  useEffect(() => {
+    onSearchKeywordChange?.(effectiveSearchKeyword)
+  }, [effectiveSearchKeyword, onSearchKeywordChange])
+
+  // The whole sidebar is unmounted when the workspace is hidden, which would otherwise
+  // strand the last keyword and leave the note highlighted with no visible search.
+  // Read through a ref so this only ever runs on unmount.
+  useEffect(
+    () => () => {
+      searchKeywordChangeRef.current?.('')
+    },
+    []
+  )
 
   useEffect(() => {
     if (!isShowSearch) {
@@ -170,6 +199,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const handleToggleSearchView = useCallback(() => {
     setIsShowSearch((prev) => !prev)
   }, [])
+
+  // Content matches are read from disk, so a note edited outside the app leaves the
+  // result list stale until the query changes. Re-run it against the current tree.
+  const handleRefreshSearch = useCallback(() => {
+    if (!hasSearchKeyword) return
+    search(notesTreeRef.current, trimmedSearchKeyword)
+  }, [hasSearchKeyword, search, trimmedSearchKeyword])
 
   const handleSelectSortType = useCallback(
     (selectedSortType: NotesSortType) => {
@@ -250,24 +286,36 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [renamingNodeIds, newlyRenamedNodeIds]
   )
 
-  const renderRowExtras = useCallback(
+  // With the match/name badge gone, highlighting is what tells a name hit apart from a
+  // content-only hit (which shows a match list instead).
+  const renderName = useCallback(
+    (node: FileTreeNode) => {
+      // resultsKeyword, not the live input: while a search is pending the rows still
+      // show the previous query's results, and highlighting those with the new word
+      // would mark nothing (or the wrong thing).
+      if (!isShowSearch || !resultsKeyword) return null
+      // A name hit can sit past the row's truncation point, so show the name windowed
+      // around it — the untouched name stays available as the row's tooltip.
+      const result = searchResults.find((r) => r.id === node.id)
+      return (
+        <HighlightText
+          text={result?.nameContext ?? node.name}
+          keyword={resultsKeyword}
+          className={SEARCH_HIGHLIGHT_CLASS}
+        />
+      )
+    },
+    [isShowSearch, resultsKeyword, searchResults]
+  )
+
+  const renderRowBelow = useCallback(
     (node: FileTreeNode) => {
       if (!isShowSearch) return null
       const result = searchResults.find((r) => r.id === node.id)
-      if (!result || !result.matchType || result.matchType === 'filename') return null
-      const label = result.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')
-      return (
-        <span
-          className={
-            result.matchType === 'both'
-              ? 'inline-flex h-4 shrink-0 items-center rounded-xs bg-secondary px-1 font-medium text-secondary-foreground text-xs leading-none'
-              : 'inline-flex h-4 shrink-0 items-center rounded-xs bg-muted px-1 font-medium text-muted-foreground text-xs leading-none'
-          }>
-          {label}
-        </span>
-      )
+      if (!result?.matches?.length) return null
+      return <NotesSearchMatchList noteId={node.id} keyword={resultsKeyword} matches={result.matches} />
     },
-    [isShowSearch, searchResults, t]
+    [isShowSearch, searchResults, resultsKeyword]
   )
 
   const getTreeNodeMenuItems = useCallback(
@@ -360,15 +408,27 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             </button>
           </div>
         )}
-        {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
+        {/* Rendered for every completed query — resultsKeyword is only set once a scan
+            finishes — so the refresh control stays reachable when a query has zero hits
+            and an external edit later adds the first one. */}
+        {isShowSearch && !isSearching && hasSearchKeyword && resultsKeyword !== '' && (
           <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
             <span>
-              {t('notes.search.found_results', {
-                count: searchStats.total,
-                nameCount: searchStats.fileNameMatches,
-                contentCount: searchStats.contentMatches + searchStats.bothMatches
-              })}
+              {searchStats.total > 0
+                ? t('notes.search.found_results', {
+                    count: searchStats.total,
+                    nameCount: searchStats.nameMatches,
+                    contentCount: searchStats.contentMatches
+                  })
+                : t('notes.search.no_results')}
             </span>
+            <button
+              type="button"
+              className="ml-auto flex size-5 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:bg-accent"
+              onClick={handleRefreshSearch}
+              title={t('common.refresh')}>
+              <RefreshCw size={14} />
+            </button>
           </div>
         )}
 
@@ -384,7 +444,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 onMove={handleMove}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
-                renderRowExtras={renderRowExtras}
+                renderName={renderName}
+                renderRowBelow={renderRowBelow}
                 getMenuItems={getTreeNodeMenuItems}
               />
             </div>

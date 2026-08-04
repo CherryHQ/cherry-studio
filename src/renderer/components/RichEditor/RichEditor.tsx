@@ -27,6 +27,7 @@ import { EditorContent as StyledEditorContent, RichEditorWrapper } from './style
 import { ToC } from './TableOfContent'
 import { Toolbar } from './Toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
+import { useExternalSearchHighlight } from './useExternalSearchHighlight'
 import { useRichEditor } from './useRichEditor'
 const logger = loggerService.withContext('RichEditor')
 
@@ -154,6 +155,7 @@ const RichEditor = ({
   onCommandsReady,
   showTableOfContents = false,
   enableContentSearch = false,
+  searchHighlightKeyword,
   isFullWidth = false,
   fontFamily = 'default',
   fontSize = 16,
@@ -203,6 +205,13 @@ const RichEditor = ({
     }),
     []
   )
+
+  useExternalSearchHighlight({
+    contentSearchRef,
+    enabled: enableContentSearch && Boolean(editor),
+    keyword: searchHighlightKeyword,
+    content: markdown
+  })
 
   const onKeyDownEditor = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -488,6 +497,18 @@ const RichEditor = ({
           logger.error('Failed in scrollToLine:', error as Error)
         }
       },
+      focusSearchMatch: (keyword, { activeIndex, lineMatchCount, lineNumber, lineContent }) => {
+        if (!editor) return
+        // Scope the ordinal to the block the markdown line renders as: counted over
+        // the source it is only trustworthy within that one line.
+        const totalLines = editor.getMarkdown().split('\n').length
+        const scope = findElementByLine(editor.view.dom, lineNumber, lineContent, totalLines)
+        contentSearchRef.current?.highlightExternal(keyword, {
+          activeIndex,
+          scope,
+          expectedScopeMatches: lineMatchCount
+        })
+      },
       // Dynamic command management
       registerCommand,
       registerToolbarCommand,
@@ -518,35 +539,41 @@ const RichEditor = ({
           scrollContainer={scrollContainerRef}
         />
       )}
-      <Scrollbar
-        ref={scrollContainerRef}
-        className="rich-editor-content"
-        style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <StyledEditorContent>
-          <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
-            <Tooltip content={t('richEditor.plusButton')}>
-              <Plus />
-            </Tooltip>
-          </PlusButton>
-          <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
-            <Tooltip content={t('richEditor.dragHandle')}>
-              <GripVertical />
-            </Tooltip>
-          </DragHandle>
-          <EditorContent style={{ minHeight: '100%' }} editor={editor} />
-        </StyledEditorContent>
-      </Scrollbar>
-      {enableContentSearch && (
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={false}
-          onIncludeUserChange={() => {}}
-          showUserToggle={false}
-          positionMode="absolute"
-        />
-      )}
+      {/* The find bar is absolutely positioned against this box rather than the whole
+          wrapper, so it floats over the content instead of landing on the toolbar. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <Scrollbar
+          ref={scrollContainerRef}
+          className="rich-editor-content"
+          style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          <StyledEditorContent>
+            <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
+              <Tooltip content={t('richEditor.plusButton')}>
+                <Plus />
+              </Tooltip>
+            </PlusButton>
+            <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
+              <Tooltip content={t('richEditor.dragHandle')}>
+                <GripVertical />
+              </Tooltip>
+            </DragHandle>
+            <EditorContent style={{ minHeight: '100%' }} editor={editor} />
+          </StyledEditorContent>
+        </Scrollbar>
+        {enableContentSearch && (
+          <ContentSearch
+            ref={contentSearchRef}
+            searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
+            filter={contentSearchFilter}
+            includeUser={false}
+            onIncludeUserChange={() => {}}
+            showUserToggle={false}
+            positionMode="absolute"
+            followChatNarrowMode={false}
+            widthMode="compact"
+          />
+        )}
+      </div>
       {showTableOfContents && (
         <ToC items={tableOfContentsItems} editor={editor} scrollContainerRef={scrollContainerRef} />
       )}

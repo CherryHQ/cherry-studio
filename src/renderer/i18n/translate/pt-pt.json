@@ -4506,10 +4506,9 @@
       "metadata_pending": "A nota foi salva, mas seus metadados de arquivo ainda estão sendo recuperados. Não tente salvar novamente."
     },
     "search": {
-      "both": "Nome + Conteúdo",
-      "content": "conteúdo",
       "found_results": "Encontrados {{count}} resultados (nome: {{nameCount}}, conteúdo: {{contentCount}})",
       "more_matches": "uma correspondência",
+      "no_results": "[to be translated]:No results found",
       "searching": "Pesquisando...",
       "show_less": "Recolher"
     },

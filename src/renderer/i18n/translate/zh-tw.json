@@ -4506,10 +4506,9 @@
       "metadata_pending": "筆記已儲存，但其檔案中繼資料仍在復原中。請勿重試此儲存操作。"
     },
     "search": {
-      "both": "名稱 + 內容",
-      "content": "內容",
       "found_results": "找到 {{count}} 個結果（名稱：{{nameCount}}，內容：{{contentCount}}）",
       "more_matches": "更多符合結果",
+      "no_results": "[to be translated]:No results found",
       "searching": "搜尋中...",
       "show_less": "收合"
     },

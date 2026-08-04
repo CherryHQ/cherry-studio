@@ -4506,10 +4506,9 @@
       "metadata_pending": "Nota a fost salvată, dar metadatele fișierului sale sunt încă în curs de recuperare. Nu reîncercați această salvare."
     },
     "search": {
-      "both": "Nume+Conținut",
-      "content": "Conținut",
       "found_results": "S-au găsit {{count}} rezultate (Nume: {{nameCount}}, Conținut: {{contentCount}})",
       "more_matches": "mai multe potriviri",
+      "no_results": "[to be translated]:No results found",
       "searching": "Se caută...",
       "show_less": "Afișează mai puțin"
     },

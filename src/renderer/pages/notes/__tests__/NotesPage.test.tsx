@@ -1,5 +1,6 @@
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -14,17 +15,35 @@ const mocks = vi.hoisted(() => {
     isStarred: false
   }
 
+  const otherNode = {
+    id: '/notes/other.md',
+    name: 'other',
+    type: 'file' as const,
+    treePath: '/other',
+    externalPath: '/notes/other.md',
+    createdAt: '',
+    updatedAt: '',
+    isStarred: false
+  }
+
   return {
+    activeFilePath: '/notes/note.md' as string | undefined,
     sessionStatus: 'ready' as string,
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
     sessionDraft: 'saved content',
+    // What `draft` reports while the session is not ready — the real hook keeps the
+    // previous file's draft for the first renders after a path switch.
+    sessionLoadingDraft: '',
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
     editorReady: vi.fn(),
+    richScrollToLine: vi.fn(),
+    richFocusSearchMatch: vi.fn(),
+    codeScrollToLine: vi.fn(),
     getNode: vi.fn(),
     setDraft: vi.fn(),
     discardSession: vi.fn(),
@@ -60,7 +79,8 @@ const mocks = vi.hoisted(() => {
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
-    noteNode
+    noteNode,
+    otherNode
   }
 })
 
@@ -155,7 +175,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => ['/notes/note.md', mocks.setActiveFilePath]
+  useCache: () => [mocks.activeFilePath, mocks.setActiveFilePath]
 }))
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
@@ -220,7 +240,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
     status: mocks.sessionStatus,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
-    draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
+    draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : mocks.sessionLoadingDraft,
     isDirty: mocks.sessionIsDirty,
     isSaving: mocks.sessionIsSaving,
     conflict: false,
@@ -256,7 +276,7 @@ vi.mock('../NotesEditor', async () => {
           ? null
           : {
               getContent: () => mocks.sourceEditorContent,
-              scrollToLine: vi.fn()
+              scrollToLine: mocks.codeScrollToLine
             }
       editorRef.current =
         mocks.mountedEditor === 'source'
@@ -267,7 +287,8 @@ vi.mock('../NotesEditor', async () => {
               setMarkdown: (content: string) => {
                 mocks.richEditorContent = content
               },
-              scrollToLine: vi.fn()
+              scrollToLine: mocks.richScrollToLine,
+              focusSearchMatch: mocks.richFocusSearchMatch
             }
       if (mocks.mountedEditor !== 'rich') {
         onMarkdownChange(mocks.sourceEditorContent)
@@ -330,49 +351,53 @@ async function renderReadyNotesPage() {
   return view
 }
 
-describe('NotesPage print payloads', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.sessionStatus = 'ready'
-    mocks.sessionIsDirty = false
-    mocks.sessionIsSaving = false
-    mocks.sessionSaveError = undefined
-    mocks.sessionDraft = 'saved content'
-    mocks.currentContent = 'saved content'
-    mocks.richEditorContent = 'edited rich content'
-    mocks.sourceEditorContent = 'edited source content'
-    mocks.mountedEditor = 'source'
-    mocks.settings.defaultEditMode = 'source'
-    mocks.settings.defaultViewMode = 'edit'
-    mocks.ipcRequest.mockImplementation((route: string) => {
-      if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
-      if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
-      return Promise.resolve(true)
-    })
-    mocks.commandHandlers.clear()
-    mocks.isActiveTab = true
-    mocks.showWorkspace = false
-    mocks.printShortcutLabel = 'Ctrl+P'
-    mocks.treeVersion = 0
-    mocks.treeIsLoading = false
-    mocks.projectedNodes = [mocks.noteNode]
-
-    Object.assign(window, {
-      api: {
-        export: {
-          toWord: vi.fn().mockResolvedValue(undefined)
-        },
-        file: {
-          write: vi.fn().mockResolvedValue(undefined),
-          listDirectory: vi.fn().mockResolvedValue([])
-        },
-        tree: {
-          onMutation: vi.fn(() => vi.fn()),
-          dispose: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
+const resetNotesPageMocks = () => {
+  vi.clearAllMocks()
+  mocks.activeFilePath = '/notes/note.md'
+  mocks.sessionStatus = 'ready'
+  mocks.sessionIsDirty = false
+  mocks.sessionIsSaving = false
+  mocks.sessionSaveError = undefined
+  mocks.sessionDraft = 'saved content'
+  mocks.sessionLoadingDraft = ''
+  mocks.currentContent = 'saved content'
+  mocks.richEditorContent = 'edited rich content'
+  mocks.sourceEditorContent = 'edited source content'
+  mocks.mountedEditor = 'source'
+  mocks.settings.defaultEditMode = 'source'
+  mocks.settings.defaultViewMode = 'edit'
+  mocks.ipcRequest.mockImplementation((route: string) => {
+    if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
+    if (route === 'app.set_spell_check_enabled') return Promise.resolve(undefined)
+    return Promise.resolve(true)
   })
+  mocks.commandHandlers.clear()
+  mocks.isActiveTab = true
+  mocks.showWorkspace = false
+  mocks.printShortcutLabel = 'Ctrl+P'
+  mocks.treeVersion = 0
+  mocks.treeIsLoading = false
+  mocks.projectedNodes = [mocks.noteNode]
+
+  Object.assign(window, {
+    api: {
+      export: {
+        toWord: vi.fn().mockResolvedValue(undefined)
+      },
+      file: {
+        write: vi.fn().mockResolvedValue(undefined),
+        listDirectory: vi.fn().mockResolvedValue([])
+      },
+      tree: {
+        onMutation: vi.fn(() => vi.fn()),
+        dispose: vi.fn().mockResolvedValue(undefined)
+      }
+    }
+  })
+}
+
+describe('NotesPage print payloads', () => {
+  beforeEach(resetNotesPageMocks)
 
   it.each([
     ['notes.exportToPDF', 'print.export_pdf'],
@@ -611,5 +636,128 @@ describe('NotesPage print payloads', () => {
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
     expect(mocks.discardSession).not.toHaveBeenCalled()
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+})
+
+describe('NotesPage search locate', () => {
+  beforeEach(resetNotesPageMocks)
+
+  const flushAnimationFrames = () =>
+    act(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        })
+    )
+
+  const emitLocate = (payload: Record<string, unknown>) =>
+    act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, payload)
+    })
+
+  it('locates within the open note using the keyword carried by the event', async () => {
+    mocks.mountedEditor = 'rich'
+
+    render(<NotesPage />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+
+    // The page-level mirrored keyword is '' here — the locate must not depend on it.
+    await emitLocate({
+      noteId: '/notes/note.md',
+      lineNumber: 2,
+      lineContent: 'foo line',
+      keyword: 'foo',
+      matchIndex: 0,
+      lineMatchCount: 1
+    })
+
+    expect(mocks.richFocusSearchMatch).toHaveBeenCalledWith('foo', {
+      activeIndex: 0,
+      lineMatchCount: 1,
+      lineNumber: 2,
+      lineContent: 'foo line'
+    })
+  })
+
+  it('keeps a cross-note locate pending through the loading window and dispatches it once ready', async () => {
+    mocks.mountedEditor = 'rich'
+    mocks.projectedNodes = [mocks.noteNode, mocks.otherNode]
+
+    const { rerender } = render(<NotesPage />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+
+    await emitLocate({
+      noteId: '/notes/other.md',
+      lineNumber: 3,
+      lineContent: 'foo line',
+      keyword: 'foo',
+      matchIndex: 1,
+      lineMatchCount: 2
+    })
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+
+    // First renders after the switch: the session is loading (editor unmounted)
+    // while `draft` still holds the previous file's non-empty content — the
+    // window where the pending record used to be consumed and lost.
+    mocks.activeFilePath = '/notes/other.md'
+    mocks.sessionStatus = 'loading'
+    mocks.sessionLoadingDraft = 'saved content'
+    rerender(<NotesPage />)
+    await flushAnimationFrames()
+    expect(mocks.richFocusSearchMatch).not.toHaveBeenCalled()
+    expect(mocks.richScrollToLine).not.toHaveBeenCalled()
+
+    mocks.sessionStatus = 'ready'
+    mocks.sessionDraft = 'other note content with foo and foo'
+    rerender(<NotesPage />)
+
+    await waitFor(() =>
+      expect(mocks.richFocusSearchMatch).toHaveBeenCalledWith('foo', {
+        activeIndex: 1,
+        lineMatchCount: 2,
+        lineNumber: 3,
+        lineContent: 'foo line'
+      })
+    )
+    expect(mocks.richFocusSearchMatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a pending locate when navigation moves to a different note before the target is ready', async () => {
+    const thirdNode = {
+      ...mocks.otherNode,
+      id: '/notes/third.md',
+      name: 'third',
+      treePath: '/third',
+      externalPath: '/notes/third.md'
+    }
+    mocks.mountedEditor = 'rich'
+    mocks.projectedNodes = [mocks.noteNode, mocks.otherNode, thirdNode]
+
+    const { rerender } = render(<NotesPage />)
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+
+    await emitLocate({
+      noteId: '/notes/other.md',
+      lineNumber: 3,
+      lineContent: 'foo line',
+      keyword: 'foo',
+      matchIndex: 0,
+      lineMatchCount: 1
+    })
+
+    // The user opens a different note before the locate's target ever loads.
+    mocks.activeFilePath = '/notes/third.md'
+    mocks.sessionDraft = 'third note content'
+    rerender(<NotesPage />)
+    await flushAnimationFrames()
+
+    // Even when the original target becomes active later, the stale record must not fire.
+    mocks.activeFilePath = '/notes/other.md'
+    mocks.sessionDraft = 'other note content'
+    rerender(<NotesPage />)
+    await flushAnimationFrames()
+
+    expect(mocks.richFocusSearchMatch).not.toHaveBeenCalled()
+    expect(mocks.richScrollToLine).not.toHaveBeenCalled()
   })
 })

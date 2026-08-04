@@ -139,7 +139,19 @@ const NotesPage: FC = () => {
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
-  const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
+  const pendingScrollRef = useRef<{
+    path: string
+    lineNumber: number
+    lineContent?: string
+    // The keyword that produced this result, captured at click time — the live
+    // `searchKeyword` can move on to a newer query before the file finishes loading.
+    keyword?: string
+    matchIndex?: number
+    lineMatchCount?: number
+  } | null>(null)
+  // Keyword mirrored from the sidebar search, highlighted in the open note the way
+  // VS Code highlights panel results without opening the editor's find widget.
+  const [searchKeyword, setSearchKeyword] = useState('')
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
 
@@ -414,31 +426,52 @@ const NotesPage: FC = () => {
     }
   }, [currentContent, activeFilePath])
 
-  // Execute pending scroll after file switch
+  // Execute pending scroll after file switch. Right after the switch the session
+  // reports `loading` (editor unmounted) while `currentContent` still holds the
+  // previous file's draft, so consumption must wait for the target session to be
+  // ready — and the record is cleared only at dispatch, never while the editor
+  // refs are still null.
   useEffect(() => {
-    if (!pendingScrollRef.current || !currentContent) return
-
-    const { lineNumber, lineContent } = pendingScrollRef.current
-    pendingScrollRef.current = null
+    const pending = pendingScrollRef.current
+    if (!pending) return
+    if (pending.path !== activeFilePath) {
+      // A manual navigation superseded the locate — drop the stale record.
+      pendingScrollRef.current = null
+      return
+    }
+    if (fileSession.status !== 'ready') return
 
     // Wait for DOM to update before scrolling
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        // Already dispatched by an earlier run, or replaced by a newer locate.
+        if (pendingScrollRef.current !== pending) return
+        pendingScrollRef.current = null
+
         const codeEditor = codeEditorRef.current
         const richEditor = editorRef.current
 
         try {
           if (codeEditor?.scrollToLine) {
-            codeEditor.scrollToLine(lineNumber, { highlight: true })
-          } else if (richEditor?.scrollToLine) {
-            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+            codeEditor.scrollToLine(pending.lineNumber, { highlight: true })
+          } else if (richEditor) {
+            if (pending.keyword && pending.matchIndex !== undefined && richEditor.focusSearchMatch) {
+              richEditor.focusSearchMatch(pending.keyword, {
+                activeIndex: pending.matchIndex,
+                lineMatchCount: pending.lineMatchCount ?? 0,
+                lineNumber: pending.lineNumber,
+                lineContent: pending.lineContent
+              })
+            } else {
+              richEditor.scrollToLine?.(pending.lineNumber, { highlight: true, lineContent: pending.lineContent })
+            }
           }
         } catch (error) {
           logger.error('Failed to execute pending scroll:', error as Error)
         }
       })
     })
-  }, [activeFilePath, currentContent])
+  }, [activeFilePath, fileSession.status])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(
@@ -1013,11 +1046,17 @@ const NotesPage: FC = () => {
     const handleLocateNoteLine = ({
       noteId,
       lineNumber,
-      lineContent
+      lineContent,
+      keyword,
+      matchIndex,
+      lineMatchCount
     }: {
       noteId: string
       lineNumber: number
       lineContent?: string
+      keyword?: string
+      matchIndex?: number
+      lineMatchCount?: number
     }) => {
       const targetNode = findNode(notesTree, noteId)
 
@@ -1031,8 +1070,9 @@ const NotesPage: FC = () => {
       if (needsSwitchFile) {
         // switch to target note first then scroll to line (the session re-reads)
         requestFileTransition(() => {
-          pendingScrollRef.current = { lineNumber, lineContent }
-          setActiveFilePath(AbsoluteFilePathSchema.parse(targetNode.externalPath))
+          const targetPath = AbsoluteFilePathSchema.parse(targetNode.externalPath)
+          pendingScrollRef.current = { path: targetPath, lineNumber, lineContent, keyword, matchIndex, lineMatchCount }
+          setActiveFilePath(targetPath)
         })
       } else {
         const richEditor = editorRef.current
@@ -1041,8 +1081,19 @@ const NotesPage: FC = () => {
         try {
           if (codeEditor?.scrollToLine) {
             codeEditor.scrollToLine(lineNumber, { highlight: true })
-          } else if (richEditor?.scrollToLine) {
-            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+          } else if (richEditor) {
+            // Prefer emphasising the matched span; fall back to the whole-line overlay
+            // when there is no keyword to locate (or the source mode is active).
+            if (keyword && matchIndex !== undefined && richEditor.focusSearchMatch) {
+              richEditor.focusSearchMatch(keyword, {
+                activeIndex: matchIndex,
+                lineMatchCount: lineMatchCount ?? 0,
+                lineNumber,
+                lineContent
+              })
+            } else {
+              richEditor.scrollToLine?.(lineNumber, { highlight: true, lineContent })
+            }
           }
         } catch (error) {
           logger.error('Failed to scroll to line:', error as Error)
@@ -1082,6 +1133,7 @@ const NotesPage: FC = () => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                onSearchKeywordChange={setSearchKeyword}
               />
             </motion.div>
           )}
@@ -1130,6 +1182,7 @@ const NotesPage: FC = () => {
           ) : (
             <NotesEditor
               activeNodeId={editorNodeId}
+              searchHighlightKeyword={searchKeyword}
               currentContent={currentContent}
               contentLoadError={contentLoadError}
               tokenCount={tokenCount}

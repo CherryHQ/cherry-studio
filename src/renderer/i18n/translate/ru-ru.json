@@ -4506,10 +4506,9 @@
       "metadata_pending": "Заметка была сохранена, но метаданные файла всё ещё восстанавливаются. Не повторяйте это сохранение."
     },
     "search": {
-      "both": "Название+содержание",
-      "content": "содержание",
       "found_results": "Найдено {{count}} результатов (название: {{nameCount}}, содержание: {{contentCount}})",
       "more_matches": "совпадение",
+      "no_results": "[to be translated]:No results found",
       "searching": "Идет поиск...",
       "show_less": "Свернуть"
     },

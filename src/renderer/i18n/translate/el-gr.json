@@ -4506,10 +4506,9 @@
       "metadata_pending": "Η σημείωση αποθηκεύτηκε, αλλά τα μεταδεδομένα αρχείου της εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτή την αποθήκευση."
     },
     "search": {
-      "both": "Όνομα + Περιεχόμενο",
-      "content": "περιεχόμενο",
       "found_results": "Βρέθηκαν {{count}} αποτελέσματα (όνομα: {{nameCount}}, περιεχόμενο: {{contentCount}})",
       "more_matches": "Ταιριάζει",
+      "no_results": "[to be translated]:No results found",
       "searching": "Αναζήτηση...",
       "show_less": "Κλείσιμο"
     },

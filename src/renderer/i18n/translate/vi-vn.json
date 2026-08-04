@@ -4506,10 +4506,9 @@
       "metadata_pending": "Ghi chú đã được lưu, nhưng siêu dữ liệu tệp của nó vẫn đang được khôi phục. Không thử lại việc lưu này."
     },
     "search": {
-      "both": "Tên+Nội dung",
-      "content": "Nội dung",
       "found_results": "Tìm thấy {{count}} kết quả (Tên: {{nameCount}}, Nội dung: {{contentCount}})",
       "more_matches": "nhiều trận đấu hơn",
+      "no_results": "[to be translated]:No results found",
       "searching": "Đang tìm kiếm...",
       "show_less": "Hiển thị ít hơn"
     },
