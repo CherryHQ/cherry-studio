@@ -5,6 +5,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -12,10 +13,13 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
+import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
+import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -28,7 +32,8 @@ import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
   resolveEffectiveEndpoint,
-  resolveProviderOptionsKey
+  resolveProviderOptionsKey,
+  resolveWireModelId
 } from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -73,6 +78,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME
 ])
+const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
@@ -129,10 +135,32 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
+  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
+  const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
+    hasFunctionToolSignals: toolSignals
+      ? toolSignals.mcpToolIds.size > 0 ||
+        // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
+        // scope one. ORing the two made every user with any KB look like a function-tool conflict,
+        // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
+        (toolSignals.hasAnyKnowledgeBase && knowledgeBaseIds.length > 0) ||
+        hasFileAttachments ||
+        Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
+        assistant?.settings.enableGenerateImage === true
+      : false,
+    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
+  })
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes, toolSignals)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
-  const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
+  const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
+  const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
+  const capabilities = assistant
+    ? resolveCapabilities(model, provider, assistant, {
+        webToolRoutes: finalWebToolRoutes,
+        runtimeProviderId: sdkConfig.providerId,
+        serving: sdkConfig.providerSettings
+      })
+    : undefined
 
   const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
@@ -201,6 +229,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     contextSettings,
     compressionModel,
     compactionSink,
+    webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,
     knowledgeBaseIds
   }
@@ -264,7 +293,7 @@ async function resolveSdkConfig(
         endpointType: resolvedEndpoint.endpointType,
         gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
       }),
-      modelId: model.apiModelId ?? model.id
+      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     },
     credentialReceipt
   }
@@ -293,6 +322,17 @@ function canModelConsumeTools(model: Model): boolean {
   return isFunctionCallingModel(model)
 }
 
+/** Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`. */
+async function resolveRequestToolSignals(
+  request: BuildAgentParamsInput['request']
+): Promise<{ mcpToolIds: ReadonlySet<string>; hasAnyKnowledgeBase: boolean }> {
+  let mcpIdList = request.mcpToolIds
+  if (!mcpIdList && request.assistantId) {
+    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+  }
+  return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
+}
+
 /**
  * Tool selection: pick MCP ids (caller wins, else derived from assistant),
  * sync the MCP entries into the registry, then materialise the active
@@ -303,18 +343,16 @@ export async function resolveTools(
   assistant: Assistant | undefined,
   model: Model,
   hasFileAttachments: boolean,
-  knowledgeBaseIds: readonly string[]
+  knowledgeBaseIds: readonly string[],
+  webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
+  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
 }> {
-  let mcpIdList = request.mcpToolIds
-  if (!mcpIdList && request.assistantId) {
-    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
-  }
-  const mcpToolIds = new Set(mcpIdList ?? [])
+  const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
   if (mcpToolIds.size) {
     // Scope the registry sync to servers that actually own a selected tool —
     // avoids paying the per-server `listTools` round-trip for every active
@@ -322,7 +360,6 @@ export async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
   const paintingModel = resolveConfiguredPaintingModel()
   const activeEntries = registry.selectActive({
     assistant,
@@ -330,7 +367,8 @@ export async function resolveTools(
     mcpToolIds,
     hasFileAttachments,
     hasAnyKnowledgeBase,
-    knowledgeBaseIds
+    knowledgeBaseIds,
+    webToolRoutes
   })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
@@ -356,6 +394,46 @@ export async function resolveTools(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
+}
+
+async function resolveRequestWebToolRoutes(
+  model: Model,
+  provider: Provider,
+  assistant: Assistant | undefined,
+  requestContext: { hasFunctionToolSignals: boolean; reasoningEffort: string | undefined }
+): Promise<WebToolRoutes> {
+  if (!assistant) return NO_WEB_TOOL_ROUTES
+
+  const preferenceService = application.get('PreferenceService')
+  const clientWebToolsEnabled = assistant.settings.enableWebSearch === true
+  const [clientSearchAvailable, clientFetchAvailable] = clientWebToolsEnabled
+    ? await Promise.all([
+        resolveClientWebCapabilityAvailability('searchKeywords'),
+        resolveClientWebCapabilityAvailability('fetchUrls')
+      ])
+    : [false, false]
+  const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+
+  return resolveWebToolRoutes(model, provider, {
+    webSearchEnabled: clientWebToolsEnabled,
+    clientSearchAvailable,
+    clientFetchAvailable,
+    clientToolsPreferred,
+    hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
+    reasoningEffort: requestContext.reasoningEffort
+  })
+
+  async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
+    try {
+      const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
+      return isWebSearchProviderReady(clientProvider, capability)
+    } catch (error) {
+      if (!isPermanentWebSearchConfigError(error)) {
+        logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })
+      }
+      return false
+    }
+  }
 }
 
 /**
@@ -400,13 +478,22 @@ function buildAgentOptions(
 
   let providerOptions =
     assistant && capabilities
-      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
-          aiSdkProviderId,
-          runtimeProviderId: sdkConfig.providerId,
-          providerOptionsKey: sdkConfig.providerOptionsKey,
-          endpointType,
-          reasoning
-        })
+      ? buildCapabilityProviderOptions(
+          model,
+          provider,
+          {
+            enableReasoning: capabilities.enableReasoning,
+            enableGenerateImage: capabilities.enableGenerateImage,
+            enableWebSearch: scope.webToolRoutes?.webSearch === 'server'
+          },
+          {
+            aiSdkProviderId,
+            runtimeProviderId: sdkConfig.providerId,
+            providerOptionsKey: sdkConfig.providerOptionsKey,
+            endpointType,
+            reasoning
+          }
+        )
       : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
         // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
         // gateway/topic-naming requests are unchanged.

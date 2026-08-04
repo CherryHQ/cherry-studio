@@ -2,12 +2,13 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { makeProvider } from '../../__tests__/fixtures'
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
   resolveProviderOptionsKey,
-  resolveProviderVariant
+  resolveProviderVariant,
+  resolveWireModelId
 } from '../endpoint'
 
 const ENDPOINT_TYPES_USED = [
@@ -17,6 +18,38 @@ const ENDPOINT_TYPES_USED = [
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   ENDPOINT_TYPE.OLLAMA_CHAT
 ] as const
+
+describe('resolveWireModelId', () => {
+  // `@ai-sdk/google` matches its feature allowlists (googleSearch, urlContext, …)
+  // against the exact id, so a `models/`-prefixed id — how Gemini's /models listing
+  // names them, still present on rows synced before ingestion stripped it — silently
+  // drops every provider-native tool from the request.
+  it('strips the Gemini listing prefix on the google endpoint', () => {
+    const model = makeModel({
+      id: 'gemini::models/gemini-flash-latest',
+      providerId: 'gemini',
+      apiModelId: 'models/gemini-flash-latest'
+    })
+    expect(resolveWireModelId(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-flash-latest')
+  })
+
+  it('leaves other endpoints and unprefixed ids untouched', () => {
+    const prefixed = makeModel({
+      id: 'custom::models/foo',
+      providerId: 'custom',
+      apiModelId: 'models/foo'
+    })
+    expect(resolveWireModelId(prefixed, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('models/foo')
+
+    const plain = makeModel({ id: 'gemini::gemini-3-pro', providerId: 'gemini', apiModelId: 'gemini-3-pro' })
+    expect(resolveWireModelId(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-3-pro')
+  })
+
+  it('falls back to the unique-id suffix when apiModelId is absent', () => {
+    const model = makeModel({ id: 'gemini::gemini-flash-latest', providerId: 'gemini' })
+    expect(resolveWireModelId(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('gemini-flash-latest')
+  })
+})
 
 describe('resolveProviderOptionsKey', () => {
   it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(

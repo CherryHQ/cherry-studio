@@ -42,7 +42,7 @@ export function createWebFetchToolEntry(): ToolEntry {
     description: 'Fetch readable content from known web page URLs',
     defer: 'auto',
     tool: webFetchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
+    applies: (scope) => scope.webToolRoutes?.webFetch === 'client'
   }
 }
 

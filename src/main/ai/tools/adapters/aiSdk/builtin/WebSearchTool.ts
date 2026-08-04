@@ -50,7 +50,7 @@ export function createWebSearchToolEntry(): ToolEntry {
     description: 'Search the web for current information',
     defer: 'auto',
     tool: webSearchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
+    applies: (scope) => scope.webToolRoutes?.webSearch === 'client'
   }
 }
 

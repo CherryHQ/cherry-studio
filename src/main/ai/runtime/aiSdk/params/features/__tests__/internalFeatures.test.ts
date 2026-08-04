@@ -25,6 +25,7 @@ function makeScope(overrides: {
   model: Partial<Model>
   assistant?: Partial<Assistant>
   capabilities?: Record<string, unknown>
+  webToolRoutes?: RequestScope['webToolRoutes']
   mcpToolIds?: string[]
   topicId?: string
   endpointType?: string
@@ -40,6 +41,7 @@ function makeScope(overrides: {
     model: { id: 'openai::m1', name: 'M1', ...overrides.model } as Model,
     provider: { id: 'openai', settings: {}, ...overrides.provider } as Provider,
     capabilities: overrides.capabilities as never,
+    webToolRoutes: overrides.webToolRoutes,
     sdkConfig: {
       providerId: 'openai' as never,
       providerOptionsKey: 'openai',
@@ -199,19 +201,33 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ).not.toContain('no-think')
   })
 
-  it('provider-tool plugins activate based on capability flags', () => {
+  it('provider-tool plugins activate from the finalized web-tool routes', () => {
     expect(
       activeNames(
         makeScope({
           provider: {},
           model: {},
-          capabilities: { enableWebSearch: true, webSearchPluginConfig: { provider: 'anthropic' } }
+          webToolRoutes: { webSearch: 'server', webFetch: 'none' },
+          capabilities: { webSearchPluginConfig: { provider: 'anthropic' } }
         })
       )
     ).toContain('provider-tool-webSearch')
-    expect(activeNames(makeScope({ provider: {}, model: {}, capabilities: { enableUrlContext: true } }))).toContain(
-      'provider-tool-urlContext'
-    )
+    expect(
+      activeNames(
+        makeScope({
+          provider: {},
+          model: {},
+          webToolRoutes: { webSearch: 'server', webFetch: 'none' }
+        })
+      )
+    ).not.toContain('provider-tool-webSearch')
+    expect(
+      activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'none', webFetch: 'server' } }))
+    ).toContain('provider-tool-urlContext')
+    // Client-side routing adds no provider tool; only the always-on context-build remains.
+    expect(
+      activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
+    ).toEqual(['context-build'])
   })
 
   it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {

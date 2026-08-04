@@ -18,7 +18,13 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
  */
 type ProviderConnection = Omit<
   ProviderConfig,
-  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource' | 'authOptional'
+  | 'description'
+  | 'endpointConfigs'
+  | 'defaultChatEndpoint'
+  | 'apiFeatures'
+  | 'modelListSource'
+  | 'authOptional'
+  | 'serverTools'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
@@ -26,6 +32,8 @@ type ProviderConnection = Omit<
   modelListSource?: ProviderConfig['modelListSource']
   /** Defaults to `false`; only credential-free local providers declare it. */
   authOptional?: ProviderConfig['authOptional']
+  /** Defaults to `[]`; only providers that natively serve built-in tools declare it. */
+  serverTools?: ProviderConfig['serverTools']
   /** Only the non-default flags are declared; the schema fills the rest at load time. */
   apiFeatures?: Partial<ApiFeatures>
 }
@@ -72,6 +80,7 @@ export function openaiCompatible(
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
+    serverTools?: ProviderConfig['serverTools']
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
@@ -90,6 +99,7 @@ export function openaiCompatible(
     metadata: { website: p.website },
     ...(p.apiFeatures ? { apiFeatures: p.apiFeatures } : {}),
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
+    ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),

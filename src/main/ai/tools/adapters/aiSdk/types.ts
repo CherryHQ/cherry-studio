@@ -1,6 +1,7 @@
 import type { EntityToolOutputCodec } from '@cherrystudio/ai-core'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport, UniqueModelId } from '@shared/data/types/model'
+import type { WebToolRoutes } from '@shared/utils/provider'
 import type { Tool } from 'ai'
 
 /**
@@ -33,6 +34,8 @@ export interface ToolApplyScope {
    * Effective knowledge base scope for this request; see `resolveKnowledgeBaseScope`. Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
+  /** The selected implementation for each mutually exclusive web capability. */
+  readonly webToolRoutes?: WebToolRoutes
 }
 
 /**

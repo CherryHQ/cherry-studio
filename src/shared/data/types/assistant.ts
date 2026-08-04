@@ -60,6 +60,7 @@ export const AssistantSettingsSchema = z.object({
   enableMaxToolCalls: z.boolean(),
 
   // -- Context sources --
+  /** One switch for the web tool group (search + URL fetch), whichever side executes it. */
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),

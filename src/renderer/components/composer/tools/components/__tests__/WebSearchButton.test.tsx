@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   navigate: vi.fn(),
   assistant: undefined as any,
-  model: undefined as Model | undefined
+  model: undefined as Model | undefined,
+  provider: undefined as any
 }))
 
 const launcherApi: ToolLauncherApi = {
@@ -50,7 +51,11 @@ vi.mock('@renderer/components/ActionIconButton', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
+  Tooltip: ({ children, content }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode }) => (
+    <div data-testid="tooltip" data-content={String(content)}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -61,6 +66,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: () => ({ provider: mocks.provider })
+}))
+
 vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
 }))
@@ -68,12 +77,19 @@ vi.mock('@renderer/utils/api', () => ({
 vi.mock('@renderer/utils/model', () => {
   const isFunctionCallingModel = (model?: Model) =>
     model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false
-  const isOpenRouterBuiltInWebSearchModel = () => false
-  const isWebSearchModel = (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false
-  // Mirror the real reconcile composition over the mocked predicates above.
-  const hasModelBuiltinWebSearch = (model?: Model) => isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel()
-  const canModelUseAssistantWebSearch = (model?: Model) =>
-    hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
+  const isServerToolModelEligible = (model?: Model) => model?.apiModelId?.startsWith('claude-') ?? false
+  // Mirror the real reconcile composition, including provider-wide search.
+  const hasModelBuiltinWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => {
+    const tool = provider?.serverTools?.find(({ id }) => id === 'web-search')
+    return tool?.modelScope === 'all-chat-models' || (!!tool && isServerToolModelEligible(model))
+  }
+  const canModelUseAssistantWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => hasModelBuiltinWebSearch(model, provider) || isFunctionCallingModel(model)
 
   return {
     canModelUseAssistantWebSearch,
@@ -82,11 +98,10 @@ vi.mock('@renderer/utils/model', () => {
     isGemini3Model: () => false,
     isGeminiModel: () => false,
     isGPT5SeriesReasoningModel: () => false,
-    isOpenRouterBuiltInWebSearchModel,
     isOpenAIWebSearchModel: () => false,
     isSupportedReasoningEffortModel: () => false,
     isSupportedThinkingTokenModel: () => false,
-    isWebSearchModel
+    isServerToolModelEligible
   }
 })
 
@@ -136,7 +151,9 @@ describe('WebSearchButton', () => {
       isEnabled: true,
       isHidden: false
     }
+    mocks.provider = undefined
     MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
@@ -209,6 +226,37 @@ describe('WebSearchButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
 
     await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+  })
+
+  // Both routes render the same globe, and the preference that picks between them lives in settings,
+  // so the tooltip is the only place the user can see which side will serve the request.
+  it('names the serving side in the tooltip', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    const { unmount } = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
+    unmount()
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
+    mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
+    mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+  })
+
+  // The pinned toolbar renders the registered launcher, not the button, and falls back to `label`
+  // when the launcher carries no tooltip — which is how the globe kept showing the plain label.
+  it('carries the serving side on the registered launcher too', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
+    expect(webSearchLauncher.tooltip).toBe('chat.input.web_search.route.client')
   })
 
   it('registers web search only for the plus menu', async () => {
