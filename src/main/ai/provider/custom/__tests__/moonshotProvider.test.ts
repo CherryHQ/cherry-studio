@@ -50,17 +50,18 @@ describe('runFormulaFiber', () => {
     ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----y')
   })
 
-  // A provider-side tool failure must reach the model as a result, not kill the agent loop.
+  // Raising keeps the tool part honest: the SDK still shows the model the reason, and the UI marks
+  // the call failed instead of rendering it as a search that came back empty.
   it.each([
-    [{ error: 'quota exceeded' }, 'Error: quota exceeded'],
-    [{ status: 'failed', context: { error: 'bad query' } }, 'Error: bad query'],
-    [{ status: 'failed', context: { output: 'nope' } }, 'Error: nope']
-  ])('maps a failed fiber (%o) to an error string', async (body, expected) => {
+    [{ error: 'quota exceeded' }, 'quota exceeded'],
+    [{ status: 'failed', context: { error: 'bad query' } }, 'bad query'],
+    [{ status: 'failed', context: { output: 'nope' } }, 'nope']
+  ])('raises a failed fiber (%o)', async (body, expected) => {
     const fetchMock = vi.fn(async () => fiberResponse(body))
 
     await expect(
       runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
-    ).resolves.toBe(expected)
+    ).rejects.toThrow(expected)
   })
 })
 
