@@ -12,6 +12,7 @@
  * Matches therefore retain both their text-part position and occurrence within that
  * part, keeping navigation scoped to the smallest stable rendered unit.
  */
+import { findTextMatches } from '@renderer/utils/contentSearch'
 import { uiSelector } from '@renderer/utils/uiContract'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -35,37 +36,7 @@ export interface MessageSearchOptions {
   includeUser: boolean
 }
 
-type TextSearchOptions = Pick<MessageSearchOptions, 'caseSensitive' | 'wholeWord'>
-
-const WORD_SEGMENTER = new Intl.Segmenter(['zh-CN', 'en-US'], { granularity: 'word' })
-
-const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-export interface TextSearchMatch {
-  start: number
-  end: number
-}
-
-export function findTextMatches(text: string, searchText: string, options: TextSearchOptions): TextSearchMatch[] {
-  if (!searchText) return []
-
-  const regex = new RegExp(escapeRegExp(searchText), options.caseSensitive ? 'gu' : 'giu')
-  const matches = Array.from(text.matchAll(regex), (match) => ({
-    start: match.index,
-    end: match.index + match[0].length
-  }))
-  if (!options.wholeWord || matches.length === 0) return matches
-
-  const wordStarts = new Set<number>()
-  const wordEnds = new Set<number>()
-  for (const segment of WORD_SEGMENTER.segment(text)) {
-    if (!segment.isWordLike) continue
-    wordStarts.add(segment.index)
-    wordEnds.add(segment.index + segment.segment.length)
-  }
-
-  return matches.filter((match) => wordStarts.has(match.start) && wordEnds.has(match.end))
-}
+export { findTextMatches } from '@renderer/utils/contentSearch'
 
 export function computeMessageSearchMatches(
   messages: readonly CherryUIMessage[],
@@ -113,60 +84,6 @@ export function createMessageContentNodeFilter(includeUser: boolean): NodeFilter
       return NodeFilter.FILTER_REJECT
     }
   }
-}
-
-/**
- * Collect DOM ranges matching `searchText` under `root`. Text nodes are
- * concatenated before matching so matches spanning element boundaries
- * (e.g. across markdown inline formatting) are still found.
- */
-export function findRangesInScope(
-  root: HTMLElement,
-  searchText: string,
-  options: TextSearchOptions,
-  filter: NodeFilter
-): Range[] {
-  const ranges: Range[] = []
-  const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, filter)
-  const allTextNodes: { node: Node; startOffset: number }[] = []
-  let fullText = ''
-
-  while (treeWalker.nextNode()) {
-    allTextNodes.push({ node: treeWalker.currentNode, startOffset: fullText.length })
-    fullText += treeWalker.currentNode.nodeValue
-  }
-
-  for (const match of findTextMatches(fullText, searchText, options)) {
-    const matchStart = match.start
-    const matchEnd = match.end
-
-    let startNode: Node | null = null
-    let endNode: Node | null = null
-    let startOffset = 0
-    let endOffset = 0
-
-    for (const nodeInfo of allTextNodes) {
-      const nodeLength = nodeInfo.node.nodeValue?.length ?? 0
-      if (startNode === null && matchStart >= nodeInfo.startOffset && matchStart < nodeInfo.startOffset + nodeLength) {
-        startNode = nodeInfo.node
-        startOffset = matchStart - nodeInfo.startOffset
-      }
-      if (matchEnd > nodeInfo.startOffset && matchEnd <= nodeInfo.startOffset + nodeLength) {
-        endNode = nodeInfo.node
-        endOffset = matchEnd - nodeInfo.startOffset
-        break
-      }
-    }
-
-    if (startNode && endNode) {
-      const range = new Range()
-      range.setStart(startNode, startOffset)
-      range.setEnd(endNode, endOffset)
-      ranges.push(range)
-    }
-  }
-
-  return ranges
 }
 
 /** Find a message's mounted root element (null while virtua keeps it unmounted). */
