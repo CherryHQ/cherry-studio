@@ -84,7 +84,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming tool call ID patch', (
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -126,7 +126,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming tool call ID patch', (
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -162,7 +162,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming tool call ID patch', (
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -214,7 +214,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming tool call ID patch', (
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -262,7 +262,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming images patch', () => {
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -302,7 +302,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming images patch', () => {
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -342,7 +342,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming images patch', () => {
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -385,7 +385,7 @@ describe('OpenAICompatibleChatLanguageModel – streaming images patch', () => {
     const model = createChatModel(fetchMock)
     const { stream } = await model.doStream({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
@@ -422,7 +422,7 @@ describe('OpenAICompatibleChatLanguageModel – non-streaming images patch', () 
     const model = createChatModel(fetchMock)
     const result = await model.doGenerate({
       prompt: textPrompt('test'),
-      toolUsageWarning: undefined,
+
       responseFormat: { type: 'text' }
     })
 
