@@ -5,13 +5,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
+import { Button, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -39,7 +39,6 @@ const NutstoreSettings: FC = () => {
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
   const [nutstorePath, setNutstorePath] = usePreference('data.backup.nutstore.path')
-  const [nutstoreSkipBackupFile, setNutstoreSkipBackupFile] = usePreference('data.backup.nutstore.skip_backup_file')
   const [nutstoreSyncInterval, setNutstoreSyncInterval] = usePreference('data.backup.nutstore.sync_interval')
   const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
@@ -323,17 +322,6 @@ const NutstoreSettings: FC = () => {
                 { label: '50', value: 50 }
               ]}
             />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch
-              checked={nutstoreSkipBackupFile}
-              onCheckedChange={(value) => void setNutstoreSkipBackupFile(value)}
-            />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
           </SettingRow>
         </>
       )}
