@@ -1,5 +1,4 @@
 export { type BackupOperation, BackupService, type BackupStatus, type RestoreStatus } from './BackupService'
-export { presentDegradations, presentJournalDegradations } from './degradationReport'
 export {
   ArchiveAdmissionError,
   BackupBusyError,
@@ -21,3 +20,4 @@ export {
   UnportableSourceError
 } from './errors'
 export { BACKUP_FORMAT_VERSION } from './manifest'
+export { presentDegradations, presentJournalDegradations } from './restore/degradationReport'

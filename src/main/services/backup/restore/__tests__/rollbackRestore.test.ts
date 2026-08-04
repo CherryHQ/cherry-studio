@@ -40,7 +40,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { RestoreStateError } from '../errors'
+import { RestoreStateError } from '../../errors'
 import { armRestoreRollback } from '../rollbackRestore'
 
 const RESTORE_ID = '11111111-2222-4333-8444-555555555555'
