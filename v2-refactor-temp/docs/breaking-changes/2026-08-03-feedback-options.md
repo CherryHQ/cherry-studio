@@ -2,7 +2,7 @@
 title: Feedback choices and assistant recovery
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#17398'
 date: 2026-08-03
 ---
 
