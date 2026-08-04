@@ -41,6 +41,35 @@ function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
   return child
 }
 
+function createRuntimeConfigSchema(modelFields = ['contextWindow', 'maxTokens', 'reasoning', 'input', 'cost']) {
+  return {
+    type: 'object',
+    properties: {
+      models: {
+        type: 'object',
+        properties: {
+          providers: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                headers: {},
+                models: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: Object.fromEntries(modelFields.map((field) => [field, {}]))
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // --- Mocks for OpenClawService dependencies ---
 
 vi.mock('@main/core/lifecycle', () => {
@@ -201,7 +230,9 @@ describe('OpenClawService gateway status state machine', () => {
       stderr: '',
       outputTruncated: false
     })
-    schemaCapabilitySpy = vi.spyOn(service as any, 'assertSchemaCapability').mockResolvedValue(undefined)
+    schemaCapabilitySpy = vi
+      .spyOn(service as any, 'assertSchemaCapability')
+      .mockResolvedValue(createRuntimeConfigSchema())
     validateConfigSpy = vi.spyOn(service as any, 'validateConfig').mockResolvedValue({
       valid: true,
       path: '/mock/.openclaw/openclaw.json',
@@ -265,6 +296,22 @@ describe('OpenClawService gateway status state machine', () => {
           stdio: ['ignore', 'pipe', 'pipe']
         })
       )
+    })
+
+    it('returns the runtime schema reported by the resolved OpenClaw binary', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      queueSpawnResult({ stdout: JSON.stringify(schema) })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
     })
 
     it('redacts secrets and bounds diagnostic output', () => {
@@ -1517,6 +1564,52 @@ describe('OpenClawService gateway status state machine', () => {
           search: { enabled: true },
           fetch: { ssrfPolicy: { allowPrivateNetwork: false } }
         }
+      })
+    })
+
+    it('emits only Cherry-managed optional fields supported by the resolved OpenClaw schema', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow', 'reasoning', 'input']))
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({ tools: { web: { fetch: { ssrfPolicy: { allowPrivateNetwork: false } } } } })
+      )
+      const provider = {
+        ...legacyProvider,
+        headers: { 'X-Synced': 'synced' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            maxTokens: 16384,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      }
+
+      const result = await service.syncProviderConfig(provider, legacyModel)
+
+      expect(result).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toEqual({
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        api: 'openai-completions',
+        headers: { 'X-Synced': 'synced' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            reasoning: true,
+            input: ['text', 'image']
+          }
+        ]
+      })
+      expect(written.tools).toEqual({
+        web: { fetch: { ssrfPolicy: { allowPrivateNetwork: false } } }
       })
     })
 

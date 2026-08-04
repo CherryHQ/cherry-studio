@@ -77,6 +77,15 @@ type OpenClawValidationIssue = {
   allowedValues?: unknown[]
 }
 
+type OpenClawConfigSchemaNode = {
+  properties?: Record<string, OpenClawConfigSchemaNode>
+  additionalProperties?: boolean | OpenClawConfigSchemaNode
+  items?: OpenClawConfigSchemaNode | OpenClawConfigSchemaNode[]
+  anyOf?: OpenClawConfigSchemaNode[]
+  oneOf?: OpenClawConfigSchemaNode[]
+  allOf?: OpenClawConfigSchemaNode[]
+}
+
 interface OpenClawValidationReport {
   valid: boolean
   path?: string
@@ -96,6 +105,38 @@ function sanitizeOpenClawDiagnostic(diagnostic: string): string {
 
 function isCherryManagedConfigPath(configPath: string): boolean {
   return configPath.startsWith('models.providers.cherry-') || OPENCLAW_CHERRY_MANAGED_PATHS.has(configPath)
+}
+
+function findSchemaNode(
+  schema: OpenClawConfigSchemaNode,
+  [segment, ...remaining]: string[]
+): OpenClawConfigSchemaNode | undefined {
+  if (segment === undefined) return schema
+
+  const directChildren: OpenClawConfigSchemaNode[] = []
+  if (segment === '*') {
+    if (typeof schema.additionalProperties === 'object') directChildren.push(schema.additionalProperties)
+  } else if (segment === '[]') {
+    if (Array.isArray(schema.items)) directChildren.push(...schema.items)
+    else if (schema.items) directChildren.push(schema.items)
+  } else {
+    const property = schema.properties?.[segment]
+    if (property) directChildren.push(property)
+  }
+
+  for (const child of directChildren) {
+    const found = findSchemaNode(child, remaining)
+    if (found) return found
+  }
+  for (const branch of [...(schema.anyOf ?? []), ...(schema.oneOf ?? []), ...(schema.allOf ?? [])]) {
+    const found = findSchemaNode(branch, [segment, ...remaining])
+    if (found) return found
+  }
+  return undefined
+}
+
+function schemaSupportsPath(schema: OpenClawConfigSchemaNode, pathSegments: string[]): boolean {
+  return findSchemaNode(schema, pathSegments) !== undefined
 }
 
 class OpenClawPreflightError extends Error {
@@ -447,7 +488,7 @@ export class OpenClawService extends BaseService {
     throw new OpenClawPreflightError(kind, message)
   }
 
-  private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<void> {
+  private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<OpenClawConfigSchemaNode> {
     let result: OpenClawCommandResult
     try {
       result = await this.runOpenClawCommand(runtime.path, ['config', 'schema', '--json'], {
@@ -477,6 +518,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
+    return schema as OpenClawConfigSchemaNode
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -1012,7 +1054,7 @@ export class OpenClawService extends BaseService {
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       const runtime = await this.resolveOpenClawRuntime()
-      await this.assertSchemaCapability(runtime)
+      const configSchema = await this.assertSchemaCapability(runtime)
 
       // Ensure config directory exists
       if (!fs.existsSync(openclawConfigDir())) {
@@ -1083,6 +1125,8 @@ export class OpenClawService extends BaseService {
       )
       config.models = config.models || { mode: 'merge', providers: {} }
       const providerHeaders = (provider as OpenClawSyncProvider).headers
+      const supportsModelField = (field: string) =>
+        schemaSupportsPath(configSchema, ['models', 'providers', '*', 'models', '[]', field])
 
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
@@ -1091,13 +1135,17 @@ export class OpenClawService extends BaseService {
         models: provider.models.map((m) => {
           const synced = m as OpenClawSyncModel
           return {
-            ...(synced.maxTokens !== undefined ? { maxTokens: synced.maxTokens } : {}),
-            ...(synced.reasoning !== undefined ? { reasoning: synced.reasoning } : {}),
-            ...(synced.input ? { input: synced.input } : {}),
-            ...(synced.cost ? { cost: synced.cost } : {}),
+            ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
+              ? { maxTokens: synced.maxTokens }
+              : {}),
+            ...(supportsModelField('reasoning') && synced.reasoning !== undefined
+              ? { reasoning: synced.reasoning }
+              : {}),
+            ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
+            ...(supportsModelField('cost') && synced.cost ? { cost: synced.cost } : {}),
             id: m.id,
             name: m.name,
-            contextWindow: synced.contextWindow ?? 128000
+            ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {})
           }
         })
       }
