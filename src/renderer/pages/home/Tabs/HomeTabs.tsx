@@ -18,8 +18,9 @@ interface Props {
   assistantTopicsSource: AssistantTopicsSource
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
+  onClearActiveTopic?: () => void
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => Topic | null | void | Promise<Topic | null | void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -36,6 +37,7 @@ const HomeTabs: FC<Props> = ({
   assistantTopicsSource,
   onActiveAssistantDeleted,
   onAddAssistant,
+  onClearActiveTopic,
   onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
@@ -56,6 +58,7 @@ const HomeTabs: FC<Props> = ({
         onActiveAssistantDeleted={onActiveAssistantDeleted}
         onAddAssistant={onAddAssistant}
         setActiveTopic={setActiveTopic}
+        onClearActiveTopic={onClearActiveTopic}
         onCreateTopicAfterClear={onCreateTopicAfterClear}
         onNewTopic={onNewTopic}
         onOpenHistoryRecords={onOpenHistoryRecords}

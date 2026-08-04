@@ -44,12 +44,11 @@ export interface HistoryRecordDescriptor<T> {
   mode: HistoryRecordsMode
 
   // --- identity + filtering (consumed by useHistoryRecordsController) ---
+  // Search and source scope are query filters owned by the mode wrapper.
   getId: (item: T) => string
   isPinned: (id: string) => boolean
-  getSourceId: (item: T) => string
-  /** Agent mode only: derive the stream status used by the status filter. */
+  /** Agent mode only: derive the runtime status used by the status filter. */
   statusOf?: (item: T) => HistorySourceStatus
-  matchesSearch: (item: T, keywords: string) => boolean
   /** Runs the mode's bulk-delete mutation; resolves to the deleted ids, or undefined on failure/no-op. */
   onBulkDelete: (ids: string[]) => Promise<readonly string[] | undefined>
   /** Switch the active record after the current one was deleted (null clears it). */

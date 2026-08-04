@@ -1,6 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -12,16 +12,20 @@ type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 const hookMocks = vi.hoisted(() => ({
   deleteSession: vi.fn(),
   deleteSessions: vi.fn(),
+  loadMore: vi.fn(),
+  reload: vi.fn(),
   promptShow: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
   openConversationTab: vi.fn(),
   useAgents: vi.fn(),
+  useAgentSessionStats: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useDataApiQuery: vi.fn(),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
+  usePinMutations: vi.fn(),
   useSessions: vi.fn(),
   useUpdateSession: vi.fn(),
   virtualListRenderRows: [] as VirtualListRenderRow[]
@@ -42,9 +46,6 @@ vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
   const actual = await importOriginal<typeof UseCacheModule>()
   return {
     ...MockUseCache,
-    // Stream statuses are seeded into (and updated through) this suite's
-    // CacheService mock — run the real selector over that store so status
-    // updates stay reactive.
     useSharedCacheSelector: actual.useSharedCacheSelector
   }
 })
@@ -129,20 +130,13 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
+  useAgentSessionStats: hookMocks.useAgentSessionStats,
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => {
-    const source = hookMocks.useSessions()
-    return {
-      ...source,
-      isLoadingAll: source.isLoadingAll ?? source.isLoading,
-      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
-    }
-  },
-  useAssistantTopicsSource: () => hookMocks.useTopics()
+vi.mock('@renderer/hooks/useDebouncedValue', () => ({
+  useDebouncedValue: (value: unknown) => value
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -167,7 +161,8 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
-  usePins: hookMocks.usePins
+  usePins: hookMocks.usePins,
+  usePinMutations: hookMocks.usePinMutations
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
@@ -248,10 +243,13 @@ vi.mock('react-i18next', () => {
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.error': 'Error',
+        'common.loading': 'Loading...',
         'common.more': 'More',
         'common.name': 'Name',
         'common.rename': 'Rename',
         'common.required_field': 'Required field',
+        'common.retry': 'Retry',
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
@@ -268,6 +266,7 @@ vi.mock('react-i18next', () => {
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
         'history.records.filter.statusLabel': 'Status',
+        'history.records.filter.statusPlaceholder': 'Select status',
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
@@ -314,7 +313,7 @@ function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace'
   }
 }
 
-function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+function createSession(overrides: Partial<AgentSessionListItem> = {}): AgentSessionListItem {
   return {
     id: 'session-alpha',
     agentId: 'agent-alpha',
@@ -323,6 +322,9 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
+    pinId: null,
+    pinned: false,
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides,
@@ -363,22 +365,76 @@ function setupAgentHistory({
       orderKey: 'b'
     })
   ],
-  pinIdBySessionId = new Map<string, string>()
+  pinIdBySessionId = new Map<string, string>(),
+  hasMore = false,
+  isLoadingMore = false,
+  sourceError
 }: {
   activeRecordId?: string | null
   agents?: AgentEntity[]
+  hasMore?: boolean
+  isLoadingMore?: boolean
   pinIdBySessionId?: Map<string, string>
-  sessions?: AgentSessionEntity[]
+  sessions?: AgentSessionListItem[]
+  sourceError?: Error
 } = {}) {
   hookMocks.useAgents.mockReturnValue({ agents, error: undefined, isLoading: false })
-  hookMocks.useSessions.mockReturnValue({
-    sessions,
+  const projectedSessions = sessions.map((session) => {
+    const pinId = pinIdBySessionId.get(session.id) ?? session.pinId
+    return pinId ? { ...session, pinId, pinned: true } : { ...session, pinId: null, pinned: false }
+  })
+  const filterSessions = (
+    ownerScope?: string,
+    q?: string,
+    pinned?: boolean,
+    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'lastActivityAt'
+  ) => {
+    const normalizedQuery = q?.trim().toLowerCase()
+    return projectedSessions
+      .filter((session) => {
+        if (pinned !== undefined && session.pinned !== pinned) return false
+        if (ownerScope === 'unlinked') return session.agentId === null
+        if (ownerScope && session.agentId !== ownerScope) return false
+        if (!normalizedQuery) return true
+        const agentName = session.agentId ? agents.find((agent) => agent.id === session.agentId)?.name : undefined
+        return [session.name, session.description, agentName].some((value) =>
+          value?.toLowerCase().includes(normalizedQuery)
+        )
+      })
+      .sort((left, right) => {
+        if (sortBy !== 'orderKey') {
+          return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
+        }
+        return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
+      })
+  }
+  hookMocks.useSessions.mockImplementation((ownerScope?: string, options?: any) => ({
+    sessions: filterSessions(ownerScope, options?.q, options?.pinned, options?.sortBy),
+    pages: [{ items: filterSessions(ownerScope, options?.q, options?.pinned, options?.sortBy) }],
     pinIdBySessionId,
-    error: undefined,
+    error: sourceError,
+    hasMore: options?.pinned ? false : hasMore,
     isLoading: false,
+    isLoadingMore,
+    loadMore: hookMocks.loadMore,
+    reload: hookMocks.reload,
     deleteSession: hookMocks.deleteSession,
     deleteSessions: hookMocks.deleteSessions,
     togglePin: hookMocks.togglePin
+  }))
+  hookMocks.useAgentSessionStats.mockReturnValue({
+    stats: {
+      total: sessions.length,
+      pinnedCount: pinIdBySessionId.size,
+      byAgent: Array.from(
+        sessions.reduce((counts, session) => {
+          counts.set(session.agentId, (counts.get(session.agentId) ?? 0) + 1)
+          return counts
+        }, new Map<string | null, number>())
+      ).map(([agentId, count]) => ({ agentId, count, pinnedCount: 0 }))
+    },
+    error: undefined,
+    isLoading: false
   })
 
   const onClose = vi.fn()
@@ -405,12 +461,16 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.deleteSession.mockResolvedValue(true)
     hookMocks.deleteSessions.mockReset()
     hookMocks.deleteSessions.mockResolvedValue({ deletedIds: ['session-alpha'], deletedCount: 1 })
+    hookMocks.loadMore.mockReset()
+    hookMocks.reload.mockReset()
+    hookMocks.reload.mockResolvedValue(undefined)
     hookMocks.promptShow.mockReset()
     hookMocks.togglePin.mockReset()
     hookMocks.togglePin.mockResolvedValue(undefined)
     hookMocks.updateSession.mockReset()
     hookMocks.updateSession.mockResolvedValue(createSession({ name: 'Renamed session' }))
     hookMocks.useAgents.mockReset()
+    hookMocks.useAgentSessionStats.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
     hookMocks.openConversationTab.mockReset()
@@ -435,6 +495,8 @@ describe('HistoryRecordsView agent mode', () => {
     ])
     hookMocks.usePins.mockReset()
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: vi.fn() })
+    hookMocks.usePinMutations.mockReset()
+    hookMocks.usePinMutations.mockReturnValue({ pin: vi.fn(), unpin: vi.fn(), isMutating: false, error: undefined })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
@@ -446,7 +508,19 @@ describe('HistoryRecordsView agent mode', () => {
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
     })
 
-    expect(hookMocks.useSessions).toHaveBeenCalledWith()
+    expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
+      pageSize: 50,
+      pinned: true,
+      q: '',
+      searchScope: 'name-or-owner'
+    })
+    expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, {
+      pageSize: 50,
+      pinned: false,
+      q: '',
+      searchScope: 'name-or-owner',
+      sortBy: 'lastActivityAt'
+    })
     expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
@@ -456,13 +530,13 @@ describe('HistoryRecordsView agent mode', () => {
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
     expect(pinButton).toHaveAccessibleName('Unpin')
     fireEvent.click(pinButton)
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
+    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', 'pin-session-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    // Rows are single-line: the session description is searchable but not rendered.
+    // Rows are single-line, and task descriptions are neither rendered nor searched.
     expect(screen.queryByText('Planning notes')).not.toBeInTheDocument()
     expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
@@ -514,7 +588,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders agent sources and selected agent rows by agent order', () => {
+  it('orders agent sources by agent order and selected agent rows by recent activity', () => {
     setupAgentHistory({
       agents: [
         createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
@@ -535,14 +609,18 @@ describe('HistoryRecordsView agent mode', () => {
           name: 'Alpha B',
           workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
-          orderKey: 'b'
+          orderKey: 'b',
+          createdAt: '2026-05-14T08:00:00.000Z',
+          updatedAt: '2026-05-16T08:00:00.000Z'
         }),
         createSession({
           id: 'session-alpha-a',
           name: 'Alpha A',
           workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
-          orderKey: 'a'
+          orderKey: 'a',
+          createdAt: '2026-05-15T08:00:00.000Z',
+          updatedAt: '2026-05-14T08:00:00.000Z'
         })
       ]
     })
@@ -554,6 +632,13 @@ describe('HistoryRecordsView agent mode', () => {
 
     fireEvent.click(alphaSource)
 
+    expect(hookMocks.useSessions).toHaveBeenCalledWith(
+      'agent-alpha',
+      expect.objectContaining({
+        pinned: false,
+        sortBy: 'lastActivityAt'
+      })
+    )
     const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
@@ -565,11 +650,6 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     setupAgentHistory()
-
-    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^Running$/ }))
 
@@ -584,17 +664,11 @@ describe('HistoryRecordsView agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByRole('button', { name: /^Running$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Completed$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Failed$/ })).toBeInTheDocument()
-
     fireEvent.click(screen.getByRole('button', { name: /^Failed$/ }))
-
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^Completed$/ }))
-
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
@@ -614,13 +688,29 @@ describe('HistoryRecordsView agent mode', () => {
     expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
+  it('renders list errors with a retry action', () => {
+    setupAgentHistory({ sourceError: new Error('History request failed') })
+
+    expect(screen.getByText('History request failed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(hookMocks.reload).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders a loading-more state without replacing loaded rows', () => {
+    setupAgentHistory({ isLoadingMore: true })
+
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+  })
+
   it('groups sessions with a missing agent under the unknown-agent source', () => {
     setupAgentHistory({
       sessions: [
         createSession(),
         createSession({
           id: 'session-missing-agent',
-          agentId: 'agent-missing',
+          agentId: null,
           name: 'Missing agent session',
           workspaceId: 'ws-missing',
           workspace: makeWorkspace('/Users/jd/project-missing'),
@@ -636,10 +726,15 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getAllByText('Unlinked Agent')).not.toHaveLength(0)
   })
 
-  it('searches locally by session name, description, and agent name', () => {
+  it('searches by session name, description, and live-agent name', () => {
     setupAgentHistory()
 
     fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'runbook' } })
+
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'beta session' } })
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -871,6 +966,11 @@ describe('HistoryRecordsView agent mode', () => {
       deleteSessions: hookMocks.deleteSessions,
       togglePin: hookMocks.togglePin
     })
+    hookMocks.useAgentSessionStats.mockReturnValue({
+      stats: { total: 1, pinnedCount: 0, byAgent: [] },
+      error: undefined,
+      isLoading: false
+    })
 
     const props = {
       mode: 'agent' as const,
@@ -969,7 +1069,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -987,7 +1087,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
     await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
   })
 
@@ -1005,7 +1105,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushAnimationFrame()
     })
 
-    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha', null))
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -1070,7 +1170,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 
-  it('keeps the active session unchanged when history deletion fails', async () => {
+  it('rolls back the optimistic active-session fallback when history deletion fails', async () => {
     hookMocks.deleteSession.mockResolvedValueOnce(false)
     const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
@@ -1086,6 +1186,7 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenNthCalledWith(1, 'session-beta')
+    expect(onRecordSelect).toHaveBeenLastCalledWith('session-alpha')
   })
 })

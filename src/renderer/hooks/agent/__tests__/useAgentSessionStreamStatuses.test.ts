@@ -39,7 +39,6 @@ beforeEach(() => {
     }
   })
 
-  // The singleton persists across tests — make sure the key starts absent.
   cacheService.deleteShared(KEY)
 })
 
@@ -81,7 +80,6 @@ describe('useAgentSessionStreamStatuses', () => {
     const renders = renderCount
 
     act(() => {
-      // Notification fires (value deep-differs) but status/isPending are unchanged.
       cacheService.setShared(KEY, makeEntry('streaming', 2))
     })
 

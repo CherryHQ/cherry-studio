@@ -442,15 +442,11 @@
         "collapse_all": "摺疊全部",
         "conversation": "對話",
         "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
-        "earlier": "更早",
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
-        "this_week": "本週",
-        "today": "今天",
         "unknown_agent": "未知代理",
-        "unknown_agent_tip": "這是一個沒有代理程式的歷史會話群組，並非實際的代理程式。此群組僅供檢視，無法繼續執行。",
-        "yesterday": "昨天"
+        "unknown_agent_tip": "這是一個沒有代理程式的歷史會話群組，並非實際的代理程式。此群組僅供檢視，無法繼續執行。"
       },
       "label_one": "工作階段",
       "label_other": "工作階段",
@@ -1944,14 +1940,10 @@
       "group": {
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
-        "earlier": "更早",
         "expand_all": "展開全部",
         "show_more": "展開顯示",
-        "this_week": "本週",
-        "today": "今天",
         "unknown_assistant": "未連結的助理",
-        "unknown_assistant_tip": "這是一個沒有助理的歷史對話群組，並非實際的助理。請將對話移至現有的助理以繼續。",
-        "yesterday": "昨天"
+        "unknown_assistant_tip": "這是一個沒有助理的歷史對話群組，並非實際的助理。請將對話移至現有的助理以繼續。"
       },
       "list": "對話列表",
       "manage": {

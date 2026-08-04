@@ -11,6 +11,7 @@ import Sessions from './components/Sessions'
 import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
+  activeSession?: AgentSessionEntity | null
   activeSessionId: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
@@ -30,6 +31,7 @@ interface AgentSidePanelProps {
 }
 
 const AgentSidePanel = ({
+  activeSession,
   activeSessionId,
   dataEnabled,
   historyRecordsActive,
@@ -48,6 +50,7 @@ const AgentSidePanel = ({
   return (
     <ConversationNavigationPane>
       <Sessions
+        activeSession={activeSession}
         agentSessionsSource={agentSessionsSource}
         activeSessionId={activeSessionId}
         dataEnabled={dataEnabled}

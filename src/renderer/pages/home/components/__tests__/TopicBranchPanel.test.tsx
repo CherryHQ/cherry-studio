@@ -11,12 +11,14 @@ const mocks = vi.hoisted(() => ({
   setActiveNode: vi.fn().mockResolvedValue(undefined),
   startBranchDraft: vi.fn().mockResolvedValue(undefined),
   useQuery: vi.fn(),
-  useMutation: vi.fn()
+  useMutation: vi.fn(),
+  invalidateCache: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: mocks.useMutation,
-  useQuery: mocks.useQuery
+  useQuery: mocks.useQuery,
+  useInvalidateCache: () => mocks.invalidateCache
 }))
 
 vi.mock('@data/DataApiService', () => ({

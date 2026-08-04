@@ -8,7 +8,6 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -35,7 +34,9 @@ import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
+import { agentSessionService } from './AgentSessionService'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
+import { getMessageActivityTimestamp, resolveResponseTerminalAt } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -84,6 +85,7 @@ type SaveAgentSessionMessageOptions =
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
   dataChange: 'membership' | 'projection'
+  activityAt: number | null
 }
 
 export class AgentSessionMessageService {
@@ -225,18 +227,18 @@ export class AgentSessionMessageService {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
-    const database = application.get('DbService').getDb()
-
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
-
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [session] = tx
+            .select({ id: sessionTable.id })
+            .from(sessionTable)
+            .where(eq(sessionTable.id, sessionId))
+            .limit(1)
+            .all()
+          if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+          return this.deleteSessionMessageTx(tx, sessionId, messageId)
+        }),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -277,6 +279,9 @@ export class AgentSessionMessageService {
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
       .run()
+    if (result.changes > 0) {
+      agentSessionService.recomputeLastActivityAtTx(tx, sessionId)
+    }
     return { rowsAffected: result.changes }
   }
 
@@ -298,8 +303,37 @@ export class AgentSessionMessageService {
   /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: sessionMessagesTable.id, sessionId: sessionMessagesTable.sessionId })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            inArray(sessionMessagesTable.id, ids),
+            eq(sessionMessagesTable.role, 'assistant'),
+            eq(sessionMessagesTable.status, 'pending')
+          )
+        )
+        .all()
+      if (rows.length === 0) return
+
+      const terminalAt = Date.now()
+      tx.update(sessionMessagesTable)
+        .set({ status: 'error', terminalAt })
+        .where(
+          and(
+            inArray(
+              sessionMessagesTable.id,
+              rows.map((row) => row.id)
+            ),
+            eq(sessionMessagesTable.status, 'pending')
+          )
+        )
+        .run()
+      for (const sessionId of new Set(rows.map((row) => row.sessionId))) {
+        agentSessionService.advanceLastActivityAtTx(tx, sessionId, terminalAt)
+      }
+    })
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -383,6 +417,13 @@ export class AgentSessionMessageService {
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
+      const terminalAt = resolveResponseTerminalAt({
+        existingTerminalAt: existingRow.terminalAt,
+        role: message.role,
+        status,
+        timestamp: timestampMs
+      })
+      const activityAt = existingRow.terminalAt === null && terminalAt !== null ? terminalAt : null
 
       withSqliteErrors(
         () =>
@@ -391,6 +432,7 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
+              terminalAt,
               data: message.data,
               modelId,
               messageSnapshot,
@@ -403,28 +445,33 @@ export class AgentSessionMessageService {
         defaultHandlersFor('Message', String(existingRow.id))
       )
 
+      const entity = this.rowToEntity({
+        ...existingRow,
+        role: message.role,
+        status,
+        terminalAt,
+        data: message.data,
+        searchableText: existingRow.searchableText,
+        modelId,
+        messageSnapshot,
+        stats,
+        runtimeResumeToken: runtimeResumeTokenToPersist,
+        updatedAt: updatedAtMs
+      })
       return {
-        entity: this.rowToEntity({
-          ...existingRow,
-          role: message.role,
-          status,
-          data: message.data,
-          searchableText: existingRow.searchableText,
-          modelId,
-          messageSnapshot,
-          stats,
-          runtimeResumeToken: runtimeResumeTokenToPersist,
-          updatedAt: updatedAtMs
-        }),
-        dataChange: 'projection'
+        entity,
+        dataChange: 'projection',
+        activityAt
       }
     }
 
+    const terminalAt = resolveResponseTerminalAt({ role: message.role, status, timestamp: timestampMs })
     const insertData: InsertSessionMessageRow = {
       id: messageId,
       sessionId,
       role: message.role,
       status,
+      terminalAt,
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
@@ -435,7 +482,11 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    return { entity: this.rowToEntity(saved), dataChange: 'membership' }
+    return {
+      entity: this.rowToEntity(saved),
+      dataChange: 'membership',
+      activityAt: getMessageActivityTimestamp(saved)
+    }
   }
 
   private saveMessageTx(
@@ -445,6 +496,9 @@ export class AgentSessionMessageService {
   ): SavedAgentSessionMessage {
     const result = this.upsertMessage(db, params, timestampMs)
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
+    if (result.activityAt !== null) {
+      agentSessionService.advanceLastActivityAtTx(db, params.sessionId, result.activityAt)
+    }
     return result
   }
 
@@ -477,10 +531,18 @@ export class AgentSessionMessageService {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
+      let activityAt: number | null = null
       for (const message of messages) {
-        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs).entity)
+        const savedMessage = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs)
+        result.push(savedMessage.entity)
+        if (savedMessage.activityAt !== null) {
+          activityAt = activityAt === null ? savedMessage.activityAt : Math.max(activityAt, savedMessage.activityAt)
+        }
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
+      if (activityAt !== null) {
+        agentSessionService.advanceLastActivityAtTx(tx, sessionId, activityAt)
+      }
       return result
     })
     for (const entity of saved) {

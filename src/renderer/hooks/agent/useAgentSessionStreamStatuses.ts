@@ -24,11 +24,6 @@ function toAgentSessionStreamState(
   }
 }
 
-/**
- * Selection comparator: the Map and its entry objects are rebuilt on every
- * selector run, so identity comparison never holds — compare by the fields
- * consumers derive from (session id, status, isPending).
- */
 function areAgentSessionStreamStatusesEqual(
   a: ReadonlyMap<string, AgentSessionStreamState>,
   b: ReadonlyMap<string, AgentSessionStreamState>
@@ -64,7 +59,6 @@ export function useAgentSessionStreamStatuses(
     [uniqueSessionIds]
   )
 
-  // Keys and the zip source both derive from `uniqueSessionIds` (zip-source coherence).
   return useSharedCacheSelector(
     uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey),
     selector,

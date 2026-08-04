@@ -19,6 +19,9 @@ export const agentSessionMessageTable = sqliteTable(
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
+    // First terminal transition for an assistant response. Intermediate
+    // persistence may advance updatedAt but never rewrites this timestamp.
+    terminalAt: integer(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),

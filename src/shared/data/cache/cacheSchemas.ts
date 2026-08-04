@@ -359,7 +359,8 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
-  // Kept separate so the assistant and agent surfaces don't bleed into each other.
+  // Per-surface classic-layout right-pane override; kept separate so the assistant and agent
+  // surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null

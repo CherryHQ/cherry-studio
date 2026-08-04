@@ -442,15 +442,11 @@
         "collapse_all": "Restrânge tot",
         "conversation": "Conversații",
         "drag_hint": "Trage pentru a reordona. Trage sarcinile pentru a ajusta grupurile afișate și ascunse.",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
-        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
-        "yesterday": "Ieri"
+        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze."
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
@@ -1944,14 +1940,10 @@
       "group": {
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
         "unknown_assistant": "Asistent Deconectat",
-        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua.",
-        "yesterday": "Ieri"
+        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua."
       },
       "list": "Listă subiecte",
       "manage": {

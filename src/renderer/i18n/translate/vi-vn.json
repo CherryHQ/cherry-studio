@@ -442,15 +442,11 @@
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
         "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
-        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy.",
-        "yesterday": "Hôm qua"
+        "unknown_agent_tip": "Đây là một nhóm phiên lịch sử không có agent, không phải là agent thực tế. Nó chỉ có thể xem và không thể tiếp tục chạy."
       },
       "label_one": "Phiên",
       "label_other": " sessions",
@@ -1944,14 +1940,10 @@
       "group": {
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
-        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục.",
-        "yesterday": "Hôm qua"
+        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục."
       },
       "list": "Daftar Topik",
       "manage": {

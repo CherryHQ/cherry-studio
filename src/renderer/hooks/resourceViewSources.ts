@@ -1,81 +1,88 @@
-import { createContext, use } from 'react'
+import { dataApiService } from '@renderer/data/DataApiService'
+import type { AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
+import { createContext, use, useCallback } from 'react'
 
-import { useSessions } from './agent/useSession'
-import { useTopics } from './useTopic'
+import { useAgentSessionStats } from './agent/useSession'
+import { useTopicStats } from './useTopic'
 
 /**
- * Window-level data sources shared by every kept-alive chat / agent route.
- *
- * The raw hooks are mounted once by ResourceViewSourceProvider. Route pages read
- * the provider's progressive cold-start data, then its last complete snapshot
- * during background refreshes. This keeps first-page content responsive without
- * letting multiple kept-alive tabs start competing load-all chains.
+ * Page-level resource facts and exact derived lookups shared by classic rails,
+ * conversation pages, and their right-panel lists.
  */
 
-/** Full agent-session page size — kept in one place so the rail and right panel never drift. */
-const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
-
+/**
+ * Factual counts drive group visibility. Imperative lookups use scoped latest
+ * for owner navigation and domain reads for placeholder reuse.
+ */
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const statsSource = useTopicStats({ enabled })
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+    return result.topic
+  }, [])
+  const loadReusableTopic = useCallback(async (assistantId: string | null) => {
+    const result = await dataApiService.get('/topics/reusable-placeholder', {
+      query: { assistantId: assistantId ?? 'unassigned' }
+    })
+    return result.topic
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadLatestTopic,
+    loadReusableTopic
+  }
 }
 
+/** Session counterpart to {@link useRawAssistantTopicsSource}. */
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const statsSource = useAgentSessionStats({ enabled })
+  const loadSession = useCallback((sessionId: string) => dataApiService.get(`/agent-sessions/${sessionId}`), [])
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+    return result.session
+  }, [])
+  const loadReusableSessions = useCallback(async (agentId: string, workspaceId?: AgentSessionWorkspaceScope) => {
+    const result = await dataApiService.get('/agent-sessions/reusable-placeholders', {
+      query: { agentId, ...(workspaceId ? { workspaceId } : {}) }
+    })
+    return result.sessions
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadSession,
+    loadLatestSession,
+    loadReusableSessions
+  }
 }
 
-type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
-type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
-
-/**
- * A background refresh that failed while a committed snapshot is still on
- * screen. It is deliberately separate from `error`: the snapshot stays served
- * (blowing a good list away into an error panel is worse), but the failure must
- * not be silent — nothing retries on its own, so the list would otherwise stay
- * stale for the window's lifetime with no visible cause.
- */
-type RefreshError = { refreshError: RawAssistantTopicsSource['error'] }
-
-export type AssistantTopicsSource = Pick<
-  RawAssistantTopicsSource,
-  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error' | 'refetch'
-> &
-  RefreshError
-
-export type AgentSessionsSource = Pick<
-  RawAgentSessionsSource,
-  | 'sessions'
-  | 'pinIdBySessionId'
-  | 'hasMore'
-  | 'error'
-  | 'isLoading'
-  | 'isLoadingMore'
-  | 'isValidating'
-  | 'reload'
-  | 'deleteSession'
-  | 'deleteSessions'
-  | 'reorderSession'
-  | 'togglePin'
-  | 'isFullyLoaded'
-  | 'isLoadingAll'
-  | 'isPinsLoading'
-> &
-  RefreshError
+export type AssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
+export type AgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
 
 export const AssistantTopicsSourceContext = createContext<AssistantTopicsSource | null>(null)
 export const AgentSessionsSourceContext = createContext<AgentSessionsSource | null>(null)
 
 export function useAssistantTopicsSource(): AssistantTopicsSource {
   const source = use(AssistantTopicsSourceContext)
-  if (!source) {
-    throw new Error('useAssistantTopicsSource must be used within ResourceViewSourceProvider')
-  }
+  if (!source) throw new Error('useAssistantTopicsSource must be used within ResourceViewSourceProvider')
   return source
 }
 
 export function useAgentSessionsSource(): AgentSessionsSource {
   const source = use(AgentSessionsSourceContext)
-  if (!source) {
-    throw new Error('useAgentSessionsSource must be used within ResourceViewSourceProvider')
-  }
+  if (!source) throw new Error('useAgentSessionsSource must be used within ResourceViewSourceProvider')
   return source
 }

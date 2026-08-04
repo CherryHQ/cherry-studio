@@ -6,7 +6,7 @@
  * - Topic CRUD operations
  * - Topic path duplication
  * - Active node switching for branch navigation
- * - Scoped reorder (single + batch) via OrderEndpoints
+ * - Global reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
@@ -15,9 +15,13 @@ import {
   CreateTopicSchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
+  LatestTopicQuerySchema,
   ListTopicsQuerySchema,
+  MoveTopicSchema,
+  ReusableTopicPlaceholderQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
+  TopicStatsQuerySchema,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -25,7 +29,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
-      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      const parsed = ListTopicsQuerySchema.parse(query)
       return topicService.listByCursor(parsed)
     },
 
@@ -41,8 +45,23 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   },
 
   '/topics/latest': {
-    GET: async () => {
-      return { topic: topicService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestTopicQuerySchema.parse(query ?? {})
+      return { topic: topicService.getLatestActive(parsed) }
+    }
+  },
+
+  '/topics/reusable-placeholder': {
+    GET: async ({ query }) => {
+      const parsed = ReusableTopicPlaceholderQuerySchema.parse(query)
+      return { topic: topicService.getReusablePlaceholder(parsed) }
+    }
+  },
+
+  '/topics/stats': {
+    GET: async ({ query }) => {
+      const parsed = TopicStatsQuerySchema.parse(query ?? {})
+      return topicService.stats(parsed)
     }
   },
 
@@ -58,6 +77,14 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ params }) => {
       topicService.delete(params.id)
+      return undefined
+    }
+  },
+
+  '/topics/:id/move': {
+    POST: async ({ params, body }) => {
+      const parsed = MoveTopicSchema.parse(body)
+      topicService.move(params.id, parsed)
       return undefined
     }
   },

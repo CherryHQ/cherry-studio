@@ -54,6 +54,7 @@ function ChatTopBarControls(props: ChatTopBarControlsProps) {
 
 interface Props {
   activeTopic?: Topic
+  centerFallback?: ReactNode
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -310,7 +311,7 @@ const Chat: FC<Props> = (props) => {
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (
-      <ConversationCenterState state="loading" />
+      (props.centerFallback ?? <ConversationCenterState state="loading" />)
     ))
 
   return (

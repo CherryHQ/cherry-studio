@@ -4,15 +4,7 @@ import type { AddNewTopicPayload } from '@renderer/components/composer/variants/
 
 export type { AddNewTopicPayload }
 
-/**
- * Page-level "new topic" payload for the post-delete replacement path. Extends the composer payload
- * with `excludeReuseTopicId`, which is a HomePage delete-replacement policy — not part of the public
- * composer action contract, so it stays out of {@link AddNewTopicPayload}.
- */
+/** Page-only policy used when replacing a just-deleted topic. */
 export interface AddNewTopicWithReusePayload extends AddNewTopicPayload {
-  /**
-   * Id of a topic being replaced (post-delete): excluded from empty-topic reuse so a stale candidate
-   * list can't reactivate the just-deleted topic instead of creating a fresh one.
-   */
   excludeReuseTopicId?: string
 }

@@ -33,14 +33,22 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
     // Empty query lists every conversation (most recently updated first); /search/entities
     // requires a non-empty q, so the plain list endpoints back the initial panel.
     if (entityType === 'topic') {
-      const page = await dataApiService.get('/topics', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
-      return page.items
+      const pages = await Promise.all([
+        dataApiService.get('/topics', { query: { limit: REFERENCE_LIST_FETCH_LIMIT, pinned: true } }),
+        dataApiService.get('/topics', { query: { limit: REFERENCE_LIST_FETCH_LIMIT, pinned: false } })
+      ])
+      return pages
+        .flatMap((page) => page.items)
         .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, REFERENCE_RESULT_LIMIT)
         .map((topic) => ({ id: topic.id, title: topic.name, agentId: null }))
     }
-    const page = await dataApiService.get('/agent-sessions', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
-    return page.items
+    const pages = await Promise.all([
+      dataApiService.get('/agent-sessions', { query: { limit: REFERENCE_LIST_FETCH_LIMIT, pinned: true } }),
+      dataApiService.get('/agent-sessions', { query: { limit: REFERENCE_LIST_FETCH_LIMIT, pinned: false } })
+    ])
+    return pages
+      .flatMap((page) => page.items)
       .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, REFERENCE_RESULT_LIMIT)
       .map((session) => ({ id: session.id, title: session.name, agentId: session.agentId }))

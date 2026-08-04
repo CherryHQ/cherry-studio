@@ -4,6 +4,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { useScrollEndReached } from '@renderer/hooks/useScrollEndReached'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -35,12 +36,16 @@ export const historyFixedActionShadowClassName =
 // `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
 export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--border-subtle)]'
 
+const END_REACHED_THRESHOLD_PX = 200
+
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode
   estimateSize: (index: number) => number
   header: ReactNode
   items: TItem[]
   onFixedActionShadowChange: (showShadow: boolean) => void
+  /** Invoked when the scroller nears its bottom — drives cursor-paged loading. */
+  onEndReached?: () => void
   renderRow: (item: TItem, index: number) => ReactNode
 }
 
@@ -50,9 +55,16 @@ export function HistoryVirtualTable<TItem>({
   header,
   items,
   onFixedActionShadowChange,
+  onEndReached,
   renderRow
 }: HistoryVirtualTableProps<TItem>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const checkEndReached = useScrollEndReached(scrollerRef, {
+    itemCount: items.length,
+    thresholdPx: END_REACHED_THRESHOLD_PX,
+    onEndReached
+  })
+
   const updateFixedActionShadow = useCallback(() => {
     const scroller = scrollerRef.current
     if (!scroller) {
@@ -63,6 +75,11 @@ export function HistoryVirtualTable<TItem>({
     const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth
     onFixedActionShadowChange(maxScrollLeft > 1 && scroller.scrollLeft < maxScrollLeft - 1)
   }, [onFixedActionShadowChange])
+
+  const handleScroll = useCallback(() => {
+    updateFixedActionShadow()
+    checkEndReached()
+  }, [checkEndReached, updateFixedActionShadow])
 
   useEffect(() => {
     updateFixedActionShadow()
@@ -92,7 +109,7 @@ export function HistoryVirtualTable<TItem>({
             estimateSize={estimateSize}
             header={header}
             list={items}
-            onScroll={updateFixedActionShadow}
+            onScroll={handleScroll}
             overscan={8}
             role="rowgroup"
             scrollElementRef={scrollerRef}
@@ -100,7 +117,7 @@ export function HistoryVirtualTable<TItem>({
             {renderRow}
           </DynamicVirtualList>
         ) : (
-          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={updateFixedActionShadow}>
+          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={handleScroll}>
             {header}
             {emptyContent}
           </div>

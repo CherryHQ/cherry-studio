@@ -442,15 +442,11 @@
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
         "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
         "unknown_agent": "Unlinked Agent",
-        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
-        "yesterday": "Yesterday"
+        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running."
       },
       "label_one": "Session",
       "label_other": "Sessions",
@@ -1956,14 +1952,10 @@
       "group": {
         "collapse": "Collapse display",
         "collapse_all": "Collapse all",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
-        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
-        "yesterday": "Yesterday"
+        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue."
       },
       "list": "Conversation List",
       "manage": {

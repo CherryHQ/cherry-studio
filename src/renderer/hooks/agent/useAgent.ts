@@ -14,6 +14,7 @@ import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -21,6 +22,27 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+
+/**
+ * Agent deletion cascades into sessions (list order + stats), pins,
+ * workspaces and channel bindings. Single owner of that refresh contract —
+ * do not declare `DELETE /agents/:agentId` with a hand-rolled `refresh`
+ * list elsewhere.
+ */
+const AGENT_DELETE_REFRESH: ConcreteApiPaths[] = [
+  '/agents',
+  '/agent-sessions',
+  '/agent-sessions/stats',
+  '/agent-workspaces',
+  '/pins',
+  '/agent-channels'
+]
+
+/** Raw agent-delete trigger; UX (confirm / toast / tab fixup) stays with the caller. */
+export const useDeleteAgent = () => {
+  const { trigger } = useMutation('DELETE', '/agents/:agentId', { refresh: AGENT_DELETE_REFRESH })
+  return trigger
+}
 
 type UpdateAgentModelInput = {
   agentId: string
@@ -85,9 +107,7 @@ export const useAgents = () => {
     [invalidate, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/pins']
-  })
+  const deleteTrigger = useDeleteAgent()
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
@@ -110,7 +130,11 @@ export const useAgents = () => {
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
-    refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
+    refresh: ({ args }) => [
+      '/agents',
+      `/agents/${args?.params?.agentId}`,
+      ...(args?.body?.name !== undefined ? (['/agent-sessions'] as const) : [])
+    ]
   })
 
   const updateAgent: UpdateAgentFunction = useCallback(

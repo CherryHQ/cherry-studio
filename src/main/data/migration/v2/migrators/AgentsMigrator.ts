@@ -886,6 +886,7 @@ type PreparedLegacySessionMessage = {
   data: MessageData
   searchableText: string
   status: MessageStatus
+  terminalAt: number | null
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
   stats: MessageStats | null
@@ -1359,6 +1360,7 @@ function createLegacySessionMessageStaging(db: DbType, schemaInfo: AgentsSchemaI
          data TEXT NOT NULL,
          searchable_text TEXT NOT NULL,
          status TEXT NOT NULL,
+         terminal_at INTEGER,
          model_id TEXT,
          model_snapshot TEXT,
          stats TEXT,
@@ -1406,7 +1408,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
         INSERT INTO ${sql.raw(LEGACY_SESSION_MESSAGE_STAGING_TABLE)}
           (
             source_sequence, id, session_id, role, data, searchable_text, status, model_id,
-            model_snapshot, stats, runtime_resume_token, created_at, updated_at
+            terminal_at, model_snapshot, stats, runtime_resume_token, created_at, updated_at
           )
         VALUES
           (
@@ -1418,6 +1420,7 @@ function insertLegacySessionMessageStagingBatch(db: DbType, prepared: PreparedLe
             ${message.searchableText},
             ${message.status},
             ${message.modelId},
+            ${message.terminalAt},
             ${message.modelSnapshot ? JSON.stringify(message.modelSnapshot) : null},
             ${message.stats ? JSON.stringify(message.stats) : null},
             ${message.runtimeResumeToken},
@@ -1508,6 +1511,8 @@ async function stageLegacySessionMessages(
       const now = Date.now()
       const createdAt = legacyTimestampToMs(row.createdAt, now)
       const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
+      const terminalAt =
+        normalized.role === 'assistant' && normalized.status !== 'pending' ? Math.max(createdAt, updatedAt) : null
       prepared.push({
         sourceSequence: row.sourceSequence,
         id: uuidv7(),
@@ -1516,6 +1521,7 @@ async function stageLegacySessionMessages(
         data: normalized.data,
         searchableText: normalized.searchableText,
         status: normalized.status,
+        terminalAt,
         modelId: resolveUserModelId(db, modelCache, normalized.modelId),
         modelSnapshot: normalized.modelSnapshot,
         stats: normalized.stats,
@@ -1547,6 +1553,7 @@ type StagedLegacySessionMessageRow = {
   modelSnapshot: string | null
   stats: string | null
   runtimeResumeToken: string | null
+  terminalAt: number | null
   createdAt: number
   updatedAt: number
 }
@@ -1576,6 +1583,7 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
                   data,
                   searchable_text AS searchableText,
                   status,
+                  terminal_at AS terminalAt,
                   model_id AS modelId,
                   model_snapshot AS modelSnapshot,
                   stats,
@@ -1607,6 +1615,7 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
           data: JSON.parse(row.data) as MessageData,
           searchableText: row.searchableText,
           status: row.status,
+          terminalAt: row.terminalAt,
           modelId: row.modelId,
           messageSnapshot,
           stats: row.stats ? (JSON.parse(row.stats) as MessageStats) : undefined,
@@ -1621,6 +1630,31 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
       imported += rows.length
       afterSequence = rows.at(-1)!.sourceSequence
     }
+
+    db.run(
+      sql.raw(`UPDATE agent_session
+               SET last_activity_at = max(
+                 last_activity_at,
+                 COALESCE((
+                   SELECT MAX(
+                     CASE
+                       WHEN role = 'user' THEN created_at
+                       WHEN role = 'assistant' AND terminal_at > created_at THEN terminal_at
+                       WHEN role = 'assistant' THEN created_at
+                       ELSE NULL
+                     END
+                   )
+                   FROM agent_session_message
+                   WHERE session_id = agent_session.id
+                 ), last_activity_at)
+               )
+               WHERE EXISTS (
+                 SELECT 1
+                 FROM agent_session_message
+                 WHERE session_id = agent_session.id
+                   AND role IN ('user', 'assistant')
+               )`)
+    )
 
     db.run(sql.raw("INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')"))
     db.run(sql.raw(AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL))

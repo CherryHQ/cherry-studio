@@ -7,7 +7,7 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -29,7 +29,6 @@ import {
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
@@ -55,11 +54,7 @@ type AgentResourceListProps = {
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
-  /**
-   * Called after the currently-active agent is deleted so the classic-layout page can
-   * settle (select the latest remaining session / clear). This is the classic
-   * layout's reset.
-   */
+  /** Called after the currently-active agent is deleted so the page can settle. */
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
 }
 
@@ -84,15 +79,11 @@ export function AgentResourceList({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
-    isLoading,
-    isLoadingAll,
-    isFullyLoaded,
-    isPinsLoading,
-    isValidating,
-    error: sessionsError,
-    reload
+    stats: sessionStats,
+    isStatsLoading: isSessionStatsLoading,
+    statsError: sessionsError,
+    refetchStats: reload,
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -102,9 +93,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const deleteAgent = useDeleteAgent()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -112,9 +101,12 @@ export function AgentResourceList({
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
+  const sessionCountByAgentId = useMemo(
+    () =>
+      new Map(
+        (sessionStats?.byAgent ?? []).flatMap(({ agentId, count }) => (agentId ? [[agentId, count] as const] : []))
+      ),
+    [sessionStats?.byAgent]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -145,15 +137,11 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
   )
 
-  const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
-    []
-  )
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
+  const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       await reorderAgent({ params: { id: agentId }, body: anchor })
@@ -170,14 +158,13 @@ export function AgentResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
+    resourceCountByEntityId: sessionCountByAgentId,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
+    isLoading: isAgentsLoading || isSessionStatsLoading,
     isError: !!(agentsError || sessionsError),
-    sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
     onCreateResource: onCreateSession,
+    loadResourceForEntity: loadLatestSessionForAgent,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError
@@ -333,7 +320,6 @@ export function AgentResourceList({
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
-        reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

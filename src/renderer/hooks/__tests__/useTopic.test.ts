@@ -77,105 +77,15 @@ describe('useTopics', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps revalidateAll off while a load-all topic chain is still growing', () => {
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false }
-    })
-  })
-
-  it('flips revalidateAll on once a load-all topic chain is fully loaded', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [{ id: 'topic-a' }] }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
-
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: true }
-    })
-  })
-
   it('keeps progressive topic sources on first-page revalidation', () => {
-    renderHook(() => useTopics())
+    renderHook(() => useTopics({ pinned: false }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
+      query: { pinned: false },
       limit: 50,
       enabled: undefined,
       swrOptions: { revalidateAll: false }
     })
-  })
-
-  it('does not revalidate previously loaded pages while the load-all chain grows', () => {
-    // Simulate a multi-page loadAll: each render grows `pages` by one and
-    // keeps `hasNext` true until the final page. The auto-paginate effect
-    // drives `loadNext`; we assert that across every growth render the
-    // `swrOptions.revalidateAll` passed to `useInfiniteQuery` stays false
-    // (no quadratic re-fetch of earlier pages) and `loadNext` is invoked
-    // once per new page — never extra revalidation-triggered fetches.
-    const loadNext = vi.fn()
-    let pages: Array<{ items: Array<{ id: string }>; nextCursor?: string }> = [
-      { items: [{ id: 't1' }], nextCursor: 'c1' }
-    ]
-    let hasNext = true
-
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext,
-          loadNext,
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
-
-    const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
-
-    // Page 1 → 2
-    pages = [...pages, { items: [{ id: 't2' }], nextCursor: 'c2' }]
-    act(() => rerender())
-    // Page 2 → 3 (final)
-    pages = [...pages, { items: [{ id: 't3' }] }]
-    hasNext = false
-    act(() => rerender())
-
-    // The auto-paginate effect drives loadNext; the key regression check is
-    // that revalidateAll stays false across every growth render so earlier
-    // pages are never re-fetched on each setSize (1+2+...+n IPC traffic).
-    expect(loadNext).toHaveBeenCalled()
-
-    // All calls during growth (every call except the final post-fully-loaded
-    // re-render where the effect flips revalidateAll on) must keep
-    // revalidateAll off.
-    const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
-    expect(growthCalls.length).toBeGreaterThan(0)
-    for (const call of growthCalls) {
-      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false } })
-    }
-    // The final call — after the chain is fully loaded — flips revalidateAll on.
-    const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
-    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true } })
   })
 })
 
@@ -255,12 +165,10 @@ describe('useTopicMutations', () => {
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
   })
 
-  it('re-homes a dragged topic into `/topics/:id` before ordering, then revalidates once', async () => {
-    const movedTopic = { id: 'topic-a', assistantId: 'assistant-2' }
-    const patch = vi
-      .mocked(dataApiService.patch)
-      .mockResolvedValueOnce(movedTopic as never)
-      .mockResolvedValueOnce(undefined as never)
+  it('moves a topic atomically, updates its by-id cache, then revalidates once', async () => {
+    const cachedTopic = { id: 'topic-a', assistantId: 'assistant-1', name: 'Topic A' }
+    MockUseDataApiUtils.seedCache('/topics/topic-a', cachedTopic as never)
+    const post = vi.mocked(dataApiService.post).mockResolvedValueOnce(undefined as never)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
@@ -270,18 +178,20 @@ describe('useTopicMutations', () => {
       result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
     )
 
-    expect(patch).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
-    expect(patch).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
-    // The PATCH response lands in `/topics/:id` before the order write, so an open conversation
-    // on the moved topic re-resolves its assistant immediately instead of waiting out the order
-    // PATCH bound to the old one.
-    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
-    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeLessThan(patch.mock.invocationCallOrder[1])
-    // A single combined revalidation after both writes — not mid-flight, which would flash the
-    // optimistic reorder overlay back to the old position.
+    expect(post).toHaveBeenCalledWith('/topics/topic-a/move', {
+      body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
+    })
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    // The atomic move commits before the by-id cache changes, so an open conversation follows
+    // the new assistant without exposing a partially moved server state.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', {
+      ...cachedTopic,
+      assistantId: 'assistant-2'
+    })
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(post.mock.invocationCallOrder[0])
     expect(invalidateSpy).toHaveBeenCalledTimes(1)
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
-    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(patch.mock.invocationCallOrder[1])
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(writeCacheSpy.mock.invocationCallOrder[0])
   })
 
   it('reorders without an assistant change using only the order write and a list refresh', async () => {
@@ -296,13 +206,11 @@ describe('useTopicMutations', () => {
     expect(patch).toHaveBeenCalledTimes(1)
     expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
     expect(writeCacheSpy).not.toHaveBeenCalled()
-    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats'])
   })
 
-  it('reconciles caches and rethrows when ordering fails after the assistant change committed', async () => {
-    vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' } as never)
-      .mockRejectedValueOnce(new Error('order failed'))
+  it('reconciles caches and rethrows when the atomic move fails', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('move failed'))
 
     const { result } = renderHook(() => useTopicMutations())
     const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
@@ -319,9 +227,8 @@ describe('useTopicMutations', () => {
     })
 
     // Rethrown so the caller can roll its optimistic UI back.
-    expect(caught).toEqual(new Error('order failed'))
-    // The assistant PATCH committed before the failure — server truth must be pulled back in.
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(caught).toEqual(new Error('move failed'))
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
   })
 })
 
@@ -352,7 +259,7 @@ describe('useActiveTopic', () => {
 
   it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
     // Core of the /latest fast path: with no active id yet the hook resolves the active
-    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // topic by id (not by scanning a paged list), so it is not "loading" and the
     // first-entry effect is free to resume the latest topic immediately.
     const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
 

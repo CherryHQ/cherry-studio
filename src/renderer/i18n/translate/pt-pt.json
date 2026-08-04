@@ -442,15 +442,11 @@
         "collapse_all": "Recolher tudo",
         "conversation": "Conversas",
         "drag_hint": "Arraste para reordenar. Arraste as tarefas para ajustar os grupos exibidos e ocultos.",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem diretório de trabalho",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
-        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
-        "yesterday": "Ontem"
+        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução."
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
@@ -1944,14 +1940,10 @@
       "group": {
         "collapse": "Recolher exibição",
         "collapse_all": "Recolher tudo",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
-        "unknown_assistant_tip": "Este é um grupo de conversa histórico sem um assistente, não um assistente real. Mova a conversa para um assistente existente para continuar.",
-        "yesterday": "Ontem"
+        "unknown_assistant_tip": "Este é um grupo de conversa histórico sem um assistente, não um assistente real. Mova a conversa para um assistente existente para continuar."
       },
       "list": "Lista de tópicos",
       "manage": {

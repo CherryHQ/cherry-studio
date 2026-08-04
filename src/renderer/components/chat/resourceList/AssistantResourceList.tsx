@@ -31,7 +31,6 @@ import {
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
@@ -56,11 +55,7 @@ type AssistantResourceListProps = {
   onSelectedAssistantClick?: () => void | Promise<void>
   onCreateTopic: (assistantId: string | null) => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
-  /**
-   * Called after the currently-active assistant is deleted so the classic-layout page
-   * can settle (select the latest remaining topic / fall back). This is the old
-   * layout's reset and is distinct from `onCreateTopic`.
-   */
+  /** Called after the currently-active assistant is deleted so the page can settle. */
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
 }
 
@@ -89,24 +84,21 @@ export function AssistantResourceList({
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const {
     assistants,
-    hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
   const {
+    stats: topicStats,
+    isStatsLoading: isTopicStatsLoading,
+    statsError: topicsError,
+    loadLatestTopic
+  } = assistantTopicsSource
+  const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
-  const {
-    topics: apiTopics,
-    isLoadingAll: isTopicsLoadingAll,
-    isFullyLoaded: isTopicsFullyLoaded,
-    isRefreshing: isTopicsRefreshing,
-    error: topicsError
-  } = assistantTopicsSource
-  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
@@ -117,46 +109,38 @@ export function AssistantResourceList({
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
-  const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
-  const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
     [assistantGroups]
   )
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const topics = useMemo(
-    () =>
-      apiTopics.map((apiTopic) => ({
-        ...mapApiTopicToRendererTopic(apiTopic),
-        pinned: topicPinnedIdSet.has(apiTopic.id)
-      })),
-    [apiTopics, topicPinnedIdSet]
-  )
-  const topicsRef = useRef(topics)
+  const topicCountByAssistantId = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const { assistantId, count } of topicStats?.byAssistant ?? []) {
+      const entityId = assistantId ?? UNLINKED_ASSISTANT_ENTITY_ID
+      counts.set(entityId, (counts.get(entityId) ?? 0) + count)
+    }
+    return counts
+  }, [topicStats?.byAssistant])
+
+  // Keep the latest per-assistant topic counts in a ref so a clear action that
+  // is awaiting its confirm dialog can re-check the count after the user
+  // confirms — the list may have drained while the dialog was open.
+  const topicCountByAssistantIdRef = useRef(topicCountByAssistantId)
   useEffect(() => {
-    topicsRef.current = topics
-  }, [topics])
+    topicCountByAssistantIdRef.current = topicCountByAssistantId
+  }, [topicCountByAssistantId])
 
   const handleCreateTopic = useCallback(
     (assistantId: string) => onCreateTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId),
     [onCreateTopic]
   )
-  const getAssistantEntityId = useCallback(
-    (assistantId: string | null | undefined) =>
-      assistantId && (!hasAssistantsLoaded || assistantIdSet.has(assistantId))
-        ? assistantId
-        : UNLINKED_ASSISTANT_ENTITY_ID,
-    [assistantIdSet, hasAssistantsLoaded]
-  )
-  const hasUnlinkedAssistantTopics = useMemo(
-    () => apiTopics.some((topic) => getAssistantEntityId(topic.assistantId) === UNLINKED_ASSISTANT_ENTITY_ID),
-    [apiTopics, getAssistantEntityId]
-  )
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
+    const hasUnlinkedAssistantTopics = (topicCountByAssistantId.get(UNLINKED_ASSISTANT_ENTITY_ID) ?? 0) > 0
     const unlinkedAssistantEntity: ResourceEntityRailItem[] = hasUnlinkedAssistantTopics
       ? [
           {
@@ -215,19 +199,18 @@ export function AssistantResourceList({
     assistantPinnedIdSet,
     defaultModelId,
     handleCreateTopic,
-    hasUnlinkedAssistantTopics,
-    t
+    t,
+    topicCountByAssistantId
   ])
 
-  const sortTopicsForEntity = useCallback(
-    (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
-    []
+  const loadLatestTopicForEntity = useCallback(
+    async (assistantId: string) => {
+      const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
+      return topic ? mapApiTopicToRendererTopic(topic) : null
+    },
+    [loadLatestTopic]
   )
-  const getTopicAssistantId = useCallback(
-    (topic: Topic) => getAssistantEntityId(topic.assistantId),
-    [getAssistantEntityId]
-  )
-  const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
+  const activeAssistantEntityId = activeAssistantId ?? UNLINKED_ASSISTANT_ENTITY_ID
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
@@ -247,24 +230,17 @@ export function AssistantResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: topics,
-    getResourceParentId: getTopicAssistantId,
+    resourceCountByEntityId: topicCountByAssistantId,
     activeEntityId: activeAssistantEntityId,
-    isLoading:
-      isAssistantsLoading ||
-      (isGroupGrouping && isAssistantGroupsLoading) ||
-      isTopicsLoadingAll ||
-      !isTopicsFullyLoaded ||
-      isTopicPinsLoading,
+    isLoading: isAssistantsLoading || isTopicStatsLoading || (isGroupGrouping && isAssistantGroupsLoading),
     isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError) || topicsError),
-    sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
     onCreateResource: handleCreateTopic,
+    loadResourceForEntity: loadLatestTopicForEntity,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
   })
-
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -288,8 +264,7 @@ export function AssistantResourceList({
     async (assistantId: string) => {
       if (clearingTopicsAssistantId || deletingAssistantId) return
 
-      const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
-      if (targetTopics.length === 0) return
+      if ((topicCountByAssistantId.get(assistantId) ?? 0) === 0) return
 
       setClearingTopicsAssistantId(assistantId)
       try {
@@ -305,13 +280,9 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        // Re-validate against the latest topics after the confirm dialog: the list may
-        // have changed while it was open, and TopicService.deleteByAssistantId() has no
-        // at-least-one guard of its own, so bail out if nothing is left to clear.
-        const latestTargetTopicIds = new Set(
-          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
-        )
-        if (latestTargetTopicIds.size === 0) return
+        // The list may have drained while the confirm dialog was open — re-check
+        // the latest count so we don't issue a redundant scoped delete.
+        if ((topicCountByAssistantIdRef.current.get(assistantId) ?? 0) === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
@@ -331,7 +302,8 @@ export function AssistantResourceList({
       deletingAssistantId,
       onCreateTopicAfterClear,
       refreshTopics,
-      t
+      t,
+      topicCountByAssistantId
     ]
   )
 
@@ -384,7 +356,6 @@ export function AssistantResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       if (item.id === UNLINKED_ASSISTANT_ENTITY_ID) return []
-
       const pinned = assistantPinnedIdSet.has(item.id)
 
       return [
@@ -511,7 +482,6 @@ export function AssistantResourceList({
         // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
         // Disable assistant reorder while grouped because it cannot change group ordering.
         onReorder={isGroupGrouping ? undefined : handleReorder}
-        reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

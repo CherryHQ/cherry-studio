@@ -1,10 +1,25 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
+
+const feedbackMocks = vi.hoisted(() => ({
+  loggerError: vi.fn(),
+  toastError: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ error: feedbackMocks.loggerError })
+  }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: feedbackMocks.toastError }
+}))
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
@@ -325,6 +340,32 @@ describe('ResourceEntityRail', () => {
     fireEvent.click(screen.getByText('Assistant B').closest('[role="option"]') as HTMLElement)
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
     expect(onSelectedClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports rejected entity selection without leaving an unhandled promise', async () => {
+    feedbackMocks.loggerError.mockClear()
+    feedbackMocks.toastError.mockClear()
+    const error = new Error('selection failed')
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn().mockRejectedValue(error)}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    await waitFor(() => expect(feedbackMocks.toastError).toHaveBeenCalledWith('common.error'))
+    expect(feedbackMocks.loggerError).toHaveBeenCalledWith('Failed to select resource entity rail item', {
+      error,
+      itemId: 'assistant-a',
+      variant: 'assistant'
+    })
   })
 
   it('activates entities from the keyboard, toggling the already-selected one', () => {

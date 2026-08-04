@@ -442,15 +442,11 @@
         "collapse_all": "すべて折りたたむ",
         "conversation": "会話",
         "drag_hint": "ドラッグして並び替えます。タスクをドラッグして表示グループと非表示グループを調整してください。",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "no_workdir": "作業ディレクトリがありません",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
         "unknown_agent": "不明なエージェント",
-        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
-        "yesterday": "昨日"
+        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。"
       },
       "label_one": "セッション",
       "label_other": "セッション",
@@ -1944,14 +1940,10 @@
       "group": {
         "collapse": "折りたたみ表示",
         "collapse_all": "すべて折りたたむ",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
         "unknown_assistant": "リンクされていないアシスタント",
-        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。",
-        "yesterday": "昨日"
+        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。"
       },
       "list": "トピックリスト",
       "manage": {
