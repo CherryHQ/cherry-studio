@@ -1,3 +1,4 @@
+export { type AutoSyncStatus, readAutoSyncStatus } from './autoSync'
 export { type BackupOperation, BackupService, type BackupStatus, type RestoreStatus } from './BackupService'
 export {
   ArchiveAdmissionError,
