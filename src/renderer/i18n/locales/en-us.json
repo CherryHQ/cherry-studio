@@ -1611,6 +1611,10 @@
           "description": "Do not enable web search",
           "label": "Disable Web Search"
         },
+        "route": {
+          "builtin": "Searches with the model's built-in tool",
+          "client": "Searches with {{provider}}"
+        },
         "settings": "Web Search Settings"
       }
     },

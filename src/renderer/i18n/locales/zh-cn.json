@@ -1611,6 +1611,10 @@
           "description": "不启用网络搜索功能",
           "label": "不使用网络"
         },
+        "route": {
+          "builtin": "使用模型内置搜索",
+          "client": "使用 {{provider}} 搜索"
+        },
         "settings": "网络搜索设置"
       }
     },

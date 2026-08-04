@@ -111,7 +111,15 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
-  const tooltipTitle = disabledReason ?? ariaLabel
+  // Which side will actually serve the request. Both sides look identical on the button, and the
+  // preference that picks between them lives in settings — so name it here.
+  const routeHint =
+    webSearchRoute === 'server'
+      ? t('chat.input.web_search.route.builtin')
+      : webSearchRoute === 'client' && defaultSearchKeywordsProvider
+        ? t('chat.input.web_search.route.client', { provider: defaultSearchKeywordsProvider.name })
+        : undefined
+  const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
   const ProviderIcon = enableWebSearch ? providerLogo : undefined
   const icon = useMemo(() => (ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />), [ProviderIcon])
