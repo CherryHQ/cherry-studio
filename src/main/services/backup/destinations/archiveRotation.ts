@@ -41,7 +41,10 @@ function sanitize(hostname: string): string {
  * rotation, name something else for deletion.
  */
 export function sanitizeArchiveName(name: string): string {
-  const flattened = name.replace(/[/\\]/g, '-').replace(/\.{2,}/g, '.').trim()
+  const flattened = name
+    .replace(/[/\\]/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .trim()
   const bounded = flattened.slice(0, 120) || `${ARCHIVE_PREFIX}${ARCHIVE_SUFFIX}`
   return bounded.endsWith(ARCHIVE_SUFFIX) ? bounded : `${bounded}${ARCHIVE_SUFFIX}`
 }
