@@ -151,6 +151,7 @@ function withCache<T extends unknown[], R>(
 class McpService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  private clientOperations: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
@@ -261,6 +262,26 @@ class McpService {
 
   async initClient(server: MCPServer): Promise<Client> {
     const serverKey = this.getServerKey(server)
+    const pendingOperation = this.clientOperations.get(serverKey)
+    if (pendingOperation) {
+      getServerLogger(server).silly(`Waiting for pending client operation`)
+      return pendingOperation
+    }
+
+    const operation = this.initClientOnce(server)
+    this.clientOperations.set(serverKey, operation)
+
+    try {
+      return await operation
+    } finally {
+      if (this.clientOperations.get(serverKey) === operation) {
+        this.clientOperations.delete(serverKey)
+      }
+    }
+  }
+
+  private async initClientOnce(server: MCPServer): Promise<Client> {
+    const serverKey = this.getServerKey(server)
 
     // If there's a pending initialization, wait for it
     const pendingClient = this.pendingClients.get(serverKey)
@@ -272,22 +293,26 @@ class McpService {
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
+      let pingResult: Awaited<ReturnType<Client['ping']>> | undefined
       try {
         // Check if the existing client is still connected
-        const pingResult = await existingClient.ping({
+        pingResult = await existingClient.ping({
           // add short timeout to prevent hanging
           timeout: 1000
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, remove the client from the cache
-        // and create a new one
-        if (!pingResult) {
-          this.clients.delete(serverKey)
-        } else {
-          return existingClient
-        }
-      } catch (error: any) {
+      } catch (error) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
+      }
+
+      if (pingResult) {
+        return existingClient
+      }
+
+      // Keep the stale client tracked until close succeeds. If close fails, abort
+      // replacement so we do not knowingly add another child process beside it.
+      await existingClient.close()
+      if (this.clients.get(serverKey) === existingClient) {
         this.clients.delete(serverKey)
       }
     }
@@ -649,6 +674,14 @@ class McpService {
           })
           return client
         } catch (error) {
+          try {
+            await client.close()
+            if (this.clients.get(serverKey) === client) {
+              this.clients.delete(serverKey)
+            }
+          } catch (closeError) {
+            getServerLogger(server).error(`Failed to close client after activation error`, closeError as Error)
+          }
           getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
           this.emitServerLog(server, {
             timestamp: Date.now(),
@@ -766,6 +799,10 @@ class McpService {
     }
   }
 
+  private async waitForClientOperation(serverKey: string): Promise<void> {
+    await this.clientOperations.get(serverKey)?.catch(() => undefined)
+  }
+
   async stopServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const serverKey = this.getServerKey(server)
     getServerLogger(server).debug(`Stopping server`)
@@ -775,11 +812,13 @@ class McpService {
       message: 'Stopping server',
       source: 'client'
     })
+    await this.waitForClientOperation(serverKey)
     await this.closeClient(serverKey)
   }
 
   async removeServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const serverKey = this.getServerKey(server)
+    await this.waitForClientOperation(serverKey)
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       await this.closeClient(serverKey)
@@ -830,6 +869,7 @@ class McpService {
       message: 'Restarting server',
       source: 'client'
     })
+    await this.waitForClientOperation(serverKey)
     await this.closeClient(serverKey)
     // Clear cache before restarting to ensure fresh data
     this.clearServerCache(serverKey)
@@ -837,6 +877,7 @@ class McpService {
   }
 
   async cleanup() {
+    await Promise.allSettled(this.clientOperations.values())
     for (const [key] of this.clients) {
       try {
         await this.closeClient(key)
