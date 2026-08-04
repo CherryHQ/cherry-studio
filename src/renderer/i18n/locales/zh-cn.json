@@ -6080,6 +6080,7 @@
             "preparing": "准备中",
             "snapshotting-db": "正在复制数据库",
             "staging": "正在暂存以待重启",
+            "uploading": "正在上传",
             "verifying": "正在校验并写入归档"
           },
           "starting": "正在开始…",

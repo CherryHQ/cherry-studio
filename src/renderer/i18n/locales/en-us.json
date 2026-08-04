@@ -6080,6 +6080,7 @@
             "preparing": "Preparing",
             "snapshotting-db": "Copying database",
             "staging": "Staging for restart",
+            "uploading": "Uploading",
             "verifying": "Verifying and writing archive"
           },
           "starting": "Starting…",

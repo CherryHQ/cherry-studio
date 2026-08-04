@@ -21,7 +21,10 @@ const EXPORT_STAGES: readonly BackupProgressStage[] = [
   'snapshotting-db',
   'materializing-db',
   'capturing-resources',
-  'verifying'
+  'verifying',
+  // Destination exports only; a local one simply never reports it and finishes
+  // at `verifying`, which the bar reads as the last position it was told about.
+  'uploading'
 ]
 
 const RESTORE_STAGES: readonly BackupProgressStage[] = ['admitting', 'materializing-db', 'planning', 'staging']
@@ -37,6 +40,7 @@ const STAGE_LABEL_KEYS: Record<BackupProgressStage, string> = {
   'materializing-db': 'settings.data.backup_v2.progress.stage.materializing-db',
   'capturing-resources': 'settings.data.backup_v2.progress.stage.capturing-resources',
   verifying: 'settings.data.backup_v2.progress.stage.verifying',
+  uploading: 'settings.data.backup_v2.progress.stage.uploading',
   admitting: 'settings.data.backup_v2.progress.stage.admitting',
   planning: 'settings.data.backup_v2.progress.stage.planning',
   staging: 'settings.data.backup_v2.progress.stage.staging'
@@ -119,7 +123,7 @@ const BackupProgressDialog: FC<{
             <AnimatePresence mode="wait" initial={false}>
               <motion.p
                 key={progress?.stage ?? 'idle'}
-                className="text-sm font-medium text-foreground"
+                className="font-medium text-foreground text-sm"
                 initial={{ opacity: 0, filter: 'blur(4px)' }}
                 animate={{ opacity: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: -4 }}
@@ -131,7 +135,7 @@ const BackupProgressDialog: FC<{
             <AnimatePresence initial={false}>
               {resources ? (
                 <motion.p
-                  className="max-w-full truncate text-xs text-foreground-tertiary"
+                  className="max-w-full truncate text-foreground-tertiary text-xs"
                   initial={{ opacity: 0, filter: 'blur(4px)' }}
                   animate={{ opacity: 1, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, y: -4 }}

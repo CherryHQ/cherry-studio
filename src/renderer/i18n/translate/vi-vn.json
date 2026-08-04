@@ -1419,6 +1419,11 @@
         "placeholder": "Tìm kiếm"
       }
     },
+    "compaction": {
+      "compacted": "[to be translated]:Context compacted, ~{{count}} tokens saved",
+      "compacted_plain": "[to be translated]:Context compacted",
+      "compacting": "[to be translated]:Compacting context…"
+    },
     "conversation": {
       "new": "Cuộc trò chuyện mới"
     },
@@ -3423,7 +3428,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "[to be translated]:Auto-compress",
+        "context_compress_model": "[to be translated]:Compression model",
+        "context_compress_model_follow": "[to be translated]:Default",
         "context_count": "Số lượng ngữ cảnh",
+        "context_management": "[to be translated]:Context management",
+        "context_truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
         "creative": "Sáng tạo",
         "custom_params": "Các tham số tùy chỉnh",
         "custom_params_add": "Thêm tham số",
@@ -3435,8 +3445,17 @@
           "avatar": {
             "hint": "Dùng để xác định trợ lý trong thư viện và các cuộc trò chuyện"
           },
+          "context_compress_enabled": {
+            "hint": "[to be translated]:Summarize older turns automatically when nearing the context window"
+          },
           "context_count": {
             "hint": "Số lượng tin nhắn gần đây được giữ lại làm ngữ cảnh"
+          },
+          "context_management": {
+            "hint": "[to be translated]:Override global context-management settings for this assistant; off inherits the global settings"
+          },
+          "context_truncate_threshold": {
+            "hint": "[to be translated]:Tool outputs beyond this many characters are offloaded and truncated"
           },
           "custom_params": {
             "hint": "Các tham số bổ sung của nhà cung cấp được gửi kèm theo yêu cầu"
@@ -5793,7 +5812,25 @@
         "title": "Doanh nghiệp"
       },
       "feedback": {
+        "agent": {
+          "description": "[to be translated]:Chat with Cherry Assistant to share feedback.",
+          "title": "[to be translated]:Use Agent"
+        },
+        "agent_error": "[to be translated]:Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "Phản hồi",
+        "dialog": {
+          "description": "[to be translated]:Choose how to share feedback and help us make Cherry Studio better.",
+          "title": "[to be translated]:Choose a feedback channel"
+        },
+        "github": {
+          "description": "[to be translated]:Create a bug report or feature request on GitHub.",
+          "title": "[to be translated]:GitHub Issue"
+        },
+        "recommended": "[to be translated]:Recommended",
+        "survey": {
+          "description": "[to be translated]:Share feedback through our Feishu survey.",
+          "title": "[to be translated]:Feedback survey"
+        },
         "title": "Phản hồi"
       },
       "label": "Giới thiệu & Phản hồi",
@@ -6004,7 +6041,8 @@
           "degradations": "[to be translated]:{{count}} item(s) were not included when this backup was made.",
           "destructive": "[to be translated]:Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
           "knowledge_ready": "[to be translated]:{{count}} knowledge search index(es) are included and can be used immediately after restore.",
-          "knowledge_rebuild": "[to be translated]:{{count}} knowledge search index(es) need to be rebuilt after restore."
+          "knowledge_rebuild": "[to be translated]:{{count}} knowledge search index(es) need to be rebuilt after restore.",
+          "knowledge_rebuild_cost": "[to be translated]:{{count}} knowledge search index(es) will be rebuilt after restore. Rebuilding may call your configured embedding provider and consume API quota. You can stop it after the app restarts."
         },
         "progress": {
           "cancelling": "[to be translated]:Stopping…",
@@ -6018,6 +6056,7 @@
             "preparing": "[to be translated]:Preparing",
             "snapshotting-db": "[to be translated]:Copying database",
             "staging": "[to be translated]:Staging for restart",
+            "uploading": "[to be translated]:Uploading",
             "verifying": "[to be translated]:Verifying and writing archive"
           },
           "starting": "[to be translated]:Starting…",
