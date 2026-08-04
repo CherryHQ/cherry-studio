@@ -14,7 +14,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
-import { agentService } from '@data/services/AgentService'
+import { agentService, type EnsureBuiltinAssistantInput } from '@data/services/AgentService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -23,7 +23,7 @@ import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
@@ -227,6 +227,115 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('ensureBuiltinAssistant', () => {
+    const defaults: EnsureBuiltinAssistantInput = {
+      name: 'Cherry Assistant',
+      defaultModelId: TEST_MODEL_ID,
+      configuration: {
+        avatar: '🍒',
+        permission_mode: 'default' as const,
+        max_turns: 100,
+        env_vars: {}
+      }
+    }
+
+    function builtinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
+        .all()
+    }
+
+    function activeBuiltinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(
+          sql`${agentTable.deletedAt} IS NULL AND json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`
+        )
+        .all()
+    }
+
+    it('creates one protected assistant and returns it unchanged on repeated calls', () => {
+      const first = agentService.ensureBuiltinAssistant(defaults)
+      const second = agentService.ensureBuiltinAssistant({
+        name: 'Replacement Name',
+        defaultModelId: null,
+        configuration: { avatar: '🤖' }
+      })
+
+      expect(second).toEqual(first)
+      expect(first).toMatchObject({
+        name: 'Cherry Assistant',
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🍒',
+          permission_mode: 'default',
+          max_turns: 100,
+          env_vars: {},
+          builtin_role: 'assistant'
+        }
+      })
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores exactly one active assistant after the previous row was soft-deleted', () => {
+      const first = agentService.ensureBuiltinAssistant(defaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const restored = agentService.ensureBuiltinAssistant(defaults)
+      const repeated = agentService.ensureBuiltinAssistant(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(repeated.id).toBe(restored.id)
+      expect(builtinRows()).toHaveLength(2)
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+      const first = agentService.ensureBuiltinAssistant(defaults)
+
+      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+
+      const restored = agentService.ensureBuiltinAssistant(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(agentService.getAgent(first.id)).toBeNull()
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('leaves the model unset when the default cannot run the Agent runtime', () => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'embedding', name: 'Embedding', orderKey: generateOrderKeyBetween(null, null) })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'embedding::vectors',
+          providerId: 'embedding',
+          modelId: 'vectors',
+          name: 'Vectors',
+          capabilities: ['embedding'],
+          supportsStreaming: false,
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .run()
+
+      const assistant = agentService.ensureBuiltinAssistant({
+        ...defaults,
+        defaultModelId: 'embedding::vectors'
+      })
+
+      expect(assistant.model).toBeNull()
     })
   })
 

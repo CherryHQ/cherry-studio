@@ -41,7 +41,7 @@ import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('ReadFile')
 
-const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
+export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
 Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
 

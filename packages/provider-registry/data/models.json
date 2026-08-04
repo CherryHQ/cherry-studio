@@ -3524,7 +3524,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3553,7 +3554,8 @@
             "values": ["low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max"]
+        "supportedEfforts": ["low", "medium", "high", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3600,7 +3602,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3632,7 +3635,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3679,7 +3683,8 @@
         "thinkingTokenLimits": {
           "max": 32000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3726,7 +3731,8 @@
         "thinkingTokenLimits": {
           "max": 32000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3777,7 +3783,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3828,7 +3835,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3876,7 +3884,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3927,7 +3936,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3968,7 +3978,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -4010,7 +4021,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4052,7 +4064,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4091,7 +4104,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4130,7 +4144,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4162,7 +4177,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4209,7 +4225,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -4256,7 +4273,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -4307,7 +4325,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -4349,7 +4368,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4381,7 +4401,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -7710,7 +7731,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7770,7 +7792,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7815,7 +7838,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7866,7 +7890,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 512
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7956,7 +7981,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7996,7 +8022,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -8037,7 +8064,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -8131,7 +8159,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8193,7 +8222,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8245,7 +8275,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8296,7 +8327,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8348,7 +8380,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8396,7 +8429,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8434,7 +8468,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8486,7 +8521,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8538,7 +8574,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8590,7 +8627,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8642,7 +8680,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8715,7 +8754,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8759,7 +8799,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8811,7 +8852,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8880,7 +8922,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8938,7 +8981,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8990,7 +9034,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9086,7 +9131,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9138,7 +9184,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 512
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9173,7 +9220,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -9219,7 +9267,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9257,7 +9306,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "wireDialect": "budget"
       }
     },
     {
@@ -20946,5 +20996,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "fc192c89cc19978b"
+  "version": "3c1a2cdf9bbd80a9"
 }
