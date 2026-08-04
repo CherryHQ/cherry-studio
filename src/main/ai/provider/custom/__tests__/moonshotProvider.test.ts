@@ -35,6 +35,21 @@ describe('runFormulaFiber', () => {
     ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----x')
   })
 
+  // web-search is a `protected` formula, so a succeeded fiber can carry an empty `output` alongside
+  // the real `encrypted_output` — the vendor sample falls through on empty, not just on missing.
+  it('falls through an empty output to encrypted_output', async () => {
+    const fetchMock = vi.fn(async () =>
+      fiberResponse({
+        status: 'succeeded',
+        context: { output: '', encrypted_output: '----MOONSHOT ENCRYPTED BEGIN----y' }
+      })
+    )
+
+    await expect(
+      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+    ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----y')
+  })
+
   // A provider-side tool failure must reach the model as a result, not kill the agent loop.
   it.each([
     [{ error: 'quota exceeded' }, 'Error: quota exceeded'],

@@ -26,9 +26,13 @@ interface FormulaFiber {
 
 /**
  * Execute one formula fiber. Mirrors the vendor sample's result handling: a succeeded fiber carries
- * its payload as `output` or `encrypted_output` (web search returns the encrypted form), and every
- * failure shape is surfaced as an `Error: …` string so the model can react instead of the agent loop
- * dying on a provider-side tool failure.
+ * its payload as `output` or — for `protected` formulas like web-search — `encrypted_output`, and the
+ * sample falls through on an EMPTY output, not just a missing one. Every failure shape is surfaced as
+ * an `Error: …` string so the model can react instead of the agent loop dying on a tool failure.
+ *
+ * `arguments` goes out as a JSON string, matching the wire contract. The vendor passes the model's own
+ * encoded string straight through; the SDK only hands `execute` the parsed input, so this re-encodes
+ * it — same content, possibly different whitespace.
  */
 export async function runFormulaFiber(
   settings: { baseURL: string; apiKey: string; fetch?: FetchFunction },
@@ -45,8 +49,8 @@ export async function runFormulaFiber(
 
   const fiber = (await response.json().catch(() => ({}))) as FormulaFiber
   if (fiber.status === 'succeeded') {
-    const output = fiber.context?.output ?? fiber.context?.encrypted_output
-    if (output !== undefined) return output
+    const output = fiber.context?.output || fiber.context?.encrypted_output
+    if (output) return output
   }
   const failure = fiber.error ?? fiber.context?.error ?? fiber.context?.output
   return `Error: ${typeof failure === 'string' ? failure : JSON.stringify(failure ?? 'unknown error')}`
