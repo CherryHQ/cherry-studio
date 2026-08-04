@@ -33,7 +33,7 @@ interface SchemaProperty {
 type SchemaProperties = Record<string, SchemaProperty>
 
 const getToolSchemaProperties = (tool: McpTool): SchemaProperties | undefined =>
-  tool.inputSchema.properties as SchemaProperties | undefined
+  tool.inputSchema?.properties as SchemaProperties | undefined
 
 const AutoApproveCell = ({
   tool,

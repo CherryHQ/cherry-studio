@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} sarcină de fundal în execuție",
+      "background_running_other": "{{count}} sarcini de fundal în execuție"
     },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Renunță și continuă",
           "title": "Renunțați la modificările nesalvate?"
         },
+        "metadata_pending": "Fișierul a fost salvat, dar metadatele sale sunt încă în curs de recuperare. Nu reîncercați această salvare.",
         "refresh_failed": "Nu se poate reîncărca conținutul celui mai recent fișier.",
         "save_failed": "Nu s-a putut salva acest fișier. Salvarea automată este întreruptă până când reîncercați sau renunțați la modificări.",
         "unsaved": "Nesalvat",
@@ -325,25 +326,25 @@
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",
         "no_subagents": "Fără subagenți",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Comenzi în fundal",
         "subagents": "Subagenți",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Fluxuri de lucru"
       },
       "status": {
         "activity": "Activitate",
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "Nicio sarcină activă",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} în direct",
+        "run_tasks": "Subtask-uri",
         "selected_tool": "Instrument selectat",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Opriți sarcina",
+        "stop_run_task_failed": "Nu s-a putut opri sarcina",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} apel de instrument",
+        "tool_uses_other": "{{count}} apeluri de instrumente",
         "tools_active": "Activ",
         "tools_done": "Gata",
         "tools_failed": "Eșuat",
@@ -633,7 +634,8 @@
           },
           "auto": {
             "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
-            "title": "Aprobă în locul meu"
+            "title": "Aprobă în locul meu",
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
           },
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
@@ -2584,6 +2586,10 @@
     "user": "Utilizator"
   },
   "file_preview": {
+    "directory": {
+      "description": "Selectați un fișier din acest folder pentru a-l previzualiza.",
+      "title": "Acesta este un dosar"
+    },
     "html": {
       "empty": {
         "description": "Acest fișier HTML nu are conținut.",
@@ -2649,6 +2655,10 @@
         "description": "Fișierele text mai mari de {{limit}} MiB nu pot fi previzualizate.",
         "title": "Fișierul este prea mare"
       }
+    },
+    "unavailable": {
+      "description": "Fișierul poate fi fost mutat, șters sau nu poate fi accesat.",
+      "title": "Fișier indisponibil"
     },
     "unsupported": {
       "action": "Deschide cu aplicația implicită",
@@ -3056,6 +3066,7 @@
       "reindex_failed": "Nu s-a putut reindexa sursa de date",
       "status": {
         "chunking": "Segmentare",
+        "copying": "Copiere {{percent}}%",
         "embedding": "Încorporare",
         "error": "Eroare",
         "pending": "Așteptare",
@@ -3352,7 +3363,7 @@
             "label": "Model mic (opțional)"
           }
         },
-        "model_config": "Configurație model",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Limite de execuție și parametri de rulare",
@@ -3846,8 +3857,9 @@
       }
     },
     "citation": "{{count}} citări",
+    "citation_source": "Sursă citare {{number}}",
     "citations": "Referințe",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Istoricul conversației anterioare nu a putut fi găsit — se continuă într-o conversație nouă",
     "copied": "Copiat!",
     "copy": {
       "failed": "Copiere eșuată",
@@ -4129,7 +4141,7 @@
         "write": "Salvează",
         "writing": "Salvare"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Rulează în fundal",
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
@@ -4161,7 +4173,7 @@
         "tool": "Unelte",
         "webFetch": "Preluare web",
         "webSearch": "Căutare pe web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Flux de lucru",
         "write": "Scrie"
       },
       "noData": "Nu sunt disponibile date pentru acest instrument",
@@ -4221,13 +4233,13 @@
         "result_other": "{{count}} rezultate"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orchestrarea fluxului de lucru",
+        "run_id": "ID rulare",
+        "script": "Script de flux de lucru",
+        "script_path": "Calea scriptului",
+        "started": "S-a pornit fluxul de lucru",
+        "summary": "Rezumat",
+        "workflow": "flux de lucru"
       }
     },
     "topic": {
@@ -4492,7 +4504,8 @@
     "save_blocked_load_failed": "Salvarea a fost blocată deoarece nota nu a putut fi încărcată",
     "save_failed": "Nu s-a reușit salvarea notei",
     "save_failure": {
-      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă."
+      "description": "Această notă nu a putut fi salvată. Editările tale rămân în editor și salvarea automată este întreruptă.",
+      "metadata_pending": "Nota a fost salvată, dar metadatele fișierului sale sunt încă în curs de recuperare. Nu reîncercați această salvare."
     },
     "search": {
       "both": "Nume+Conținut",
@@ -5186,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modele locale",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5214,6 +5227,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -6764,6 +6778,7 @@
         "allStatuses": "Toate statusurile",
         "allTypes": "Toate tipurile",
         "builtinOnly": "Doar încorporat",
+        "label": "Filtru",
         "status": "Filtrare după stare",
         "type": "Filtrare după tip"
       },
@@ -6830,6 +6845,9 @@
         "loadError": "Eroare obținere prompturi",
         "noPromptsAvailable": "Nu există prompturi disponibile",
         "requiredField": "Câmp obligatoriu"
+      },
+      "protocolInstall": {
+        "title": "Instalează MCP"
       },
       "protocolInstallWarning": {
         "command": "Comandă pornire",
@@ -7698,6 +7716,13 @@
         "usage_title": "Utilizare",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Deschide Token Factory",
+          "description": "Echivalentul a 10 USD zilnic în credite API: aproximativ 10M–111M de tokenuri de intrare/ieșire la tarifele actuale, în funcție de model și de tipul de token. Creditele se resetează zilnic; reîncărcările nu sunt acceptate momentan.",
+          "title": "Credite API gratuite de 10 USD pe zi"
+        }
+      },
       "remove_duplicate_keys": "Elimină cheile duplicate",
       "remove_invalid_keys": "Elimină cheile invalide",
       "reorder_failed": "Nu s-a reușit reordonarea furnizorilor",
@@ -8069,7 +8094,7 @@
           "save_failed": "Salvarea a eșuat",
           "zhipu_sync_failed": "Nu s-a reușit sincronizarea cheii API Zhipu cu Căutarea Web. Te rugăm să salvezi din nou cheia sau să verifici setările Căutării Web."
         },
-        "fetch_urls_provider": "Furnizor implicit de preluare URL",
+        "fetch_urls_provider": "Furnizor de preluare URL",
         "free": "Gratuit",
         "is_default": "Implicit",
         "local_provider": {

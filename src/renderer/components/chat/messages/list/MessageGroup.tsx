@@ -1,7 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Topic } from '@renderer/types/topic'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -28,7 +27,6 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
-  topic: Topic
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -54,7 +52,6 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
-  topic,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -70,7 +67,6 @@ const MessageGroup = ({
   const selection = useMessageListSelection()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
-  const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -94,6 +90,7 @@ const MessageGroup = ({
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
+  const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
@@ -102,20 +99,16 @@ const MessageGroup = ({
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  // Track selected and useful message IDs in React state
+  // Track the selected message ID in React state. The active branch remains
+  // the single source of truth for which grouped reply is used as context.
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
     return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
   })
 
-  const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
-    const useful = messages.find((m) => getMessageUiState(m.id).useful)
-    return useful?.id ?? null
-  })
-
-  // Re-sync selected/useful ids when the active branch or group membership
-  // changes. Without this, fold mode can keep showing an old model column even
-  // after branch navigation moves the active path to another multi-model node.
+  // Re-sync the selected ID when the active branch or group membership changes.
+  // Without this, fold mode can keep showing an old model column even after
+  // branch navigation moves the active path to another multi-model node.
   useEffect(() => {
     if (captureMode) return
 
@@ -144,11 +137,7 @@ const MessageGroup = ({
       setSelectedMessageIdState(nextSelectedMessage.id)
       setSelectedIndex(messages.findIndex((message) => message.id === nextSelectedMessage.id))
     }
-
-    if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
-      setUsefulMessageIdState(null)
-    }
-  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState, usefulMessageId])
+  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
@@ -248,38 +237,34 @@ const MessageGroup = ({
     return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
   }, [captureMode, messages, registerMessageElement])
 
-  const onUpdateUseful = useCallback(
+  const onSelectContext = useCallback(
     (msgId: string) => {
       const message = messages.find((msg) => msg.id === msgId)
       if (!message) {
         logger.error("the message to update doesn't exist in this group")
         return
       }
-      if (usefulMessageId === msgId) {
-        updateMessageUiState(msgId, { useful: undefined })
-        setUsefulMessageIdState(null)
-      } else {
-        // Reset previous useful message
-        if (usefulMessageId) {
-          updateMessageUiState(usefulMessageId, { useful: undefined })
-        }
-        updateMessageUiState(msgId, { useful: true })
-        setUsefulMessageIdState(msgId)
-      }
+      const setActiveBranch = actions.setActiveBranch
+      if (!setActiveBranch) return
+
+      activeBranchSelectionQueueRef.current = activeBranchSelectionQueueRef.current
+        .then(() => setActiveBranch(message.id))
+        .catch((error) => {
+          logger.error('Failed to set active branch from context selection', error as Error, { messageId: message.id })
+          actions.notifyError?.(error instanceof Error ? error.message : String(error))
+        })
     },
-    [messages, updateMessageUiState, usefulMessageId]
+    [actions, messages]
   )
 
   const groupContextMessageId = useMemo(() => {
-    if (usefulMessageId && messages.some((msg) => msg.id === usefulMessageId)) {
-      return usefulMessageId
-    } else if (messages.length > 0) {
-      return messages[0].id
-    } else {
-      logger.warn('Empty message group')
-      return ''
-    }
-  }, [messages, usefulMessageId])
+    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
+    if (activeBranchMessage) return activeBranchMessage.id
+    if (messages.length > 0) return messages[0].id
+
+    logger.warn('Empty message group')
+    return ''
+  }, [messages])
 
   const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null
@@ -320,7 +305,6 @@ const MessageGroup = ({
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
-        topic,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -335,7 +319,7 @@ const MessageGroup = ({
             }
           ])}>
           <MessageItem
-            onUpdateUseful={onUpdateUseful}
+            onSelectContext={onSelectContext}
             isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
             {...messageProps}
           />
@@ -356,7 +340,7 @@ const MessageGroup = ({
                     selected: message.id === selectedMessageId
                   }
                 ])}>
-                <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
+                <MessageItem onSelectContext={onSelectContext} {...messageProps} />
               </MessageWrapper>
             }
             triggerContent={messageContent}
@@ -370,13 +354,12 @@ const MessageGroup = ({
       isGrid,
       isGrouped,
       isMultiModelGroup,
-      topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,
       directAssistantModelsByUserId,
       selectedMessageId,
-      onUpdateUseful,
+      onSelectContext,
       groupContextMessageId,
       gridPopoverTrigger,
       partsByMessageId,
@@ -390,7 +373,6 @@ const MessageGroup = ({
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
         $count={messageLength}
-        $gridColumns={gridColumns}
         className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
         onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
         {messages.map(renderMessage)}
@@ -428,17 +410,16 @@ const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
 const GridContainer = ({
   className,
   $count,
-  $gridColumns,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number; $gridColumns: number }) => {
+}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
   const gridTemplateColumns = isHorizontal
     ? `repeat(${$count}, minmax(420px, 1fr))`
     : isGrid
-      ? `repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr))`
+      ? 'repeat(2, minmax(0, 1fr))'
       : isFoldOrVertical
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined
@@ -530,7 +511,7 @@ function messagePartsShallowEqual(
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
-// Custom comparator: bail out only when topic / latest flag / derived model map /
+// Custom comparator: bail out only when latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
@@ -542,7 +523,6 @@ function messagePartsShallowEqual(
 // arrive as new objects.
 export default memo(MessageGroup, (prev, next) => {
   return (
-    prev.topic === next.topic &&
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&

@@ -46,11 +46,27 @@ vi.mock('@renderer/types/file', () => ({
 }))
 
 vi.mock('motion/react', () => {
-  const Div = ({ ref, children, ...props }: any) => (
-    <div ref={ref} {...props}>
-      {children}
-    </div>
-  )
+  const Div = ({ ref, children, variants, initial, animate, style, ...props }: any) => {
+    void initial
+    const target = typeof animate === 'string' ? variants?.[animate] : animate
+    const opacity = target?.opacity
+    const x = target?.x
+    const duration = target?.transition?.duration
+    return (
+      <div
+        ref={ref}
+        data-motion-state={typeof animate === 'string' ? animate : undefined}
+        data-motion-duration={duration}
+        style={{
+          ...style,
+          ...(opacity === undefined ? {} : { opacity }),
+          ...(x === undefined ? {} : { transform: x === 0 ? 'none' : `translateX(${x}px)` })
+        }}
+        {...props}>
+        {children}
+      </div>
+    )
+  }
   const proxy = new Proxy(
     { div: Div, create: (Component: any) => Component },
     { get: (target, key) => (target as any)[key] ?? Div }
@@ -60,6 +76,11 @@ vi.mock('motion/react', () => {
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: any) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
+  __esModule: true,
+  default: ({ hostname }: { hostname: string }) => <span data-hostname={hostname} />
 }))
 
 vi.mock('react-i18next', () => ({
@@ -154,6 +175,10 @@ vi.mock('../../tools/MessageTools', () => {
 })
 
 vi.mock('../../tools/toolResponse', () => ({
+  normalizeToolOutputResponse: (output: unknown) =>
+    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output
+      ? (output as { content: unknown }).content
+      : output,
   buildToolResponseFromPart: (part: any, fallbackId?: string) => {
     const type = part.type as string
     if (!type.startsWith('tool-') && type !== 'dynamic-tool') return null
@@ -880,6 +905,29 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-markdown').textContent).toContain('https://ex.com')
     })
 
+    it('shares citation display numbers across multiple text parts', () => {
+      renderParts([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [
+            { id: 'call-1', title: 'First', url: 'https://first.example', content: 'first' },
+            { id: 'call-2', title: 'Second', url: 'https://second.example', content: 'second' }
+          ]
+        },
+        { type: 'text', text: 'Later source first. [cite:call-2]' },
+        { type: 'text', text: 'Earlier source second. [cite:call-1]' }
+      ] as unknown as CherryMessagePart[])
+
+      const [first, second] = screen.getAllByTestId('mock-markdown').map((node) => node.textContent ?? '')
+      expect(first).toContain("data-citation='1'")
+      expect(first).toContain('https://second.example')
+      expect(second).toContain("data-citation='2'")
+      expect(second).toContain('https://first.example')
+    })
+
     it('renders video and error value parts', () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
@@ -1447,6 +1495,28 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
+    })
+
+    it('settles a quickly failed live error block into the visible motion state', () => {
+      activateTurn('streaming')
+      const parts = [
+        { type: 'data-error', data: { name: 'ProviderError', message: 'failed immediately' } }
+      ] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }))
+      const activeErrorNode = screen.getByTestId('mock-error-block')
+      const animatedWrapper = activeErrorNode.closest('.block-wrapper')
+
+      expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
+
+      mockIsActiveTurnTarget.mockReturnValue(false)
+      mockTopicStreamState.status = 'error'
+      rerender(renderPartsTree(parts, msg({ status: 'error' })))
+
+      expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)
+      // The explicit static target prevents Motion from freezing an interrupted entrance at opacity 0..1.
+      expect(animatedWrapper).toHaveAttribute('data-motion-state', 'static')
+      expect(animatedWrapper).toHaveAttribute('data-motion-duration', '0')
+      expect(animatedWrapper).toHaveStyle({ opacity: '1', transform: 'none' })
     })
 
     it('preserves completed process expansion when the same message metadata updates', () => {

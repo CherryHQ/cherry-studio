@@ -20,9 +20,10 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -36,6 +37,7 @@ import {
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
+  resolveMcpConfigInstallSource,
   toMcpFormDefaultValues,
   toMcpServerFields,
   useMcpRegistryState
@@ -53,6 +55,7 @@ type McpTabItem = {
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
+type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
@@ -67,13 +70,14 @@ interface McpSettingsContentProps {
 
 const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
   const { t } = useTranslation()
+  const search = useSearch({ strict: false }) as McpSettingsSearch
   const serverId = server.id
   const [initialFormValues] = useState(() => toMcpFormDefaultValues(server))
 
   const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
-  const [serverType, setServerType] = useState<McpServerType | undefined>(server.type)
+  const [serverType, setServerType] = useState<McpServerType | undefined>(initialFormValues.serverType)
   const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
     defaultValues: initialFormValues
@@ -94,6 +98,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
   const fetchServerLogsRequestRef = useRef(0)
+  const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
   const { theme } = useTheme()
 
@@ -229,6 +234,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       const mcpServer: McpServer = {
         ...server,
         ...toMcpServerFields(values),
+        installSource: resolveMcpConfigInstallSource(server),
         isActive: values.isActive ?? server.isActive,
         timeout: values.timeout || server.timeout,
         // Use nullish coalescing to allow empty strings (for deletion)
@@ -349,6 +355,28 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
+  const autoEnableProtocolServer = useEffectEvent(() => {
+    if (server && !server.isActive) {
+      void onToggleActive(true)
+    }
+  })
+
+  useEffect(() => {
+    if (search.autoEnable !== 'true' || !server) return
+    if (handledAutoEnableServerIdRef.current === server.id) return
+
+    handledAutoEnableServerIdRef.current = server.id
+    void navigate({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: server.id },
+      search: {},
+      replace: true
+    })
+
+    autoEnableProtocolServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
+  }, [navigate, search.autoEnable, server])
+
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
     async (tool: McpTool, enabled: boolean) => {
@@ -406,7 +434,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isInMemory: server.type === 'inMemory'
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
   }
 
   const tabs: McpTabItem[] = [

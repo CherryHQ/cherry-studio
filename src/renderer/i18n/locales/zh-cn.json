@@ -235,6 +235,7 @@
           "discard_and_continue": "放弃并继续",
           "title": "放弃未保存的修改？"
         },
+        "metadata_pending": "文件已保存，但文件元数据仍在恢复中。请勿重试本次保存。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
@@ -633,7 +634,8 @@
           },
           "auto": {
             "description": "无需逐次批准，安全检查会拦截风险操作。",
-            "title": "智能批准"
+            "title": "智能批准",
+            "warning": "需要模型支持；部分模型可能忽略此模式或仍逐次询问。"
           },
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
@@ -1693,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳转到第 {{number}} 轮对话"
+      },
       "bottom": "回到底部",
       "close": "关闭",
       "first": "已经是第一条消息",
@@ -2636,9 +2641,9 @@
     "pdf": {
       "too_large": {
         "action": "用默认应用打开",
-        "description": "无法预览大于 {{limit}} MiB 的 PDF 文件。",
+        "description": "该 PDF 部分内容过大，无法安全地在应用内预览。",
         "open_error": "无法打开此文件",
-        "title": "文件过大"
+        "title": "无法预览此 PDF"
       }
     },
     "text": {
@@ -3064,6 +3069,7 @@
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
+        "copying": "复制中 {{percent}}%",
         "embedding": "嵌入中",
         "error": "错误",
         "pending": "等待中",
@@ -3161,6 +3167,7 @@
         "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
       "processor": "处理服务商",
+      "processor_not_configured": "未配置",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -3360,7 +3367,7 @@
             "label": "Small 模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "最大轮次与环境变量",
@@ -3854,6 +3861,7 @@
       }
     },
     "citation": "{{count}} 个引用内容",
+    "citation_source": "引用来源 {{number}}",
     "citations": "引用内容",
     "conversation_reset": "找不到原会话的历史记录，已开启新会话继续",
     "copied": "已复制",
@@ -4500,7 +4508,8 @@
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
     "save_failure": {
-      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
+      "metadata_pending": "笔记已保存，但文件元数据仍在恢复中。请勿重试本次保存。"
     },
     "search": {
       "both": "名称+内容",
@@ -5138,6 +5147,7 @@
     "reset": "重置",
     "rotate_left": "向左旋转",
     "rotate_right": "向右旋转",
+    "save_as": "另存为",
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
@@ -5194,7 +5204,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "本地模型",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5222,6 +5232,7 @@
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "硅基流动",
     "sophnet": "SophNet",
     "stepfun": "阶跃星辰",
@@ -6772,6 +6783,7 @@
         "allStatuses": "全部状态",
         "allTypes": "全部类型",
         "builtinOnly": "仅内置",
+        "label": "筛选",
         "status": "按状态筛选",
         "type": "按类型筛选"
       },
@@ -6838,6 +6850,9 @@
         "loadError": "获取提示失败",
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
+      },
+      "protocolInstall": {
+        "title": "安装 MCP"
       },
       "protocolInstallWarning": {
         "command": "启动命令",
@@ -7706,6 +7721,13 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "打开 Token Factory",
+          "description": "每日 10 美元等值 API 额度，按当前费率约可使用 1000 万–1.11 亿输入/输出 Token，实际用量因模型和 Token 类型而异。额度每日重置，暂不支持充值。",
+          "title": "每日 10 美元免费 API 额度"
+        }
+      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",
@@ -8077,7 +8099,7 @@
           "save_failed": "保存失败",
           "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
-        "fetch_urls_provider": "默认 URL 获取服务商",
+        "fetch_urls_provider": "URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {

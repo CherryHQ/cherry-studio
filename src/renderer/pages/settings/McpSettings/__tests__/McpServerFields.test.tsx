@@ -1,7 +1,14 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
 
-import { type McpFormValues, toMcpFormDefaultValues, toMcpServerFields } from '../McpServerFields'
+import {
+  buildMcpSchema,
+  type McpFormValues,
+  resolveMcpConfigInstallSource,
+  resolveMcpConfigTransportType,
+  toMcpFormDefaultValues,
+  toMcpServerFields
+} from '../McpServerFields'
 
 const stdioFormValues = (overrides: Partial<McpFormValues> = {}): McpFormValues => ({
   name: 'Test server',
@@ -65,5 +72,64 @@ describe('toMcpFormDefaultValues', () => {
     } satisfies McpServer
 
     expect(toMcpFormDefaultValues(server).serverType).toBeUndefined()
+  })
+
+  it('normalizes the legacy online-package built-in transport without guessing other missing types', () => {
+    const server = {
+      id: '7676dffa-53d7-4c35-abbb-e30cd9b27169',
+      name: '@cherry/mcp-auto-install',
+      type: 'inMemory',
+      command: 'npx',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
+  })
+})
+
+describe('resolveMcpConfigTransportType', () => {
+  it('exposes stdio configuration for the online-package built-in server', () => {
+    expect(resolveMcpConfigTransportType('inMemory', '@cherry/mcp-auto-install')).toBe('stdio')
+  })
+
+  it('keeps other built-in servers on the in-memory configuration', () => {
+    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory')).toBe('inMemory')
+  })
+})
+
+describe('resolveMcpConfigInstallSource', () => {
+  it('preserves the built-in identity of a legacy auto-install server', () => {
+    expect(
+      resolveMcpConfigInstallSource({
+        name: '@cherry/mcp-auto-install',
+        type: 'inMemory'
+      })
+    ).toBe('builtin')
+  })
+
+  it('does not classify other legacy servers as built-in', () => {
+    expect(
+      resolveMcpConfigInstallSource({
+        name: 'Legacy server',
+        type: 'inMemory'
+      })
+    ).toBeUndefined()
+  })
+})
+
+describe('buildMcpSchema', () => {
+  it('requires the command used by the online-package built-in server', () => {
+    const result = buildMcpSchema((key) => key).safeParse(
+      stdioFormValues({
+        name: '@cherry/mcp-auto-install',
+        serverType: 'inMemory',
+        command: ''
+      })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toContainEqual(
+      expect.objectContaining({ path: ['command'], message: 'settings.mcp.command' })
+    )
   })
 })
