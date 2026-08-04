@@ -12,6 +12,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
+import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
@@ -42,6 +43,8 @@ const DEFAULT_GATEWAY_PORT = 18790
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
+const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
+const OPENCLAW_CONFIG_FILE_MODE = 0o600
 
 type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
 
@@ -60,8 +63,16 @@ type OpenClawCommandResult = {
 }
 
 type OpenClawValidationIssue = {
-  path?: string
+  path: string
   message: string
+  allowedValues?: unknown[]
+}
+
+interface OpenClawValidationReport {
+  valid: boolean
+  path?: string
+  issues: OpenClawValidationIssue[]
+  warnings: OpenClawValidationIssue[]
 }
 
 function sanitizeOpenClawDiagnostic(diagnostic: string): string {
@@ -320,6 +331,104 @@ export class OpenClawService extends BaseService {
 
   private sanitizeDiagnostic(diagnostic: string | OpenClawValidationIssue | OpenClawValidationIssue[]): string {
     return sanitizeOpenClawDiagnostic(typeof diagnostic === 'string' ? diagnostic : JSON.stringify(diagnostic))
+  }
+
+  private parseValidationResult(result: OpenClawCommandResult): OpenClawValidationReport {
+    const fail = (): never => {
+      throw new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed'))
+    }
+
+    if (result.outputTruncated) fail()
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(result.stdout)
+    } catch {
+      fail()
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) fail()
+
+    const report = parsed as Record<string, unknown>
+    const isIssue = (issue: unknown): issue is OpenClawValidationIssue => {
+      if (issue === null || typeof issue !== 'object' || Array.isArray(issue)) return false
+      const candidate = issue as Record<string, unknown>
+      return (
+        typeof candidate.path === 'string' &&
+        typeof candidate.message === 'string' &&
+        (candidate.allowedValues === undefined || Array.isArray(candidate.allowedValues))
+      )
+    }
+
+    if (typeof report.valid !== 'boolean') fail()
+    if (report.path !== undefined && typeof report.path !== 'string') fail()
+    if (!Array.isArray(report.issues) || !report.issues.every(isIssue)) fail()
+    if (report.warnings !== undefined && (!Array.isArray(report.warnings) || !report.warnings.every(isIssue))) fail()
+    const valid = report.valid as boolean
+    const reportPath = report.path as string | undefined
+    const issues = report.issues as OpenClawValidationIssue[]
+    const warnings = (report.warnings ?? []) as OpenClawValidationIssue[]
+    if (!valid && issues.length === 0) fail()
+    if ((valid && result.exitCode !== 0) || (!valid && result.exitCode !== 1)) fail()
+
+    return {
+      valid,
+      ...(reportPath !== undefined ? { path: reportPath } : {}),
+      issues,
+      warnings
+    }
+  }
+
+  private formatValidationDetails(issues: OpenClawValidationIssue[]): string {
+    const visible = issues
+      .slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
+      .map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
+    const remaining = issues.length - visible.length
+    if (remaining > 0) {
+      visible.push(t('openclaw.errors.more_issues', { count: remaining }))
+    }
+    return visible.length > 0 ? `\n${visible.join('\n')}` : ''
+  }
+
+  private async validateConfig(
+    runtime: OpenClawRuntime,
+    configPath: AbsoluteFilePath
+  ): Promise<OpenClawValidationReport> {
+    try {
+      const result = await this.runOpenClawCommand(runtime.path, ['config', 'validate', '--json'], {
+        ...runtime.env,
+        OPENCLAW_CONFIG_PATH: configPath
+      })
+      return this.parseValidationResult(result)
+    } catch (error) {
+      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.warn('OpenClaw config validation failed', { summary })
+      if (error instanceof OpenClawPreflightError && error.kind === 'preflight_failed') {
+        throw error
+      }
+      throw new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed'))
+    }
+  }
+
+  private async assertConfigValid(runtime: OpenClawRuntime, configPath: AbsoluteFilePath): Promise<void> {
+    const report = await this.validateConfig(runtime, configPath)
+    if (report.valid) {
+      for (const warning of report.warnings) {
+        logger.warn('OpenClaw config validation warning', {
+          summary: this.sanitizeDiagnostic(`${warning.path}: ${warning.message}`)
+        })
+      }
+      return
+    }
+
+    const kind = report.issues.some((issue) => issue.path.startsWith('models.providers.cherry-'))
+      ? 'binary_incompatible'
+      : 'external_config_invalid'
+    const details = this.formatValidationDetails(report.issues)
+    const message =
+      kind === 'binary_incompatible'
+        ? t('openclaw.errors.binary_incompatible', { details })
+        : t('openclaw.errors.external_config_invalid', { details })
+    throw new OpenClawPreflightError(kind, message)
   }
 
   private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<void> {
@@ -942,39 +1051,33 @@ export class OpenClawService extends BaseService {
         apiKey = this.getNoKeyPlaceholder(provider) ?? 'no-key-required'
       }
 
-      // Build OpenClaw provider config
-      // Preserve existing model-level config that users may have modified in OpenClaw
-      // (e.g., vision, custom context window, extra parameters)
+      // Rebuild Cherry Studio's managed provider area from current provider data.
+      // Non-Cherry providers and all other top-level OpenClaw config remain user-owned.
+      const externalProviders = Object.fromEntries(
+        Object.entries(config.models?.providers ?? {}).filter(([key]) => !key.startsWith('cherry-'))
+      )
       config.models = config.models || { mode: 'merge', providers: {} }
-      config.models.providers = config.models.providers || {}
-      const existingProvider = config.models.providers[providerKey]
-      const existingModels = existingProvider?.models || []
-      const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
       const providerHeaders = (provider as OpenClawSyncProvider).headers
 
-      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
-        ...existingProvider,
         baseUrl,
         apiKey,
         api: apiType,
         models: provider.models.map((m) => {
-          const existing = existingModelMap.get(m.id)
           const synced = m as OpenClawSyncModel
           return {
-            ...(synced.maxTokens ? { maxTokens: synced.maxTokens } : {}),
+            ...(synced.maxTokens !== undefined ? { maxTokens: synced.maxTokens } : {}),
             ...(synced.reasoning !== undefined ? { reasoning: synced.reasoning } : {}),
             ...(synced.input ? { input: synced.input } : {}),
             ...(synced.cost ? { cost: synced.cost } : {}),
-            ...existing,
             id: m.id,
             name: m.name,
-            contextWindow: existing?.contextWindow ?? synced.contextWindow ?? 128000
+            contextWindow: synced.contextWindow ?? 128000
           }
         })
       }
       if (providerHeaders && Object.keys(providerHeaders).length > 0) {
-        openclawProvider.headers = { ...providerHeaders, ...existingProvider?.headers }
+        openclawProvider.headers = { ...providerHeaders }
       }
 
       // Set gateway mode to local (required for gateway to start)
@@ -994,8 +1097,10 @@ export class OpenClawService extends BaseService {
         config.update = { ...config.update, checkOnStart: false }
       }
 
-      // Update config
-      config.models.providers[providerKey] = openclawProvider
+      config.models.providers = {
+        ...externalProviders,
+        [providerKey]: openclawProvider
+      }
 
       // Set primary model
       config.agents = config.agents || { defaults: {} }
@@ -1004,8 +1109,22 @@ export class OpenClawService extends BaseService {
         primary: `${providerKey}/${primaryModel.id}`
       }
 
-      // Write config file
-      fs.writeFileSync(openclawConfigPath(), JSON.stringify(config, null, 2), 'utf-8')
+      const serialized = JSON.stringify(config, null, 2)
+      const candidatePath = AbsoluteFilePathSchema.parse(
+        path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
+      )
+      try {
+        await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
+        await this.assertConfigValid(runtime, candidatePath)
+        await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
+      } finally {
+        await remove(candidatePath).catch((cleanupError) => {
+          const summary = this.sanitizeDiagnostic(
+            cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          )
+          logger.warn('Failed to remove OpenClaw config validation candidate', { summary })
+        })
+      }
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }
