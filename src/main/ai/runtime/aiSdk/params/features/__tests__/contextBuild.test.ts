@@ -321,7 +321,7 @@ describe('resolveInFlightTruncateThreshold', () => {
   it.each([[undefined], [0], [Number.NaN], [-1], [Number.POSITIVE_INFINITY]])(
     'falls back to the character setting for an unusable window (%s)',
     (window) => {
-      const threshold = resolveInFlightTruncateThreshold(100_000, window as number | undefined)
+      const threshold = resolveInFlightTruncateThreshold(100_000, window)
       expect(threshold).toBe(100_000)
       expect(Number.isFinite(threshold)).toBe(true)
     }
