@@ -10,12 +10,12 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
- * Do appended migrations preserve and repair real populated data?
+ * Does *this branch's* `cleanup_policy` migration preserve real data?
  *
  * `applyMigrations.test.ts` covers the runner: that it disables foreign keys
  * where the pragma applies, proven against a synthetic recreate (#17569). This
- * file covers the migrations themselves against the real released baseline — a
- * different question, and the one that matters on upgrade.
+ * file covers the migration itself, against the real released baseline and real
+ * `file_entry` rows — a different question, and the one that matters on upgrade.
  *
  * Worth its own file because the recreate has several independent ways to lose
  * data that a correct runner does not prevent: a column dropped from the
@@ -26,23 +26,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
  */
 
 /**
- * Build a migrations folder containing every entry before a named migration,
- * so a test can stop at that baseline and migrate forward across it.
+ * Build a migrations folder containing every entry *before* this branch's own
+ * migration, so a test can stop at that baseline and migrate forward across it.
  * Drizzle drives ordering from `meta/_journal.json`, so trimming that (and
  * copying the matching `.sql` files) is enough — no snapshot needed at runtime.
+ *
+ * "All but the last" rather than a hand-written index: when an upstream migration
+ * collides with this branch's, the rule is regenerate, never rename (CLAUDE.md),
+ * which always lands this branch's migration back on the tip. Deriving the
+ * baseline keeps the test pointed at it without a bump on every merge.
  */
-function baselineMigrationsFolder(into: string, beforeTag: string): string {
+function baselineMigrationsFolder(into: string): string {
   const source = resolveMigrationsPath()
   const journal = JSON.parse(readFileSync(join(source, 'meta', '_journal.json'), 'utf8')) as {
     entries: Array<{ idx: number; tag: string }>
   }
 
-  const targetIndex = journal.entries.findIndex((entry) => entry.tag === beforeTag)
-  if (targetIndex < 0) {
-    throw new Error(`Migration not found: ${beforeTag}`)
-  }
-
-  const kept = journal.entries.slice(0, targetIndex)
+  const kept = journal.entries.slice(0, -1)
   mkdirSync(join(into, 'meta'), { recursive: true })
   writeFileSync(join(into, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: kept }))
   for (const entry of kept) {
@@ -50,9 +50,6 @@ function baselineMigrationsFolder(into: string, beforeTag: string): string {
   }
   return into
 }
-
-const CLEANUP_POLICY_MIGRATION = '0003_slow_proudstar'
-const MESSAGE_CYCLE_REPAIR_MIGRATION = '0005_repair_message_parent_cycles'
 
 describe('applyMigrations over a populated database', () => {
   let tempDir: string
@@ -109,7 +106,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), CLEANUP_POLICY_MIGRATION))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     seedBaselineRows()
 
     applyMigrations(db, resolveMigrationsPath())
@@ -147,7 +144,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('keeps the recreated table enforcing its constraints on new writes', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), CLEANUP_POLICY_MIGRATION))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     seedBaselineRows()
     applyMigrations(db, resolveMigrationsPath())
 
@@ -172,49 +169,5 @@ describe('applyMigrations over a populated database', () => {
         )
         .run('66666666-6666-7666-8666-666666666666', '/Users/me/LINKED.pdf', now, now)
     ).toThrow(/UNIQUE|constraint/i)
-  })
-
-  it('repairs migrated user-assistant parent cycles without dropping either response', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), MESSAGE_CYCLE_REPAIR_MIGRATION))
-
-    sqlite.exec(`
-      INSERT INTO topic (id, name, order_key, created_at, updated_at)
-      VALUES ('topic-cycle', 'Cycle', 'a0', 1, 1);
-
-      INSERT INTO message (id, parent_id, topic_id, role, data, status, created_at, updated_at)
-      VALUES
-        ('root', NULL, 'topic-cycle', 'root', '{"parts":[]}', 'success', 1, 1),
-        ('previous', 'root', 'topic-cycle', 'assistant', '{"parts":[]}', 'success', 10, 10),
-        ('user', 'cycled-response', 'topic-cycle', 'user', '{"parts":[]}', 'success', 30, 30),
-        ('cycled-response', 'user', 'topic-cycle', 'assistant', '{"parts":[]}', 'success', 40, 40),
-        ('sibling-response', 'user', 'topic-cycle', 'assistant', '{"parts":[]}', 'success', 50, 50);
-    `)
-
-    applyMigrations(db, resolveMigrationsPath())
-
-    const parents = sqlite.prepare('SELECT id, parent_id FROM message ORDER BY created_at').all()
-    expect(parents).toEqual([
-      { id: 'root', parent_id: null },
-      { id: 'previous', parent_id: 'root' },
-      { id: 'user', parent_id: 'previous' },
-      { id: 'cycled-response', parent_id: 'user' },
-      { id: 'sibling-response', parent_id: 'user' }
-    ])
-
-    const { count: unreachableCount } = sqlite
-      .prepare(
-        `WITH RECURSIVE reachable(id) AS (
-           SELECT id FROM message WHERE parent_id IS NULL
-           UNION
-           SELECT child.id FROM message child
-           INNER JOIN reachable parent ON child.parent_id = parent.id
-         )
-         SELECT count(*) AS count
-         FROM message
-         LEFT JOIN reachable ON reachable.id = message.id
-         WHERE reachable.id IS NULL`
-      )
-      .get() as { count: number }
-    expect(unreachableCount).toBe(0)
   })
 })

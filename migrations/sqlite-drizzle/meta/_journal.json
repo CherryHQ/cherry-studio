@@ -36,13 +36,6 @@
       "when": 1785735707223,
       "tag": "0004_fresh_roland_deschain",
       "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1785831970556,
-      "tag": "0005_repair_message_parent_cycles",
-      "breakpoints": true
     }
   ]
 }
