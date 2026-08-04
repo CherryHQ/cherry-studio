@@ -141,9 +141,15 @@ describe('inLoopCompactionFeature', () => {
     const messages = [userMessage(90_000)]
     const result = await prepareStep({ messages } as any)
     expect(compactModelMessages).toHaveBeenCalledOnce()
+    // The summarize call is itself window-bound, so it carries its own budgets:
+    // output sized from the window, input capped so the request can't overflow it.
     expect(compactModelMessages).toHaveBeenCalledWith(messages, COMPRESSION_MODEL, {
-      keepRecentTurns: expect.any(Number)
+      keepRecentTurns: expect.any(Number),
+      maxOutputTokens: expect.any(Number),
+      maxInputTokens: expect.any(Number)
     })
+    const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
+    expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
     expect(result).toEqual({ messages: compacted })
   })
 

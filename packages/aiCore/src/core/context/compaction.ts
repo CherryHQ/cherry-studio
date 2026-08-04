@@ -44,8 +44,9 @@ export async function compactModelMessages(
   model: LanguageModel,
   options: PlanCompactionOptions & SummarizeMessagesOptions
 ): Promise<ModelMessage[]> {
+  const { maxOutputTokens, ...compactOptions } = options
   const ir = fromModelMessages(messages)
-  const result = await compactHistory(ir, createCompressionAdapter(model), options)
+  const result = await compactHistory(ir, createCompressionAdapter(model, maxOutputTokens), compactOptions)
   // compactHistory returns the input IR reference on a no-op — preserve the
   // original `messages` reference so callers can skip persistence via
   // `result === messages`.

@@ -156,6 +156,51 @@ export interface SummarizeHistoryOptions {
   /** Replace tool-result content longer than this many chars with a one-line
    *  metadata stub before summarizing (saves summarizer tokens). */
   toolResultStubThreshold?: number
+  /**
+   * Cap on the compression request's own input. Compaction exists to keep a
+   * conversation inside the context window, but the summarize call is itself a
+   * window-bound request — un-budgeted it can exceed the compression model's
+   * window (an agentic history carries whole tool outputs verbatim), which
+   * either hard-fails or starves the output budget so the model returns no
+   * summary at all. When set, tool results are stubbed progressively until the
+   * estimated input fits.
+   */
+  maxInputTokens?: number
+}
+
+/** Stub thresholds tried in order when `maxInputTokens` is exceeded (0 = stub every tool result). */
+const STUB_ESCALATION = [4000, 1000, 200, 0]
+
+/**
+ * Last-resort clamp when stubbing every tool result still leaves the summarize
+ * request over budget (a long prose conversation has no tool bulk to stub).
+ * Keeps the first message — for callers that lead with a prior summary, that is
+ * the entire accumulated history and must never be dropped — plus as many of
+ * the most recent messages as fit, and the trailing instruction. Whatever is
+ * dropped is announced in-band so the summary can't silently claim to cover it.
+ */
+function clampToInputBudget(messages: ContextMessage[], maxInputTokens: number): ContextMessage[] {
+  if (messages.length <= 2) return messages
+  const first = messages[0]
+  const instruction = messages[messages.length - 1]
+  const middle = messages.slice(1, -1)
+
+  let used = estimateObject([first, instruction])
+  const kept: ContextMessage[] = []
+  for (let i = middle.length - 1; i >= 0; i--) {
+    const cost = estimateObject(middle[i])
+    if (used + cost > maxInputTokens) break
+    kept.unshift(middle[i])
+    used += cost
+  }
+
+  const omitted = middle.length - kept.length
+  if (omitted === 0) return messages
+  const marker: ContextMessage = {
+    role: 'user',
+    content: `[${omitted} earlier message(s) omitted — they did not fit the summarizer's context budget. Say so in the summary rather than implying full coverage.]`
+  }
+  return [first, marker, ...kept, instruction]
 }
 
 /**
@@ -191,15 +236,30 @@ export async function summarizeHistory(
     instruction += `\n\nAdditional Instructions:\n${extra}`
   }
 
-  const stubbed =
-    opts.toolResultStubThreshold !== undefined
-      ? stripLargeToolResultsForCompression(messages, opts.toolResultStubThreshold)
-      : messages
+  const assemble = (stubThreshold: number | undefined): ContextMessage[] => {
+    const stubbed =
+      stubThreshold !== undefined ? stripLargeToolResultsForCompression(messages, stubThreshold) : messages
+    return [...stripAttachmentsForCompression(stubbed), { role: 'user', content: instruction }]
+  }
 
-  const compressionMessages: ContextMessage[] = [
-    ...stripAttachmentsForCompression(stubbed),
-    { role: 'user', content: instruction }
-  ]
+  let compressionMessages = assemble(opts.toolResultStubThreshold)
+
+  // Keep the summarize call itself inside the compression model's window:
+  // stub tool results harder until the estimated input fits. Tool results are
+  // the bulk of an agentic history, and their full text is the least useful
+  // part to a summarizer (the surrounding assistant turns already describe what
+  // each call did). If stubbing everything still isn't enough, clamp by dropping
+  // the oldest middle messages — so the request is bounded either way.
+  if (opts.maxInputTokens !== undefined) {
+    for (const threshold of STUB_ESCALATION) {
+      if (estimateObject(compressionMessages) <= opts.maxInputTokens) break
+      if (opts.toolResultStubThreshold !== undefined && threshold >= opts.toolResultStubThreshold) continue
+      compressionMessages = assemble(threshold)
+    }
+    if (estimateObject(compressionMessages) > opts.maxInputTokens) {
+      compressionMessages = clampToInputBudget(compressionMessages, opts.maxInputTokens)
+    }
+  }
 
   const raw = await compress(compressionMessages)
   return ContextPrompts.formatCompactSummary(raw)

@@ -13,6 +13,18 @@ export const MAX_TOOL_CALLS = 100
 export const CONTEXT_COMPACT_TRIGGER_RATIO = 0.8
 export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 
+/**
+ * Budget for the compaction request itself. Compaction protects the window, but
+ * the summarize call is a window-bound request too: its input carries whole
+ * tool outputs, so left un-budgeted it can overflow the compression model's
+ * window and come back with no summary at all.
+ *
+ * Input budget = (window − output budget) × SAFETY_RATIO, floored at MIN so a
+ * tiny window still sends something rather than stubbing everything away.
+ */
+export const COMPACTION_INPUT_SAFETY_RATIO = 0.85
+export const COMPACTION_MIN_INPUT_BUDGET = 2000
+
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
 /** Process-local credential proving that a gateway request originated inside Cherry. */

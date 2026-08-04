@@ -13,9 +13,12 @@ export {
 } from './janitor'
 export {
   type CompactConfig,
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS,
   type ContextMiddlewareOptions,
   createCompressionAdapter,
   createContextMiddleware,
+  resolveCompressionOutputTokens,
   type SummarizeMessagesOptions,
   summarizeModelMessages
 } from './middleware'

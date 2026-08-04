@@ -32,6 +32,47 @@ type CompressRole = 'system' | 'user' | 'assistant'
 const COMPRESS_WITHOUT_PERSISTENCE_WARN_THRESHOLD = 3
 
 /**
+ * Floor for a compression call's output budget.
+ *
+ * `CONTEXT_COMPACTION_INSTRUCTION` asks the model for an `<analysis>`
+ * scratchpad *and* a `<summary>` block, and on a reasoning model the thinking
+ * tokens are billed against this same budget and emitted BEFORE any text.
+ * Measured against `deepseek-v4-flash`, one compression needed 2233 output
+ * tokens (5.8k chars of thinking + 1.7k chars of summary) — the previous fixed
+ * 2048 sat right on that boundary, so the budget ran out mid-thinking and
+ * `text` came back empty.
+ *
+ * The real budget is derived from the compression model's window
+ * ({@link resolveCompressionOutputTokens}); this is only the lower clamp.
+ */
+export const COMPRESSION_MIN_OUTPUT_TOKENS = 4096
+
+/**
+ * Ceiling for a compression call's output budget. A continuation summary is
+ * bounded by the prompt's own shape (analysis + summary), not by how big the
+ * conversation was, so a huge window buys nothing beyond this.
+ */
+export const COMPRESSION_MAX_OUTPUT_TOKENS = 16_384
+
+/** Share of the compression model's window reserved for its output. */
+const COMPRESSION_OUTPUT_WINDOW_RATIO = 0.25
+
+/**
+ * Output budget for a compression call against a model with `contextWindow`.
+ * Scales with the window and is clamped to the range the prompt actually needs.
+ * With no window known, falls back to the floor.
+ */
+export function resolveCompressionOutputTokens(contextWindow?: number): number {
+  if (!contextWindow || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+    return COMPRESSION_MIN_OUTPUT_TOKENS
+  }
+  const share = Math.floor(contextWindow * COMPRESSION_OUTPUT_WINDOW_RATIO)
+  // Never hand out more than the window itself can hold.
+  const ceiling = Math.min(COMPRESSION_MAX_OUTPUT_TOKENS, Math.max(1, contextWindow - 1))
+  return Math.min(ceiling, Math.max(COMPRESSION_MIN_OUTPUT_TOKENS, share))
+}
+
+/**
  * Mechanical compaction options — zero LLM cost.
  * Delegates to AI SDK's `pruneMessages` before IR conversion.
  */
@@ -276,7 +317,10 @@ function toCompressRole(role: string): CompressRole {
  * Tool messages are converted to user messages describing the tool interaction,
  * since generateText only accepts system/user/assistant roles.
  */
-export function createCompressionAdapter(model: LanguageModel): (messages: ContextMessage[]) => Promise<string> {
+export function createCompressionAdapter(
+  model: LanguageModel,
+  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS
+): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
     const formatted = messages.map((m): { role: CompressRole; content: string } => {
       if (m.role === 'tool') {
@@ -303,19 +347,29 @@ export function createCompressionAdapter(model: LanguageModel): (messages: Conte
     const { text } = await generateText({
       model,
       messages: formatted,
-      maxOutputTokens: 2048
+      maxOutputTokens
     })
 
-    return text || '[Compression produced no output]'
+    // Return the model's output verbatim — an empty string included. Both
+    // callers already fail open on an empty summary (`compactHistory` keeps the
+    // history, `PersistentChatContextProvider` serves the marker-applied view),
+    // and substituting a placeholder here made the summary look non-empty, so
+    // those guards never fired and the folded turns were replaced by the
+    // placeholder — i.e. the history was silently dropped.
+    return text
   }
 }
 
-/**
- * Options for {@link summarizeModelMessages}. Currently a structural alias of
- * `SummarizeHistoryOptions` — add middleware-specific fields here if they ever
- * diverge.
- */
-export type SummarizeMessagesOptions = SummarizeHistoryOptions
+/** Options for {@link summarizeModelMessages}. */
+export interface SummarizeMessagesOptions extends SummarizeHistoryOptions {
+  /**
+   * Output budget for the summarize call. Derive it from the compression
+   * model's window via {@link resolveCompressionOutputTokens} — a fixed value
+   * either starves the summary on a small window or wastes headroom on a large
+   * one. Defaults to {@link COMPRESSION_MIN_OUTPUT_TOKENS}.
+   */
+  maxOutputTokens?: number
+}
 
 /**
  * Summarize a `ModelMessage[]` slice into a single summary string, using the
@@ -335,6 +389,7 @@ export async function summarizeModelMessages(
   model: LanguageModel,
   opts: SummarizeMessagesOptions = {}
 ): Promise<string> {
+  const { maxOutputTokens, ...summarizeOpts } = opts
   const ir = fromModelMessages(messages).filter((m) => m.role !== 'system')
-  return summarizeHistory(ir, createCompressionAdapter(model), opts)
+  return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens), summarizeOpts)
 }

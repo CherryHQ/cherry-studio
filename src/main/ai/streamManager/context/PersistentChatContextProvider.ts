@@ -6,11 +6,16 @@
  */
 
 import { application } from '@application'
-import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
+import {
+  COMPACTION_INPUT_SAFETY_RATIO,
+  COMPACTION_MIN_INPUT_BUDGET,
+  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
+  CONTEXT_COMPACT_TRIGGER_RATIO
+} from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
@@ -701,7 +706,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           : []),
         ...realModelMessages
       ]
-      const summary = await summarizeModelMessages(modelMessages, compressionModel)
+      // Budget the summarize call against the window it is meant to protect:
+      // its input carries whole tool outputs, so without a cap the compression
+      // request can itself exceed the window (starving the output budget until
+      // the model returns no summary at all — the empty-summary path below).
+      const maxOutputTokens = resolveCompressionOutputTokens(minContextWindow)
+      const summary = await summarizeModelMessages(modelMessages, compressionModel, {
+        maxOutputTokens,
+        maxInputTokens: Math.max(
+          COMPACTION_MIN_INPUT_BUDGET,
+          Math.floor((minContextWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+        )
+      })
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
         return serve(effective)

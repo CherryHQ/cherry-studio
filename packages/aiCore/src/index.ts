@@ -59,11 +59,14 @@ export type {
 } from './core/context'
 export {
   compactModelMessages,
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS,
   computeHeadTailExcerpt,
   ContextPrompts,
   createContextMiddleware,
   Offloader,
   PERSISTED_OUTPUT_TAG,
+  resolveCompressionOutputTokens,
   summarizeModelMessages
 } from './core/context'
 

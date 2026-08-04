@@ -19,9 +19,14 @@
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages } from '@cherrystudio/ai-core'
+import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
+import {
+  COMPACTION_INPUT_SAFETY_RATIO,
+  COMPACTION_MIN_INPUT_BUDGET,
+  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
+  CONTEXT_COMPACT_TRIGGER_RATIO
+} from '@main/ai/constants'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { estimateTokenCount } from 'tokenx'
@@ -156,7 +161,18 @@ export const inLoopCompactionFeature: RequestFeature = {
           return foldCache ? { messages: candidate } : undefined
         }
         const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget)
-        const compacted = await compactModelMessages(candidate, model, { keepRecentTurns })
+        // Same budgeting as the turn-start path: the summarize call is itself a
+        // window-bound request, so cap its input and size its output from the
+        // window instead of a fixed constant.
+        const maxOutputTokens = resolveCompressionOutputTokens(contextWindow)
+        const compacted = await compactModelMessages(candidate, model, {
+          keepRecentTurns,
+          maxOutputTokens,
+          maxInputTokens: Math.max(
+            COMPACTION_MIN_INPUT_BUDGET,
+            Math.floor((contextWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+          )
+        })
         if (compacted === candidate) {
           return foldCache ? { messages: candidate } : undefined
         }

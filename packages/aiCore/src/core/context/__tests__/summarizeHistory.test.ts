@@ -117,4 +117,95 @@ describe('summarizeHistory', () => {
     expect(toolEntry?.content).toBe(longContent)
     expect(toolEntry?.content).not.toContain('omitted before summarization')
   })
+
+  // The summarize call is itself a window-bound request: its input carries whole
+  // tool outputs, so un-budgeted it can overflow the compression model's window
+  // and come back with no summary at all (runtime finding: 3/5 compactions
+  // returned empty). `maxInputTokens` stubs tool results until the input fits.
+  describe('maxInputTokens (compression request stays inside the window)', () => {
+    const withHugeTool = (chars: number): ContextMessage[] => [
+      { role: 'user', content: 'read the repo docs' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read', arguments: '{}' } }]
+      },
+      { role: 'tool', content: 'x'.repeat(chars), tool_call_id: 'call_1' }
+    ]
+
+    it('stubs oversized tool results when the estimated input exceeds the budget', async () => {
+      const captured: ContextMessage[] = []
+      const compress = vi.fn(async (messages: ContextMessage[]) => {
+        captured.push(...messages)
+        return '<summary>ok</summary>'
+      })
+
+      await summarizeHistory(withHugeTool(200_000), compress, { maxInputTokens: 4000 })
+
+      const toolEntry = captured.find((m) => m.role === 'tool')
+      expect(toolEntry?.content).toContain('omitted before summarization')
+      expect(toolEntry?.content.length).toBeLessThan(500)
+    })
+
+    it('leaves the slice untouched when it already fits the budget', async () => {
+      const captured: ContextMessage[] = []
+      const compress = vi.fn(async (messages: ContextMessage[]) => {
+        captured.push(...messages)
+        return '<summary>ok</summary>'
+      })
+
+      await summarizeHistory(withHugeTool(100), compress, { maxInputTokens: 100_000 })
+
+      const toolEntry = captured.find((m) => m.role === 'tool')
+      expect(toolEntry?.content).toBe('x'.repeat(100))
+    })
+
+    // Stubbing only helps when there ARE tool results. A long prose conversation
+    // has no bulk to stub, so the request must still be clamped or it goes out
+    // over the window.
+    it('clamps prose-only history that stubbing cannot shrink', async () => {
+      const prose: ContextMessage[] = [
+        { role: 'user', content: 'FIRST — a prior summary the caller leads with' },
+        ...Array.from(
+          { length: 40 },
+          (_, i): ContextMessage => ({
+            role: i % 2 === 0 ? 'assistant' : 'user',
+            content: `turn ${i}: ${'长篇叙述内容。'.repeat(80)}`
+          })
+        ),
+        { role: 'user', content: 'NEWEST message' }
+      ]
+
+      const captured: ContextMessage[] = []
+      const compress = vi.fn(async (messages: ContextMessage[]) => {
+        captured.push(...messages)
+        return '<summary>ok</summary>'
+      })
+
+      await summarizeHistory(prose, compress, { maxInputTokens: 3000 })
+
+      expect(captured.length).toBeLessThan(prose.length + 1)
+      // first message survives (it may be the accumulated prior summary)
+      expect(captured[0].content).toContain('FIRST')
+      // the omission is announced, not silent
+      expect(captured.some((m) => m.content.includes('omitted'))).toBe(true)
+      // the newest turn is kept
+      expect(captured.some((m) => m.content.includes('NEWEST'))).toBe(true)
+      // and the instruction is still last
+      expect(captured[captured.length - 1].content.toLowerCase()).toContain('summary')
+    })
+
+    it('is a no-op when maxInputTokens is not supplied (existing behaviour)', async () => {
+      const captured: ContextMessage[] = []
+      const compress = vi.fn(async (messages: ContextMessage[]) => {
+        captured.push(...messages)
+        return '<summary>ok</summary>'
+      })
+
+      await summarizeHistory(withHugeTool(200_000), compress)
+
+      const toolEntry = captured.find((m) => m.role === 'tool')
+      expect(toolEntry?.content).toBe('x'.repeat(200_000))
+    })
+  })
 })
