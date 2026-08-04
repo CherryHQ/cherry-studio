@@ -2857,11 +2857,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -18692,6 +18692,27 @@
       }
     },
     {
+      "capabilities": ["embedding"],
+      "contextWindow": 32000,
+      "family": "v0",
+      "id": "pplx-embed-v1-0-6b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed v1 0.6b",
+      "outputModalities": ["vector"],
+      "ownedBy": "vercel"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 32000,
+      "id": "pplx-embed-v1-4b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Embed v1 4b",
+      "outputModalities": ["vector"],
+      "ownedBy": "vercel"
+    },
+    {
       "capabilities": ["audio-generation"],
       "family": "o",
       "id": "tts-1",
@@ -20925,5 +20946,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b52f25661b6a4ebc"
+  "version": "fc192c89cc19978b"
 }

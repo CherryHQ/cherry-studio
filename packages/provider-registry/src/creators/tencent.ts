@@ -19,10 +19,6 @@ export default defineCreator({
     { pattern: 'hunyuan-a13b' },
     { pattern: '^hy3' }
   ],
-  // Web search is a per-request enhancement on Hunyuan's chat/reasoning models. `hunyuan` covers the
-  // `hunyuan-*` chat ids; `hy3-preview` lives in a different namespace, so it's listed explicitly (the
-  // `hy-*` MT/role/image and `tc-code` models are not chat models and stay out).
-  serverTools: { 'web-search': ['hunyuan', 'hy3-preview'] },
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },
     { id: 'hunyuan-t1', name: 'Hunyuan T1', capabilities: ['reasoning', 'function-call'] },

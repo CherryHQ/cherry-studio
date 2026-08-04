@@ -12,10 +12,6 @@ export interface CherryWebSearchConfig {
 }
 
 export function getWebSearchParams(model: Model): Record<string, any> {
-  if (model.providerId === 'hunyuan') {
-    return { enable_enhancement: true, citation: true, search_info: true }
-  }
-
   if (model.providerId === 'zhipu') {
     // BigModel's web search rides the tools array, which providerOptions cannot
     // reach — transformZhipuRequestBody moves this marker into `tools`

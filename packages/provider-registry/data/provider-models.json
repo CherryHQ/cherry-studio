@@ -25079,15 +25079,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11414
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6146
+          "perMillionTokens": 0.76
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.9316
+          "perMillionTokens": 2.42
         }
       },
       "providerId": "openrouter",
@@ -27509,15 +27509,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.0992
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.589
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.41
+          "perMillionTokens": 2.48
         }
       },
       "providerId": "openrouter",
@@ -28017,11 +28017,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.32
         }
       },
       "providerId": "openrouter"
@@ -28846,11 +28846,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.08
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.11
         }
       },
       "providerId": "openrouter"
@@ -30139,7 +30139,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.27
         }
       },
       "providerId": "openrouter"
@@ -30272,13 +30272,9 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
@@ -37311,5 +37307,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "75cf39105c25df9f"
+  "version": "3b3ddb8b543be042"
 }
