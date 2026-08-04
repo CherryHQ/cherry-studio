@@ -82,8 +82,8 @@
         "description": "只在用户明确要求提交 GitHub Issue、GitHub Bug Report 或 GitHub Feature Request 时使用。用户只说“提交问题”“提交反馈”“上报 bug”“这是个 bug”或描述功能建议但未点名 GitHub 时不得触发，必须改用 cherry-studio-feedback 并默认提交飞书。",
         "category": "skills",
         "type": "skill",
-        "size": 1971,
-        "contentHash": "6c210b6f34af68414c31b413bc1f0e34859ebdcfdaa720b4900b5c1012615b1e"
+        "size": 2046,
+        "contentHash": "704557ac405ae9813d4f0845bcbdf8d482eb22f02c2645f7b46b96a82c72cf66"
       }
     },
     {
