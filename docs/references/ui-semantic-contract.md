@@ -150,8 +150,7 @@ The maintained chat surface currently includes:
   `chat.message.group`;
 - `chat.composer`, `chat.composer.action.send`, and `chat.composer.action.pause`;
 - `part:conversation-navigation`, `part:conversation-main`, and `part:conversation-inspector`;
-- `part:message-content`, `part:message-actions`, `part:message-reasoning`, `part:message-tools`, and
-  `part:code-block`;
+- `part:message-content`, `part:message-actions`, `part:message-reasoning`, and `part:code-block`;
 - `part:composer-input` and `part:composer-actions`.
 
 The maintained settings surface currently includes:

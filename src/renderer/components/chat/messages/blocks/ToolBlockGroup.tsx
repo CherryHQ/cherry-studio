@@ -639,11 +639,7 @@ export const ToolBlockGroup = React.memo(
       isLiveProgressProp ?? items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
 
     const disclosure = (
-      <div
-        ref={anchorRef}
-        data-ui="part:message-tools"
-        className="group/child-tool-group w-full max-w-full"
-        data-testid="child-tool-group">
+      <div ref={anchorRef} className="group/child-tool-group w-full max-w-full" data-testid="child-tool-group">
         <Accordion
           type="single"
           collapsible
