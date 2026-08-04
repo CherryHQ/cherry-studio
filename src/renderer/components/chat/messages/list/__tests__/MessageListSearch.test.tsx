@@ -76,7 +76,7 @@ describe('MessageListSearch', () => {
     expect(includeUserButton).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps navigation pending until a virtualized result part is mounted', async () => {
+  it('locates an unmounted part once, then navigates its mounted matches directly', async () => {
     const user = userEvent.setup()
     const scope = document.createElement('div')
     document.body.appendChild(scope)
@@ -122,6 +122,10 @@ describe('MessageListSearch', () => {
       scope.appendChild(partElement)
     })
     await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
+
+    await user.click(next)
+    await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(2))
+    expect(locateMessage).toHaveBeenCalledTimes(1)
 
     scope.remove()
   })

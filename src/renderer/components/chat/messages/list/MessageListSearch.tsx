@@ -221,9 +221,13 @@ export const MessageListSearch: FC<Props> = ({
     (match: MessageSearchMatch) => {
       setCursor({ criteriaKey, matchKey: match.key })
       pendingNavigationRef.current = { criteriaKey, match }
-      locateMessage(match.messageId)
+
+      const scope = scopeRef.current
+      if (!scope || !getMountedMessagePartElements(scope).has(match.partId)) {
+        locateMessage(match.messageId)
+      }
     },
-    [criteriaKey, locateMessage]
+    [criteriaKey, locateMessage, scopeRef]
   )
 
   const step = useCallback(
