@@ -4,14 +4,19 @@ import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import { sweepStaleExportOperations } from './exportOperation'
-import { runPostPromotionWork } from './postPromotion'
-import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
-import { readRestoreKnowledgeProgress, readRestoreKnowledgeReadiness } from './restoreOwnerReadiness'
-import { armRestoreRollback } from './rollbackRestore'
+import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
+import { runPostPromotionWork } from './restore/postPromotion'
+import {
+  armPreparedRestore,
+  cancelPreparedRestore,
+  prepareRestore,
+  type RestorePreview
+} from './restore/prepareRestore'
+import { readRestoreKnowledgeProgress, readRestoreKnowledgeReadiness } from './restore/restoreOwnerReadiness'
+import { armRestoreRollback } from './restore/rollbackRestore'
 
 const logger = loggerService.withContext('BackupService')
 const POST_PROMOTION_POLL_MS = 10_000

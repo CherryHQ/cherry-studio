@@ -45,13 +45,13 @@ import {
 import { encodeClaudeProjectDir } from '@main/ai/runtime/claudeCode'
 import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/vectorstore/indexStore/createIndexStore'
 
+import { ArchiveAdmissionError } from '../../errors'
+import { exportArchive } from '../../exportArchive'
+import { driftHooks } from '../../sourceDrift'
 import { acknowledgeRestore } from '../acknowledgeRestore'
 import { presentJournalDegradations } from '../degradationReport'
-import { ArchiveAdmissionError } from '../errors'
-import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
 import { readRestoreKnowledgeReadiness, withRestoreKnowledgeProgress } from '../restoreOwnerReadiness'
-import { driftHooks } from '../sourceDrift'
 
 /**
  * End-to-end proof for Backup v2: export → prepare → arm → preboot promotion →

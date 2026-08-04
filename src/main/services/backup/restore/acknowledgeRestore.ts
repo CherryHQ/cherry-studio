@@ -32,7 +32,7 @@ import {
 import { loggerService } from '@logger'
 import { findUnsafeAncestor } from '@main/utils/file'
 
-import { RestoreStateError } from './errors'
+import { RestoreStateError } from '../errors'
 import {
   readRestoreKnowledgeProgress,
   readRestoreKnowledgeReadiness,
