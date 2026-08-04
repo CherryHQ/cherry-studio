@@ -1,25 +1,25 @@
 {
-  "snapshot_date": "2026-08-03",
-  "generated_at": "2026-08-03T16:00:00Z",
+  "snapshot_date": "2026-08-04",
+  "generated_at": "2026-08-04T17:00:00Z",
   "open_issues": {
-    "total": 842,
-    "delta_from_yesterday": -7,
-    "new_last_7d": 55,
-    "new_last_24h": 5,
-    "no_label": 96,
-    "no_label_pct": 11.4,
+    "total": 837,
+    "delta_from_yesterday": -5,
+    "new_last_7d": 62,
+    "new_last_24h": 8,
+    "no_label": 94,
+    "no_label_pct": 11.2,
     "by_label": {
-      "UI/UX": 95,
-      "Models": 85,
-      "Performance": 60,
-      "MCP": 55,
-      "Assistant": 50,
-      "Data": 40,
-      "RAG": 35,
-      "needs-repro": 30,
-      "help wanted": 25,
+      "UI/UX": 93,
+      "Models": 83,
+      "Performance": 59,
+      "MCP": 53,
+      "Assistant": 52,
+      "Data": 42,
+      "RAG": 34,
+      "needs-repro": 29,
+      "help wanted": 24,
       "discussion": 20,
-      "inactive": 80,
+      "inactive": 78,
       "internal_team": 30,
       "feature": 28,
       "Connectivity": 5,
@@ -29,23 +29,23 @@
   "open_prs": {
     "total": 100,
     "by_base_branch": {
-      "main": 89,
-      "v1": 3,
-      "toolchain_branches": 8
+      "main": 84,
+      "v1": 5,
+      "toolchain_branches": 11
     },
     "top_contributors": [
       {"login": "DeJeune", "open_prs": 27},
       {"login": "kennyzheng-builds", "open_prs": 10},
+      {"login": "404-Page-Found", "open_prs": 6},
       {"login": "kangfenmao", "open_prs": 6},
-      {"login": "vaayne", "open_prs": 5},
       {"login": "zhangjiadi225", "open_prs": 5}
     ],
     "notable_recent": [
-      "#17780 perf(conversation-load): parallelize active model loading",
-      "#17775 perf(data-api): defer inactive renderer queries",
+      "#17828 [Feature]: Introduce layered preset resolution for Cherry Assistant configuration",
+      "#17822 [Bug]: v2.0.0-rc.4 Quick Assistant reply color is transparent (rc.4 regression)",
       "#17746 Restore typescript/no-unnecessary-type-assertion to error (tsgolint 7 backlog)",
-      "#17744 chore(build-toolchain): drop @electron-toolkit/tsconfig",
-      "#17742 feat(mcp): add JobYap to built-in MCP servers list"
+      "#17735 [Bug] Built-in web search fetches unlimited content — context exceeds limits",
+      "#17730 [Bug]: Model list labels overflow and cannot be moved for display"
     ]
   },
   "p1_open_issues": [
@@ -53,46 +53,59 @@
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
       "labels": ["P1", "Planned", "UI/UX"],
+      "milestone": "v2.4.0",
       "created_at": "2026-05-07",
-      "age_days": 88
+      "age_days": 89,
+      "assignee": null
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18",
-      "age_days": 138
+      "age_days": 139,
+      "assignee": null
     },
     {
       "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found / responses API fallback",
+      "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found (404)",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04",
-      "age_days": 152
+      "age_days": 153,
+      "assignee": "DeJeune"
     }
   ],
   "recently_closed_p1": [
     {
       "number": 17636,
-      "title": "[Bug]: Agent session turn can hang forever after a failed turn",
+      "title": "[Bug]: Agent session turn can hang forever after a failed turn — empty request, UNSET ai.turn span",
       "closed_at": "2026-07-30",
-      "labels": ["P1"]
+      "labels": ["P1", "BUG", "v2", "Agent", "ClaudeCode"]
     }
   ],
   "new_issues_today": [
-    "#17784 [Feature]: .md notes — one-click return to top and line break switching (UI/UX)",
-    "#17782 [Feature]: Agent Orchestration Primitives — Read Peer Agent Sessions (internal_team)",
-    "#17781 [Other]: My agent shows 'Failed to list agents' (needs-more-info)",
-    "#17753 [Feature]: Move topic forward after resuming past conversation",
-    "#17751 [Bug]: deepseek v4 flash does not display chain of thought (Models)"
+    "#17833 [Feature]: (empty title — likely spam/test, no labels)",
+    "#17830 [Bug]: v2 Agent migration fans out shared workspace to every historical session → ENOSPC (Data)",
+    "#17828 [Feature]: Introduce layered preset resolution for Cherry Assistant configuration (Assistant, Data)",
+    "#17822 [Bug]: v2.0.0-rc.4 Quick Assistant reply color is transparent and hard to read (Assistant, UI/UX)",
+    "#17813 [Feature]: Chat assistant can be hidden and not selected by default (UI/UX)",
+    "#17803 [Feature]: Apply /compact in chat mode",
+    "#17801 [Feature]: Add prominent status indicator for agent thinking/tool execution (UI/UX)",
+    "#17796 [Bug]: Project directory address does not update in time after being changed (UI/UX)"
   ],
-  "hot_issues_last_7d": [
-    "#17629 Processes remain after window close with minimize-to-tray disabled (2 comments, updated Aug 3)",
-    "#17571 v2 RC1 missing context count slider — no replacement for v1 Context Count (2 comments)",
-    "#17485 JavaScript error in main process (6 comments)",
-    "#17260 Agent hard-coded to Claude Code SDK — no user opt-out (2 comments)",
-    "#17159 Unable to read PDF (1 comment, updated Aug 3)"
+  "hot_issues_last_24h": [
+    "#17689 MCP stdio server process leak — duplicate python instances per tool call (4 comments, updated Aug 4 12:20)",
+    "#17830 v2 Agent migration fans out shared workspace → ENOSPC (2 comments, opened Aug 4)",
+    "#17629 Processes remain after window close with minimize-to-tray disabled (2 comments, updated Aug 4 13:19)",
+    "#17822 v2.0.0-rc.4 Quick Assistant reply color transparent (opened Aug 4, 0 comments)",
+    "#17782 Agent Orchestration Primitives — internal_team feature (opened Aug 3)"
   ],
-  "merged_prs_last_30d": 568,
-  "velocity_note": "Project at high velocity — ~19 PRs/day merged. 5 new issues today, 55 in last 7 days."
+  "closed_today": [
+    "#17751 deepseek v4 flash chain of thought not displaying (closed Aug 4, Models)",
+    "#17729 MCP tool log black triangle symbol still present (closed Aug 4, MCP, UI/UX)",
+    "#17605 Unable to complete alphaXiv MCP OAuth (closed Aug 4, MCP)",
+    "Multiple inactive-labeled issues auto-closed by stale bot"
+  ],
+  "merged_prs_last_30d": 572,
+  "velocity_note": "Project at very high velocity — ~19 PRs/day merged. 8 new issues today, 62 in last 7 days. rc.4 shipped; rc.5 regression fixes ongoing."
 }

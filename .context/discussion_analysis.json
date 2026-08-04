@@ -1,6 +1,6 @@
 {
-  "report_date": "2026-08-03",
-  "note": "Discussions analyzed from issues tagged 'discussion' and 'help wanted' (GitHub Discussions GraphQL not queried — gh CLI unavailable in this environment).",
+  "report_date": "2026-08-04",
+  "note": "Discussions analyzed from issues tagged 'discussion' and 'help wanted'. GitHub Discussions GraphQL not available in this environment.",
   "discussion_labeled_issues_open": {
     "count": 20,
     "new_since_yesterday": 0,
@@ -10,7 +10,7 @@
         "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?",
         "labels": ["help wanted", "discussion"],
         "created_at": "2026-07-30",
-        "age_days": 4
+        "age_days": 5
       },
       {
         "number": 17432,
@@ -18,56 +18,65 @@
         "labels": ["help wanted", "discussion"],
         "comments": 2,
         "created_at": "2026-07-26",
-        "age_days": 8
+        "age_days": 9
       },
       {
         "number": 17389,
         "title": "[Discussion]: Which sources may declare a FileEntry reference? (unwritten upstream half of file-ref contract)",
         "labels": ["help wanted", "discussion", "Data"],
         "created_at": "2026-07-25",
-        "age_days": 9
+        "age_days": 10
       },
       {
         "number": 17330,
         "title": "[Discussion]: Define Agent system workspace directory lifecycle contract",
         "labels": ["Docs", "help wanted", "discussion"],
         "created_at": "2026-07-24",
-        "age_days": 10
+        "age_days": 11
       },
       {
         "number": 17271,
         "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
         "labels": ["help wanted", "discussion", "RAG", "Assistant"],
         "created_at": "2026-07-22",
-        "age_days": 12
+        "age_days": 13
       },
       {
         "number": 17183,
         "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
         "labels": ["help wanted", "discussion"],
         "created_at": "2026-07-20",
-        "age_days": 14
+        "age_days": 15
       }
     ]
   },
   "recurring_user_pain_points": [
     {
-      "topic": "v2 migration / RC regression",
+      "topic": "v2 RC regression / migration issues",
       "frequency": "high",
       "trending": true,
-      "sample_issues": ["#17470", "#17571", "#17695", "#17341", "#17343"]
+      "new_today": ["#17830 v2 Agent migration → ENOSPC", "#17822 rc.4 Quick Assistant color transparent"],
+      "sample_issues": ["#17830", "#17822", "#17571", "#17695", "#17470", "#17341", "#17343"]
     },
     {
       "topic": "Agent mode model compatibility (custom providers, OpenRouter, GLM)",
       "frequency": "high",
       "trending": true,
-      "sample_issues": ["#17260", "#17486", "#17282", "#16970", "#17781"]
+      "sample_issues": ["#17260", "#17486", "#17282", "#16970", "#17781", "#17435"]
     },
     {
       "topic": "MCP server reliability (process leaks, OAuth, npm 404)",
       "frequency": "medium-high",
-      "trending": false,
-      "sample_issues": ["#17689", "#17688", "#16951", "#17605"]
+      "trending": true,
+      "note": "MCP process leak #17689 now has 4 comments and was most active issue today",
+      "sample_issues": ["#17689", "#17688", "#16951"]
+    },
+    {
+      "topic": "Thinking/CoT display and control across models",
+      "frequency": "medium",
+      "trending": true,
+      "note": "#17751 deepseek v4 flash CoT closed today — resolved; GLM, others still open",
+      "sample_issues": ["#17212", "#17642", "#17253"]
     },
     {
       "topic": "Agent context window management",
@@ -76,28 +85,35 @@
       "sample_issues": ["#17571", "#17727", "#17735"]
     },
     {
-      "topic": "Thinking/CoT display and control across models",
-      "frequency": "medium",
-      "trending": true,
-      "sample_issues": ["#17751", "#17212", "#16623", "#17642"]
-    },
-    {
       "topic": "Process not terminating after window close",
       "frequency": "medium",
-      "trending": true,
-      "sample_issues": ["#17629", "#16550"]
+      "trending": false,
+      "note": "#17629 still active with 2 comments, no fix PR yet",
+      "sample_issues": ["#17629"]
+    },
+    {
+      "topic": "Knowledge base / RAG embedding failures",
+      "frequency": "medium",
+      "trending": false,
+      "sample_issues": ["#17170", "#17141", "#17002", "#17002"]
     }
   ],
   "community_health": {
-    "open_help_wanted": 25,
-    "total_open_issues": 842,
-    "merged_prs_last_30d": 568,
-    "note": "Project extremely active — 5 new issues today, 568 PRs merged last 30 days. High engagement from internal team (SiinXu, DeJeune, kennyzheng-builds)."
+    "open_help_wanted": 24,
+    "total_open_issues": 837,
+    "merged_prs_last_30d": 572,
+    "note": "Extremely active project. 8 new issues today, 572 PRs merged in last 30 days. Internal team (SiinXu, DeJeune, kennyzheng-builds) drives majority of PRs. Community contribution growing."
   },
   "trending_today": [
-    "deepseek v4 flash CoT not displaying (#17751)",
-    "Agent 'Failed to list agents' error (#17781)",
-    "Agent Orchestration Primitives feature request (#17782)",
-    "Processes not cleaning up after window close (#17629 still active)"
+    "v2 Agent migration fans out shared workspace → ENOSPC (#17830 — DATA INTEGRITY RISK)",
+    "v2.0.0-rc.4 Quick Assistant reply color transparent/unreadable (#17822 — rc.4 UX regression)",
+    "MCP stdio process leak still active with 4 comments (#17689)",
+    "Processes not cleaning up after window close (#17629 updated today)",
+    "deepseek v4 flash CoT issue RESOLVED and closed (#17751)"
+  ],
+  "resolved_today": [
+    "#17751 deepseek v4 flash chain of thought not displaying — CLOSED",
+    "#17729 MCP tool log black triangle symbol — CLOSED",
+    "#17605 alphaXiv MCP OAuth failure — CLOSED"
   ]
 }

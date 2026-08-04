@@ -1,35 +1,35 @@
 {
-  "report_date": "2026-08-03",
-  "total_open": 842,
-  "delta_from_yesterday": -7,
+  "report_date": "2026-08-04",
+  "total_open": 837,
+  "delta_from_yesterday": -5,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Jul 27 – Aug 3)",
-      "estimated_count": 295,
-      "pct": 35.0
+      "description": "Updated within last 7 days (Jul 28 – Aug 4)",
+      "estimated_count": 302,
+      "pct": 36.1
     },
     "aging": {
-      "description": "Updated 7–30 days ago (Jul 4 – Jul 26)",
-      "estimated_count": 248,
-      "pct": 29.5
+      "description": "Updated 7–30 days ago (Jul 5 – Jul 27)",
+      "estimated_count": 238,
+      "pct": 28.4
     },
     "stale": {
-      "description": "Updated 30–90 days ago (May 5 – Jul 3)",
-      "estimated_count": 200,
+      "description": "Updated 30–90 days ago (May 6 – Jul 4)",
+      "estimated_count": 198,
       "pct": 23.7
     },
     "zombie": {
-      "description": "Not updated in 90+ days (before May 5)",
+      "description": "Not updated in 90+ days (before May 6)",
       "estimated_count": 99,
       "pct": 11.8
     }
   },
-  "note_on_inactive_label": "Many issues in the 30–90 day window carry the 'inactive' label (bot-applied). The bot's comment bumps updated_at daily, which inflates the 'active' bucket if measured naively. Counts above use estimated human-activity dates.",
+  "note_on_inactive_label": "Many issues in the 30–90 day window carry the 'inactive' label (bot-applied). The bot's comment bumps updated_at, inflating the 'active' bucket. Counts above use estimated human-activity dates. Inactive bot continued closing old issues on Aug 4.",
   "label_coverage": {
-    "labeled_count": 746,
-    "unlabeled_count": 96,
-    "unlabeled_pct": 11.4,
-    "note": "96 issues lack any label — triage backlog (improved from 97 yesterday)"
+    "labeled_count": 743,
+    "unlabeled_count": 94,
+    "unlabeled_pct": 11.2,
+    "note": "94 issues lack any label — slight improvement from 96 yesterday (2 triaged). Triage backlog remains significant."
   },
   "p1_open_issues": {
     "count": 3,
@@ -37,20 +37,22 @@
       {
         "number": 14899,
         "title": "Unified Notification Center",
-        "age_days": 88,
-        "status": "Planned — no active PR"
+        "age_days": 89,
+        "milestone": "v2.4.0",
+        "status": "Planned — no active fix PR found"
       },
       {
         "number": 13608,
         "title": "xiaomi mimo response last-line only",
-        "age_days": 138,
-        "status": "No fix PR found"
+        "age_days": 139,
+        "status": "No fix PR found — aging without triage"
       },
       {
         "number": 13193,
-        "title": "Azure OpenAI responses API fallback failure",
-        "age_days": 152,
-        "status": "No fix PR found"
+        "title": "Azure OpenAI responses API fallback failure (404)",
+        "age_days": 153,
+        "assignee": "DeJeune",
+        "status": "Assigned to DeJeune — no fix PR yet"
       }
     ]
   },
@@ -59,56 +61,82 @@
       "number": 17636,
       "title": "Agent session turn can hang forever after a failed turn",
       "closed_at": "2026-07-30",
-      "note": "Fixed and closed yesterday — good signal"
+      "note": "Fixed 5 days ago — strong signal"
     }
   ],
-  "v2_migration_bugs_open": {
-    "examples": [
+  "rc4_regressions_open": {
+    "count": 5,
+    "new_today": [
+      "#17822 Quick Assistant reply color is transparent/unreadable in rc.4 (Assistant, UI/UX)"
+    ],
+    "existing": [
+      "#17571 v2 RC1 missing context count slider — context count adjustment removed with no replacement",
       "#17470 v2 migration aborts on legacy agents.db schema drift",
       "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
-      "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined",
-      "#17571 v2 RC1 chat mode missing context window/context count adjustment"
-    ],
-    "note": "Multiple v2 RC migration and regression issues remain open — rc.4 shipped, rc.5 work in progress"
+      "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined"
+    ]
+  },
+  "new_high_impact_today": {
+    "issues": [
+      {
+        "number": 17830,
+        "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
+        "labels": ["Data"],
+        "severity": "HIGH — disk exhaustion, data loss risk",
+        "comments": 2
+      },
+      {
+        "number": 17822,
+        "title": "v2.0.0-rc.4 Quick Assistant reply color is transparent and hard to read",
+        "labels": ["Assistant", "UI/UX"],
+        "severity": "MEDIUM — usability regression in rc.4"
+      }
+    ]
   },
   "agent_bugs_cluster": {
-    "count_estimate": 25,
+    "count_estimate": 26,
     "new_today": [
-      "#17781 My agent shows 'Failed to list agents'"
+      "#17830 v2 Agent migration fans out shared workspace → ENOSPC (Data)"
     ],
-    "examples": [
+    "ongoing_priority": [
+      "#17689 MCP stdio server process leak — duplicate python per tool call (4 comments)",
       "#17587 Claude Agent sessions persist zero-output results as successful turns",
-      "#17486 Agent auth fails (401) while assistant chat works fine",
       "#17727 Agent context compression not working in Work tab",
       "#17329 Built-in Cherry Assistant crashes — CherryAI not routable",
-      "#17560 Agent disappears from sidebar after clearing conversation"
+      "#17560 Agent disappears from sidebar after clearing conversation",
+      "#17781 'Failed to list agents' (needs-more-info)"
     ]
   },
   "performance_issues_open": {
-    "count_estimate": 60,
-    "pattern": "Performance issues are mostly internal tech-debt filed by DeJeune — lazy loading, virtualization, deferred bundles. Many have corresponding PRs already open."
+    "count_estimate": 59,
+    "pattern": "Systematic lazy-load/virtualization wave filed by DeJeune. Many have corresponding open PRs. Good coverage — execution in progress."
   },
   "mcp_cluster": {
-    "count_estimate": 55,
-    "notable": [
-      "#17689 MCP stdio server process leak — duplicate python instances per tool call",
-      "#17688 mcp-auto-install cannot start — npm 404",
-      "#17605 Unable to complete alphaXiv MCP OAuth"
+    "count_estimate": 53,
+    "closed_today": [
+      "#17729 MCP tool log black triangle symbol (closed)",
+      "#17605 alphaXiv MCP OAuth (closed)"
+    ],
+    "still_open": [
+      "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active today)",
+      "#17688 mcp-auto-install npm 404",
+      "#17000 Refactor tool rendering into typed routing model"
     ]
   },
   "new_issue_activity_today": {
-    "count": 5,
+    "count": 8,
     "breakdown": {
-      "feature_requests": 3,
-      "bugs": 1,
-      "other": 1
+      "feature_requests": 5,
+      "bugs": 3,
+      "other_or_empty": 1
     }
   },
   "recommendations": [
-    "Triage 96 unlabeled issues — 11.4% of backlog invisible to label filters",
-    "P1 issues #13608 and #13193 are 138–152 days old with no fix PR — need owner assignment or close as wontfix",
-    "Agent auth/session bugs (#17486, #17329, #17587, #17781) are user-facing regressions in v2 — cluster for sprint",
-    "MCP process leak (#17689) is a systemic issue affecting all Windows users with Python MCP servers",
-    "v2 RC regression #17571 (missing context count slider) has 2 comments — user pressure building"
+    "URGENT: #17830 v2 Agent migration → ENOSPC — disk exhaustion risk for users with large v1 history, needs hotfix priority",
+    "URGENT: #17822 rc.4 Quick Assistant reply color transparent — UX regression, blocking usability of Quick Assistant",
+    "Triage 94 unlabeled issues — 11.2% of backlog invisible to label filters",
+    "P1 issues #13608 (139 days) and #13193 (153 days) aging without fix — assign or close as wontfix",
+    "MCP process leak #17689 has 4 comments and growing — systemic, needs fix before stable",
+    "v2 context count slider #17571 missing 12 days with user pressure — needs design decision or PR"
   ]
 }
