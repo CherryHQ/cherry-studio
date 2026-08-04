@@ -44,9 +44,11 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
   const { t } = useTranslation()
 
   return (
-    <Item asChild size="sm" variant="outline" className="w-full cursor-pointer hover:bg-accent/50">
+    <Item asChild size="sm" variant="outline" className="w-full cursor-pointer rounded-xl hover:bg-accent/50">
       <button type="button" onClick={() => void onSelect()}>
-        <ItemMedia variant="icon" className="border-primary/20 bg-primary/10 text-primary">
+        <ItemMedia
+          variant="icon"
+          className="border-primary/20 bg-primary/10 text-primary [&_.lucide:not(.lucide-custom)]:text-current!">
           {icon}
         </ItemMedia>
         <ItemContent className="min-w-0 text-left">
