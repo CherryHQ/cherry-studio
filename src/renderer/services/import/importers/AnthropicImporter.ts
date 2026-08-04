@@ -7,78 +7,55 @@ import {
   MessageBlockStatus,
   MessageBlockType,
   type ThinkingMessageBlock,
-  type ToolMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
 import { uuid } from '@renderer/utils/uuid'
 
-import type { ConversationImporter, ImportMessageBlock, ImportResult } from '../types'
+import type { ConversationImporter, ImportMessageBlock, ImportResult, ImportToolMessageBlock } from '../types'
 
 const logger = loggerService.withContext('AnthropicImporter')
 
-/**
- * Anthropic Claude Export Format Types
- */
-interface AnthropicCitation {
-  uuid: string
-  start_index: number
-  end_index: number
-  details: {
-    type: string
-    url: string
-  }
-}
-
-interface AnthropicAttachment {
-  file_name: string
-  file_size?: number
-  file_type?: string
-  extracted_content?: string
-}
-
-interface AnthropicFile {
-  file_name: string
-}
-
-/** Content items inside a tool_result block */
 interface AnthropicToolResultContent {
-  type: string
-  text?: string
-  uuid?: string
-  // knowledge type fields
-  title?: string
-  url?: string
-  is_missing?: boolean
+  text: string
 }
 
-interface AnthropicContentBlock {
-  type: string
-  start_timestamp?: string | null
-  stop_timestamp?: string | null
-  flags?: null
-  // text block fields
-  text?: string
-  citations?: AnthropicCitation[]
-  // thinking block fields
-  thinking?: string
-  summaries?: { summary: string }[]
-  cut_off?: boolean
-  truncated?: boolean
-  alternative_display_type?: string | null
-  // tool_use block fields
-  id?: string | null
-  name?: string
-  input?: Record<string, string | number | boolean | null>
-  message?: string | null
-  display_content?: { type: string; text?: string; json_block?: string } | null
-  icon_name?: string | null
-  // tool_result block fields
-  tool_use_id?: string | null
-  content?: AnthropicToolResultContent[]
-  is_error?: boolean
-  structured_content?: object | null
+interface AnthropicTextBlock {
+  type: 'text'
+  text: string
 }
+
+interface AnthropicThinkingBlock {
+  type: 'thinking'
+  thinking: string
+  start_timestamp: string
+  stop_timestamp: string
+}
+
+interface AnthropicToolUseBlock {
+  type: 'tool_use'
+  id: string | null
+  name: string
+  input: Record<string, unknown>
+}
+
+interface AnthropicToolResultBlock {
+  type: 'tool_result'
+  tool_use_id: string | null
+  content: AnthropicToolResultContent[]
+  is_error: boolean
+}
+
+interface AnthropicTokenBudgetBlock {
+  type: 'token_budget'
+}
+
+type AnthropicContentBlock =
+  | AnthropicTextBlock
+  | AnthropicThinkingBlock
+  | AnthropicToolUseBlock
+  | AnthropicToolResultBlock
+  | AnthropicTokenBudgetBlock
 
 interface AnthropicMessage {
   uuid: string
@@ -87,17 +64,14 @@ interface AnthropicMessage {
   sender: 'human' | 'assistant'
   created_at: string
   updated_at: string
-  attachments?: AnthropicAttachment[]
-  files?: AnthropicFile[]
 }
 
 interface AnthropicConversation {
   uuid: string
   name: string
-  summary?: string
+  summary: string
   created_at: string
   updated_at: string
-  account?: { uuid: string }
   chat_messages: AnthropicMessage[]
 }
 
@@ -115,18 +89,10 @@ export class AnthropicImporter implements ConversationImporter {
   validate(fileContent: string): boolean {
     try {
       const parsed = JSON.parse(fileContent)
-      const conversations = Array.isArray(parsed) ? parsed : [parsed]
-
-      return conversations.every(
-        (conv) =>
-          conv &&
-          typeof conv === 'object' &&
-          'uuid' in conv &&
-          'chat_messages' in conv &&
-          Array.isArray(conv.chat_messages) &&
-          'created_at' in conv &&
-          // Distinguish from ChatGPT format which uses 'mapping'
-          !('mapping' in conv)
+      return (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every(({ uuid, created_at, chat_messages }) => uuid && created_at && Array.isArray(chat_messages))
       )
     } catch {
       return false
@@ -139,10 +105,9 @@ export class AnthropicImporter implements ConversationImporter {
   async parse(fileContent: string, assistantId: string): Promise<ImportResult> {
     logger.info('Starting Anthropic Claude import...')
 
-    const parsed = JSON.parse(fileContent)
-    const conversations: AnthropicConversation[] = Array.isArray(parsed) ? parsed : [parsed]
+    const conversations = JSON.parse(fileContent) as AnthropicConversation[]
 
-    if (!conversations || conversations.length === 0) {
+    if (conversations.length === 0) {
       throw new Error(i18n.t('import.claude.error.no_conversations'))
     }
 
@@ -177,45 +142,37 @@ export class AnthropicImporter implements ConversationImporter {
   }
 
   /**
-   * Extract text content from Anthropic content blocks (non-empty text blocks only)
-   */
-  private extractTextContent(message: AnthropicMessage): string {
-    if (message.content && message.content.length > 0) {
-      const textParts = message.content
-        .filter((block) => block.type === 'text' && block.text && block.text.trim().length > 0)
-        .map((block) => block.text!.trim())
-
-      if (textParts.length > 0) {
-        return textParts.join('\n\n')
-      }
-    }
-
-    return message.text?.trim() ?? ''
-  }
-
-  /**
    * Check if a message has any usable content (text, thinking, or tool calls)
    */
   private hasUsableContent(message: AnthropicMessage): boolean {
-    if (this.extractTextContent(message).length > 0) return true
-    return (message.content ?? []).some((b) => b.type === 'tool_use' || b.type === 'thinking')
+    return (
+      message.text.trim().length > 0 ||
+      message.content.some((block) => block.type === 'tool_use' || block.type === 'thinking')
+    )
   }
 
   /**
    * Extract text from tool_result content items
    */
-  private extractToolResultContent(block: AnthropicContentBlock): string | object | undefined {
-    if (block.structured_content) return block.structured_content
+  private extractToolResultContent(block: AnthropicToolResultBlock): string {
+    return block.content.map((item) => item.text).join('\n\n')
+  }
 
-    if (block.content?.length) {
-      const textItems = block.content.filter((item) => item.type === 'text' && item.text)
-      if (textItems.length === block.content.length) {
-        return textItems.map((item) => item.text).join('\n\n')
-      }
-      return block.content
+  private createMainTextBlock(
+    messageId: string,
+    content: string,
+    createdAt: string,
+    updatedAt: string
+  ): MainTextMessageBlock {
+    return {
+      id: uuid(),
+      messageId,
+      type: MessageBlockType.MAIN_TEXT,
+      content,
+      createdAt,
+      updatedAt,
+      status: MessageBlockStatus.SUCCESS
     }
-
-    return block.display_content?.text ?? block.display_content?.json_block ?? block.message ?? undefined
   }
 
   /**
@@ -229,15 +186,15 @@ export class AnthropicImporter implements ConversationImporter {
   ): { message: Message; blocks: ImportMessageBlock[] } {
     const messageId = uuid()
     const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
-    const createdAt = anthropicMessage.created_at ?? new Date().toISOString()
-    const updatedAt = anthropicMessage.updated_at ?? createdAt
+    const createdAt = anthropicMessage.created_at
+    const updatedAt = anthropicMessage.updated_at
 
     const blocks: ImportMessageBlock[] = []
-    const contentBlocks = anthropicMessage.content ?? []
+    const contentBlocks = anthropicMessage.content
 
     // Index tool_result blocks by their tool_use_id for O(1) lookup
-    const toolResultMap = new Map<string, AnthropicContentBlock>()
-    const anonymousToolResults: AnthropicContentBlock[] = []
+    const toolResultMap = new Map<string, AnthropicToolResultBlock>()
+    const anonymousToolResults: AnthropicToolResultBlock[] = []
     for (const block of contentBlocks) {
       if (block.type !== 'tool_result') continue
       if (block.tool_use_id) {
@@ -249,15 +206,21 @@ export class AnthropicImporter implements ConversationImporter {
 
     // Iterate content blocks in order, building typed blocks
     let anonymousToolIndex = 0
+    let hasTextBlock = false
     for (const contentBlock of contentBlocks) {
       switch (contentBlock.type) {
-        case 'thinking': {
-          if (!contentBlock.thinking) break
+        case 'text': {
+          const content = contentBlock.text.trim()
+          if (!content) break
 
+          blocks.push(this.createMainTextBlock(messageId, content, createdAt, updatedAt))
+          hasTextBlock = true
+          break
+        }
+
+        case 'thinking': {
           const thinkingMs =
-            contentBlock.start_timestamp && contentBlock.stop_timestamp
-              ? new Date(contentBlock.stop_timestamp).getTime() - new Date(contentBlock.start_timestamp).getTime()
-              : 0
+            new Date(contentBlock.stop_timestamp).getTime() - new Date(contentBlock.start_timestamp).getTime()
 
           const thinkingBlock: ThinkingMessageBlock = {
             id: uuid(),
@@ -278,73 +241,37 @@ export class AnthropicImporter implements ConversationImporter {
           const toolResult = contentBlock.id
             ? toolResultMap.get(contentBlock.id)
             : anonymousToolResults[anonymousToolIndex++]
-          const resultContent = toolResult ? this.extractToolResultContent(toolResult) : undefined
-          const toolStatus = toolResult?.is_error ? 'error' : 'done'
 
-          const toolBlock: ToolMessageBlock = {
+          const toolBlock: ImportToolMessageBlock = {
             id: uuid(),
             messageId,
             type: MessageBlockType.TOOL,
             toolId,
             toolName: contentBlock.name,
             arguments: contentBlock.input,
-            content: resultContent,
             createdAt,
             updatedAt,
-            status: toolResult?.is_error ? MessageBlockStatus.ERROR : MessageBlockStatus.SUCCESS,
-            // Populate rawMcpToolResponse so MessageMcpTool can render arguments and response
-            metadata: {
-              rawMcpToolResponse: {
-                id: toolId,
-                toolUseId: toolId,
-                tool: {
-                  id: contentBlock.name ?? '',
-                  name: contentBlock.name ?? '',
-                  serverId: 'anthropic-import',
-                  serverName: 'Claude',
-                  type: 'mcp',
-                  inputSchema: { type: 'object', properties: {}, required: [] }
-                },
-                arguments: contentBlock.input ?? {},
-                status: toolStatus,
-                response: resultContent
-                  ? {
-                      content: [
-                        {
-                          type: 'text',
-                          text: typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent)
-                        }
-                      ]
-                    }
-                  : undefined
-              }
-            }
+            ...(toolResult?.is_error
+              ? { content: this.extractToolResultContent(toolResult), status: MessageBlockStatus.ERROR }
+              : {
+                  content: toolResult ? this.extractToolResultContent(toolResult) : undefined,
+                  status: MessageBlockStatus.SUCCESS
+                })
           }
           blocks.push(toolBlock)
           break
         }
 
         case 'tool_result':
-          // Handled via toolResultMap when processing tool_use; skip here
-          break
-
-        default:
-          // 'text' and other unknown types — handled below via extractTextContent
+        case 'token_budget':
           break
       }
     }
 
-    // Always add a MainTextMessageBlock (may be empty for tool-only messages)
-    const mainBlock: MainTextMessageBlock = {
-      id: uuid(),
-      messageId,
-      type: MessageBlockType.MAIN_TEXT,
-      content: this.extractTextContent(anthropicMessage),
-      createdAt,
-      updatedAt,
-      status: MessageBlockStatus.SUCCESS
+    const messageText = anthropicMessage.text.trim()
+    if (!hasTextBlock && messageText) {
+      blocks.push(this.createMainTextBlock(messageId, messageText, createdAt, updatedAt))
     }
-    blocks.push(mainBlock)
 
     const message: Message = {
       id: messageId,
@@ -389,7 +316,7 @@ export class AnthropicImporter implements ConversationImporter {
     const blocks: ImportMessageBlock[] = []
 
     // Filter out messages with no usable content
-    const usableMessages = (conversation.chat_messages ?? []).filter((msg) => this.hasUsableContent(msg))
+    const usableMessages = conversation.chat_messages.filter((msg) => this.hasUsableContent(msg))
 
     // Skip entirely empty conversations
     if (usableMessages.length === 0) {
@@ -403,9 +330,7 @@ export class AnthropicImporter implements ConversationImporter {
     }
 
     const title =
-      (conversation.name && conversation.name.trim()) ||
-      (conversation.summary && conversation.summary.trim()) ||
-      i18n.t('import.claude.untitled_conversation')
+      conversation.name.trim() || conversation.summary.trim() || i18n.t('import.claude.untitled_conversation')
 
     const topic: Topic = {
       id: topicId,
@@ -414,7 +339,7 @@ export class AnthropicImporter implements ConversationImporter {
       createdAt: conversation.created_at,
       updatedAt: conversation.updated_at,
       messages,
-      isNameManuallyEdited: !!(conversation.name && conversation.name.trim())
+      isNameManuallyEdited: Boolean(conversation.name.trim())
     }
 
     return { topic, messages, blocks }

@@ -189,7 +189,7 @@ class ImportService {
   private toMessageParts(message: Message, blocksById: Map<string, ImportMessageBlock>): CherryMessagePart[] {
     return message.blocks.flatMap((blockId): CherryMessagePart[] => {
       const block = blocksById.get(blockId)
-      if (!block) return []
+      if (!block) throw new Error(`Missing imported message block: ${blockId}`)
 
       switch (block.type) {
         case MessageBlockType.MAIN_TEXT:
@@ -201,38 +201,23 @@ class ImportService {
         }
 
         case MessageBlockType.TOOL: {
-          const toolName = block.toolName || 'unknown'
           const base = {
             type: 'dynamic-tool' as const,
-            toolCallId: block.toolId || block.id,
-            toolName,
-            input: block.arguments ?? {}
+            toolCallId: block.toolId,
+            toolName: block.toolName,
+            input: block.arguments
           }
 
           let part: DynamicToolUIPart
           if (block.status === MessageBlockStatus.ERROR) {
-            const errorText =
-              typeof block.content === 'string' ? block.content : JSON.stringify(block.content ?? 'Tool call failed')
-            part = { ...base, state: 'output-error', errorText }
+            part = { ...base, state: 'output-error', errorText: block.content }
           } else if (block.content === undefined) {
             part = { ...base, state: 'input-available' }
           } else {
             part = { ...base, state: 'output-available', output: block.content }
           }
 
-          const rawTool = block.metadata?.rawMcpToolResponse?.tool
-          if (!rawTool || rawTool.type !== 'mcp' || !('serverId' in rawTool) || !('serverName' in rawTool))
-            return [part]
-
-          return [
-            withCherryMeta(part, {
-              tool: {
-                type: rawTool.type,
-                ...(rawTool.serverId ? { serverId: rawTool.serverId } : {}),
-                ...(rawTool.serverName ? { serverName: rawTool.serverName } : {})
-              }
-            })
-          ]
+          return [part]
         }
       }
     })

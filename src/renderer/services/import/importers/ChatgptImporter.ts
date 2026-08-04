@@ -15,6 +15,24 @@ import type { ConversationImporter, ImportResult } from '../types'
 
 const logger = loggerService.withContext('ChatgptImporter')
 
+const ENTITY_MARKER = /\uE200entity\uE202([^\uE201]*)\uE201/g
+const URL_MARKER = /\uE200url\uE202([^\uE202]*)\uE202([^\uE201]*)\uE201/g
+const METADATA_MARKER = /\uE200(?:cite|filecite|genui|image_group)\uE202[^\uE201]*\uE201/g
+
+const normalizeExportText = (text: string): string =>
+  text
+    .replace(ENTITY_MARKER, (_, payload: string) => {
+      const [, label] = JSON.parse(payload) as [string, string, string]
+      return label
+    })
+    .replace(URL_MARKER, (_, label: string, target: string) =>
+      target.startsWith('https://') || target.startsWith('http://') ? `[${label}](${target})` : label
+    )
+    .replace(METADATA_MARKER, '')
+
+const extractTextParts = (parts: unknown[] = []): string[] =>
+  parts.filter((part): part is string => typeof part === 'string')
+
 /**
  * ChatGPT Export Format Types
  */
@@ -25,7 +43,7 @@ interface ChatGPTMessage {
   }
   content: {
     content_type: string
-    parts?: string[]
+    parts?: unknown[]
   }
   metadata?: any
   create_time?: number
@@ -153,13 +171,9 @@ export class ChatgptImporter implements ConversationImporter {
       const node = mapping[id]
       if (node?.message) {
         const message = node.message
+        const textParts = extractTextParts(message.content?.parts)
         // Filter out empty messages and tool messages
-        if (
-          message.author.role !== 'tool' &&
-          message.content?.parts &&
-          message.content.parts.length > 0 &&
-          message.content.parts.some((part) => part && part.trim().length > 0)
-        ) {
+        if (message.author.role !== 'tool' && textParts.some((part) => part.trim().length > 0)) {
           messages.push(message)
         }
       }
@@ -190,7 +204,10 @@ export class ChatgptImporter implements ConversationImporter {
     const role = this.mapRole(chatgptMessage.author.role)
 
     // Extract text content from parts
-    const content = (chatgptMessage.content?.parts || []).filter((part) => part && part.trim()).join('\n\n')
+    const content = extractTextParts(chatgptMessage.content?.parts)
+      .filter((part) => part && part.trim())
+      .map(normalizeExportText)
+      .join('\n\n')
 
     const createdAt = chatgptMessage.create_time
       ? new Date(chatgptMessage.create_time * 1000).toISOString()

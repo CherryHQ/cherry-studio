@@ -174,19 +174,18 @@ describe('importService.importConversations', () => {
         toolName: 'search',
         input: { query: 'Cherry Studio' },
         state: 'output-available',
-        output: 'Result',
-        providerMetadata: {
-          cherry: { tool: { type: 'mcp', serverId: 'anthropic-import', serverName: 'Claude' } }
-        }
+        output: 'Result'
       },
       { type: 'text', text: 'Answer' }
     ])
   })
 
-  it('returns a failure response without creating an assistant for an unsupported format', async () => {
-    const response = await importService.importConversations('definitely not json')
+  it('returns a failure response without creating an assistant for invalid or empty exports', async () => {
+    const unsupportedResponse = await importService.importConversations('definitely not json')
+    const emptyClaudeResponse = await importService.importConversations('[]', 'claude')
 
-    expect(response.success).toBe(false)
+    expect(unsupportedResponse.success).toBe(false)
+    expect(emptyClaudeResponse.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
   })
 

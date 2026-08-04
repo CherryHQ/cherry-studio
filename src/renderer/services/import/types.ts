@@ -1,8 +1,22 @@
 import type { Assistant } from '@renderer/types/assistant'
-import type { MainTextMessageBlock, Message, ThinkingMessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
+import type { MessageBlockStatus } from '@renderer/types/newMessage'
+import {
+  type MainTextMessageBlock,
+  type Message,
+  type ThinkingMessageBlock,
+  type ToolMessageBlock
+} from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
 
-export type ImportMessageBlock = MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock
+type ImportToolMessageBlockBase = Omit<ToolMessageBlock, 'arguments' | 'content' | 'status' | 'toolName'> & {
+  arguments: Record<string, unknown>
+  toolName: string
+}
+
+export type ImportToolMessageBlock = ImportToolMessageBlockBase &
+  ({ content: string; status: MessageBlockStatus.ERROR } | { content?: string; status: MessageBlockStatus.SUCCESS })
+
+export type ImportMessageBlock = MainTextMessageBlock | ThinkingMessageBlock | ImportToolMessageBlock
 
 /**
  * Import result containing parsed data

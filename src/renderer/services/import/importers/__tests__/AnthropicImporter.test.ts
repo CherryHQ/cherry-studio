@@ -62,16 +62,17 @@ describe('AnthropicImporter', () => {
       expect(importer.validate(JSON.stringify([conversation()]))).toBe(true)
     })
 
-    it('accepts a single conversation object (not wrapped in an array)', () => {
-      expect(importer.validate(JSON.stringify(conversation()))).toBe(true)
+    it('rejects a conversation object that is not in the exported array format', () => {
+      expect(importer.validate(JSON.stringify(conversation()))).toBe(false)
     })
 
-    it('rejects the ChatGPT export format (has "mapping")', () => {
-      const chatgpt = { uuid: 'x', created_at: 'now', chat_messages: [], mapping: {} }
+    it('rejects the ChatGPT export format', () => {
+      const chatgpt = { title: 'ChatGPT chat', create_time: 1, mapping: {} }
       expect(importer.validate(JSON.stringify([chatgpt]))).toBe(false)
     })
 
-    it('rejects objects missing chat_messages', () => {
+    it('rejects empty arrays and objects missing chat_messages', () => {
+      expect(importer.validate('[]')).toBe(false)
       expect(importer.validate(JSON.stringify([{ uuid: 'x', created_at: 'now' }]))).toBe(false)
     })
 
@@ -113,7 +114,7 @@ describe('AnthropicImporter', () => {
       expect((mainBlock as any).content).toBe('Hello')
     })
 
-    it('prefers text content blocks over the flat text field', async () => {
+    it('keeps text content blocks separate and ignores the flat text field', async () => {
       const conv = conversation({
         chat_messages: [
           {
@@ -130,7 +131,7 @@ describe('AnthropicImporter', () => {
         ]
       })
       const result = await importer.parse(JSON.stringify([conv]), ASSISTANT_ID)
-      expect((result.blocks[0] as any).content).toBe('block one\n\nblock two')
+      expect(result.blocks.map((block) => block.content)).toEqual(['block one', 'block two'])
     })
 
     it('falls back to the flat text field when there are no text content blocks', async () => {
@@ -164,6 +165,7 @@ describe('AnthropicImporter', () => {
             start_timestamp: '2026-01-01T00:00:00.000Z',
             stop_timestamp: '2026-01-01T00:00:02.000Z'
           },
+          { type: 'text', text: 'I will search first' },
           { type: 'tool_use', id: 'tool-1', name: 'web_search', input: { query: 'cherry studio' } },
           {
             type: 'tool_result',
@@ -180,6 +182,13 @@ describe('AnthropicImporter', () => {
       const assistantMsg = result.messages.find((m) => m.role === 'assistant')!
       const assistantBlocks = result.blocks.filter((b) => b.messageId === assistantMsg.id)
 
+      expect(assistantBlocks.map((block) => block.type)).toEqual([
+        MessageBlockType.THINKING,
+        MessageBlockType.MAIN_TEXT,
+        MessageBlockType.TOOL,
+        MessageBlockType.MAIN_TEXT
+      ])
+
       const thinking = assistantBlocks.find((b) => b.type === MessageBlockType.THINKING)
       expect(thinking).toBeDefined()
       expect((thinking as any).content).toBe('Let me reason about this')
@@ -192,13 +201,11 @@ describe('AnthropicImporter', () => {
       expect(tool!.arguments).toEqual({ query: 'cherry studio' })
       expect(tool!.content).toBe('search result text')
       expect(tool!.status).toBe(MessageBlockStatus.SUCCESS)
-      expect(tool!.metadata?.rawMcpToolResponse?.tool.name).toBe('web_search')
-      expect(tool!.metadata?.rawMcpToolResponse?.status).toBe('done')
 
-      const main = assistantBlocks.find((b) => b.type === MessageBlockType.MAIN_TEXT)
-      expect((main as any).content).toBe('Here is the answer')
+      const mainBlocks = assistantBlocks.filter((b) => b.type === MessageBlockType.MAIN_TEXT)
+      expect(mainBlocks.map((block) => block.content)).toEqual(['I will search first', 'Here is the answer'])
 
-      // All three block ids are referenced by the message in order.
+      // Every block id is referenced by the message in source order.
       expect(assistantMsg.blocks).toEqual(assistantBlocks.map((b) => b.id))
     })
 
