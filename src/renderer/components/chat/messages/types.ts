@@ -293,6 +293,7 @@ export interface MessageListState {
   selection?: MessageListSelectionState
   editingMessageId?: string | null
   translationLanguages?: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
@@ -364,6 +365,8 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
+  requestTranslationLanguages?: () => void
+  retryTranslationLanguages?: () => void
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   removeMessageTranslation?: (messageId: string) => void | Promise<void>

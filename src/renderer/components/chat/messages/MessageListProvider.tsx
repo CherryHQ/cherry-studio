@@ -56,7 +56,10 @@ type MessageListDataValue = Pick<
 
 type MessageListMessagesValue = MessageListItem[]
 
-type MessageListUiStaticValue = Pick<MessageListState, 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'>
+type MessageListUiStaticValue = Pick<
+  MessageListState,
+  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus' | 'externalCodeEditors'
+>
 
 type MessageListUiSelectorsValue = Pick<
   MessageListState,
@@ -126,9 +129,10 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
+      translationLanguagesStatus: state.translationLanguagesStatus,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(

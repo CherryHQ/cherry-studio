@@ -75,6 +75,13 @@ describe('useMiniApps', () => {
   // === Data Loading ===
 
   describe('data loading', () => {
+    it('keeps the catalog and region detection inactive when no consumer needs mini apps', () => {
+      renderHook(() => useMiniApps({ enabled: false }))
+
+      expect(MockUseDataApi.useQuery).toHaveBeenCalledWith('/mini-apps', { enabled: false })
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
     it('should return empty arrays when no data', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())

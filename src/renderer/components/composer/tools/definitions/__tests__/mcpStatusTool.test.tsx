@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as { mcps?: string[] } | undefined,
+  agentIds: [] as Array<string | null>,
   loggerError: vi.fn(),
   mcpServers: [] as McpServer[],
+  mcpServerOptions: [] as Array<{ enabled?: boolean } | undefined>,
   open: vi.fn(),
   registerLaunchers: vi.fn<(launchers: unknown[]) => () => void>(() => () => undefined),
   toastError: vi.fn(),
@@ -22,7 +24,10 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({ agent: mocks.agent })
+  useAgent: (id: string | null) => {
+    mocks.agentIds.push(id)
+    return { agent: mocks.agent }
+  }
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
@@ -30,7 +35,10 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
-  useMcpServers: () => ({ mcpServers: mocks.mcpServers })
+  useMcpServers: (_query: unknown, options?: { enabled?: boolean }) => {
+    mocks.mcpServerOptions.push(options)
+    return { mcpServers: mocks.mcpServers, isLoading: false }
+  }
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
@@ -121,7 +129,9 @@ describe('mcpStatusTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.agent = undefined
+    mocks.agentIds = []
     mocks.mcpServers = []
+    mocks.mcpServerOptions = []
     mocks.updateAgent.mockResolvedValue({})
     mocks.updateAssistant.mockResolvedValue({})
   })
@@ -394,6 +404,21 @@ describe('mcpStatusTool', () => {
     expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [footer] }))
   })
 
+  it('defers MCP server and session-agent reads until the launcher opens', async () => {
+    renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
+    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
+
+    expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
+    expect(mocks.agentIds.at(-1)).toBeNull()
+
+    act(() => {
+      openLatestRegisteredPanel()
+    })
+
+    await waitFor(() => expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: true }))
+    expect(mocks.agentIds.at(-1)).toBe('agent-1')
+  })
+
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
     let resolveUpdate: (value: unknown) => void = () => undefined
     mocks.updateAssistant.mockImplementationOnce(
@@ -409,7 +434,10 @@ describe('mcpStatusTool', () => {
     renderMcpRuntime({ assistant, scope: TopicType.Chat })
     await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
 
-    const items = openLatestRegisteredPanel()
+    let items: ReturnType<typeof openLatestRegisteredPanel> = []
+    act(() => {
+      items = openLatestRegisteredPanel()
+    })
     act(() => {
       items[0].action?.({})
       items[0].action?.({})
