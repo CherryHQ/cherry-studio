@@ -125,12 +125,13 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               ? t('settings.skills.installSuccess', { name: lastSkill.name })
               : t('settings.skills.batchInstallComplete', { count: successCount })
           toast.success(message)
+          onOpenChange(false)
         }
       } finally {
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onOpenChange, t, updateItem]
   )
 
   const createImportItem = useCallback(
