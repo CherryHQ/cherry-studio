@@ -27,8 +27,9 @@ function getLatestCompletedThinkingPreview(content: string): string {
     const character = content[index]
     const nextCharacter = content[index + 1]
     const isLineEnding = character === '\n' || character === '\r'
+    const isFollowingCjkSentenceEnding = nextCharacter !== undefined && CJK_SENTENCE_ENDINGS.includes(nextCharacter)
     const isSentenceEnding =
-      CJK_SENTENCE_ENDINGS.includes(character) ||
+      (CJK_SENTENCE_ENDINGS.includes(character) && !isFollowingCjkSentenceEnding) ||
       (ASCII_SENTENCE_ENDINGS.includes(character) && (nextCharacter === undefined || /\s/.test(nextCharacter)))
 
     if (!isLineEnding && !isSentenceEnding) continue
