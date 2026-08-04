@@ -7,19 +7,36 @@ import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
+import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
-  resolveProviderAiSdkConfigMock: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  resolveRequestContextSettingsSpy: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
+
+// Spy that calls through to the real resolver (the null-pref mock keeps it
+// behavior-preserving) so existing tests are untouched but the assistant
+// override passthrough can be asserted.
+vi.mock('../../../../contextBuild/resolveRequestContextSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResolveRequestContextSettingsModule>()
+  return {
+    ...actual,
+    resolveRequestContextSettings: (...args: Parameters<typeof actual.resolveRequestContextSettings>) => {
+      resolveRequestContextSettingsSpy(...args)
+      return actual.resolveRequestContextSettings(...args)
+    }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -722,6 +739,115 @@ describe('buildAgentParams assistant-less reasoning', () => {
     } finally {
       registry.deregister(entry.name)
     }
+  })
+})
+
+describe('buildAgentParams retained context', () => {
+  const makeSetup = () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    return { provider, model }
+  }
+  const fileMessage = {
+    id: 'm1',
+    role: 'user' as const,
+    parts: [
+      { type: 'text', text: 'see attachment' },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'file:///tmp/log.txt',
+        filename: 'log.txt',
+        providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      }
+    ]
+  } as never
+
+  it('prefers the request-carried retained context over scanning messages', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [{ fileEntryId: 'fe-raw', handle: 'folded.txt', displayName: 'folded.txt' }],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage], retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    // Served messages carry fe-1, but the raw-path retained context wins.
+    expect(result.fileAttachments).toBe(retainedContext.fileAttachments)
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths).toEqual(
+      new Set(['/blobs/fe-blob.txt'])
+    )
+  })
+
+  it('clones the allow-list Set so mid-turn appends never reach the shared retained context', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const served = (result.options.context as RequestContext | undefined)?.persistedOutputPaths
+    expect(served).not.toBe(retainedContext.persistedOutputPaths)
+    served?.add('/blobs/new-mid-turn.txt')
+    expect(retainedContext.persistedOutputPaths.has('/blobs/new-mid-turn.txt')).toBe(false)
+  })
+
+  it('falls back to scanning served messages when no retained context rides the request', async () => {
+    const { provider, model } = makeSetup()
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage] },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
+  })
+})
+
+describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
+  it("forwards the assistant's contextSettings override to the resolver", async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    resolveRequestContextSettingsSpy.mockClear()
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    const override = { truncateThreshold: 4000, compress: { enabled: false } }
+    const assistant = makeAssistant({ settings: { contextSettings: override } })
+
+    await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
   })
 })
 

@@ -8,6 +8,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
@@ -37,6 +38,7 @@ import { defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
+import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
@@ -53,6 +55,7 @@ const RAIL_GUTTER_START_PX = 700
 /** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
 const RAIL_GUTTER_FADE_PX = 120
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
+const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
 
 interface ActiveMessageOutline {
   messageId: string
@@ -201,6 +204,11 @@ const MessageList = () => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
+  // needs a projection that only changes when its topology does — otherwise its
+  // `memo` never bails and every chunk re-renders all of its ticks.
+  const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
+  const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
@@ -795,9 +803,13 @@ const MessageList = () => {
       )}
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
-          messages={messages}
+          messages={anchorMessages}
           activeMessageId={activeAnchorMessageId}
           hasOlder={hasOlder}
+          historyPartsByMessageId={
+            streamingLayers?.historyPartsByMessageId ?? partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID
+          }
+          liveMessageIds={liveMessageIds}
           railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
           scrollToMessageId={scrollToMessageById}
         />
