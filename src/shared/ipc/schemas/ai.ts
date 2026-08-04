@@ -248,6 +248,10 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.builtin_assistant.ensure': defineRoute({
+    input: z.void(),
+    output: AgentEntitySchema
+  }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
