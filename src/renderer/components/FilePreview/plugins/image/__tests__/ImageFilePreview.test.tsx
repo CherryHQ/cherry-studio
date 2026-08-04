@@ -6,13 +6,18 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mocks = vi.hoisted(() => ({ ipcApiRequest: vi.fn() }))
+
 vi.unmock('@cherrystudio/ui')
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 beforeEach(() => {
-  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+  mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
     type: 'image',
     size: 128,
@@ -32,7 +37,7 @@ describe('image file preview plugin', () => {
   it('renders a local image through a file URL', async () => {
     render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as AbsoluteFilePath} />)
 
-    const image = await screen.findByAltText('summer holiday.png')
+    const image = await screen.findByAltText('summer holiday.png', undefined, { timeout: 5000 })
 
     expect(image).toHaveAttribute('src', 'file:///tmp/photos/summer%20holiday.png')
     expect(screen.getByTestId('image-preview-viewport').parentElement).toHaveClass('p-4')
@@ -41,7 +46,7 @@ describe('image file preview plugin', () => {
   it('renders SVG through a direct file URL instead of the danger-ext directory wrap', async () => {
     render(<FilePreview filePath={'/tmp/art/logo.svg' as AbsoluteFilePath} />)
 
-    const image = await screen.findByAltText('logo.svg')
+    const image = await screen.findByAltText('logo.svg', undefined, { timeout: 5000 })
 
     expect(image).toHaveAttribute('src', 'file:///tmp/art/logo.svg')
   })

@@ -23,16 +23,24 @@ const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
+const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet
+    get: mockApplicationGet,
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)
+  }
+}))
+
+vi.mock('@data/services/JobService', () => ({
+  jobService: {
+    addFileRefsTx: (...args: unknown[]) => mockAddFileRefsTx(...args)
   }
 }))
 
@@ -333,6 +341,7 @@ describe('AiService', () => {
 
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
       // wire shape. Only n/size/seed/aspectRatio are AI SDK native options; the
@@ -392,7 +401,11 @@ describe('AiService', () => {
       }
     ])
 
-    expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
+    expect(createInternalEntry).toHaveBeenCalledWith({
+      source: 'base64',
+      data: 'data:image/png;base64,abc123',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(result).toEqual({ files: [fileEntry] })
   })
 
@@ -413,6 +426,7 @@ describe('AiService', () => {
 
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       paramValues: { size: 'auto' }
     })
@@ -422,6 +436,7 @@ describe('AiService', () => {
     // rather than the old forced 1024x1024.
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'draw a cat',
       paramValues: {}
     })
@@ -441,6 +456,7 @@ describe('AiService', () => {
 
     await service.generateImage({
       uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a fox',
       // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
       paramValues: {
@@ -490,6 +506,7 @@ describe('AiService', () => {
       await service.generateImage({
         uniqueModelId: 'test-provider::test-model',
         prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
         paramValues: {}
       })
 
@@ -530,6 +547,7 @@ describe('AiService', () => {
           uniqueModelId: 'test-provider::test-model',
           assistantId: 'assistant-1',
           prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
           paramValues: {}
         })
       ).rejects.toThrow('disk full')
@@ -1172,19 +1190,25 @@ describe('imageInputEntryParams', () => {
   it('maps a base64 data URL to a base64 entry', () => {
     expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
       source: 'base64',
-      data: 'data:image/png;base64,AAAA'
+      data: 'data:image/png;base64,AAAA',
+      cleanupPolicy: 'delete_when_unreferenced'
     })
   })
 
   it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
     expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
       source: 'url',
-      url: 'https://cdn.example.com/in.png'
+      url: 'https://cdn.example.com/in.png',
+      cleanupPolicy: 'delete_when_unreferenced'
     })
   })
 })
 
 describe('AiService.generateImage — custom async transport (job path)', () => {
+  beforeEach(() => {
+    mockAddFileRefsTx.mockReset()
+  })
+
   // Force the job branch by resolving to a custom-transport provider id; real
   // hasImageTransport('ppio', …) routes through generateImageViaJob before
   // buildAgentParamsFor can select and rotate a serving key.
@@ -1205,47 +1229,6 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
 
-  it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
-    const service = createService()
-    const buildAgentParamsFor = stubResolution(service)
-
-    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
-    const permanentDelete = vi.fn().mockResolvedValue(undefined)
-    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
-    const enqueue = vi.fn().mockReturnValue({
-      id: 'job-1',
-      snapshot: {},
-      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
-    })
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'FileManager') return { createInternalEntry, permanentDelete }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
-      return undefined
-    })
-
-    const result = await service.generateImage({
-      uniqueModelId: 'ppio::qwen-image',
-      assistantId: 'assistant-1',
-      prompt: 'a cat',
-      paramValues: {},
-      inputImages: ['data:image/png;base64,AAAA'],
-      requestOptions: { signal: new AbortController().signal }
-    })
-
-    expect(enqueue).toHaveBeenCalledWith(
-      'image-generation.generate',
-      expect.objectContaining({
-        uniqueModelId: 'ppio::qwen-image',
-        prompt: 'a cat',
-        inputFileIds: ['in-1'],
-        source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
-      })
-    )
-    expect(result).toEqual({ files: outputFiles })
-    expect(permanentDelete).toHaveBeenCalledWith('in-1')
-    expect(buildAgentParamsFor).not.toHaveBeenCalled()
-  })
-
   it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
     // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
     // AI SDK native options — they must reach the transport in `providerParams`
@@ -1261,12 +1244,15 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
     await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       paramValues: {
         numImages: 1,
@@ -1311,12 +1297,15 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
     await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       mode: 'edit',
       paramValues: {},
@@ -1347,7 +1336,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockReturnValue({
+          enqueueTx: () => ({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
@@ -1355,11 +1344,18 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           cancel: vi.fn()
         }
       }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
     await expect(
-      service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', paramValues: {} })
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     ).rejects.toThrow('vendor exploded')
   })
 
@@ -1374,7 +1370,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockReturnValue({
+          enqueueTx: () => ({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
@@ -1382,18 +1378,124 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           cancel
         }
       }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
     await expect(
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         paramValues: {},
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
     expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
+  })
+
+  it('enqueues the job, returns its output files, and classifies the temp input copy for GC reclaim', async () => {
+    const service = createService()
+    stubResolution(service)
+
+    // Distinct ids per create so the input and mask rows are told apart below.
+    const createInternalEntry = vi.fn().mockResolvedValueOnce({ id: 'in-1' }).mockResolvedValueOnce({ id: 'mask-1' })
+    const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
+    })
+    const tx = {}
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn(tx) }
+      return undefined
+    })
+
+    const result = await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      // Carries the assistant so the payload's `source` snapshot resolves — the
+      // job path must still attribute usage to its caller.
+      assistantId: 'assistant-1',
+      prompt: 'a cat',
+      paramValues: {},
+      inputImages: ['data:image/png;base64,AAAA'],
+      mask: 'data:image/png;base64,BBBB',
+      cleanupPolicy: 'delete_when_unreferenced',
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        inputFileIds: ['in-1'],
+        maskFileId: 'mask-1',
+        source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+      })
+    )
+    expect(result).toEqual({ files: outputFiles })
+    // No FileManager ref holds the temp input copy — it must be classified
+    // 'delete_when_unreferenced' so the cleanup pass reclaims it instead of
+    // relying on an ad-hoc delete.
+    expect(createInternalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
+    )
+    // AiService owns the image job's scratch-input resource semantics. It uses
+    // the handle id returned by enqueueTx and writes both roles through
+    // JobService in the exact same transaction.
+    expect(mockAddFileRefsTx).toHaveBeenCalledWith(tx, [
+      { fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' },
+      { fileEntryId: 'mask-1', sourceId: 'job-1', role: 'mask' }
+    ])
+  })
+
+  it('never stamps the caller output policy on the temp input / mask copies', async () => {
+    // Regression: the builtin chat tool sends cleanupPolicy 'manual' for its *outputs*
+    // (they carry no ref yet — #17169). That must not reach the job's input/mask scratch
+    // copies: a zero-ref 'manual' entry is skipped by findCleanupCandidates and only
+    // reported (never deleted) by the orphan sweep, so pruning the job row would strand
+    // one copy per generation forever.
+    const service = createService()
+    stubResolution(service)
+
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'edit',
+      paramValues: {},
+      inputImages: ['data:image/png;base64,AAAA'],
+      mask: 'data:image/png;base64,BBBB',
+      cleanupPolicy: 'manual'
+    })
+
+    // Both scratch copies (input + mask) stay reclaimable once the job row is pruned.
+    expect(createInternalEntry).toHaveBeenCalledTimes(2)
+    for (const [params] of createInternalEntry.mock.calls) {
+      expect(params).toMatchObject({ cleanupPolicy: 'delete_when_unreferenced' })
+    }
+    // The caller's policy still governs the outputs the handler persists.
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({ cleanupPolicy: 'manual' })
+    )
   })
 
   it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
@@ -1404,15 +1506,53 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       if (name === 'FileManager') {
         return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
       }
-      // enqueue fails after the temp input entry was already created → the entry is in
+      // enqueueTx fails after the temp input entry was already created → the entry is in
       // no payload, so generateImageViaJob's setup catch must delete it.
       if (name === 'JobManager')
         return {
-          enqueue: vi.fn().mockImplementation(() => {
+          enqueueTx: () => {
             throw new Error('enqueue boom')
-          }),
+          },
           cancel: vi.fn()
         }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit',
+        paramValues: {},
+        inputImages: ['data:image/png;base64,AAAA']
+      }),
+      expect.anything()
+    ).rejects.toThrow('enqueue boom')
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('reclaims the temp inputs when registering the job refs fails', async () => {
+    const service = createService()
+    stubResolution(service)
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    const enqueueTx = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: new Promise(() => {})
+    })
+    mockAddFileRefsTx.mockImplementationOnce(() => {
+      throw new Error('ref insert boom')
+    })
+    // AiService composes the ref write with enqueueTx inside withWriteTx. If
+    // the resource-owner write fails, the transaction throws and the setup
+    // catch must reclaim the scratch copy created before the transaction.
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
+      if (name === 'JobManager') return { enqueueTx, cancel: vi.fn() }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
       return undefined
     })
 
@@ -1421,9 +1561,10 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'edit',
         paramValues: {},
-        inputImages: ['data:image/png;base64,AAAA']
+        inputImages: ['data:image/png;base64,AAAA'],
+        cleanupPolicy: 'delete_when_unreferenced'
       })
-    ).rejects.toThrow('enqueue boom')
+    ).rejects.toThrow('ref insert boom')
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
   })
 })

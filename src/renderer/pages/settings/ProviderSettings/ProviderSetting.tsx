@@ -1,5 +1,4 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
@@ -43,11 +42,7 @@ function ProviderSettingSections({
   return (
     <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
       <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
-        {isLoginBased ? (
-          <div className="shrink-0">{authenticationSection}</div>
-        ) : (
-          <SettingGroup className="mt-0 shrink-0">{authenticationSection}</SettingGroup>
-        )}
+        {authenticationSection}
         <div className="flex min-h-0 flex-1 flex-col">
           <ModelList
             providerId={providerId}

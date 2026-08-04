@@ -61,10 +61,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
-  isSelectableAssistantModel: () => true
-}))
-
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAssistant, isLoading: false })
 }))

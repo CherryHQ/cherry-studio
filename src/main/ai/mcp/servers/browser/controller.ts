@@ -20,22 +20,34 @@ export class CdpBrowserController {
   private readonly idleTimeoutMs: number
   private readonly turndownService: TurndownService
 
+  // Update all tab bars on theme change. Named so dispose() can unregister it —
+  // nativeTheme is app-global, and one controller is created per MCP connection.
+  private readonly handleThemeUpdated = () => {
+    const isDark = nativeTheme.shouldUseDarkColors
+    for (const windowInfo of this.windows.values()) {
+      if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed()) {
+        windowInfo.tabBarView.webContents.executeJavaScript(`window.setTheme(${isDark})`).catch(() => {
+          // Ignore errors if tab bar is not ready
+        })
+      }
+    }
+  }
+
   constructor(options?: { maxWindows?: number; idleTimeoutMs?: number }) {
     this.maxWindows = options?.maxWindows ?? 5
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
     this.turndownService = new TurndownService()
 
-    // Listen for theme changes and update all tab bars
-    nativeTheme.on('updated', () => {
-      const isDark = nativeTheme.shouldUseDarkColors
-      for (const windowInfo of this.windows.values()) {
-        if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed()) {
-          windowInfo.tabBarView.webContents.executeJavaScript(`window.setTheme(${isDark})`).catch(() => {
-            // Ignore errors if tab bar is not ready
-          })
-        }
-      }
-    })
+    nativeTheme.on('updated', this.handleThemeUpdated)
+  }
+
+  /**
+   * Removes the global nativeTheme listener and closes all windows.
+   * Must be called when the owning MCP server connection closes; safe to call more than once.
+   */
+  public async dispose(): Promise<void> {
+    nativeTheme.removeListener('updated', this.handleThemeUpdated)
+    await this.reset()
   }
 
   private getWindowKey(privateMode: boolean): string {

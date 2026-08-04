@@ -1,6 +1,8 @@
 import { cn } from '@renderer/utils/style'
 import { type ComponentPropsWithoutRef, type ReactNode, useEffect, useState } from 'react'
 
+import { useScrollAnchor } from '../../blocks/useScrollAnchor'
+
 export interface ToolDisclosureItem {
   key: string
   label: ReactNode
@@ -40,20 +42,28 @@ export function ToolDisclosure({
   const isLight = variant === 'light'
   const [internalActiveKeys, setInternalActiveKeys] = useState<string[]>(defaultActiveKey ?? [])
   const currentActiveKeys = activeKey ?? internalActiveKeys
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const toggleKey = (key: string) => {
-    const nextActiveKeys = currentActiveKeys.includes(key)
-      ? currentActiveKeys.filter((activeKey) => activeKey !== key)
-      : [...currentActiveKeys, key]
+    const isOpening = !currentActiveKeys.includes(key)
+    const nextActiveKeys = isOpening
+      ? [...currentActiveKeys, key]
+      : currentActiveKeys.filter((activeKey) => activeKey !== key)
 
-    if (activeKey === undefined) {
-      setInternalActiveKeys(nextActiveKeys)
-    }
-    onActiveKeyChange?.(nextActiveKeys)
+    withScrollAnchor(
+      () => {
+        if (activeKey === undefined) {
+          setInternalActiveKeys(nextActiveKeys)
+        }
+        onActiveKeyChange?.(nextActiveKeys)
+      },
+      { enterReadingMode: isOpening }
+    )
   }
 
   return (
     <div
+      ref={anchorRef}
       className={cn(
         isLight
           ? 'w-full overflow-hidden bg-transparent'
@@ -71,7 +81,7 @@ export function ToolDisclosure({
                 type="button"
                 aria-expanded={canExpand ? isOpen : undefined}
                 className={cn(
-                  'flex w-fit items-center justify-between rounded-md border-0 bg-transparent text-left outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
+                  'flex w-fit items-center justify-between rounded-md border-0 bg-transparent text-left outline-none transition-colors focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
                   isLight
                     ? 'min-h-7 justify-start gap-2 py-0.5 font-normal text-[13px] text-muted-foreground leading-5 hover:no-underline'
                     : 'items-center gap-4 px-2.5 py-2 font-semibold text-foreground text-sm leading-4 hover:no-underline',

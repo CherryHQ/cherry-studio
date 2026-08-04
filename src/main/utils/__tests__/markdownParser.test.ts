@@ -42,6 +42,44 @@ Body`
     })
   })
 
+  it('throws an Error with metadata when the skill folder path is invalid', async () => {
+    const promise = parseSkillMetadata('relative/skill', 'skills/bad-skill', 'skills')
+
+    await expect(promise).rejects.toBeInstanceOf(Error)
+    await expect(promise).rejects.toMatchObject({
+      name: 'PluginError',
+      type: 'INVALID_METADATA',
+      path: 'relative/skill',
+      message: 'Skill folder path must be absolute'
+    })
+  })
+
+  it('throws an Error with metadata when the skill markdown file is missing', async () => {
+    vi.mocked(fs.promises.stat).mockRejectedValue(new Error('ENOENT'))
+    const promise = parseSkillMetadata('/abs/missing-skill', 'skills/missing-skill', 'skills')
+
+    await expect(promise).rejects.toBeInstanceOf(Error)
+    await expect(promise).rejects.toMatchObject({
+      name: 'PluginError',
+      type: 'FILE_NOT_FOUND',
+      path: '/abs/missing-skill/SKILL.md',
+      message: 'SKILL.md or skill.md not found in skill folder'
+    })
+  })
+
+  it('throws an Error with metadata when the skill markdown file cannot be read', async () => {
+    vi.mocked(fs.promises.readFile).mockRejectedValue(new Error('EACCES'))
+    const promise = parseSkillMetadata('/abs/unreadable-skill', 'skills/unreadable-skill', 'skills')
+
+    await expect(promise).rejects.toBeInstanceOf(Error)
+    await expect(promise).rejects.toMatchObject({
+      name: 'PluginError',
+      type: 'READ_FAILED',
+      path: '/abs/unreadable-skill/SKILL.md',
+      message: 'EACCES'
+    })
+  })
+
   it('recovers invalid plugin frontmatter and keeps metadata', async () => {
     const metadata = await parsePluginMetadata('/abs/plugin.md', 'plugins/plugin.md', 'plugins', 'agent')
     expect(metadata.name).toBe('bad-plugin')

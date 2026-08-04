@@ -112,7 +112,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                   type="button"
                   variant="ghost"
                   aria-label={t('common.avatar')}
-                  className="size-20 rounded-[25%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  className="size-20 rounded-[25%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80">
                   {isEmoji(avatar) ? (
                     <EmojiAvatar size={80} fontSize={40}>
                       {avatar}

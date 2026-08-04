@@ -1,6 +1,7 @@
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -566,7 +567,6 @@ const AgentChatSessionCenter = ({
       session={session}
       sessionId={runtime.sessionId}
       sendMessage={runtime.sendMessage}
-      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       stop={runtime.stop}
       isStreaming={runtime.isPending}
       sendDisabled={composerPending}
@@ -593,8 +593,6 @@ const AgentChatSessionCenter = ({
         activeAgent={activeAgent}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
-        localSendGeneration={runtime.localSendGeneration}
-        onBindRuntime={runtime.bindMessageListRuntime}
         optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
         isLoading={runtime.isLoading}
         hasOlder={runtime.hasOlder}
@@ -667,7 +665,11 @@ function AgentChatLayout({
         topBar={topBar}
         topRightTool={topRightTool}
         showTopRightToolWhenPaneOpen
-        center={center}
+        center={
+          // The layout-mode provider links the message column and the composer so
+          // both yield the same anchor-rail gutter and stay aligned.
+          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+        }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}
         centerId={centerSurface?.id}

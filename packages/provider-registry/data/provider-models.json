@@ -269,7 +269,6 @@
     {
       "apiModelId": "doubao-seed-1-8-251215",
       "modelId": "doubao-seed-1-8",
-      "name": "doubao-seed-1-8-251215",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -4164,25 +4163,6 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-2.5-pro",
-      "modelId": "gemini-2-5-pro",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
       "apiModelId": "gemini-3.1-pro-preview",
       "modelId": "gemini-3-1-pro-preview",
       "pricing": {
@@ -4221,20 +4201,20 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-3-flash-preview",
-      "modelId": "gemini-3-flash-preview",
+      "apiModelId": "gemini-3.6-flash",
+      "modelId": "gemini-3-6-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 1.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 7.5
         }
       },
       "providerId": "copilot"
@@ -4397,19 +4377,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
+          "perMillionTokens": 0.02
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "copilot"
@@ -4443,19 +4419,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.125
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 12
         }
       },
       "providerId": "copilot"
@@ -4475,6 +4447,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "grok-4.5",
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
         }
       },
       "providerId": "copilot"
@@ -4519,39 +4510,24 @@
       "providerId": "copilot"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-r1",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3",
       "providerId": "dashscope"
     },
     {
       "apiModelId": "deepseek-v3.1",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3-1",
       "providerId": "dashscope"
     },
     {
       "apiModelId": "deepseek-v3.2",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3-2",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v4-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4594,9 +4570,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v4-pro",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4681,6 +4654,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.1",
       "modelId": "glm-5-1",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4723,6 +4697,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4766,9 +4741,6 @@
     },
     {
       "apiModelId": "Moonshot-Kimi-K2-Instruct",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "kimi-k2",
       "providerId": "dashscope"
     },
@@ -4817,9 +4789,6 @@
     },
     {
       "apiModelId": "MiniMax-M2.1",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "minimax-m2-1",
       "providerId": "dashscope"
     },
@@ -4875,9 +4844,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-flash",
       "providerId": "dashscope",
@@ -5098,9 +5064,6 @@
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus",
       "providerId": "dashscope",
@@ -5216,17 +5179,11 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus-character",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "qwen-turbo",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5683,6 +5640,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-122b-a10b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-122b-a10b",
       "providerId": "dashscope",
@@ -5798,6 +5756,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-27b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-27b",
       "providerId": "dashscope",
@@ -5913,6 +5872,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-35b-a3b",
       "providerId": "dashscope",
@@ -6028,6 +5988,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-397b-a17b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-397b-a17b",
       "providerId": "dashscope",
@@ -6143,6 +6104,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-9b",
       "modelId": "qwen3-5-9b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6257,9 +6219,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.5-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-flash",
       "providerId": "dashscope",
@@ -6375,9 +6335,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.5-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-plus",
       "providerId": "dashscope",
@@ -6493,6 +6451,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6607,6 +6566,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-35b-a3b",
       "providerId": "dashscope",
@@ -6722,9 +6682,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-flash",
       "providerId": "dashscope",
@@ -6840,9 +6798,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-max-preview",
       "modelId": "qwen3-6-max-preview",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6957,9 +6913,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-plus",
       "providerId": "dashscope",
@@ -7075,9 +7029,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.7-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-max",
       "providerId": "dashscope",
@@ -7193,9 +7145,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.7-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-plus",
       "providerId": "dashscope",
@@ -7311,13 +7261,10 @@
       }
     },
     {
-      "apiModelId": "qwen3.8-max-preview",
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.8-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "qwen3-8-max-preview",
-      "name": "Qwen3.8 Max Preview",
+      "modelId": "qwen3-8-max",
+      "name": "Qwen3.8 Max",
       "providerId": "dashscope",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -7416,9 +7363,86 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.8-max-preview",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "qwen3-8-max-preview",
+      "name": "Qwen3.8 Max Preview",
+      "providerId": "dashscope",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-max",
       "providerId": "dashscope",
@@ -8218,9 +8242,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "qwq-plus",
       "providerId": "dashscope"
     },
@@ -9512,11 +9533,13 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v3-2-251201",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3-2",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v4-flash-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "providerId": "doubao",
@@ -9562,6 +9585,7 @@
       }
     },
     {
+      "apiModelId": "deepseek-v4-pro-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-pro",
       "providerId": "doubao",
@@ -9607,21 +9631,25 @@
       }
     },
     {
+      "apiModelId": "doubao-1-5-lite-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-lite-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-256k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-256k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-thinking-pro-250415",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-thinking-pro",
       "providerId": "doubao"
@@ -9637,29 +9665,31 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-ui-tars-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-ui-tars",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-lite-250315",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-lite",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-pro-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-vision-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro-32k",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-1-6-251015",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-1-6",
       "providerId": "doubao",
@@ -9743,21 +9773,21 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-1-6-flash-250828",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-flash",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-seed-1-6-vision-250815",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-vision",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-1-8-251228",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "doubao-seed-2-0-code",
+      "modelId": "doubao-seed-1-8",
       "providerId": "doubao",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -9839,9 +9869,91 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-code-preview-260215",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "doubao-seed-2-0-code-preview",
+      "providerId": "doubao",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "doubao-seed-2-0-lite-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-lite",
       "providerId": "doubao",
@@ -9925,9 +10037,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-mini-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-mini",
       "providerId": "doubao",
@@ -10011,9 +10121,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-pro-260215",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-pro",
       "providerId": "doubao",
@@ -10097,9 +10205,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-1-pro-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-pro",
       "providerId": "doubao",
@@ -10189,9 +10295,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-1-turbo-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-turbo",
       "providerId": "doubao",
@@ -10281,9 +10385,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-character-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-character",
       "providerId": "doubao",
@@ -10367,14 +10469,12 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-code-preview-251028",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-code-preview",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-evolving",
       "providerId": "doubao",
@@ -10464,11 +10564,13 @@
       }
     },
     {
+      "apiModelId": "glm-4-7-251222",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-4-7",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "glm-5-2-260617",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "glm-5-2",
       "providerId": "doubao",
@@ -10555,92 +10657,6 @@
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-14b",
       "providerId": "doubao"
-    },
-    {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "seed-1-8",
-      "providerId": "doubao",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        },
-        "openai-responses": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
     },
     {
       "apiModelId": "accounts/fireworks/models/deepseek-v4-flash",
@@ -12001,15 +12017,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.028
+          "perMillionTokens": 0.04
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.138
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.275
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "gateway"
@@ -13726,6 +13742,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "thinkingmachines/inkling-small",
+      "modelId": "inkling-small",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "interfaze/interfaze-beta",
       "modelId": "interfaze-beta",
       "pricing": {
@@ -15033,6 +15068,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "alibaba/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "alibaba/qwen3-coder",
       "modelId": "qwen3-coder",
       "pricing": {
@@ -15320,6 +15378,7 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "gemini-2.5-flash",
       "modelId": "gemini-2-5-flash",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15389,6 +15448,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-image",
       "modelId": "gemini-2-5-flash-image",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15458,6 +15518,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-image-preview",
       "modelId": "gemini-2-5-flash-image-preview",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15527,6 +15588,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-flash-lite",
       "modelId": "gemini-2-5-flash-lite",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15596,6 +15658,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro",
       "modelId": "gemini-2-5-pro",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15665,6 +15728,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro-preview",
       "modelId": "gemini-2-5-pro-preview",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15734,6 +15798,7 @@
       }
     },
     {
+      "apiModelId": "gemini-2.5-pro-preview-05-06",
       "modelId": "gemini-2-5-pro-preview-05-06",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -15803,6 +15868,7 @@
       }
     },
     {
+      "apiModelId": "gemini-3.1-flash-lite-image",
       "modelId": "gemini-3-1-flash-lite-image",
       "providerId": "gemini",
       "reasoningContracts": {
@@ -16933,6 +16999,7 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "grok-composer-2.5-fast",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
       },
@@ -16944,7 +17011,7 @@
         "contextWindow": 200000,
         "maxOutputTokens": 30000
       },
-      "modelId": "grok-composer-2.5-fast",
+      "modelId": "grok-composer-2-5-fast",
       "name": "Composer 2.5 Fast",
       "outputModalities": ["text"],
       "ownedBy": "xai",
@@ -17143,7 +17210,7 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash",
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "input": {
@@ -17409,6 +17476,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.05
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "thinkingmachines/Inkling-Small",
+      "modelId": "inkling-small",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "huggingface"
@@ -18719,6 +18801,7 @@
       "providerId": "modelscope"
     },
     {
+      "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
       "providerId": "moonshot",
       "reasoningContracts": {
@@ -21956,6 +22039,29 @@
       }
     },
     {
+      "apiModelId": "qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "opencode"
+    },
+    {
       "apiModelId": "aion-labs/aion-2.0",
       "modelId": "aion-2-0",
       "name": "Aion-2.0",
@@ -22114,26 +22220,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-fable-5:batch",
-      "modelId": "claude-fable-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "~anthropic/claude-fable-latest",
       "modelId": "claude-fable-latest",
       "pricing": {
@@ -22192,18 +22278,6 @@
           "perMillionTokens": 5
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-haiku-4.5:batch",
-      "modelId": "claude-haiku-4-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22304,18 +22378,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.1:batch",
-      "modelId": "claude-opus-4-1-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.5",
       "modelId": "claude-opus-4-5",
       "pricing": {
@@ -22336,18 +22398,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-4.5:batch",
-      "modelId": "claude-opus-4-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22396,26 +22446,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.6:batch",
-      "modelId": "claude-opus-4-6-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.7",
       "modelId": "claude-opus-4-7",
       "pricing": {
@@ -22436,26 +22466,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-4.7:batch",
-      "modelId": "claude-opus-4-7-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22532,26 +22542,6 @@
           "perMillionTokens": 25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-4.8:batch",
-      "modelId": "claude-opus-4-8-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22782,18 +22772,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-sonnet-4.5:batch",
-      "modelId": "claude-sonnet-4-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-sonnet-4.6",
       "modelId": "claude-sonnet-4-6",
       "pricing": {
@@ -22852,26 +22830,6 @@
           "perMillionTokens": 10
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-sonnet-5:batch",
-      "modelId": "claude-sonnet-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -23260,11 +23218,45 @@
               {
                 "default": "high",
                 "kind": "effort",
-                "values": ["xhigh", "high"]
+                "values": ["max", "high", "low"]
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["xhigh", "high"]
+            "supportedEfforts": ["max", "high", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "~deepseek/deepseek-v4-flash-latest",
+      "modelId": "deepseek-v4-flash-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.018
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.09
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "high", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "high", "low"]
           }
         }
       }
@@ -23302,25 +23294,6 @@
           }
         }
       }
-    },
-    {
-      "apiModelId": "mistralai/devstral-2512",
-      "modelId": "devstral",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        }
-      },
-      "providerId": "openrouter"
     },
     {
       "apiModelId": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
@@ -23673,18 +23646,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-2.5-flash:batch",
-      "modelId": "gemini-2-5-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-2.5-flash-image",
       "capabilities": {
         "add": ["image-generation"]
@@ -23777,18 +23738,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-2.5-flash-lite:batch",
-      "modelId": "gemini-2-5-flash-lite-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-2.5-pro",
       "modelId": "gemini-2-5-pro",
       "pricing": {
@@ -23809,18 +23758,6 @@
           "perMillionTokens": 10
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-2.5-pro:batch",
-      "modelId": "gemini-2-5-pro-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24143,26 +24080,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.1-flash-lite:batch",
-      "modelId": "gemini-3-1-flash-lite-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "minimal",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.1-flash-lite-image",
       "capabilities": {
         "add": ["image-generation"]
@@ -24346,26 +24263,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.1-pro-preview:batch",
-      "modelId": "gemini-3-1-pro-preview-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.1-pro-preview-customtools",
       "modelId": "gemini-3-1-pro-preview-customtools",
       "pricing": {
@@ -24442,26 +24339,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.5-flash:batch",
-      "modelId": "gemini-3-5-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3.5-flash-lite",
       "modelId": "gemini-3-5-flash-lite",
       "pricing": {
@@ -24482,26 +24359,6 @@
           "perMillionTokens": 2.5
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "minimal",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-3.5-flash-lite:batch",
-      "modelId": "gemini-3-5-flash-lite-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24558,26 +24415,6 @@
       }
     },
     {
-      "apiModelId": "google/gemini-3.6-flash:batch",
-      "modelId": "gemini-3-6-flash-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "google/gemini-3-flash-preview",
       "modelId": "gemini-3-flash-preview",
       "pricing": {
@@ -24598,26 +24435,6 @@
           "perMillionTokens": 3
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "google/gemini-3-flash-preview:batch",
-      "modelId": "gemini-3-flash-preview-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25262,15 +25079,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1794
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.966
+          "perMillionTokens": 0.76
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.036
+          "perMillionTokens": 2.42
         }
       },
       "providerId": "openrouter",
@@ -25606,45 +25423,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.1:batch",
-      "modelId": "gpt-5-1-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "none",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "none",
-            "supportedEfforts": ["high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.1-chat",
-      "modelId": "gpt-5-1-chat",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.13
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "openai/gpt-5.1-codex",
       "modelId": "gpt-5-1-codex",
       "pricing": {
@@ -25763,26 +25541,6 @@
           "perMillionTokens": 14
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.2:batch",
-      "modelId": "gpt-5-2-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -25971,26 +25729,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.4:batch",
-      "modelId": "gpt-5-4-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.4-image-2",
       "capabilities": {
         "add": ["image-generation"]
@@ -26106,26 +25844,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5.4-mini:batch",
-      "modelId": "gpt-5-4-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5.4-nano",
       "modelId": "gpt-5-4-nano",
       "pricing": {
@@ -26142,26 +25860,6 @@
           "perMillionTokens": 1.25
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.4-nano:batch",
-      "modelId": "gpt-5-4-nano-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -26226,26 +25924,6 @@
           "perMillionTokens": 30
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["xhigh", "high", "medium", "low", "none"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5.5:batch",
-      "modelId": "gpt-5-5-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -26522,26 +26200,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5:batch",
-      "modelId": "gpt-5-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5-image",
       "capabilities": {
         "add": ["image-generation"]
@@ -26722,26 +26380,6 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-5-mini:batch",
-      "modelId": "gpt-5-mini-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "openai/gpt-5-nano",
       "modelId": "gpt-5-nano",
       "pricing": {
@@ -26758,26 +26396,6 @@
           "perMillionTokens": 0.4
         }
       },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "medium",
-                "kind": "effort",
-                "values": ["high", "medium", "low", "minimal"]
-              }
-            ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "openai/gpt-5-nano:batch",
-      "modelId": "gpt-5-nano-batch",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -27727,6 +27345,40 @@
       }
     },
     {
+      "apiModelId": "thinkingmachines/inkling-small",
+      "modelId": "inkling-small",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "high", "medium", "low", "minimal", "none"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "high", "medium", "low", "minimal", "none"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "ai21/jamba-large-1.7",
       "modelId": "jamba-large-1-7",
       "pricing": {
@@ -27857,15 +27509,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.0992
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 0.589
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 2.48
         }
       },
       "providerId": "openrouter",
@@ -28365,11 +28017,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.32
         }
       },
       "providerId": "openrouter"
@@ -28848,18 +28500,6 @@
       }
     },
     {
-      "apiModelId": "minimax/minimax-m3:batch",
-      "modelId": "minimax-m3-batch",
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "mistralai/ministral-14b-2512",
       "modelId": "ministral-14b",
       "pricing": {
@@ -29105,17 +28745,13 @@
       "apiModelId": "mistralai/mistral-small-3.2-24b-instruct",
       "modelId": "mistral-small-3-2-24b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.075
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.2
         }
       },
       "providerId": "openrouter"
@@ -29210,11 +28846,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.08
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.11
         }
       },
       "providerId": "openrouter"
@@ -29917,11 +29553,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.23
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.3
         }
       },
       "providerId": "openrouter",
@@ -30176,17 +29812,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.289
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -30414,6 +30046,44 @@
       }
     },
     {
+      "apiModelId": "qwen/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen/qwen3-8b",
       "modelId": "qwen3-8b",
       "pricing": {
@@ -30602,13 +30272,9 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
@@ -30623,11 +30289,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.98
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 3.95
         }
       },
       "providerId": "openrouter",
@@ -34334,6 +34000,10 @@
       "apiModelId": "zai-org/GLM-5",
       "modelId": "glm-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.95
@@ -34412,6 +34082,10 @@
       "apiModelId": "zai-org/GLM-5.1",
       "modelId": "glm-5-1",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.26
+        },
         "cacheWrite": {
           "currency": "USD",
           "perMillionTokens": 0
@@ -34494,6 +34168,10 @@
       "apiModelId": "zai-org/GLM-5.2",
       "modelId": "glm-5-2",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.26
+        },
         "cacheWrite": {
           "currency": "USD",
           "perMillionTokens": 0
@@ -34576,6 +34254,10 @@
       "apiModelId": "zai-org/GLM-5V-Turbo",
       "modelId": "glm-5v-turbo",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.24
+        },
         "cacheWrite": {
           "currency": "USD",
           "perMillionTokens": 0
@@ -34785,6 +34467,10 @@
       "apiModelId": "moonshotai/Kimi-K2.5",
       "modelId": "kimi-k2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.45
@@ -34835,6 +34521,10 @@
       "apiModelId": "MiniMaxAI/MiniMax-M2.5",
       "modelId": "minimax-m2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -37480,6 +37170,7 @@
       "providerId": "zhipu"
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37529,6 +37220,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2-fast",
       "modelId": "glm-5-2-fast",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37615,5 +37307,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "b74c1401a7cf1e32"
+  "version": "575c567531d2c161"
 }

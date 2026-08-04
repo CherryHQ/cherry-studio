@@ -11,6 +11,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // alibaba
   { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
+  { pattern: '^qwen3[.-]8-max-preview', toggle: false },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
   { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 }, template: true },
@@ -26,8 +27,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'qwen-flash.*$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen3-max(-.*)?$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: '^qwen3[.-][5-9](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: 'qwen3-(?!max).*$', budget: { min: 1024, max: 38912 }, template: true },
+  { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
+  { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
   { pattern: '^qwen3.*thinking' },
   { pattern: 'qwq|qvq' },
   { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
@@ -133,7 +134,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
   // google
-  { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
+  { pattern: '^gemma-?4', toggle: true },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
     effort: ['minimal', 'low', 'medium', 'high']
@@ -148,9 +149,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemini-pro-latest$', budget: { min: 128, max: 32768 }, template: true },
   { pattern: 'gemini-.*-flash.*$', budget: { min: 0, max: 24576 }, template: true },
   { pattern: 'gemini-.*-pro.*$', budget: { min: 128, max: 32768 }, template: true },
-  { pattern: 'gemma-?4[:-]?e[24]b', budget: { min: 1024, max: 8192 }, template: true },
-  { pattern: 'gemma-?4[:-]?26b', budget: { min: 1024, max: 30720 }, template: true },
-  { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
   { pattern: '^gemini.*thinking' },
   { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
   { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },

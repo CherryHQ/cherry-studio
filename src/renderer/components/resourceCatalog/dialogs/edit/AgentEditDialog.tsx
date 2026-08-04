@@ -22,7 +22,7 @@ import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -55,6 +55,8 @@ import {
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
+  editDialogFormRowClassName,
+  editDialogFormRowLabelClassName,
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
@@ -149,7 +151,8 @@ function modelLabelsForAgent(resource: AgentDetail): ModelLabels {
   return {
     modelId: resource.model ?? null,
     planModelId: resource.planModel ?? null,
-    smallModelId: resource.smallModel ?? null
+    smallModelId: resource.smallModel ?? null,
+    contextCompressModelId: null
   }
 }
 
@@ -271,6 +274,7 @@ function AgentEditDialogContent({
   } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
+  useReconcileSkillsOnOpen(open && activeTab === 'tools.skills')
   const skillIdsFromQueryKey = useMemo(
     () =>
       skills
@@ -503,65 +507,71 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="grid gap-5">
-      <div className="grid grid-cols-[auto_1fr] gap-4">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="🤖"
-          portalContainer={portalContainer}
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('library.config.agent.field.name.label')}
-          placeholder={t('library.config.agent.field.name.placeholder')}
-          required
-        />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <CompactModelField
-          form={form}
-          name="modelId"
-          label={t('library.config.agent.field.model.label')}
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-        <CompactModelField
-          form={form}
-          name="planModelId"
-          label={t('library.config.agent.field.plan_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-        <CompactModelField
-          form={form}
-          name="smallModelId"
-          label={t('library.config.agent.field.small_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-          onSettingsNavigate={onSettingsNavigate}
-        />
-      </div>
+    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+      <AvatarField
+        form={form}
+        emojiPickerOpen={emojiPickerOpen}
+        setEmojiPickerOpen={setEmojiPickerOpen}
+        fallback="🤖"
+        portalContainer={portalContainer}
+        size="sm"
+        layout="row"
+      />
+      <TextInputField
+        form={form}
+        name="name"
+        label={t('library.config.agent.field.name.label')}
+        placeholder={t('library.config.agent.field.name.placeholder')}
+        required
+        layout="row"
+      />
       <TextInputField
         form={form}
         name="description"
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
+        layout="row"
+      />
+      <CompactModelField
+        form={form}
+        name="modelId"
+        label={t('library.config.agent.field.model.label')}
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <CompactModelField
+        form={form}
+        name="planModelId"
+        label={t('library.config.agent.field.plan_model.label')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <CompactModelField
+        form={form}
+        name="smallModelId"
+        label={t('library.config.agent.field.small_model.label')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
       />
       <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       <HeartbeatSettingsField
@@ -591,41 +601,37 @@ function PermissionModeField({
       control={form.control}
       name="permissionMode"
       render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FormLabel className="font-normal text-[13px]">
-              {t('library.config.agent.field.permission_mode.label')}
-            </FormLabel>
-            <Select
-              value={field.value || 'default'}
-              onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
-              <FormControl>
-                <SelectTrigger
-                  className="w-48 shrink-0"
-                  aria-label={t('library.config.agent.field.permission_mode.label')}>
-                  {/* Own children so the trigger stays one line: the items below are two. */}
-                  <SelectValue>
-                    {selectedPermissionModeCard && (
-                      <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
-                        {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
-                      </span>
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent portalContainer={portalContainer}>
-                {permissionModeCards.map((card) => (
-                  <SelectItem key={card.mode} value={card.mode}>
-                    <div className="flex items-center gap-2">
-                      <PermissionModeIcon mode={card.mode} size={16} />
-                      <PermissionModeOptionLabel card={card} t={t} />
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <FormMessage />
+        <FormItem className={editDialogFormRowClassName}>
+          <FormLabel className={editDialogFormRowLabelClassName}>
+            {t('library.config.agent.field.permission_mode.label')}
+          </FormLabel>
+          <Select value={field.value || 'default'} onValueChange={(value) => patchAgentForm({ permissionMode: value })}>
+            <FormControl>
+              <SelectTrigger
+                className="h-9 w-full rounded-md"
+                aria-label={t('library.config.agent.field.permission_mode.label')}>
+                {/* Own children so the trigger stays one line: the items below are two. */}
+                <SelectValue>
+                  {selectedPermissionModeCard && (
+                    <span className={selectedPermissionModeCard.dangerous ? 'text-destructive' : undefined}>
+                      {t(selectedPermissionModeCard.titleKey, selectedPermissionModeCard.titleFallback)}
+                    </span>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent portalContainer={portalContainer}>
+              {permissionModeCards.map((card) => (
+                <SelectItem key={card.mode} value={card.mode}>
+                  <div className="flex items-center gap-2">
+                    <PermissionModeIcon mode={card.mode} size={16} />
+                    <PermissionModeOptionLabel card={card} t={t} />
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage className="col-start-2" />
         </FormItem>
       )}
     />
@@ -645,19 +651,19 @@ function HeartbeatSettingsField({
   const label = t('library.config.agent.field.heartbeat_enabled.label')
 
   return (
-    <div className="grid gap-2">
+    <div className="divide-y divide-border-subtle">
       <FormField
         control={form.control}
         name="heartbeatEnabled"
         render={({ field }) => (
-          <FormItem>
-            <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{label}</FormLabel>
-              <FormControl>
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{label}</FormLabel>
+            <FormControl>
+              <div className="flex h-9 items-center">
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
-              </FormControl>
-            </div>
-            <FormMessage />
+              </div>
+            </FormControl>
+            <FormMessage className="col-start-2" />
           </FormItem>
         )}
       />
@@ -666,26 +672,24 @@ function HeartbeatSettingsField({
           control={form.control}
           name="heartbeatInterval"
           render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between gap-3">
-                <FormLabel className="font-normal text-[13px]">
-                  {t('library.config.agent.field.heartbeat_interval.label')}
-                </FormLabel>
-                <FormControl>
-                  <EditableNumber
-                    min={1}
-                    max={1440}
-                    step={1}
-                    precision={0}
-                    align="start"
-                    changeOnBlur
-                    className="w-28"
-                    value={field.value || null}
-                    onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
-                  />
-                </FormControl>
-              </div>
-              <FormMessage />
+            <FormItem className={editDialogFormRowClassName}>
+              <FormLabel className={editDialogFormRowLabelClassName}>
+                {t('library.config.agent.field.heartbeat_interval.label')}
+              </FormLabel>
+              <FormControl>
+                <EditableNumber
+                  min={1}
+                  max={1440}
+                  step={1}
+                  precision={0}
+                  align="start"
+                  changeOnBlur
+                  className="h-9 w-full"
+                  value={field.value || null}
+                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                />
+              </FormControl>
+              <FormMessage className="col-start-2" />
             </FormItem>
           )}
         />
@@ -878,7 +882,7 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
   const { t } = useTranslation()
 
   return (
-    <div className="grid gap-4">
+    <div>
       <FormField
         control={form.control}
         name="envVarsText"

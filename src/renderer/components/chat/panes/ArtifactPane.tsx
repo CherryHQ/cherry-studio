@@ -236,8 +236,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // Autosave I/O failure: the draft stays in the editor and automatic retries
   // pause until the user explicitly retries or discards it.
   useEffect(() => {
-    if (fileSession?.saveError) toast.error(t('agent.preview_pane.edit.save_failed'))
-  }, [fileSession?.saveError, t])
+    if (!fileSession?.saveError) return
+    if (fileSession.metadataRecoveryPending) {
+      toast.warning(t('agent.preview_pane.edit.metadata_pending'))
+    } else {
+      toast.error(t('agent.preview_pane.edit.save_failed'))
+    }
+  }, [fileSession?.metadataRecoveryPending, fileSession?.saveError, t])
 
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
@@ -571,15 +576,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             role="alert"
             className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
             <AlertCircle className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1">{t('agent.preview_pane.edit.save_failed')}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={fileSession.isSaving}
-              onClick={() => void handleRetryFailedSave()}>
-              {t('common.retry')}
-            </Button>
+            <span className="min-w-0 flex-1">
+              {t(
+                fileSession.metadataRecoveryPending
+                  ? 'agent.preview_pane.edit.metadata_pending'
+                  : 'agent.preview_pane.edit.save_failed'
+              )}
+            </span>
+            {!fileSession.metadataRecoveryPending && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={fileSession.isSaving}
+                onClick={() => void handleRetryFailedSave()}>
+                {t('common.retry')}
+              </Button>
+            )}
             <Button
               type="button"
               variant="destructive"
