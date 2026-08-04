@@ -1,6 +1,8 @@
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { application } from '@application'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
@@ -10,6 +12,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
+
+function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
+  const child = Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    kill: vi.fn(),
+    unref: vi.fn()
+  })
+
+  crossPlatformSpawnMock.mockImplementationOnce(() => {
+    queueMicrotask(() => {
+      child.stdout.write(stdout)
+      child.stderr.write(stderr)
+      child.stdout.end()
+      child.stderr.end()
+      child.emit('exit', exitCode, null)
+      child.emit('close', exitCode, null)
+    })
+    return child
+  })
+
+  return child
+}
 
 // --- Mocks for OpenClawService dependencies ---
 
@@ -38,6 +63,7 @@ vi.mock('@application', () => ({
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
@@ -141,6 +167,7 @@ describe('OpenClawService gateway status state machine', () => {
   let findBinarySpy: ReturnType<typeof vi.spyOn>
   let checkPortOpenSpy: ReturnType<typeof vi.spyOn>
   let startAndWaitSpy: ReturnType<typeof vi.spyOn>
+  let runOpenClawCommandSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -148,6 +175,7 @@ describe('OpenClawService gateway status state machine', () => {
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
+    vi.mocked(application.getPath).mockReturnValue('/mock/openclaw')
     service = await createService()
 
     // Reset internal state via reflection
@@ -160,11 +188,84 @@ describe('OpenClawService gateway status state machine', () => {
     findBinarySpy = vi.spyOn(service as any, 'findOpenClawBinary')
     checkPortOpenSpy = vi.spyOn(service as any, 'checkPortOpen')
     startAndWaitSpy = vi.spyOn(service as any, 'startAndWaitForGateway')
+    runOpenClawCommandSpy = vi.spyOn(service as any, 'runOpenClawCommand').mockResolvedValue({
+      exitCode: 0,
+      stdout: '{}',
+      stderr: '',
+      outputTruncated: false
+    })
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  describe('OpenClaw config preflight boundaries', () => {
+    it('preserves JSON validation output when validate exits with code 1', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      const stdout = JSON.stringify({
+        valid: false,
+        issues: [{ path: 'models.providers.cherry-openai.apiKey', message: 'Invalid value' }]
+      })
+      queueSpawnResult({ stdout, stderr: 'configuration rejected', exitCode: 1 })
+
+      await expect(
+        (service as any).runOpenClawCommand('/mock/bin/openclaw', ['config', 'validate', '--json'], {
+          PATH: '/mock/bin'
+        })
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout,
+        stderr: 'configuration rejected',
+        outputTruncated: false
+      })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'validate', '--json'],
+        expect.objectContaining({
+          env: { PATH: '/mock/bin' },
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      )
+    })
+
+    it('reports binary incompatibility when the schema command is unavailable', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      queueSpawnResult({ stderr: 'error: unknown command schema', exitCode: 1 })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'schema', '--json'],
+        expect.objectContaining({
+          env: { PATH: '/mock/bin', OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json' },
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      )
+    })
+
+    it('redacts secrets and bounds diagnostic output', () => {
+      const diagnostic = [
+        '{"apiKey":"sk-sensitive-value"}',
+        'Authorization: Bearer bearer-sensitive-value',
+        'x'.repeat(2500)
+      ].join('\n')
+
+      const sanitized = (service as any).sanitizeDiagnostic(diagnostic)
+
+      expect(sanitized).not.toContain('sk-sensitive-value')
+      expect(sanitized).not.toContain('bearer-sensitive-value')
+      expect(sanitized).toContain('[REDACTED]')
+      expect(sanitized).toHaveLength(2000)
+    })
   })
 
   describe('getDashboardUrl', () => {

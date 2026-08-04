@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
+import { t } from '@main/i18n'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
@@ -24,6 +25,7 @@ import {
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -32,10 +34,54 @@ import { vertexAiService } from './VertexAiService'
 const logger = loggerService.withContext('OpenClawService')
 
 const openclawConfigDir = () => application.getPath('external.openclaw.config')
-const openclawConfigPath = () => path.join(openclawConfigDir(), 'openclaw.json')
+const openclawConfigPath = (): AbsoluteFilePath =>
+  AbsoluteFilePathSchema.parse(path.join(openclawConfigDir(), 'openclaw.json'))
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
+const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
+const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
+const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
+
+type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
+
+type OpenClawRuntime = {
+  source: Exclude<BinaryAvailability, { source: 'none' }>['source']
+  path: AbsoluteFilePath
+  version?: string
+  env: Record<string, string>
+}
+
+type OpenClawCommandResult = {
+  exitCode: number | null
+  stdout: string
+  stderr: string
+  outputTruncated: boolean
+}
+
+type OpenClawValidationIssue = {
+  path?: string
+  message: string
+}
+
+function sanitizeOpenClawDiagnostic(diagnostic: string): string {
+  const withoutBearerTokens = diagnostic.replace(/\bBearer\s+[^\s"',;}\]]+/gi, 'Bearer [REDACTED]')
+  return withoutBearerTokens
+    .replace(
+      /(["']?)(api_?key|token|auth|authorization|secret|password)\1(\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}\]]+)/gi,
+      (_match, quote: string, key: string, separator: string) => `${quote}${key}${quote}${separator}[REDACTED]`
+    )
+    .slice(0, OPENCLAW_DIAGNOSTIC_LIMIT)
+}
+
+class OpenClawPreflightError extends Error {
+  public readonly kind: OpenClawPreflightFailureKind
+
+  constructor(kind: OpenClawPreflightFailureKind, sanitizedMessage: string) {
+    super(sanitizeOpenClawDiagnostic(sanitizedMessage))
+    this.kind = kind
+  }
+}
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -172,6 +218,147 @@ export class OpenClawService extends BaseService {
   private async findOpenClawBinary(): Promise<Exclude<BinaryAvailability, { source: 'none' }> | null> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['openclaw'])).openclaw
     return snapshot.availability.source === 'none' ? null : snapshot.availability
+  }
+
+  private async resolveOpenClawRuntime(): Promise<OpenClawRuntime> {
+    const managedShellEnv = await refreshShellEnv()
+    const openclaw = await this.findOpenClawBinary()
+    if (!openclaw) {
+      throw new Error('OpenClaw binary not found. Please install OpenClaw first.')
+    }
+
+    const runtime: OpenClawRuntime = {
+      source: openclaw.source,
+      path: AbsoluteFilePathSchema.parse(openclaw.path),
+      version: 'version' in openclaw ? openclaw.version : undefined,
+      env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
+    }
+    logger.info('Resolved OpenClaw runtime', {
+      source: runtime.source,
+      path: runtime.path,
+      version: runtime.version
+    })
+    return runtime
+  }
+
+  private runOpenClawCommand(
+    openclawPath: AbsoluteFilePath,
+    args: string[],
+    env: Record<string, string>
+  ): Promise<OpenClawCommandResult> {
+    return new Promise((resolve, reject) => {
+      let proc: ReturnType<typeof crossPlatformSpawn>
+      try {
+        proc = crossPlatformSpawn(openclawPath, args, {
+          env,
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      } catch (error) {
+        const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+        logger.warn('OpenClaw preflight command could not start', { summary })
+        reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
+        return
+      }
+
+      const stdoutChunks: Buffer[] = []
+      const stderrChunks: Buffer[] = []
+      let stdoutBytes = 0
+      let stderrBytes = 0
+      let outputTruncated = false
+      let settled = false
+
+      const captureChunk = (stream: 'stdout' | 'stderr', chunk: Buffer | string) => {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        const capturedBytes = stream === 'stdout' ? stdoutBytes : stderrBytes
+        const remaining = Math.max(0, OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES - capturedBytes)
+        const retainedBytes = Math.min(bytes.length, remaining)
+        if (retainedBytes > 0) {
+          ;(stream === 'stdout' ? stdoutChunks : stderrChunks).push(bytes.subarray(0, retainedBytes))
+        }
+        if (bytes.length > retainedBytes) {
+          outputTruncated = true
+        }
+        if (stream === 'stdout') {
+          stdoutBytes += retainedBytes
+        } else {
+          stderrBytes += retainedBytes
+        }
+      }
+
+      proc.stdout?.on('data', (chunk) => captureChunk('stdout', chunk))
+      proc.stderr?.on('data', (chunk) => captureChunk('stderr', chunk))
+
+      const timeoutId = setTimeout(() => {
+        if (settled) return
+        proc.kill('SIGKILL')
+        settled = true
+        logger.warn('OpenClaw preflight command timed out', { timeoutMs: OPENCLAW_COMMAND_TIMEOUT_MS })
+        reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
+      }, OPENCLAW_COMMAND_TIMEOUT_MS)
+
+      proc.on('error', (error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        logger.warn('OpenClaw preflight command failed', { summary: this.sanitizeDiagnostic(error.message) })
+        reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
+      })
+
+      proc.on('close', (exitCode) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        resolve({
+          exitCode,
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+          stderr: Buffer.concat(stderrChunks).toString('utf8'),
+          outputTruncated
+        })
+      })
+    })
+  }
+
+  private sanitizeDiagnostic(diagnostic: string | OpenClawValidationIssue | OpenClawValidationIssue[]): string {
+    return sanitizeOpenClawDiagnostic(typeof diagnostic === 'string' ? diagnostic : JSON.stringify(diagnostic))
+  }
+
+  private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<void> {
+    let result: OpenClawCommandResult
+    try {
+      result = await this.runOpenClawCommand(runtime.path, ['config', 'schema', '--json'], {
+        ...runtime.env,
+        OPENCLAW_CONFIG_PATH: openclawConfigPath()
+      })
+    } catch (error) {
+      this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
+    }
+
+    if (result.exitCode !== 0) {
+      const stderrSummary = result.stderr.trim().split(/\r?\n/, 1)[0]
+      this.throwSchemaCapabilityError(
+        `config schema exited with code ${result.exitCode}${stderrSummary ? `: ${stderrSummary}` : ''}`
+      )
+    }
+    if (result.outputTruncated) {
+      this.throwSchemaCapabilityError('config schema output exceeded the capture limit')
+    }
+
+    let schema: unknown
+    try {
+      schema = JSON.parse(result.stdout)
+    } catch {
+      this.throwSchemaCapabilityError('config schema did not return valid JSON')
+    }
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+      this.throwSchemaCapabilityError('config schema did not return a top-level object')
+    }
+  }
+
+  private throwSchemaCapabilityError(diagnostic: string): never {
+    const summary = this.sanitizeDiagnostic(diagnostic)
+    logger.warn('OpenClaw schema capability check failed', { summary })
+    const details = summary ? `\n${summary}` : ''
+    throw new OpenClawPreflightError('binary_incompatible', t('openclaw.errors.binary_incompatible', { details }))
   }
 
   /**
@@ -691,6 +878,9 @@ export class OpenClawService extends BaseService {
 
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
+      const runtime = await this.resolveOpenClawRuntime()
+      await this.assertSchemaCapability(runtime)
+
       // Ensure config directory exists
       if (!fs.existsSync(openclawConfigDir())) {
         fs.mkdirSync(openclawConfigDir(), { recursive: true })
