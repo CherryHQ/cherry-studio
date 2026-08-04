@@ -117,6 +117,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               editable={tmpViewMode === 'preview'}
               autoFocus={currentContent.trim().length === 0}
               showTableOfContents={settings.showTableOfContents}
+              lineBreaks={settings.lineBreaks}
               enableContentSearch
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
               wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}

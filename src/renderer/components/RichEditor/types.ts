@@ -21,6 +21,8 @@ export interface RichEditorProps {
   autoFocus?: boolean
   /** Whether to show the table of contents component */
   showTableOfContents?: boolean
+  /** Whether to render single line breaks as new lines instead of collapsing them */
+  lineBreaks?: boolean
   /** Custom CSS class name */
   className?: string
   /** Custom styles for the outer editor wrapper */

@@ -6,7 +6,7 @@ import { scrollElementIntoView } from '@renderer/utils/dom'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import React, { useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -164,6 +164,7 @@ const RichEditor = ({
   initialCommands,
   onCommandsReady,
   showTableOfContents = false,
+  lineBreaks = false,
   enableContentSearch = false,
   isFullWidth = false,
   fontFamily = 'default',
@@ -209,6 +210,7 @@ const RichEditor = ({
     ...INITIAL_FIND_BAR_STATE
   }))
   const [contentSearchCursor, setContentSearchCursor] = useState<{ criteriaKey: string; index: number } | null>(null)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const contentSearchFilter = useMemo<NodeFilter>(
     () => ({
       acceptNode(node) {
@@ -338,6 +340,18 @@ const RichEditor = ({
     { enableOnContentEditable: true, enabled: enableContentSearch },
     [enableContentSearch]
   )
+
+  // Show the back-to-top button once the content is scrolled down far enough
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setShowBackToTop(container.scrollTop > 240)
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Table action menu state
   const [tableActionMenu, setTableActionMenu] = useState<{
@@ -605,6 +619,7 @@ const RichEditor = ({
       $isFullWidth={isFullWidth}
       $fontFamily={fontFamily}
       $fontSize={fontSize}
+      $lineBreaks={lineBreaks}
       style={wrapperStyle}
       onKeyDown={onKeyDownEditor}>
       {showToolbar && (
@@ -633,6 +648,14 @@ const RichEditor = ({
           <EditorContent style={{ minHeight: '100%' }} editor={editor} />
         </StyledEditorContent>
       </Scrollbar>
+      <Tooltip content={t('richEditor.backToTop')}>
+        <button
+          type="button"
+          className={`BackToTopButton ${showBackToTop ? 'is-visible' : ''}`}
+          onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <ChevronsUp size={16} />
+        </button>
+      </Tooltip>
       {enableContentSearch && (
         <FindBar
           ref={contentSearchRef}

@@ -368,6 +368,8 @@ export interface PreferenceSchemas {
     'feature.notes.font_size': number
     // redux/note/settings.isFullWidth
     'feature.notes.full_width': boolean
+    // line-break rendering mode for notes (single \n renders as a line break)
+    'feature.notes.line_breaks': boolean
     // redux/note/notesPath
     'feature.notes.path': string
     // redux/note/settings.showTabStatus
@@ -694,6 +696,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.notes.font_family': 'default',
     'feature.notes.font_size': 16,
     'feature.notes.full_width': true,
+    'feature.notes.line_breaks': false,
     'feature.notes.path': '',
     'feature.notes.show_tab_status': true,
     'feature.notes.show_table_of_contents': true,
