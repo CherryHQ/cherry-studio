@@ -62,11 +62,11 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
-describe('ai.agent.builtin_assistant.ensure IPC schema', () => {
-  const ensureAssistant = aiRequestSchemas['ai.agent.builtin_assistant.ensure'].input
+describe('ai.agent.feedback_session.create IPC schema', () => {
+  const createFeedbackSession = aiRequestSchemas['ai.agent.feedback_session.create'].input
 
   it('accepts only a void command payload', () => {
-    expect(ensureAssistant.safeParse(undefined).success).toBe(true)
-    expect(ensureAssistant.safeParse({}).success).toBe(false)
+    expect(createFeedbackSession.safeParse(undefined).success).toBe(true)
+    expect(createFeedbackSession.safeParse({}).success).toBe(false)
   })
 })

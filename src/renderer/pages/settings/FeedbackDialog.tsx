@@ -13,15 +13,22 @@ import {
   ItemMedia,
   ItemTitle
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import { Bot, ChevronRight, ClipboardList, Github } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export const FEEDBACK_SURVEY_URL = 'https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnsjfFkx4gy6wx9LQ70tMaKe'
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
-export const FEEDBACK_AGENT_ROUTE = '/app/agents?intent=feedback'
+
+const logger = loggerService.withContext('FeedbackDialog')
+
+export function getFeedbackAgentRoute(sessionId: string): string {
+  return `/app/agents?intent=feedback&sessionId=${encodeURIComponent(sessionId)}`
+}
 
 export function isChineseFeedbackLanguage(language: string | undefined): boolean {
   return language === 'zh-CN' || language === 'zh-TW'
@@ -80,6 +87,16 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
     void action()
   }
 
+  const openAgentFeedback = async () => {
+    try {
+      const session = await ipcApi.request('ai.agent.feedback_session.create')
+      openRoute(getFeedbackAgentRoute(session.id))
+    } catch (error) {
+      logger.error('Failed to create Cherry Assistant feedback session', error as Error)
+      toast.error(t('settings.about.feedback.agent_error'))
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
@@ -94,7 +111,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
             title={t('settings.about.feedback.agent.title')}
             description={t('settings.about.feedback.agent.description')}
             recommended
-            onSelect={() => selectOption(() => openRoute(FEEDBACK_AGENT_ROUTE))}
+            onSelect={() => selectOption(openAgentFeedback)}
           />
           <FeedbackOption
             icon={<Github className="size-5" />}

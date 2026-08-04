@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   language: 'en-US',
-  openRoute: vi.fn()
+  openRoute: vi.fn(),
+  toastError: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -18,6 +19,10 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: (...args: unknown[]) => mocks.openRoute(...args)
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: (...args: unknown[]) => mocks.toastError(...args) }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -31,10 +36,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 import {
-  FEEDBACK_AGENT_ROUTE,
   FEEDBACK_GITHUB_URL,
   FEEDBACK_SURVEY_URL,
   FeedbackDialog,
+  getFeedbackAgentRoute,
   isChineseFeedbackLanguage
 } from '../FeedbackDialog'
 
@@ -57,7 +62,7 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.language = 'en-US'
-    mocks.ipcRequest.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockResolvedValue({ id: 'feedback-session' })
   })
 
   it.each(['zh-CN', 'zh-TW'])('shows the Feishu survey for %s', (language) => {
@@ -97,13 +102,24 @@ describe('FeedbackDialog', () => {
     expect(screen.getByRole('list')).toHaveClass('gap-3', 'px-2')
   })
 
-  it('opens the Agent feedback intent and closes the dialog', async () => {
+  it('creates an isolated feedback session before opening the Agent route', async () => {
     render(<ControlledFeedbackDialog />)
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
-    expect(mocks.openRoute).toHaveBeenCalledWith(FEEDBACK_AGENT_ROUTE)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.feedback_session.create')
+    await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('reports feedback-session creation failures without opening an empty Agent route', async () => {
+    mocks.ipcRequest.mockRejectedValue(new Error('restore failed'))
+    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.agent_error'))
+    expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('opens the Feishu survey for Chinese users', () => {

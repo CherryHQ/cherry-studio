@@ -4,7 +4,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
-import { ensureBuiltinAssistant } from '@main/ai/agents/ensureBuiltinAssistant'
+import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
@@ -193,7 +193,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.builtin_assistant.ensure': async () => ensureBuiltinAssistant(),
+  'ai.agent.feedback_session.create': async () => createBuiltinAssistantFeedbackSession(),
   // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
   // catalog is read into the cache before the first message — the warm-query handle can't expose it.
   // Trace mode is no exception: the primed connection resolves the session's container trace up front
