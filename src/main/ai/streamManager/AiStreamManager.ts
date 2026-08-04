@@ -171,15 +171,24 @@ function errorFromStreamChunk(errorText: string): SerializedError {
  * `compacting` → `done` transition) update in place instead of duplicating.
  * `data-*` parts never reach the model, so adding them cannot perturb the
  * prompt bytes the provider caches.
+ *
+ * A fold that settled as `skipped` changed nothing, so it leaves no timeline
+ * marker: its anchor is dropped here (along with any `compacting` snapshot
+ * already recorded under the same id) instead of persisting a part the UI
+ * renders as nothing.
  */
 function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   const anchors = exec.compactionAnchors
   if (!anchors?.length) return message
   const parts = [...message.parts]
   for (const anchor of anchors) {
-    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
     // Narrow on `type` before reading `id` — only data parts carry one.
     const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
+    if (anchor.data.status === 'skipped') {
+      if (at >= 0) parts.splice(at, 1)
+      continue
+    }
+    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
     if (at >= 0) parts[at] = part
     else parts.push(part)
   }

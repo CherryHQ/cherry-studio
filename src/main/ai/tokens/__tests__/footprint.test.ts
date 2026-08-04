@@ -1,7 +1,14 @@
 import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { countToolDefs, countToolTokens, estimateModelMessagesFootprint } from '../footprint'
+import {
+  countToolDefs,
+  countToolTokens,
+  estimateModelMessagesFootprint,
+  estimateModelMessagesSync,
+  measureMedia
+} from '../footprint'
+import { mediaTokensFor } from '../profiles'
 import type { TextTokenizer } from '../textTokenizer'
 
 /** Deterministic tokenizer (1 token per char) so assertions are exact and tokenizer-agnostic. */
@@ -98,6 +105,86 @@ describe('estimateModelMessagesFootprint', () => {
     const messages = [{ role: 'user', content: [{ type: 'mystery' }] }] as unknown as ModelMessage[]
     expect(await estimateModelMessagesFootprint(messages, { dialect: 'openai', tokenizer: fake })).toBe(
       MESSAGE_OVERHEAD
+    )
+  })
+
+  // #17837: a file part's base64 payload must never reach the tokenizer. A 13 MB MP3 is
+  // ~18 M base64 chars, which scored ~3.7 M tokens against the provider's real 20 k.
+  it('prices an audio file part by modality, never by its base64 length', async () => {
+    const huge = 'A'.repeat(500_000)
+    const messages: ModelMessage[] = [
+      { role: 'user', content: [{ type: 'file', data: huge, mediaType: 'audio/mpeg', filename: 'clip.mp3' }] }
+    ]
+    const count = await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })
+    expect(count).toBe(MESSAGE_OVERHEAD + mediaTokensFor('google', 'audio'))
+    expect(count).toBeLessThan(huge.length / 100)
+  })
+
+  it('prices a video file part by modality too', async () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: [{ type: 'file', data: 'A'.repeat(200_000), mediaType: 'video/mp4' }] }
+    ]
+    expect(await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })).toBe(
+      MESSAGE_OVERHEAD + mediaTokensFor('google', 'video')
+    )
+  })
+
+  it('prices audio nested in a tool-result content item by modality', async () => {
+    const messages: ModelMessage[] = [
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 't1',
+            toolName: 'rec',
+            output: { type: 'content', value: [{ type: 'media', data: 'A'.repeat(200_000), mediaType: 'audio/wav' }] }
+          }
+        ]
+      }
+    ]
+    expect(await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })).toBe(
+      MESSAGE_OVERHEAD + TOOL_OVERHEAD + mediaTokensFor('google', 'audio')
+    )
+  })
+})
+
+/**
+ * The in-loop compaction hook calls the sync walker directly (it runs on every step and
+ * cannot await a decode). Text must cost exactly the same on both paths, or the compaction
+ * trigger and the gateway `count_tokens` would disagree about the same prompt.
+ */
+describe('estimateModelMessagesSync', () => {
+  it('matches the async path exactly for text/tool content', async () => {
+    const messages: ModelMessage[] = [
+      { role: 'system', content: 'you are helpful' },
+      { role: 'user', content: 'hello there' },
+      { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 't1', toolName: 'fetch', input: { url: 'x' } }] },
+      {
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: 't1', toolName: 'fetch', output: { type: 'text', value: 'ok' } }]
+      }
+    ]
+    const asyncCount = await estimateModelMessagesFootprint(messages, { dialect: 'anthropic', tokenizer: fake })
+    expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(asyncCount)
+  })
+
+  it('falls back to the per-dialect constant for media when given no measurements', () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: [{ type: 'image', image: PNG_1x1, mediaType: 'image/png' }] }
+    ]
+    // No measurement pass → the dimensionless constant, not the decoded 1×1 pixel formula.
+    expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(MESSAGE_OVERHEAD + 1590)
+  })
+
+  it('uses measurements when they are supplied (same numbers as the async path)', async () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: [{ type: 'image', image: PNG_1x1, mediaType: 'image/png' }] }
+    ]
+    const measure = await measureMedia(messages)
+    // Decoded 1×1 → ceil(1·1/750) = 1 token.
+    expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake, measure })).toBe(
+      MESSAGE_OVERHEAD + 1
     )
   })
 })

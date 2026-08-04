@@ -772,6 +772,8 @@ function inLoopScope(contextWindow: number) {
   return {
     request: { chatId: 'topic-1' },
     model: { id: 'openai::gpt-4o', contextWindow },
+    // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
+    provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
     contextSettings: { enabled: true, compress: { enabled: true } },
     compressionModel: { id: 'compression-model' }
   } as any

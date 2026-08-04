@@ -4,39 +4,59 @@ import sharp from 'sharp'
 
 import type { TokenDialect } from './dialect'
 import type { ImageDims } from './imageTokens'
-import { imageTokensFor } from './profiles'
+import type { MediaKind } from './mediaTokens'
+import { imageTokensFor, mediaTokensFor } from './profiles'
 import type { TextTokenizer } from './textTokenizer'
 
 /** Per-message structural framing (role markers, delimiters) the provider adds. */
 const MESSAGE_OVERHEAD = 3
 /** Per-tool-call / tool-result / tool-definition framing overhead. */
 const TOOL_OVERHEAD = 10
-/** Non-image file part (pdf, etc.) — we can't honestly estimate the payload; count a token or two of framing. */
+/** Opaque non-media file part (pdf, zip, …) — the payload isn't priced by a rule we know; count framing. */
 const FILE_OVERHEAD = 5
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). Mirrors `src/main/utils/image.ts`. */
 const MAX_INPUT_PIXELS = 100_000_000
 
 /** The element type of a `ModelMessage`'s array content — every content part shape. */
 type ContentPart = Exclude<ModelMessage['content'], string>[number]
+type ToolResultOutput = Extract<ContentPart, { type: 'tool-result' }>['output']
+type MultimodalItem = Extract<ToolResultOutput, { type: 'content' }>['value'][number]
+
+/** What a measurement pass learned about one media-bearing part, keyed by that part's identity. */
+export interface MediaMeasurement {
+  dims?: ImageDims
+  durationSec?: number
+}
+export type MediaMeasurements = Map<object, MediaMeasurement>
 
 export interface FootprintOptions {
-  /** Dialect for image-cost dispatch. */
+  /** Dialect for image/media cost dispatch. */
   dialect: TokenDialect
   /** Text tokenizer (injected so tests can use a deterministic counter). */
   tokenizer: TextTokenizer
+  /**
+   * Pre-measured media, from {@link measureMedia}. Omit it (the in-loop compaction path) and
+   * every media part falls back to its per-dialect constant — no decoding, fully synchronous.
+   */
+  measure?: MediaMeasurements
 }
 
 /**
- * Estimate the token footprint of the converted `ModelMessage[]` — the exact shape
- * `Agent.stream` sends downstream. Text is tokenized; surviving vision images are measured
- * (sharp → pixel formula) or fall back to the per-dialect constant. Async because reading
- * image dimensions is async. Never throws — content comes from our own converter, but each
- * access is guarded so a malformed part yields a best-effort estimate.
+ * Token footprint of the converted `ModelMessage[]` — the exact shape `Agent.stream` sends
+ * downstream. **Synchronous and allocation-cheap**: text is tokenized, media is priced from
+ * `options.measure` when present and from the per-dialect constant otherwise.
+ *
+ * This is the single walker for both altitudes. The gateway `count_tokens` endpoints call
+ * {@link estimateModelMessagesFootprint}, which measures first and then lands here; the
+ * in-loop compaction hook (`prepareStep`, which runs on every step and must not block)
+ * calls this directly with no measurements.
+ *
+ * Media payload bytes are NEVER handed to the tokenizer — that is the #17837 bug (a 13 MB
+ * MP3 scored ~3.7 M tokens against the provider's real 20 k). Never throws: content comes
+ * from our own converter, but each access is guarded so a malformed part still yields a
+ * best-effort number.
  */
-export async function estimateModelMessagesFootprint(
-  messages: ModelMessage[],
-  options: FootprintOptions
-): Promise<number> {
+export function estimateModelMessagesSync(messages: ModelMessage[], options: FootprintOptions): number {
   let total = 0
   for (const message of messages) {
     total += MESSAGE_OVERHEAD
@@ -45,76 +65,81 @@ export async function estimateModelMessagesFootprint(
       total += options.tokenizer.count(content)
       continue
     }
-    const parts = await Promise.all((content as ContentPart[]).map((part) => partTokens(part, options)))
-    total += parts.reduce((sum, n) => sum + n, 0)
+    for (const part of content as ContentPart[]) total += partTokens(part, options)
   }
   return total
 }
 
-async function partTokens(part: ContentPart, { dialect, tokenizer }: FootprintOptions): Promise<number> {
+/**
+ * Measure-then-estimate: read real image dimensions (and, where available, media duration)
+ * off the inline payloads, then run the shared walker. Async only because decoding is.
+ */
+export async function estimateModelMessagesFootprint(
+  messages: ModelMessage[],
+  options: Omit<FootprintOptions, 'measure'>
+): Promise<number> {
+  const measure = await measureMedia(messages)
+  return estimateModelMessagesSync(messages, { ...options, measure })
+}
+
+function partTokens(part: ContentPart, options: FootprintOptions): number {
+  const { dialect, tokenizer, measure } = options
   switch (part.type) {
     case 'text':
     case 'reasoning':
       return tokenizer.count(part.text)
     case 'image':
-      return imageTokensFor(dialect, await imageDimensions(part.image))
-    case 'file':
-      return isImageMediaType(part.mediaType)
-        ? imageTokensFor(dialect, await imageDimensions(part.data))
-        : FILE_OVERHEAD + tokenizer.count(part.filename ?? '')
+      return imageTokensFor(dialect, measure?.get(part)?.dims)
+    case 'file': {
+      if (isImageMediaType(part.mediaType)) return imageTokensFor(dialect, measure?.get(part)?.dims)
+      const kind = mediaKindOf(part.mediaType)
+      if (kind) return mediaTokensFor(dialect, kind, measure?.get(part)?.durationSec)
+      return FILE_OVERHEAD + tokenizer.count(part.filename ?? '')
+    }
     case 'tool-call':
       return TOOL_OVERHEAD + tokenizer.count(part.toolName) + tokenizer.count(stringify(part.input))
     case 'tool-result':
-      return TOOL_OVERHEAD + (await toolResultTokens(part.output, dialect, tokenizer))
+      return TOOL_OVERHEAD + toolResultTokens(part.output, options)
     default:
       // tool-approval-request / tool-approval-response — negligible framing.
       return 0
   }
 }
 
-type ToolResultOutput = Extract<ContentPart, { type: 'tool-result' }>['output']
-
-async function toolResultTokens(
-  output: ToolResultOutput,
-  dialect: TokenDialect,
-  tokenizer: TextTokenizer
-): Promise<number> {
+function toolResultTokens(output: ToolResultOutput, options: FootprintOptions): number {
   switch (output.type) {
     case 'text':
     case 'error-text':
-      return tokenizer.count(output.value)
+      return options.tokenizer.count(output.value)
     case 'json':
     case 'error-json':
-      return tokenizer.count(stringify(output.value))
+      return options.tokenizer.count(stringify(output.value))
     case 'execution-denied':
-      return tokenizer.count(output.reason ?? '')
+      return options.tokenizer.count(output.reason ?? '')
     case 'content': {
-      const items = await Promise.all(output.value.map((item) => contentItemTokens(item, dialect, tokenizer)))
-      return items.reduce((sum, n) => sum + n, 0)
+      let total = 0
+      for (const item of output.value) total += contentItemTokens(item, options)
+      return total
     }
     default:
       return 0
   }
 }
 
-type MultimodalItem = Extract<ToolResultOutput, { type: 'content' }>['value'][number]
-
-async function contentItemTokens(
-  item: MultimodalItem,
-  dialect: TokenDialect,
-  tokenizer: TextTokenizer
-): Promise<number> {
+function contentItemTokens(item: MultimodalItem, { dialect, tokenizer, measure }: FootprintOptions): number {
   switch (item.type) {
     case 'text':
       return tokenizer.count(item.text)
     case 'image-data':
-      // Raw base64 (no data: prefix) — the shape our converter now emits for tool-result images.
-      return imageTokensFor(dialect, await dimensionsFromBytes(bytesFromBase64(item.data)))
+      // Raw base64 (no data: prefix).
+      return imageTokensFor(dialect, measure?.get(item)?.dims)
     case 'media':
-    case 'file-data':
-      return isImageMediaType(item.mediaType)
-        ? imageTokensFor(dialect, await dimensionsFromBytes(bytesFromBase64(item.data)))
-        : FILE_OVERHEAD
+    case 'file-data': {
+      if (isImageMediaType(item.mediaType)) return imageTokensFor(dialect, measure?.get(item)?.dims)
+      const kind = mediaKindOf(item.mediaType)
+      if (kind) return mediaTokensFor(dialect, kind, measure?.get(item)?.durationSec)
+      return FILE_OVERHEAD
+    }
     case 'image-url':
       // Not inline → can't measure; per-dialect fallback constant.
       return imageTokensFor(dialect)
@@ -122,6 +147,63 @@ async function contentItemTokens(
       // file-url / file-id / image-file-id — the payload isn't inline, count only framing.
       return FILE_OVERHEAD
   }
+}
+
+/** One media payload found in the prompt, paired with the part object that owns it. */
+interface MediaNode {
+  owner: object
+  kind: 'image' | MediaKind
+  data: DataContent | URL
+}
+
+/**
+ * Enumerate the inline media payloads in a prompt.
+ *
+ * Deliberately narrower than the token walker: it only has to find payloads worth decoding.
+ * If the two ever drift, a node this misses simply falls back to its per-dialect constant —
+ * degraded precision, never a wrong-shaped estimate.
+ */
+function* mediaNodes(messages: ModelMessage[]): Generator<MediaNode> {
+  for (const message of messages) {
+    if (typeof message.content === 'string') continue
+    for (const part of message.content as ContentPart[]) {
+      if (part.type === 'image') {
+        yield { owner: part, kind: 'image', data: part.image }
+      } else if (part.type === 'file') {
+        const kind = isImageMediaType(part.mediaType) ? 'image' : mediaKindOf(part.mediaType)
+        if (kind) yield { owner: part, kind, data: part.data }
+      } else if (part.type === 'tool-result' && part.output.type === 'content') {
+        for (const item of part.output.value) {
+          if (item.type === 'image-data') {
+            yield { owner: item, kind: 'image', data: item.data }
+          } else if (item.type === 'media' || item.type === 'file-data') {
+            const kind = isImageMediaType(item.mediaType) ? 'image' : mediaKindOf(item.mediaType)
+            if (kind) yield { owner: item, kind, data: item.data }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Decode what the inline payloads can tell us: pixel dimensions for images. Audio/video
+ * duration needs a container probe, which is not wired here yet — those parts resolve to
+ * their per-dialect fallback until it is.
+ *
+ * Never throws; an unreadable payload is simply absent from the map.
+ */
+export async function measureMedia(messages: ModelMessage[]): Promise<MediaMeasurements> {
+  const nodes = [...mediaNodes(messages)]
+  const measurements: MediaMeasurements = new Map()
+  await Promise.all(
+    nodes.map(async (node) => {
+      if (node.kind !== 'image') return
+      const dims = await imageDimensions(node.data)
+      if (dims) measurements.set(node.owner, { dims })
+    })
+  )
+  return measurements
 }
 
 /**
@@ -160,8 +242,11 @@ async function imageDimensions(value: DataContent | URL): Promise<ImageDims | un
     if (value.startsWith('data:')) {
       const parts = parseDataUrl(value)
       if (parts?.isBase64) return dimensionsFromBytes(bytesFromBase64(parts.data))
+    } else if (!value.includes('://')) {
+      // Raw base64 (the shape tool-result `image-data` carries) — a URL would contain a scheme.
+      return dimensionsFromBytes(bytesFromBase64(value))
     }
-    // Bare base64 (rare) or a remote URL — treat as unmeasurable rather than risk mis-decoding a URL.
+    // Remote URL — unmeasurable without fetching.
     return undefined
   }
   if (value instanceof Uint8Array || value instanceof ArrayBuffer || Buffer.isBuffer(value)) {
@@ -192,6 +277,14 @@ async function dimensionsFromBytes(
 
 function isImageMediaType(mediaType: string | undefined): boolean {
   return typeof mediaType === 'string' && mediaType.startsWith('image/')
+}
+
+/** `audio`/`video` for a duration-priced media type, `undefined` for anything else. */
+function mediaKindOf(mediaType: string | undefined): MediaKind | undefined {
+  if (typeof mediaType !== 'string') return undefined
+  if (mediaType.startsWith('audio/')) return 'audio'
+  if (mediaType.startsWith('video/')) return 'video'
+  return undefined
 }
 
 /** `JSON.stringify` that never throws and yields `''` for undefined/circular values. */
