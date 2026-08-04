@@ -261,7 +261,7 @@ export class BackupService extends BaseService {
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal) => {
+    return this.runExclusive('export', async (signal, reportStage) => {
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.
@@ -274,6 +274,7 @@ export class BackupService extends BaseService {
       const stagePath = join(tempRoot, `${randomUUID()}-${name}`)
       try {
         const result = await exportArchive({ outPath: stagePath, signal })
+        reportStage('uploading')
         await transport.upload(result.outPath, name)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
         // a user with no backups at all.

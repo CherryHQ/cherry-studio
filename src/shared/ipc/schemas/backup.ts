@@ -350,6 +350,12 @@ export type BackupProgressStage =
   | 'materializing-db'
   | 'capturing-resources'
   | 'verifying'
+  /**
+   * Destination exports only (§7.1), and usually the longest stage of one: the
+   * finished archive is being sent. Without it a dialog sits on `verifying` for
+   * the entire upload.
+   */
+  | 'uploading'
   // Restore preparation (§8.1); `materializing-db` is shared with export
   | 'admitting'
   | 'planning'
