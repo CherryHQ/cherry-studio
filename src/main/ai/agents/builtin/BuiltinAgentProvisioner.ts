@@ -14,7 +14,7 @@ import {
   type BuiltinAgentDefinition,
   getBuiltinAgentTemplateDirectory,
   loadBuiltinAgentDefinition
-} from './BuiltinAgentDefinition'
+} from './builtinAgentDefinition'
 
 const logger = loggerService.withContext('BuiltinAgentProvisioner')
 
@@ -49,7 +49,7 @@ function copyMissingDirSync(src: string, dest: string): void {
   }
 }
 
-export { loadBuiltinAgentDefinition } from './BuiltinAgentDefinition'
+export { loadBuiltinAgentDefinition } from './builtinAgentDefinition'
 
 /**
  * Initialize a built-in agent's persistent data directory.

@@ -62,7 +62,7 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.language = 'en-US'
-    mocks.ipcRequest.mockResolvedValue({ id: 'feedback-session' })
+    mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
   })
 
   it.each(['zh-CN', 'zh-TW'])('shows the Feishu survey for %s', (language) => {

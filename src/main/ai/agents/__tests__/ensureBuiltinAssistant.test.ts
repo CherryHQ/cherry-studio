@@ -11,7 +11,7 @@ vi.mock('@application', () => ({ application: { get: mocks.appGet } }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: { ensureBuiltinAgent: mocks.ensure }
 }))
-vi.mock('../builtin/BuiltinAgentDefinition', () => ({
+vi.mock('../builtin/builtinAgentDefinition', () => ({
   loadBuiltinAssistantDefaults: mocks.loadDefaults
 }))
 

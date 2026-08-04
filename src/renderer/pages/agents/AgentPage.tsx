@@ -72,7 +72,7 @@ import {
   getFeedbackIntentGuardCacheKey,
   persistFeedbackComposerLaunch,
   readFeedbackComposerLaunch
-} from './feedback'
+} from './feedbackComposerLaunch'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
 

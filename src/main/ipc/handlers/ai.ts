@@ -193,7 +193,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.feedback_session.create': async () => createBuiltinAssistantFeedbackSession(),
+  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
   // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
   // catalog is read into the cache before the first message — the warm-query handle can't expose it.
   // Trace mode is no exception: the primed connection resolves the session's container trace up front

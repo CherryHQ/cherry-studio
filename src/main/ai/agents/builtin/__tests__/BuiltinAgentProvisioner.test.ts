@@ -15,7 +15,7 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
-import { loadBuiltinAssistantDefaults } from '../BuiltinAgentDefinition'
+import { loadBuiltinAssistantDefaults } from '../builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,

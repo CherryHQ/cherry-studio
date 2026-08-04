@@ -112,11 +112,11 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
-  it('delegates feedback-session creation and returns its authoritative entity', async () => {
+  it('delegates feedback-session creation and returns its id', async () => {
     const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
 
     expect(createBuiltinAssistantFeedbackSession).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ id: 'feedback-session', agentId: 'cherry-assistant' })
+    expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 
   it('generate_text forwards the request and returns the AiService result', async () => {
