@@ -39,7 +39,7 @@ interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
-  /** Focus only the exact base route instead of any sub-route owned by the app. */
+  /** Highlight the sidebar entry only on the exact base route, not on sub-routes owned by the app. */
   exactRouteFocus?: boolean
   instanceKey?: SidebarInstanceKey
 }
@@ -172,14 +172,19 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
   return tab.url
 }
 
+/**
+ * Metadata for a tab the caller is binding to a known instance. Without a `key` there is
+ * nothing to bind, so no metadata is written: stamping a bare app id would mark the tab as
+ * an explicit draft and cut the page off from its own resume / latest-instance fallbacks.
+ */
 export function buildSidebarAppOpenMetadata(
   app: SidebarApp,
   key?: string,
   currentMetadata?: Tab['metadata']
 ): Tab['metadata'] {
-  if (!app.instanceKey) return undefined
+  if (!app.instanceKey || !key) return undefined
   if (app.id !== 'assistants' && app.id !== 'agents') return undefined
-  return buildTabInstanceMetadata(currentMetadata, { appId: app.id, key: key ?? null })
+  return buildTabInstanceMetadata(currentMetadata, { appId: app.id, key })
 }
 
 /**

@@ -1,4 +1,3 @@
-import { isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -67,11 +66,6 @@ export function useTabSelfMetadata({
       key: instanceKey
     })
     if (preserveVisuals) {
-      if (isMetadataEqual(currentTab.metadata, metadata)) return
-      updateTab(currentTabId, { metadata })
-      return
-    }
-    if (currentTab.id === 'home' && !isPageTitledRoute(currentTab.url)) {
       if (isMetadataEqual(currentTab.metadata, metadata)) return
       updateTab(currentTabId, { metadata })
       return
