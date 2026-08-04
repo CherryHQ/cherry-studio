@@ -42,8 +42,9 @@ import {
 import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import {
+  createKimiWebSearchTool,
   createMoonshotProvider,
-  kimiWebSearchEchoTool,
+  KIMI_WEB_SEARCH_TOOL_NAME,
   type MoonshotProvider,
   type MoonshotProviderSettings
 } from './custom/moonshotProvider'
@@ -195,19 +196,19 @@ export const MinimaxExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
 
 /**
- * Moonshot (Kimi) — OpenAI-compatible chat whose transformRequestBody rewrites
- * the `$web_search` declaration to Kimi's builtin_function shape; the factory
- * injects the echo tool that rides the standard agent loop (see moonshotProvider.ts).
+ * Moonshot (Kimi) — OpenAI-compatible chat. Built-in search rides Kimi's official *formula* channel:
+ * a normal function tool whose `execute` POSTs the model's arguments to the formula's fiber endpoint
+ * and returns the fiber output (see moonshotProvider.ts). One path for both the K2 and K3 lines.
  */
 export const MoonshotExtension = ProviderExtension.create({
   name: 'moonshot',
   supportsImageGeneration: false,
   create: createMoonshotProvider,
   toolFactories: {
-    // The echo tool carries no provider-derived state, so neither the provider
-    // nor a config is read (same shape as openrouter's factory).
-    webSearch: () => () => ({
-      tools: { $web_search: kimiWebSearchEchoTool }
+    // Unlike the descriptor-only factories, this one executes: it closes over the provider so the
+    // fiber call reuses the request's credential and base URL.
+    webSearch: (provider) => () => ({
+      tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchTool(provider.runWebSearchFiber) }
     })
   }
 } as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)

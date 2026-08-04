@@ -1,72 +1,62 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { kimiWebSearchEchoTool, transformMoonshotRequestBody } from '../moonshotProvider'
+import { createKimiWebSearchTool, runFormulaFiber } from '../moonshotProvider'
 
-describe('transformMoonshotRequestBody', () => {
-  it('rewrites the $web_search declaration to builtin_function and keeps normal tools', () => {
-    const fn = { type: 'function', function: { name: 'lookup', description: 'x', parameters: {} } }
-    const body = transformMoonshotRequestBody({
-      tools: [fn, { type: 'function', function: { name: '$web_search', description: 'y', parameters: {} } }]
+const fiberResponse = (body: unknown) => ({ json: async () => body }) as unknown as Response
+
+describe('runFormulaFiber', () => {
+  it('posts the arguments as a JSON string to the formula fiber endpoint', async () => {
+    const fetchMock = vi.fn(async () => fiberResponse({ status: 'succeeded', context: { output: 'plain' } }))
+
+    await runFormulaFiber(
+      { baseURL: 'https://api.moonshot.cn/v1/', apiKey: 'sk-test', fetch: fetchMock as never },
+      'moonshot/web-search:latest',
+      'web_search',
+      { query: 'latest models' }
+    )
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.moonshot.cn/v1/formulas/moonshot/web-search:latest/fibers')
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test')
+    // The vendor contract is `arguments` as a serialized string, not a nested object.
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: 'web_search',
+      arguments: '{"query":"latest models"}'
     })
-    expect(body.tools).toEqual([fn, { type: 'builtin_function', function: { name: '$web_search' } }])
   })
 
-  it('rewrites replayed assistant tool_calls for $web_search to builtin_function', () => {
-    const body = transformMoonshotRequestBody({
-      messages: [
-        { role: 'user', content: 'hi' },
-        {
-          role: 'assistant',
-          tool_calls: [
-            { id: 'c1', type: 'function', function: { name: '$web_search', arguments: '{"q":1}' } },
-            { id: 'c2', type: 'function', function: { name: 'lookup', arguments: '{}' } }
-          ]
-        },
-        { role: 'tool', tool_call_id: 'c1', content: '{"q":1}' }
-      ]
-    })
-    expect(body.messages[1].tool_calls).toEqual([
-      { id: 'c1', type: 'builtin_function', function: { name: '$web_search', arguments: '{"q":1}' } },
-      { id: 'c2', type: 'function', function: { name: 'lookup', arguments: '{}' } }
-    ])
-    expect(body.messages[0]).toEqual({ role: 'user', content: 'hi' })
+  it('prefers encrypted_output, which is what web search returns', async () => {
+    const fetchMock = vi.fn(async () =>
+      fiberResponse({ status: 'succeeded', context: { encrypted_output: '----MOONSHOT ENCRYPTED BEGIN----x' } })
+    )
+
+    await expect(
+      runFormulaFiber({ baseURL: 'https://api.moonshot.cn/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+    ).resolves.toBe('----MOONSHOT ENCRYPTED BEGIN----x')
   })
 
-  // The second request is what actually runs the search: Kimi matches the echoed result to its call
-  // by `tool_call_id` AND `name`, but the SDK serializes tool results without a name.
-  it('names the echoed $web_search tool result on the follow-up request', () => {
-    const body = transformMoonshotRequestBody({
-      tools: [{ type: 'function', function: { name: '$web_search', parameters: {} } }],
-      messages: [
-        { role: 'user', content: 'hi' },
-        {
-          role: 'assistant',
-          tool_calls: [
-            { id: 'c1', type: 'function', function: { name: '$web_search', arguments: '{"q":1}' } },
-            { id: 'c2', type: 'function', function: { name: 'lookup', arguments: '{}' } }
-          ]
-        },
-        { role: 'tool', tool_call_id: 'c1', content: '{"q":1}' },
-        { role: 'tool', tool_call_id: 'c2', content: 'result' }
-      ]
-    })
+  // A provider-side tool failure must reach the model as a result, not kill the agent loop.
+  it.each([
+    [{ error: 'quota exceeded' }, 'Error: quota exceeded'],
+    [{ status: 'failed', context: { error: 'bad query' } }, 'Error: bad query'],
+    [{ status: 'failed', context: { output: 'nope' } }, 'Error: nope']
+  ])('maps a failed fiber (%o) to an error string', async (body, expected) => {
+    const fetchMock = vi.fn(async () => fiberResponse(body))
 
-    expect(body.messages[2]).toEqual({ role: 'tool', tool_call_id: 'c1', name: '$web_search', content: '{"q":1}' })
-    // A normal function's result must stay untouched.
-    expect(body.messages[3]).toEqual({ role: 'tool', tool_call_id: 'c2', content: 'result' })
-  })
-
-  it('is a no-op without $web_search anywhere', () => {
-    const args = { tools: [{ type: 'function', function: { name: 'lookup' } }], messages: [{ role: 'user' }] }
-    expect(transformMoonshotRequestBody(args)).toBe(args)
+    await expect(
+      runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch: fetchMock as never }, 'f', 'n', {})
+    ).resolves.toBe(expected)
   })
 })
 
-describe('kimiWebSearchEchoTool', () => {
-  it('echoes the tool-call arguments back verbatim', async () => {
-    const input = { search_id: 'abc', usage: { total_tokens: 42 } }
-    await expect(
-      (kimiWebSearchEchoTool.execute as (i: unknown, o: unknown) => Promise<unknown>)(input, {})
-    ).resolves.toBe(input)
+describe('createKimiWebSearchTool', () => {
+  it('returns the fiber output verbatim so the encrypted payload survives serialization', async () => {
+    const runFiber = vi.fn(async () => '----MOONSHOT ENCRYPTED BEGIN----payload')
+    const kimiTool = createKimiWebSearchTool(runFiber)
+
+    const output = await (kimiTool.execute as (i: unknown, o: unknown) => Promise<unknown>)({ query: 'q' }, {})
+
+    expect(runFiber).toHaveBeenCalledWith({ query: 'q' })
+    expect(output).toBe('----MOONSHOT ENCRYPTED BEGIN----payload')
   })
 })

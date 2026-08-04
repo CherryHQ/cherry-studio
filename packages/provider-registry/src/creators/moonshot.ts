@@ -8,15 +8,10 @@ export default defineCreator({
   modelsDevProviders: ['moonshotai', 'moonshotai-cn'],
   families: ['kimi'],
   idPrefixes: ['kimi', 'moonshot'],
-  // `$web_search` is the K2-line protocol (platform.kimi.com/docs/guide/use-web-search). On kimi-k3
-  // the byte-identical documented round-trip — echoed arguments plus the required `name` — returns
-  // 400 `tokenization failed` (reproduced live; same report on the vendor forum), because K3 moved
-  // built-in search to the Formula API tools channel (docs/guide/use-official-tools). Declaring it
-  // here would route K3 to the server side and fail every request, so it stays out until that
-  // channel is implemented. `kimi-latest` tracks whatever is newest, so it inherits that risk and
-  // stays out too — a wrong declaration 400s every request, a missing one just falls back to the
-  // client search backend.
-  serverTools: { 'web-search': ['kimi-k2'] },
+  // Built-in search rides Kimi's official formula channel — a normal function tool whose execution
+  // POSTs to `/formulas/moonshot/web-search:latest/fibers` (docs/guide/use-official-tools). It serves
+  // both lines: the K2-only `$web_search` builtin protocol 400s with `tokenization failed` on k3.
+  serverTools: { 'web-search': ['kimi-k2', 'kimi-k3', 'kimi-latest'] },
   reasoningFamilies: [
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the

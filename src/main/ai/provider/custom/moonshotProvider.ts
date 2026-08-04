@@ -6,72 +6,69 @@ import { jsonSchema, tool } from 'ai'
 
 export const MOONSHOT_PROVIDER_NAME = 'moonshot' as const
 
-/** Kimi's reserved builtin-function name for server-side web search. */
-export const KIMI_WEB_SEARCH_TOOL_NAME = '$web_search'
+/**
+ * Kimi's official tools are "formulas" the platform executes for you: the model emits a normal
+ * function call, the client POSTs those arguments to the formula's fiber endpoint, and the fiber's
+ * output goes back as the tool result (platform.kimi.com/docs/guide/use-official-tools).
+ *
+ * This replaces the older `$web_search` builtin-function round-trip, which is a K2-line protocol —
+ * on kimi-k3 the documented echo returns 400 `tokenization failed`. The vendor's own sample runs the
+ * formula channel against `kimi-k2-turbo-preview`, so one path serves both lines.
+ */
+export const KIMI_WEB_SEARCH_FORMULA_URI = 'moonshot/web-search:latest'
+export const KIMI_WEB_SEARCH_TOOL_NAME = 'web_search'
+
+interface FormulaFiber {
+  status?: string
+  error?: unknown
+  context?: { output?: string; encrypted_output?: string; error?: unknown }
+}
 
 /**
- * Kimi's `$web_search` executes server-side but uses a client round-trip: the
- * model emits a tool call whose arguments must be echoed back verbatim as the
- * tool result, after which the server runs the search
- * (platform.kimi.com/docs/guide/use-web-search). Identity `execute` rides the
- * standard agent loop — tool-call limits and repair see a normal tool.
+ * Execute one formula fiber. Mirrors the vendor sample's result handling: a succeeded fiber carries
+ * its payload as `output` or `encrypted_output` (web search returns the encrypted form), and every
+ * failure shape is surfaced as an `Error: …` string so the model can react instead of the agent loop
+ * dying on a provider-side tool failure.
  */
-export const kimiWebSearchEchoTool = tool({
-  description: "Kimi's built-in web search; arguments are echoed back so the server executes the search.",
-  inputSchema: jsonSchema<Record<string, unknown>>({ type: 'object', additionalProperties: true }),
-  execute: async (input) => input
-})
+export async function runFormulaFiber(
+  settings: { baseURL: string; apiKey: string; fetch?: FetchFunction },
+  formulaUri: string,
+  name: string,
+  args: unknown
+): Promise<string> {
+  const doFetch = settings.fetch ?? globalThis.fetch
+  const response = await doFetch(`${withoutTrailingSlash(settings.baseURL)}/formulas/${formulaUri}/fibers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${settings.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, arguments: JSON.stringify(args ?? {}) })
+  })
+
+  const fiber = (await response.json().catch(() => ({}))) as FormulaFiber
+  if (fiber.status === 'succeeded') {
+    const output = fiber.context?.output ?? fiber.context?.encrypted_output
+    if (output !== undefined) return output
+  }
+  const failure = fiber.error ?? fiber.context?.error ?? fiber.context?.output
+  return `Error: ${typeof failure === 'string' ? failure : JSON.stringify(failure ?? 'unknown error')}`
+}
 
 /**
- * The AI SDK serializes every tool as `{type:'function', function:{...}}`, but
- * Kimi declares builtins as `{type:'builtin_function', function:{name}}` (the
- * `$` prefix is reserved and rejected for normal functions). Rewrite the
- * declaration, any replayed assistant tool_calls, and the echoed tool results —
- * the SDK emits those as `{role:'tool', tool_call_id, content}`, but Kimi needs
- * `name` alongside the id to run the search on the follow-up request
- * (platform.kimi.com/docs/guide/use-web-search).
+ * The declaration mirrors `GET /formulas/moonshot/web-search:latest/tools`. It is inlined because the
+ * AI SDK needs the schema synchronously when the tool set is built; the fiber call is what actually
+ * runs the search, so a drifted description costs nothing.
  */
-export function transformMoonshotRequestBody(args: Record<string, any>): Record<string, any> {
-  let next = args
-  if (Array.isArray(next.tools) && next.tools.some((t: any) => t?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME)) {
-    next = {
-      ...next,
-      tools: next.tools.map((t: any) =>
-        t?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME
-          ? { type: 'builtin_function', function: { name: KIMI_WEB_SEARCH_TOOL_NAME } }
-          : t
-      )
-    }
-  }
-  if (Array.isArray(next.messages)) {
-    const webSearchCallIds = new Set<string>()
-    for (const message of next.messages) {
-      if (message?.role !== 'assistant' || !Array.isArray(message.tool_calls)) continue
-      for (const call of message.tool_calls) {
-        if (call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME && call.id) webSearchCallIds.add(call.id)
-      }
-    }
-    if (webSearchCallIds.size > 0) {
-      next = {
-        ...next,
-        messages: next.messages.map((message: any) => {
-          if (message?.role === 'assistant' && Array.isArray(message.tool_calls)) {
-            return {
-              ...message,
-              tool_calls: message.tool_calls.map((call: any) =>
-                call?.function?.name === KIMI_WEB_SEARCH_TOOL_NAME ? { ...call, type: 'builtin_function' } : call
-              )
-            }
-          }
-          if (message?.role === 'tool' && webSearchCallIds.has(message.tool_call_id)) {
-            return { ...message, name: KIMI_WEB_SEARCH_TOOL_NAME }
-          }
-          return message
-        })
-      }
-    }
-  }
-  return next
+export function createKimiWebSearchTool(runFiber: (args: unknown) => Promise<string>) {
+  return tool({
+    description: 'Search the web for information',
+    inputSchema: jsonSchema<{ query: string }>({
+      type: 'object',
+      properties: { query: { type: 'string', description: 'What to search for' } },
+      required: ['query']
+    }),
+    // Returning the raw string matters: the SDK maps a string result to a `text` tool output, which
+    // reaches the wire verbatim. Anything else would JSON-quote the opaque (encrypted) fiber payload.
+    execute: (input) => runFiber(input)
+  })
 }
 
 export interface MoonshotProviderSettings {
@@ -88,6 +85,12 @@ export interface MoonshotProvider extends ProviderV3 {
   chatModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   textEmbeddingModel(modelId: string): EmbeddingModelV3
+  /**
+   * Formula execution needs the same credential and base URL as chat, and the tool factory only ever
+   * receives the provider instance — so the runner is exposed here rather than threaded through a
+   * second credential path.
+   */
+  runWebSearchFiber(args: unknown): Promise<string>
 }
 
 export function createMoonshotProvider(settings: MoonshotProviderSettings = {}): MoonshotProvider {
@@ -108,8 +111,7 @@ export function createMoonshotProvider(settings: MoonshotProviderSettings = {}):
       url,
       headers,
       fetch: customFetch,
-      includeUsage: settings.includeUsage,
-      transformRequestBody: transformMoonshotRequestBody
+      includeUsage: settings.includeUsage
     })
 
   const createEmbeddingModel = (modelId: string) =>
@@ -129,6 +131,21 @@ export function createMoonshotProvider(settings: MoonshotProviderSettings = {}):
   provider.imageModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: 'imageModel' })
   }
+  provider.runWebSearchFiber = (args: unknown) =>
+    runFormulaFiber(
+      {
+        baseURL,
+        apiKey: loadApiKey({
+          apiKey: settings.apiKey,
+          environmentVariableName: 'MOONSHOT_API_KEY',
+          description: 'Moonshot'
+        }),
+        fetch: customFetch
+      },
+      KIMI_WEB_SEARCH_FORMULA_URI,
+      KIMI_WEB_SEARCH_TOOL_NAME,
+      args
+    )
 
   return provider as MoonshotProvider
 }
