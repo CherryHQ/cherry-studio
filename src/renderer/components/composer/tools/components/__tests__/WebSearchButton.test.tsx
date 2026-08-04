@@ -136,9 +136,11 @@ describe('WebSearchButton', () => {
       id: 'assistant-1',
       name: 'Assistant',
       settings: {
-        enableWebSearch: false
+        enableWebSearch: false,
+        // Lives in `settings` — `getEffectiveMcpMode` reads it there, and its
+        // fallback is `manual`, which would predict function-tool signals.
+        mcpMode: 'disabled'
       },
-      mcpMode: 'disabled',
       mcpServers: []
     }
     mocks.model = {
