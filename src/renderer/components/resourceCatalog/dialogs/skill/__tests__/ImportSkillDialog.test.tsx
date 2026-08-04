@@ -183,7 +183,7 @@ describe('ImportSkillDialog', () => {
     const fileName = await screen.findByTitle(longName)
     expect(fileName).toHaveTextContent(longName)
     expect(fileName).toHaveClass('truncate')
-    const errorMessage = screen.getByTitle(localizedError)
+    const errorMessage = await screen.findByTitle(localizedError)
     expect(errorMessage).toHaveTextContent(localizedError)
     expect(errorMessage).toHaveClass('whitespace-normal', 'break-words', '[overflow-wrap:anywhere]')
   })
