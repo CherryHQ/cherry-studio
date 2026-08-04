@@ -53,7 +53,6 @@ const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = 
   reasoning: MODEL_CAPABILITY.REASONING,
   function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
   embedding: MODEL_CAPABILITY.EMBEDDING,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
   rerank: MODEL_CAPABILITY.RERANK
 }
 
@@ -485,7 +484,7 @@ function mapCapabilities(
   for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
     if (result === undefined) {
-      if (capability.type !== 'text') {
+      if (capability.type !== 'text' && capability.type !== 'web_search') {
         logger.warn('Unknown capability type dropped during migration', { type: capability.type })
       }
       continue

@@ -100,6 +100,7 @@ vi.mock('electron', () => {
 
   const nativeTheme = {
     on: vi.fn(),
+    removeListener: vi.fn(),
     shouldUseDarkColors: false
   }
 
@@ -115,6 +116,7 @@ vi.mock('electron', () => {
   }
 })
 
+import { nativeTheme } from 'electron'
 import { beforeEach } from 'vitest'
 
 import { CdpBrowserController } from '../browser'
@@ -375,6 +377,23 @@ describe('CdpBrowserController', () => {
 
       const normalTabs = await controller.listTabs(false)
       expect(normalTabs.length).toBe(0)
+    })
+  })
+
+  describe('Dispose behavior', () => {
+    it('unregisters the nativeTheme listener and closes windows on dispose', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+
+      const onMock = vi.mocked(nativeTheme.on)
+      expect(onMock).toHaveBeenCalledTimes(1)
+      const [event, listener] = onMock.mock.calls[0]
+      expect(event).toBe('updated')
+
+      await controller.dispose()
+
+      expect(vi.mocked(nativeTheme.removeListener)).toHaveBeenCalledWith(event, listener)
+      expect(await controller.listTabs(false)).toEqual([])
     })
   })
 })

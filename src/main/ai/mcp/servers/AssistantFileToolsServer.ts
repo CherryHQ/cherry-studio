@@ -2,7 +2,11 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
-import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '@main/ai/tools/fileLookup'
+import {
+  READ_FILE_DESCRIPTION,
+  readFile,
+  readFileModelOutput
+} from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import {
   MOVE_TO_TRASH_DESCRIPTION,
   MOVE_TO_TRASH_TOOL_NAME,

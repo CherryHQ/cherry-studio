@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Globe2, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
+import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,8 +32,7 @@ const MODEL_TYPE_OPTIONS: readonly ClassificationOption<ModelPrimaryType>[] = [
 
 const MODEL_CAPABILITY_OPTIONS: readonly ClassificationOption<ModelCapabilityToggle>[] = [
   { value: MODEL_CAPABILITY.REASONING, label: 'models.type.reasoning', icon: BrainCircuit },
-  { value: MODEL_CAPABILITY.FUNCTION_CALL, label: 'models.type.function_calling', icon: Wrench },
-  { value: MODEL_CAPABILITY.WEB_SEARCH, label: 'models.type.websearch', icon: Globe2 }
+  { value: MODEL_CAPABILITY.FUNCTION_CALL, label: 'models.type.function_calling', icon: Wrench }
 ]
 
 const INPUT_MODALITY_OPTIONS: readonly ClassificationOption<ModelInputModality>[] = [

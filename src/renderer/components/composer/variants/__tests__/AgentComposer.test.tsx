@@ -3425,69 +3425,6 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
-    const workspaceFile = {
-      id: 'workspace-file-1',
-      fileTokenSourceId: 'source-workspace-file-1',
-      name: 'notes.md',
-      origin_name: 'notes.md',
-      path: '/workspace/docs/notes.md'
-    } as FileMetadata
-    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    mocks.draftText = 'long line\n'.repeat(80)
-    mocks.files = [workspaceFile]
-    mocks.draftTokens = [
-      {
-        id: `file:${workspaceFile.fileTokenSourceId}`,
-        kind: 'file',
-        label: workspaceFile.name,
-        payload: workspaceFile,
-        index: 0,
-        textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
-    ]
-    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    fireEvent.click(screen.getByText('send'))
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    // Anchor on the send-time batch specifically. `ipcApiRequest` is shared with
-    // the mount-time workspace probe (`useAgentWorkspaceWarning` reads
-    // `file.get_metadata`), so `invocationCallOrder[0]` is that earlier render
-    // call, not the one this test is ordering against.
-    const batchMetadataOrder =
-      mocks.ipcApiRequest.mock.invocationCallOrder[
-        mocks.ipcApiRequest.mock.calls.findIndex(([route]) => route === 'file.batch_get_metadata')
-      ]
-    expect(batchMetadataOrder).toBeDefined()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(batchMetadataOrder)
-
-    await act(async () => {
-      metadata.resolve({
-        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
-      })
-    })
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
-  })
-
   it('batches workspace attachment metadata while preserving attachment order', async () => {
     const workspaceFileA = {
       id: 'workspace-file-1',

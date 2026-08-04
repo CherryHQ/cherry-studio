@@ -1,5 +1,5 @@
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import type * as FileLookupModule from '@main/ai/tools/fileLookup'
+import type * as ReadFileToolModule from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,8 +15,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { listSessionMessages: mocks.listSessionMessages }
 }))
 
-vi.mock('@main/ai/tools/fileLookup', async (importOriginal) => ({
-  ...(await importOriginal<typeof FileLookupModule>()),
+vi.mock('@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReadFileToolModule>()),
   readFile: mocks.readFile,
   readFileModelOutput: (result: { text: string }) => ({ type: 'text', value: result.text })
 }))

@@ -41,6 +41,14 @@ import {
 } from './custom/localEmbedding/localEmbeddingProvider'
 import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
+import {
+  createKimiWebSearchToolFor,
+  createMoonshotProvider,
+  KIMI_WEB_SEARCH_TOOL_NAME,
+  type KimiFormulaCredentials,
+  type MoonshotProvider,
+  type MoonshotProviderSettings
+} from './custom/moonshotProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
@@ -187,6 +195,28 @@ export const MinimaxExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createMinimaxProvider
 } as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
+
+/**
+ * Moonshot (Kimi) — OpenAI-compatible chat. Built-in search rides Kimi's official *formula* channel:
+ * a normal function tool whose `execute` POSTs the model's arguments to the formula's fiber endpoint
+ * and returns the fiber output (see moonshotProvider.ts). One path for both the K2 and K3 lines.
+ */
+export const MoonshotExtension = ProviderExtension.create({
+  name: 'moonshot',
+  supportsImageGeneration: false,
+  create: createMoonshotProvider,
+  toolFactories: {
+    // Unlike the descriptor-only factories, this one EXECUTES, so it needs a credential. It cannot
+    // come from the provider argument: `getToolProvider` re-creates the instance with no settings
+    // whenever one is cached, so that provider has no api key. The serving credential is passed
+    // through the plugin config instead (buildProviderBuiltinWebSearchConfig).
+    webSearch:
+      () =>
+      (credentials: KimiFormulaCredentials = {}) => ({
+        tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchToolFor(credentials) }
+      })
+  }
+} as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
@@ -337,6 +367,7 @@ export const extensions = [
   CerebrasExtension,
   OllamaExtension,
   MinimaxExtension,
+  MoonshotExtension,
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,

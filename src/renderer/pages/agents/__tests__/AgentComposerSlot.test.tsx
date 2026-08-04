@@ -32,7 +32,6 @@ const baseProps = {
   session,
   sessionId: session.id,
   sendMessage: vi.fn(),
-  captureLocalSendScrollEligibility: vi.fn(),
   stop: vi.fn(),
   isStreaming: false,
   sendDisabled: true,
@@ -70,8 +69,7 @@ describe('AgentComposerSlot', () => {
       resolvedAgent: activeAgent,
       resolvedModel: activeModel,
       resolvedWorkspaceWarning: 'Workspace unavailable',
-      externalContextControls: true,
-      captureLocalSendScrollEligibility: baseProps.captureLocalSendScrollEligibility
+      externalContextControls: true
     })
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()

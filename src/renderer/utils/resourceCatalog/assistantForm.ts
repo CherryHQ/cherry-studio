@@ -1,6 +1,7 @@
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
 // ---------------------------------------------------------------------------
 // Form state
@@ -44,6 +45,15 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
+  // context management (P2-D assistant override). `contextOverrideEnabled`
+  // is the "自定义/customize" master switch: false → settings.contextSettings
+  // is written as null (inherit globals); true → the three fields below form
+  // the override object.
+  contextOverrideEnabled: boolean
+  contextCompressEnabled: boolean
+  contextTruncateThreshold: number
+  /** null = no explicit pick (follow the global / current model). */
+  contextCompressModelId: string | null
   // relations
   groupId: string | null
   knowledgeBaseIds: string[]
@@ -66,13 +76,22 @@ function buildAssistantSettingsFromForm(
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters,
-    mcpMode: form.mcpMode
+    mcpMode: form.mcpMode,
+    // null = clear the override (inherit globals). The `enabled` kill-switch
+    // is deliberately not written here — it stays a global/topic-layer concern.
+    contextSettings: form.contextOverrideEnabled
+      ? {
+          truncateThreshold: form.contextTruncateThreshold,
+          compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
+        }
+      : null
   }
 }
 
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
+  const ctx = settings.contextSettings
   return {
     name: assistant.name,
     emoji: assistant.emoji,
@@ -90,6 +109,12 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    // null/absent contextSettings → override off; show the global defaults as
+    // placeholders (the section seeds live global values on toggle-on).
+    contextOverrideEnabled: ctx != null,
+    contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
+    contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
+    contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
     mcpServerIds: assistant.mcpServerIds ?? []
@@ -151,6 +176,13 @@ export function diffAssistantUpdate(
     baseline.maxToolCalls !== form.maxToolCalls ||
     baseline.enableMaxToolCalls !== form.enableMaxToolCalls ||
     baseline.mcpMode !== form.mcpMode ||
+    baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
+    // Sub-fields only matter while the override is on, so an ON→OFF→ON round
+    // trip that lands back on the baseline values fires no spurious PATCH.
+    (form.contextOverrideEnabled &&
+      (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
+        baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
+        baseline.contextCompressModelId !== form.contextCompressModelId)) ||
     customParametersChanged
 
   const groupChanged = baseline.groupId !== form.groupId
