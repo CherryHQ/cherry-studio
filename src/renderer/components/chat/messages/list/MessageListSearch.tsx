@@ -267,6 +267,8 @@ export const MessageListSearch: FC<Props> = ({
         <div className="flex flex-row items-center">
           <Tooltip placement="bottom" content={t('button.includes_user_questions')} delay={800}>
             <ActionIconButton
+              aria-label={t('button.includes_user_questions')}
+              aria-pressed={includeUser}
               onClick={() => {
                 setIncludeUser(!includeUser)
                 refocusInput()
@@ -276,6 +278,8 @@ export const MessageListSearch: FC<Props> = ({
           </Tooltip>
           <Tooltip placement="bottom" content={t('button.case_sensitive')} delay={800}>
             <ActionIconButton
+              aria-label={t('button.case_sensitive')}
+              aria-pressed={isCaseSensitive}
               onClick={() => {
                 setIsCaseSensitive(!isCaseSensitive)
                 refocusInput()
@@ -290,6 +294,8 @@ export const MessageListSearch: FC<Props> = ({
           </Tooltip>
           <Tooltip placement="bottom" content={t('button.whole_word')} delay={800}>
             <ActionIconButton
+              aria-label={t('button.whole_word')}
+              aria-pressed={isWholeWord}
               onClick={() => {
                 setIsWholeWord(!isWholeWord)
                 refocusInput()
@@ -315,6 +321,7 @@ export const MessageListSearch: FC<Props> = ({
       </div>
       <div className="flex flex-row items-center">
         <ActionIconButton
+          aria-label={t('common.previous')}
           onClick={() => {
             step(-1)
             refocusInput()
@@ -323,6 +330,7 @@ export const MessageListSearch: FC<Props> = ({
           icon={<ChevronUp size={18} />}
         />
         <ActionIconButton
+          aria-label={t('common.next')}
           onClick={() => {
             step(1)
             refocusInput()
@@ -330,7 +338,7 @@ export const MessageListSearch: FC<Props> = ({
           disabled={matches.length === 0}
           icon={<ChevronDown size={18} />}
         />
-        <ActionIconButton onClick={disable} icon={<X size={18} />} />
+        <ActionIconButton aria-label={t('common.close')} onClick={disable} icon={<X size={18} />} />
       </div>
     </div>
   )
