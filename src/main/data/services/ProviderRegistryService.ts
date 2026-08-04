@@ -23,7 +23,8 @@ import type {
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
-  ReasoningWireProfile
+  ReasoningWireProfile,
+  ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
@@ -75,6 +76,8 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native tools served by this host. */
+  serverTools?: ServerToolConfig[]
   /** Registry-owned currency for provider-reported cost amounts. */
   reportedCostCurrency?: Currency
   /** Registry-owned Fast request transport. */
@@ -664,6 +667,7 @@ class ProviderRegistryService {
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,

@@ -1595,7 +1595,6 @@
         "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
-      "url_context": "Contexto de la página web",
       "web_search": {
         "builtin": {
           "disabled_content": "La búsqueda web no es compatible con este modelo actualmente",
@@ -1617,8 +1616,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
-        "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
+        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones"
       }
     },
     "message": {
