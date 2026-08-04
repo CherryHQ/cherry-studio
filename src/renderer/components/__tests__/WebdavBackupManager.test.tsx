@@ -8,20 +8,14 @@ import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { backupToNutstore, restoreFromNutstore } from '../../services/NutstoreService'
+import { restoreFromNutstore } from '../../services/NutstoreService'
 import { WebdavBackupManager } from '../WebdavBackupManager'
 
 const mocks = vi.hoisted(() => ({
   decryptToken: vi.fn(),
-  backupToWebdav: vi.fn(),
   listWebdavFiles: vi.fn(),
-  deleteWebdavFile: vi.fn(),
-  getHostname: vi.fn(),
-  ipcApiRequest: vi.fn(),
   restoreFromWebdav: vi.fn()
 }))
-
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcApiRequest } }))
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await vi.importActual<typeof ReactModule>('react')
@@ -86,16 +80,8 @@ describe('WebdavBackupManager', () => {
 
     await preferenceService.set('data.backup.nutstore.token', 'encrypted-token')
     await preferenceService.set('data.backup.nutstore.path', '/cherry-studio')
-    await preferenceService.set('data.backup.nutstore.auto_sync', true)
-    await preferenceService.set('data.backup.nutstore.sync_interval', 1)
-    await preferenceService.set('data.backup.nutstore.max_backups', 0)
-    await preferenceService.set('data.backup.nutstore.skip_backup_file', false)
 
     mocks.decryptToken.mockResolvedValue({ username: 'user', access_token: 'access-token' })
-    mocks.ipcApiRequest.mockResolvedValue('mac')
-    mocks.getHostname.mockResolvedValue('my-mac')
-    mocks.backupToWebdav.mockRejectedValue(new Error('Backup failed'))
-    mocks.deleteWebdavFile.mockResolvedValue(true)
     mocks.listWebdavFiles.mockResolvedValue([
       { fileName: 'cherry-studio.v6.zip', modifiedTime: '2026-08-03T00:00:00.000Z', size: 1024 }
     ])
@@ -107,16 +93,11 @@ describe('WebdavBackupManager', () => {
 
     Object.assign(window.api, {
       backup: {
-        backupToWebdav: mocks.backupToWebdav,
         listWebdavFiles: mocks.listWebdavFiles,
-        deleteWebdavFile: mocks.deleteWebdavFile,
         restoreFromWebdav: mocks.restoreFromWebdav
       },
       nutstore: {
         decryptToken: mocks.decryptToken
-      },
-      system: {
-        getHostname: mocks.getHostname
       }
     })
   })
@@ -147,40 +128,5 @@ describe('WebdavBackupManager', () => {
     expect(toast.success).not.toHaveBeenCalled()
     expect(popup.error).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('uploads a device-specific Nutstore backup before removing older backups from that device', async () => {
-    await preferenceService.set('data.backup.nutstore.max_backups', 1)
-    mocks.backupToWebdav.mockResolvedValue(true)
-    mocks.listWebdavFiles.mockResolvedValue([
-      {
-        fileName: 'cherry-studio.20260803120000.my-mac.mac.zip',
-        modifiedTime: '2026-08-03T12:00:00.000Z',
-        size: 2048
-      },
-      {
-        fileName: 'cherry-studio.20260802120000.my-mac.mac.zip',
-        modifiedTime: '2026-08-02T12:00:00.000Z',
-        size: 1024
-      },
-      {
-        fileName: 'cherry-studio.20260801120000.other-mac.mac.zip',
-        modifiedTime: '2026-08-01T12:00:00.000Z',
-        size: 1024
-      }
-    ])
-
-    await backupToNutstore()
-
-    expect(mocks.backupToWebdav).toHaveBeenCalledWith(
-      expect.objectContaining({ fileName: expect.stringMatching(/^cherry-studio\.\d{14}\.my-mac\.mac\.zip$/) })
-    )
-    expect(mocks.deleteWebdavFile).toHaveBeenCalledExactlyOnceWith(
-      'cherry-studio.20260802120000.my-mac.mac.zip',
-      expect.any(Object)
-    )
-    expect(mocks.backupToWebdav.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteWebdavFile.mock.invocationCallOrder[0]
-    )
   })
 })

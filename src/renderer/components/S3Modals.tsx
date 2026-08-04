@@ -34,7 +34,7 @@ export function useS3BackupModal() {
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await backupToS3({ customFileName, showMessage: true })
+      await backupToS3({ customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)

@@ -68,22 +68,9 @@ export async function checkConnection() {
 
 let isManualBackupRunning = false
 
-export const isNutstoreBackupRunning = () => isManualBackupRunning
-
-export async function backupToNutstore({
-  showMessage = false,
-  customFileName = '',
-  autoBackupProcess = false
-}: {
-  showMessage?: boolean
-  customFileName?: string
-  autoBackupProcess?: boolean
-} = {}) {
-  const nutstoreToken = await getNutstoreToken(showMessage)
+export async function backupToNutstore({ customFileName = '' }: { customFileName?: string } = {}) {
+  const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
-    if (autoBackupProcess) {
-      throw new Error(i18n.t('message.error.invalid.nutstore_token'))
-    }
     return
   }
 
@@ -94,10 +81,7 @@ export async function backupToNutstore({
 
   const config = await createNutstoreConfig(nutstoreToken)
   if (!config) {
-    if (autoBackupProcess) {
-      throw new Error(i18n.t('message.backup.failed'))
-    }
-    showMessage && toast.error(i18n.t('message.backup.failed'))
+    toast.error(i18n.t('message.backup.failed'))
     return
   }
 
@@ -123,30 +107,25 @@ export async function backupToNutstore({
     })
 
     if (isSuccess) {
-      if (!autoBackupProcess) await recordManualBackupCompletion('nutstore')
+      await recordManualBackupCompletion('nutstore')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setNutstoreSyncState({ lastSyncError: message })
-        showMessage && toast.warning(message)
+        toast.warning(message)
       } else {
         setNutstoreSyncState({ lastSyncError: null })
-        showMessage && toast.success(i18n.t('message.backup.success'))
+        toast.success(i18n.t('message.backup.success'))
       }
     } else {
       throw new Error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
     logger.error('[Nutstore] Backup failed:', error as Error)
-    if (autoBackupProcess) {
-      throw error
-    }
     const message = getLocalizedBackupErrorMessage(error)
     setNutstoreSyncState({ lastSyncError: message })
-    showMessage && toast.error(message)
+    toast.error(message)
   } finally {
-    if (!autoBackupProcess) {
-      setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
-    }
+    setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
   }
 }

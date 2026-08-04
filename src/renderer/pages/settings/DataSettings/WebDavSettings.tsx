@@ -40,8 +40,6 @@ const WebDavSettings: FC = () => {
 
   const webdavSync = useBackupSyncState('webdav')
 
-  // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
-
   const onSyncIntervalChange = async (value: number) => {
     await setWebdavSyncInterval(value)
     if (value === 0) {

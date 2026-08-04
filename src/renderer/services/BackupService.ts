@@ -57,6 +57,8 @@ const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncSta
 const setS3SyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('s3', patch)
 const setLocalBackupSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('local', patch)
 
+type ManualBackupOptions = { customFileName?: string }
+
 export async function backup(skipBackupFile = false) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
@@ -98,29 +100,10 @@ export async function restore() {
 }
 
 // 备份到 webdav
-/**
- * @param showMessage
- * @param customFileName
- * @param autoBackupProcess
- * if call in auto backup process, not show any message, any error will be thrown
- */
-export async function backupToWebdav({
-  showMessage = false,
-  customFileName = '',
-  autoBackupProcess = false
-}: {
-  showMessage?: boolean
-  customFileName?: string
-  autoBackupProcess?: boolean
-} = {}) {
-  // notificationService is imported as a module-level singleton
+export async function backupToWebdav({ customFileName = '' }: ManualBackupOptions = {}) {
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
-  }
-  // force set showMessage to false when auto backup process
-  if (autoBackupProcess) {
-    showMessage = false
   }
 
   isManualBackupRunning = true
@@ -164,11 +147,11 @@ export async function backupToWebdav({
       disableStream: webdavDisableStream
     })
     if (success) {
-      if (!autoBackupProcess) await recordManualBackupCompletion('webdav')
+      await recordManualBackupCompletion('webdav')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setWebDAVSyncState({ lastSyncError: message })
-        showMessage && toast.warning(message)
+        toast.warning(message)
       } else {
         setWebDAVSyncState({ lastSyncError: null })
         void notificationService.send({
@@ -180,23 +163,14 @@ export async function backupToWebdav({
           timestamp: Date.now(),
           source: 'backup'
         })
-        showMessage && toast.success(i18n.t('message.backup.success'))
+        toast.success(i18n.t('message.backup.success'))
       }
     } else {
       const message = i18n.t('message.backup.failed')
-      // if auto backup process, throw error
-      if (autoBackupProcess) {
-        throw new Error(message)
-      }
-
       setWebDAVSyncState({ lastSyncError: message })
-      showMessage && toast.error(message)
+      toast.error(message)
     }
   } catch (error: any) {
-    // if auto backup process, throw error
-    if (autoBackupProcess) {
-      throw error
-    }
     const message = getLocalizedBackupErrorMessage(error)
     void notificationService.send({
       id: uuid(),
@@ -208,15 +182,10 @@ export async function backupToWebdav({
       source: 'backup'
     })
     setWebDAVSyncState({ lastSyncError: message })
-    showMessage && toast.error(message)
+    toast.error(message)
     logger.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
   } finally {
-    if (!autoBackupProcess) {
-      setWebDAVSyncState({
-        lastSyncTime: Date.now(),
-        syncing: false
-      })
-    }
+    setWebDAVSyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
   }
 }
@@ -238,23 +207,10 @@ export async function restoreFromWebdav(fileName?: string) {
   }
 }
 
-export async function backupToS3({
-  showMessage = false,
-  customFileName = '',
-  autoBackupProcess = false
-}: {
-  showMessage?: boolean
-  customFileName?: string
-  autoBackupProcess?: boolean
-} = {}) {
-  // notificationService is imported as a module-level singleton
+export async function backupToS3({ customFileName = '' }: ManualBackupOptions = {}) {
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
-  }
-
-  if (autoBackupProcess) {
-    showMessage = false
   }
 
   isManualBackupRunning = true
@@ -287,11 +243,11 @@ export async function backupToS3({
     })
 
     if (success) {
-      if (!autoBackupProcess) await recordManualBackupCompletion('s3')
+      await recordManualBackupCompletion('s3')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setS3SyncState({ lastSyncError: message })
-        showMessage && toast.warning(message)
+        toast.warning(message)
       } else {
         setS3SyncState({ lastSyncError: null })
         void notificationService.send({
@@ -303,21 +259,14 @@ export async function backupToS3({
           timestamp: Date.now(),
           source: 'backup'
         })
-        showMessage && toast.success(i18n.t('message.backup.success'))
+        toast.success(i18n.t('message.backup.success'))
       }
     } else {
       const message = i18n.t('message.backup.failed')
-      if (autoBackupProcess) {
-        throw new Error(message)
-      }
-
       setS3SyncState({ lastSyncError: message })
-      showMessage && toast.error(message)
+      toast.error(message)
     }
   } catch (error: any) {
-    if (autoBackupProcess) {
-      throw error
-    }
     const message = getLocalizedBackupErrorMessage(error)
     void notificationService.send({
       id: uuid(),
@@ -330,14 +279,9 @@ export async function backupToS3({
     })
     setS3SyncState({ lastSyncError: message })
     logger.error('backupToS3: Error uploading file to S3:', error)
-    showMessage && toast.error(message)
+    toast.error(message)
   } finally {
-    if (!autoBackupProcess) {
-      setS3SyncState({
-        lastSyncTime: Date.now(),
-        syncing: false
-      })
-    }
+    setS3SyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
   }
 }
@@ -374,8 +318,6 @@ export async function restoreFromS3(fileName?: string) {
 
 let isManualBackupRunning = false
 
-export const isBackupRunning = () => isManualBackupRunning
-
 // Data producer for the export-to-phone file flow, consumed by main's
 // LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
 // the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
@@ -390,23 +332,10 @@ export async function getBackupData() {
 /**
  * Backup to local directory
  */
-export async function backupToLocal({
-  showMessage = false,
-  customFileName = '',
-  autoBackupProcess = false
-}: {
-  showMessage?: boolean
-  customFileName?: string
-  autoBackupProcess?: boolean
-} = {}) {
-  // notificationService is imported as a module-level singleton
+export async function backupToLocal({ customFileName = '' }: ManualBackupOptions = {}) {
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
     return
-  }
-  // force set showMessage to false when auto backup process
-  if (autoBackupProcess) {
-    showMessage = false
   }
 
   isManualBackupRunning = true
@@ -435,16 +364,13 @@ export async function backupToLocal({
     })
 
     if (result) {
-      if (!autoBackupProcess) await recordManualBackupCompletion('local')
+      await recordManualBackupCompletion('local')
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setLocalBackupSyncState({ lastSyncError: message })
-        showMessage && toast.warning(message)
+        toast.warning(message)
       } else {
         setLocalBackupSyncState({ lastSyncError: null })
-      }
-
-      if (showMessage && !cleanupFailed) {
         void notificationService.send({
           id: uuid(),
           type: 'success',
@@ -457,50 +383,25 @@ export async function backupToLocal({
       }
     } else {
       const message = i18n.t('message.backup.failed')
-      if (autoBackupProcess) {
-        throw new Error(message)
-      }
-
       setLocalBackupSyncState({
         lastSyncError: message
       })
-
-      if (showMessage) {
-        void popup.error({
-          title: message,
-          content: message
-        })
-      }
+      void popup.error({ title: message, content: message })
     }
 
     return result
   } catch (error: any) {
-    if (autoBackupProcess) {
-      throw error
-    }
-
     logger.error('[LocalBackup] Backup failed:', error)
     const message = getLocalizedBackupErrorMessage(error)
 
     setLocalBackupSyncState({
       lastSyncError: message
     })
-
-    if (showMessage) {
-      void popup.error({
-        title: i18n.t('message.backup.failed'),
-        content: message
-      })
-    }
+    void popup.error({ title: i18n.t('message.backup.failed'), content: message })
 
     throw error
   } finally {
-    if (!autoBackupProcess) {
-      setLocalBackupSyncState({
-        lastSyncTime: Date.now(),
-        syncing: false
-      })
-    }
+    setLocalBackupSyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
   }
 }
