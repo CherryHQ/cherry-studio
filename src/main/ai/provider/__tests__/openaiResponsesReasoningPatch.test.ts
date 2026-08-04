@@ -55,17 +55,20 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
       chunks.push(value)
     }
 
-    const reasoningChunks = chunks.flatMap((chunk) => {
+    const reasoningChunks: Array<
+      { type: 'reasoning-start' | 'reasoning-end'; id: string } | { type: 'reasoning-delta'; id: string; delta: string }
+    > = []
+    for (const chunk of chunks) {
       switch (chunk.type) {
         case 'reasoning-start':
         case 'reasoning-end':
-          return [{ type: chunk.type, id: chunk.id }]
+          reasoningChunks.push({ type: chunk.type, id: chunk.id })
+          break
         case 'reasoning-delta':
-          return [{ type: chunk.type, id: chunk.id, delta: chunk.delta }]
-        default:
-          return []
+          reasoningChunks.push({ type: chunk.type, id: chunk.id, delta: chunk.delta })
+          break
       }
-    })
+    }
 
     expect(reasoningChunks).toEqual([
       { type: 'reasoning-start', id: 'reasoning-item:0' },
