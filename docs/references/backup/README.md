@@ -469,6 +469,47 @@ The only commit operation is a no-clobber hard link from the verified temporary
 ZIP to the final path in the same destination directory. No copy or overwrite
 fallback is allowed.
 
+### 7.1 Destinations
+
+A **destination** is a place an archive is sent: `webdav`, `s3`, `nutstore`
+(WebDAV against a decrypted token), or `local` (a folder the user picked).
+`src/main/services/backup/destinations/` owns all four.
+
+**The renderer names a destination; it never carries one.** Routes take
+`{ destination }` and main reads the host, bucket, secret, and limit from
+Preference itself (`destinationConfig.ts`). No credential is an IPC argument,
+and no renderer can aim a backup somewhere the user did not configure. A
+destination with missing settings raises `DestinationNotConfiguredError` before
+any work starts, which is what lets a scheduled backup distinguish "not set up"
+from "upload failed".
+
+**Publication is always local.** The commit above needs a filesystem with hard
+links; exFAT and most network mounts have none. Every destination therefore
+receives a *finished* archive: the export publishes into `feature.backup.temp`
+on a local disk, and only then is the file uploaded or moved across. A local
+directory is not an exception — it takes the same path, which is why a backup
+folder on a NAS or a USB stick works at all.
+
+**Rotation is device-scoped and runs last.** Generated names are
+`cherry-studio.<timestamp>.<hostname>.<device>.zip`, and `isOwnArchive` reads
+that name back to decide what `max_backups` may delete. The name and the filter
+are one unit: changing either alone starts deleting another machine's backups
+out of a shared folder. Two rules hold it together:
+
+- **Pruning happens only after a successful upload.** Making room first turns a
+  failed upload into a user with no backups at all.
+- **Anything unrecognized is kept.** Archives predating the convention, and ones
+  the user named by hand, match nothing and are never pruned — leaving a file
+  the app cannot account for beats deleting one it cannot account for.
+
+Listing is deliberately *not* device-scoped: restoring another machine's backup
+from a shared folder is the point of having one. Only deletion is narrowed.
+
+Uploads and downloads stream on every destination. An archive is the whole
+profile, so materializing one in memory to hand to a client is how a large
+backup becomes an out-of-memory crash on the machine that could least afford to
+lose it.
+
 ## 8. Restore transaction
 
 Restore is split across runtime preparation and preboot promotion.
