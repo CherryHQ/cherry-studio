@@ -52,7 +52,7 @@ function baselineMigrationsFolder(into: string, beforeTag: string): string {
 }
 
 const CLEANUP_POLICY_MIGRATION = '0003_slow_proudstar'
-const MESSAGE_CYCLE_REPAIR_MIGRATION = '0004_repair_message_parent_cycles'
+const MESSAGE_CYCLE_REPAIR_MIGRATION = '0005_repair_message_parent_cycles'
 
 describe('applyMigrations over a populated database', () => {
   let tempDir: string
