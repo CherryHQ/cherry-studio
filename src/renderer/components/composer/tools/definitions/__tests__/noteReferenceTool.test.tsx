@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   projectNotesTree: vi.fn(),
   registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
+  resolveNotesPath: vi.fn(),
   root: null as object | null,
+  notesPath: '/notes',
   setFiles: vi.fn(),
   updateList: vi.fn(),
   version: 0
@@ -40,11 +42,12 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
-  useNotesSettings: () => ({ notesPath: '/notes' })
+  useNotesSettings: () => ({ notesPath: mocks.notesPath })
 }))
 
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: (...args: unknown[]) => mocks.projectNotesTree(...args)
+  projectNotesTree: (...args: unknown[]) => mocks.projectNotesTree(...args),
+  resolveNotesPath: (...args: unknown[]) => mocks.resolveNotesPath(...args)
 }))
 
 import { NoteReferenceComposerRuntime, noteToComposerAttachment } from '../noteReferenceTool'
@@ -84,8 +87,10 @@ describe('noteReferenceTool', () => {
     mocks.error = null
     mocks.files = []
     mocks.isLoading = false
+    mocks.notesPath = '/notes'
     mocks.root = null
     mocks.version = 0
+    mocks.resolveNotesPath.mockImplementation(async (path: string) => ({ path, isFallback: false }))
     mocks.setFiles.mockImplementation((updater) => {
       mocks.files = typeof updater === 'function' ? updater(mocks.files) : updater
     })
@@ -156,7 +161,27 @@ describe('noteReferenceTool', () => {
     ])
   })
 
-  it('does not add a note that is already attached', () => {
+  it.each([
+    { configuredPath: '', resolvedPath: '/default-notes' },
+    { configuredPath: '/stale-notes', resolvedPath: '/default-notes' }
+  ])('scans the resolved notes path for $configuredPath', async ({ configuredPath, resolvedPath }) => {
+    mocks.notesPath = configuredPath
+    mocks.root = {}
+    mocks.resolveNotesPath.mockResolvedValue({ path: resolvedPath, isFallback: true })
+    mocks.projectNotesTree.mockReturnValue([note({ externalPath: `${resolvedPath}/Daily note.md` })])
+    renderRuntime()
+
+    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]
+    act(() => {
+      launcher?.action?.({ quickPanel: { open: mocks.open }, source: 'root-panel' } as any)
+    })
+
+    await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith(configuredPath))
+    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: resolvedPath }))
+    await waitFor(() => expect(mocks.projectNotesTree).toHaveBeenCalledWith(mocks.root, resolvedPath))
+  })
+
+  it('does not add a note that is already attached', async () => {
     const selectedNote = note()
     mocks.files = [noteToComposerAttachment(selectedNote)]
     mocks.root = {}
@@ -168,7 +193,9 @@ describe('noteReferenceTool', () => {
       launcher?.action?.({ quickPanel: { open: mocks.open }, source: 'root-panel' } as any)
     })
 
-    const item = mocks.updateList.mock.calls.at(-1)?.[0][0]
-    expect(item).toMatchObject({ isSelected: true, disabled: true })
+    await waitFor(() => {
+      const item = mocks.updateList.mock.calls.at(-1)?.[0][0]
+      expect(item).toMatchObject({ isSelected: true, disabled: true })
+    })
   })
 })

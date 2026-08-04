@@ -5,7 +5,7 @@ import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { projectNotesTree } from '@renderer/services/NotesService'
+import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -43,9 +43,11 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   const { actions, launcher, state, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
+  const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
+  const [pathError, setPathError] = useState<Error | null>(null)
   const { notesPath } = useNotesSettings()
   const { root, isLoading, error, version } = useDirectoryTree(
-    dataRequested ? notesPath || undefined : undefined,
+    dataRequested ? resolvedNotesPath : undefined,
     NOTES_TREE_OPTIONS
   )
   const selectedFilePaths = useMemo<Set<string | undefined>>(
@@ -56,12 +58,12 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   const noteFiles = useMemo(() => {
     // The directory mirror mutates root in place; reading version keeps this projection synced.
     void version
-    if (!root || !notesPath) return []
-    return flattenTreeToFiles(projectNotesTree(root, notesPath))
-  }, [notesPath, root, version])
+    if (!root || !resolvedNotesPath) return []
+    return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
+  }, [resolvedNotesPath, root, version])
 
   const panelItems = useMemo<QuickPanelListItem[]>(() => {
-    if (!dataRequested || isLoading) {
+    if (!dataRequested || (!resolvedNotesPath && !pathError) || isLoading) {
       return [
         {
           id: 'note-reference:loading',
@@ -72,7 +74,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
       ]
     }
 
-    if (error) {
+    if (pathError || error) {
       return [
         {
           id: 'note-reference:error',
@@ -113,7 +115,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         }
       }
     })
-  }, [actions, dataRequested, error, isLoading, noteFiles, selectedFilePaths, t])
+  }, [actions, dataRequested, error, isLoading, noteFiles, pathError, resolvedNotesPath, selectedFilePaths, t])
 
   useEffect(() => {
     if (isVisible && symbol === ComposerPanelSymbol.Notes) {
@@ -124,6 +126,12 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   const openNoteReferencePanel = useCallback<NonNullable<ComposerToolLauncher['action']>>(
     ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       setDataRequested(true)
+      setResolvedNotesPath(undefined)
+      setPathError(null)
+
+      void resolveNotesPath(notesPath)
+        .then(({ path }) => setResolvedNotesPath(path))
+        .catch((error) => setPathError(error instanceof Error ? error : new Error(String(error))))
 
       quickPanel.open({
         title: t('chat.input.note_reference.title'),
@@ -134,7 +142,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         triggerInfo: triggerInfo ?? { type: 'button' }
       })
     },
-    [panelItems, t]
+    [notesPath, panelItems, t]
   )
 
   useEffect(() => {
