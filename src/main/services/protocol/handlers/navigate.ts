@@ -24,6 +24,11 @@ export function handleNavigateProtocolUrl(url: URL) {
     return
   }
 
+  if (url.searchParams.has('protocolInstall') || url.searchParams.has('protocolInstallRequestId')) {
+    logger.warn('Blocked navigation with internal MCP install parameters')
+    return
+  }
+
   // Preserve query parameters from the URL
   const queryString = url.search || ''
   const fullPath = `${normalizedPath}${queryString}`

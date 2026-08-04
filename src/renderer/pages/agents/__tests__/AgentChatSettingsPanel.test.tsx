@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const translateMock = vi.hoisted(() => (key: string) => key)
 const partsByMessageIdMock = vi.hoisted(() => ({
   value: {} as Record<string, unknown[]>
 }))
@@ -231,7 +230,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: translateMock })
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
@@ -612,37 +611,6 @@ describe('AgentChat settings panel', () => {
 
     await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-1' }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByText('Choose logger')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
   it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {

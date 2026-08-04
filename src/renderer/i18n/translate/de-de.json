@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} Hintergrundaufgabe läuft",
+      "background_running_other": "{{count}} Hintergrundaufgaben laufen"
     },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Verwerfen und fortfahren",
           "title": "Ungespeicherte Änderungen verwerfen?"
         },
+        "metadata_pending": "Die Datei wurde gespeichert, aber ihre Metadaten werden noch wiederhergestellt. Wiederholen Sie diesen Speichervorgang nicht.",
         "refresh_failed": "Die neuesten Dateiinhalte konnten nicht neu geladen werden.",
         "save_failed": "Die Datei konnte nicht gespeichert werden. Die automatische Speicherung ist angehalten, bis Sie es erneut versuchen oder die Änderungen verwerfen.",
         "unsaved": "Nicht gespeichert",
@@ -325,25 +326,25 @@
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
         "no_subagents": "Keine Unteragenten",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Hintergrundbefehle",
         "subagents": "Unteragenten",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Aktivität",
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Unteraufgaben",
         "selected_tool": "Ausgewähltes Werkzeug",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Aufgabe beenden",
+        "stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
         "tasks": "Aufgaben",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} Tool-Aufruf",
+        "tool_uses_other": "{{count}} Tool-Aufrufe",
         "tools_active": "Aktiv",
         "tools_done": "Fertig",
         "tools_failed": "Fehlgeschlagen",
@@ -2585,6 +2586,10 @@
     "user": "Benutzer"
   },
   "file_preview": {
+    "directory": {
+      "description": "Wählen Sie eine Datei in diesem Ordner aus, um sie in der Vorschau anzuzeigen.",
+      "title": "Das ist ein Ordner"
+    },
     "html": {
       "empty": {
         "description": "Diese HTML-Datei hat keinen Inhalt.",
@@ -2650,6 +2655,10 @@
         "description": "Textdateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
         "title": "Datei ist zu groß"
       }
+    },
+    "unavailable": {
+      "description": "Die Datei wurde möglicherweise verschoben, gelöscht oder ist nicht zugänglich.",
+      "title": "Datei nicht verfügbar"
     },
     "unsupported": {
       "action": "Mit Standard-App öffnen",
@@ -3057,6 +3066,7 @@
       "reindex_failed": "Fehler beim Neuerstellen des Datenquellen-Index",
       "status": {
         "chunking": "Chunking",
+        "copying": "Kopieren {{percent}}%",
         "embedding": "Einbettung",
         "error": "Fehler",
         "pending": "Warten",
@@ -3353,7 +3363,7 @@
             "label": "Kleines Modell (optional)"
           }
         },
-        "model_config": "Modellkonfiguration",
+        "model_config": "Modell",
         "section": {
           "advanced": {
             "desc": "Ausführungslimits und Laufzeitparameter",
@@ -3847,8 +3857,9 @@
       }
     },
     "citation": "{{count}} Zitate",
+    "citation_source": "Zitierquelle {{number}}",
     "citations": "Zitate",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Vorherige Gesprächshistorie konnte nicht gefunden werden — es wird in einem neuen Gespräch fortgefahren",
     "copied": "Kopiert",
     "copy": {
       "failed": "Kopieren fehlgeschlagen",
@@ -4130,7 +4141,7 @@
         "write": "Speichern",
         "writing": "Speichern"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Im Hintergrund ausführen",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
@@ -4162,7 +4173,7 @@
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
         "webSearch": "Websuche",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Workflow",
         "write": "Schreiben"
       },
       "noData": "Keine Daten für dieses Tool verfügbar",
@@ -4222,13 +4233,13 @@
         "result_other": "{{count}} Ergebnisse"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orchestrierung von Workflows",
+        "run_id": "Lauf-ID",
+        "script": "Workflow-Skript",
+        "script_path": "Skriptpfad",
+        "started": "Workflow gestartet",
+        "summary": "Zusammenfassung",
+        "workflow": "workflow"
       }
     },
     "topic": {
@@ -4493,7 +4504,8 @@
     "save_blocked_load_failed": "Speichern blockiert, da die Notiz nicht geladen werden konnte",
     "save_failed": "Fehler beim Speichern der Notiz",
     "save_failure": {
-      "description": "Diese Notiz konnte nicht gespeichert werden. Ihre Bearbeitungen bleiben im Editor erhalten und die automatische Speicherung ist pausiert."
+      "description": "Diese Notiz konnte nicht gespeichert werden. Ihre Bearbeitungen bleiben im Editor erhalten und die automatische Speicherung ist pausiert.",
+      "metadata_pending": "Die Notiz wurde gespeichert, aber ihre Dateimetadaten werden noch wiederhergestellt. Wiederholen Sie diesen Speichervorgang nicht."
     },
     "search": {
       "both": "Name + Inhalt",
@@ -5187,7 +5199,7 @@
     "jina": "Jina",
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Lokale Modelle",
     "longcat": "Meißner Riesenhamster",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5227,7 @@
     "ppio": "PPIO Cloud",
     "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -6765,6 +6778,7 @@
         "allStatuses": "Alle Status",
         "allTypes": "Alle Typen",
         "builtinOnly": "Nur integriert",
+        "label": "Filter",
         "status": "Nach Status filtern",
         "type": "Nach Typ filtern"
       },
@@ -6831,6 +6845,9 @@
         "loadError": "Prompt-Fehler abrufen",
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
+      },
+      "protocolInstall": {
+        "title": "MCP installieren"
       },
       "protocolInstallWarning": {
         "command": "Startbefehl",
@@ -7351,10 +7368,6 @@
       "prevent_sleep_when_busy": "Halten Sie das System wach, während Aufgaben ausgeführt werden"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Wenn aktiviert, kontaktiert Cherry Studio IPInfo, um ein ungefähres Land oder eine Region zu ermitteln, und sendet dieses Ergebnis zusammen mit Ihrem Namen, der App-Sprache, dem lokalen Datum und der Uhrzeit sowie der Zeitzone an das integrierte CherryAI-Modell, um Begrüßungen zu erstellen. Standardmäßig deaktiviert.",
-        "title": "KI-generierte kontextbezogene Begrüßungen"
-      },
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
     },
@@ -7703,6 +7716,13 @@
         "usage_title": "Verwendung",
         "usage_unit": "Tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory öffnen",
+          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
+          "title": "Täglich 10 USD kostenloses API-Guthaben"
+        }
+      },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "reorder_failed": "Fehler beim Neuanordnen der Anbieter",
@@ -7746,13 +7766,6 @@
           "toggle_client_email_visibility": "Sichtbarkeit der Kunden-E-Mail umschalten",
           "toggle_private_key_visibility": "Sichtbarkeit des privaten Schlüssels umschalten",
           "toggle_project_id_visibility": "Projekt-ID-Sichtbarkeit umschalten"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Token Factory öffnen",
-          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
-          "title": "Täglich 10 USD kostenloses API-Guthaben"
         }
       }
     },
@@ -8081,7 +8094,7 @@
           "save_failed": "Speichern fehlgeschlagen",
           "zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche."
         },
-        "fetch_urls_provider": "Standard-URL-Abrufanbieter",
+        "fetch_urls_provider": "URL-Abrufanbieter",
         "free": "Kostenlos",
         "is_default": "Standard",
         "local_provider": {

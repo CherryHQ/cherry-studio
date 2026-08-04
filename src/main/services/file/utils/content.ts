@@ -1,4 +1,5 @@
 import { atomicWriteIfUnchanged, read as fsRead, readChunk as fsReadChunk, stat as fsStat } from '@main/utils/file'
+import type { ContentHash } from '@shared/data/types/file'
 import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
 import mime from 'mime'
 
@@ -84,7 +85,8 @@ export async function readChunkByPath(
 export async function writeIfUnchangedByPath(
   target: AbsoluteFilePath,
   data: Uint8Array,
-  expected: FileVersion
+  expected: FileVersion,
+  expectedContentHash?: ContentHash
 ): Promise<FileVersion> {
-  return atomicWriteIfUnchanged(target, data, expected)
+  return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
 }

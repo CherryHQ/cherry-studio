@@ -33,6 +33,7 @@ function baseInternal(overrides: Record<string, unknown> = {}) {
     name: 'doc',
     ext: 'md',
     size: 100,
+    contentHash: null,
     externalPath: null,
     deletedAt: null,
     createdAt: TS,
@@ -48,6 +49,7 @@ function baseExternal(path: string, overrides: Record<string, unknown> = {}) {
     name: 'report',
     ext: 'pdf',
     size: null,
+    contentHash: null,
     externalPath: path,
     deletedAt: null,
     createdAt: TS,
@@ -147,6 +149,24 @@ describe('fileEntryTable — fe_size_internal_only check', () => {
     ).rejects.toThrow()
     await expect(
       dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/big.pdf', { size: 12345 }))
+    ).rejects.toThrow()
+  })
+})
+
+describe('fileEntryTable — content hash invariants', () => {
+  const dbh = setupTestDatabase()
+
+  it('accepts the same content hash on multiple internal entries', async () => {
+    const contentHash = 'xxh3-64:9555e8555c62dcfd'
+    await dbh.db.insert(fileEntryTable).values(baseInternal({ contentHash }))
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ contentHash }))).resolves.not.toThrow()
+  })
+
+  it('rejects an external entry with a content hash', async () => {
+    await expect(
+      dbh.db
+        .insert(fileEntryTable)
+        .values(baseExternal('/Users/me/external.pdf', { contentHash: 'xxh3-64:9555e8555c62dcfd' }))
     ).rejects.toThrow()
   })
 })

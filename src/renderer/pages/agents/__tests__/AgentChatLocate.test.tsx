@@ -7,8 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const translateMock = vi.hoisted(() => (key: string) => key)
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -200,10 +198,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 })
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [
-    key === 'chat.narrow_mode' || key === 'feature.conversation_greeting.enabled' ? false : 'none',
-    vi.fn()
-  ]
+  usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -304,7 +299,7 @@ vi.mock('../messages/agentMessageListAdapter', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: translateMock })
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
@@ -355,7 +350,6 @@ describe('AgentChat locate pending message', () => {
           }
         },
         file: {
-          isTextFile: vi.fn().mockResolvedValue(true),
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
       }

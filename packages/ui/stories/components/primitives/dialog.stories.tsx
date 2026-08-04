@@ -74,7 +74,7 @@ export const SizeVariants: Story = {
             <input
               id="size-sm-name"
               placeholder="Enter group name…"
-              className="h-9 rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 rounded-md border px-3 text-sm focus:border-primary focus:outline-none"
             />
           </div>
           <DialogFooter>
@@ -194,7 +194,7 @@ export const WithForm: Story = {
             <input
               id="name"
               defaultValue="John Doe"
-              className="col-span-3 h-9 rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="col-span-3 h-9 rounded-md border px-3 text-sm focus:border-primary focus:outline-none"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -204,7 +204,7 @@ export const WithForm: Story = {
             <input
               id="email"
               defaultValue="john@example.com"
-              className="col-span-3 h-9 rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="col-span-3 h-9 rounded-md border px-3 text-sm focus:border-primary focus:outline-none"
             />
           </div>
         </div>

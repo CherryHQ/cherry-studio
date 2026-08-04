@@ -17,8 +17,6 @@ import { aiHandlers } from '../ai'
 
 const aiService = {
   generateText: vi.fn(),
-  runTextRequest: vi.fn(),
-  abortText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
   runImageRequest: vi.fn(),
@@ -103,33 +101,6 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('generate_text registers cancellable requests by id', async () => {
-    const request = {
-      requestId: 'greeting-1',
-      uniqueModelId: 'openai::gpt-4o',
-      system: 'sys',
-      prompt: 'hi'
-    } as const
-    const out = { text: 'hello' }
-    aiService.runTextRequest.mockResolvedValue(out)
-
-    const result = await aiHandlers['ai.text.generate'](request, ctx)
-
-    expect(aiService.runTextRequest).toHaveBeenCalledWith('greeting-1', {
-      uniqueModelId: 'openai::gpt-4o',
-      system: 'sys',
-      prompt: 'hi'
-    })
-    expect(aiService.generateText).not.toHaveBeenCalled()
-    expect(result).toBe(out)
-  })
-
-  it('abort_text delegates to AiService.abortText and resolves void', async () => {
-    const result = await aiHandlers['ai.text.abort']({ requestId: 'greeting-1' }, ctx)
-    expect(aiService.abortText).toHaveBeenCalledWith('greeting-1')
-    expect(result).toBeUndefined()
-  })
-
   it('check_model forwards the request and returns latency', async () => {
     aiService.checkModel.mockResolvedValue({ latency: 42 })
     const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
@@ -147,7 +118,12 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
+    const payload = {
+      uniqueModelId: 'openai::img' as const,
+      prompt: 'a fox',
+      paramValues: {},
+      cleanupPolicy: 'delete_when_unreferenced' as const
+    }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 

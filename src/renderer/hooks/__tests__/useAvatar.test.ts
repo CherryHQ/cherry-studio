@@ -63,22 +63,35 @@ describe('useAvatar', () => {
     expect(result.current).toBe(UserAvatar)
   })
 
-  it('ignores a resolution that completes after unmount (active cleanup guard)', async () => {
-    let resolvePaths: (value: Record<string, string>) => void = () => {}
-    ipcRequest.mockReturnValue(new Promise((resolve) => (resolvePaths = resolve)))
+  it('keeps the current avatar when an older file resolution completes later', async () => {
+    let resolveOld!: (value: Record<string, string>) => void
+    let resolveCurrent!: (value: Record<string, string>) => void
+    const oldRequest = new Promise<Record<string, string>>((resolve) => {
+      resolveOld = resolve
+    })
+    const currentRequest = new Promise<Record<string, string>>((resolve) => {
+      resolveCurrent = resolve
+    })
+    ipcRequest.mockReturnValueOnce(oldRequest).mockReturnValueOnce(currentRequest)
     MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', 'file:id-4')
 
-    const { result, unmount } = renderHook(() => useAvatar())
-    expect(result.current).toBe(UserAvatar) // pending → default
-
-    unmount()
-    // The effect cleanup set active=false; resolving now must be swallowed (no
-    // state update on the unmounted hook, no throw).
-    await act(async () => {
-      resolvePaths({ 'id-4': '/data/files/id-4.webp' })
-      await Promise.resolve()
-    })
-
+    const { result, rerender } = renderHook(() => useAvatar())
     expect(result.current).toBe(UserAvatar)
+
+    MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', 'file:id-5')
+    rerender()
+    expect(ipcRequest).toHaveBeenNthCalledWith(2, 'file.batch_get_physical_paths', { ids: ['id-5'] })
+
+    await act(async () => {
+      resolveCurrent({ 'id-5': '/data/files/id-5.webp' })
+      await currentRequest
+    })
+    expect(result.current).toBe('file:///data/files/id-5.webp')
+
+    await act(async () => {
+      resolveOld({ 'id-4': '/data/files/id-4.webp' })
+      await oldRequest
+    })
+    expect(result.current).toBe('file:///data/files/id-5.webp')
   })
 })

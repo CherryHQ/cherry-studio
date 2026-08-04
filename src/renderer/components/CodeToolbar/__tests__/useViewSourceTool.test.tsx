@@ -14,34 +14,74 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.t })
 }))
 
+interface HookProps {
+  canEdit: boolean
+  hasSpecialView: boolean
+  isStreaming: boolean
+  viewMode: ViewMode
+}
+
 describe('useViewSourceTool', () => {
-  it('switches view modes and exposes the action appropriate to editability', () => {
+  it('keeps source available while a special preview is streaming', () => {
     const onViewModeChange = vi.fn()
     const { result, rerender } = renderHook(
-      ({ editable, enabled, viewMode }: { editable: boolean; enabled: boolean; viewMode: ViewMode }) => {
+      ({ canEdit, hasSpecialView, isStreaming, viewMode }: HookProps) => {
         const [tools, setTools] = useState<ActionTool[]>([])
-        useViewSourceTool({ enabled, editable, viewMode, onViewModeChange, setTools })
+        useViewSourceTool({
+          canEdit,
+          hasSpecialView,
+          isStreaming,
+          viewMode,
+          onViewModeChange,
+          setTools
+        })
         return tools
       },
-      { initialProps: { editable: false, enabled: true, viewMode: 'special' } }
+      { initialProps: { canEdit: true, hasSpecialView: true, isStreaming: true, viewMode: 'special' } }
     )
 
     expect(result.current[0]).toMatchObject({ id: 'view-source', tooltip: 'preview.source' })
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('source')
 
-    rerender({ editable: false, enabled: true, viewMode: 'source' })
+    rerender({ canEdit: true, hasSpecialView: true, isStreaming: true, viewMode: 'source' })
     expect(result.current[0]).toMatchObject({ id: 'view-source', tooltip: 'preview.label' })
+
+    rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'source' })
+    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
+    act(() => result.current[0].onClick?.())
+    expect(onViewModeChange).toHaveBeenLastCalledWith('edit')
+  })
+
+  it('offers edit only when a settled source can enter edit mode', () => {
+    const onViewModeChange = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ canEdit, hasSpecialView, isStreaming, viewMode }: HookProps) => {
+        const [tools, setTools] = useState<ActionTool[]>([])
+        useViewSourceTool({
+          canEdit,
+          hasSpecialView,
+          isStreaming,
+          viewMode,
+          onViewModeChange,
+          setTools
+        })
+        return tools
+      },
+      { initialProps: { canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'source' } }
+    )
+
+    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
+
+    rerender({ canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'edit' })
+    expect(result.current).toEqual([])
+
+    rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'edit' })
+    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'preview.label' })
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('special')
 
-    rerender({ editable: true, enabled: true, viewMode: 'special' })
-    expect(result.current.map((tool) => tool.id)).toEqual(['edit'])
-
-    rerender({ editable: true, enabled: false, viewMode: 'special' })
-    expect(result.current).toEqual([])
-
-    rerender({ editable: true, enabled: true, viewMode: 'split' })
+    rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'split' })
     expect(result.current).toEqual([])
   })
 })
