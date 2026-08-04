@@ -429,7 +429,7 @@ describe('module purity', () => {
     path.join(REPO_SRC, 'main/features/knowledge/capturePolicy.ts'),
     path.join(REPO_SRC, 'main/features/knowledge/portableProfilePolicy.ts'),
     path.join(REPO_SRC, 'main/features/knowledge/restorePolicy.ts'),
-    path.join(REPO_SRC, 'main/services/file/portableProfilePolicy.ts')
+    path.join(REPO_SRC, 'main/services/file/utils/blobName.ts')
   ]
   /**
    * `workspacePathPolicy.ts` is effectful on purpose: its decision is pure (and is
