@@ -10,7 +10,6 @@
  */
 
 import { application } from '@application'
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -29,21 +28,28 @@ import {
 import { isAIGatewayProvider, type WebToolRoutes } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import type { KimiFormulaCredentials } from '../../../provider/custom/moonshotProvider'
 import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'
-import { buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
+import { type AppWebSearchPluginConfig, buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
 
 export interface ResolvedCapabilities {
   enableReasoning: boolean
   enableGenerateImage: boolean
   isSupportedToolUse: boolean
   streamOutput: boolean
-  webSearchPluginConfig?: WebSearchPluginConfig
+  webSearchPluginConfig?: AppWebSearchPluginConfig
 }
 
 export interface ResolveCapabilitiesOptions {
   /** The finalized web-tool plan; web routing itself lives on the request scope, not here. */
   webToolRoutes?: WebToolRoutes
+  /**
+   * This request's resolved serving credential. Only needed by providers whose built-in search runs
+   * a real client-side call (Kimi's formula fiber) — passing the already-resolved one keeps key
+   * rotation single-shot and stays correct with several providers of the same preset.
+   */
+  serving?: KimiFormulaCredentials
 }
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
@@ -76,7 +82,7 @@ export function resolveCapabilities(
   const streamOutput = assistant.settings?.streamOutput !== false
 
   // Build provider-builtin web search config when the plan routed search to the server side
-  let webSearchPluginConfig: WebSearchPluginConfig | undefined
+  let webSearchPluginConfig: AppWebSearchPluginConfig | undefined
   if (options.webToolRoutes?.webSearch === 'server') {
     const preferenceService = application.get('PreferenceService')
     const webSearchConfig = {
@@ -85,11 +91,23 @@ export function resolveCapabilities(
     }
     const aiSdkProviderId = getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
-      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model, provider)
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
+        aiSdkProviderId,
+        webSearchConfig,
+        model,
+        provider,
+        options.serving
+      )
     } else if (isAIGatewayProvider(provider) || provider.id === SystemProviderIds.gateway) {
       const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
       if (gatewayProviderId) {
-        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model, provider)
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
+          gatewayProviderId,
+          webSearchConfig,
+          model,
+          provider,
+          options.serving
+        )
       }
     }
   }

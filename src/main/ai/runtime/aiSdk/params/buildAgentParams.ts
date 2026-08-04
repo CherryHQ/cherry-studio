@@ -143,7 +143,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
-    ? resolveCapabilities(model, provider, assistant, { webToolRoutes: finalWebToolRoutes })
+    ? resolveCapabilities(model, provider, assistant, {
+        webToolRoutes: finalWebToolRoutes,
+        serving: sdkConfig.providerSettings
+      })
     : undefined
 
   const { endpointType } = resolvedEndpoint

@@ -42,9 +42,10 @@ import {
 import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import {
-  createKimiWebSearchTool,
+  createKimiWebSearchToolFor,
   createMoonshotProvider,
   KIMI_WEB_SEARCH_TOOL_NAME,
+  type KimiFormulaCredentials,
   type MoonshotProvider,
   type MoonshotProviderSettings
 } from './custom/moonshotProvider'
@@ -205,11 +206,15 @@ export const MoonshotExtension = ProviderExtension.create({
   supportsImageGeneration: false,
   create: createMoonshotProvider,
   toolFactories: {
-    // Unlike the descriptor-only factories, this one executes: it closes over the provider so the
-    // fiber call reuses the request's credential and base URL.
-    webSearch: (provider) => () => ({
-      tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchTool(provider.runWebSearchFiber) }
-    })
+    // Unlike the descriptor-only factories, this one EXECUTES, so it needs a credential. It cannot
+    // come from the provider argument: `getToolProvider` re-creates the instance with no settings
+    // whenever one is cached, so that provider has no api key. The serving credential is passed
+    // through the plugin config instead (buildProviderBuiltinWebSearchConfig).
+    webSearch:
+      () =>
+      (credentials: KimiFormulaCredentials = {}) => ({
+        tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchToolFor(credentials) }
+      })
   }
 } as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 

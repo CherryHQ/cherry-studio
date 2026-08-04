@@ -106,6 +106,22 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
 // A user-copied provider keeps its own id but still gets the preset's serverTools and the preset's
 // request transform, so delivery must key off the preset link — not `model.providerId`. Keying it off
 // the runtime id routed these copies to the server side and then injected nothing.
+// Kimi's tool executes a formula fiber, so it needs THIS request's credential. The factory cannot
+// read it off the provider instance — `getToolProvider` re-creates that one with no settings when an
+// instance is cached, which made every search fail with "Moonshot API key is missing".
+describe('moonshot formula credentials', () => {
+  it('passes the resolved serving credential to the tool factory', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'moonshot',
+      webSearchConfig,
+      model({ id: 'moonshot::kimi-k3', providerId: 'moonshot', apiModelId: 'kimi-k3' }),
+      preset('moonshot'),
+      { apiKey: 'sk-live', baseURL: 'https://api.moonshot.cn/v1' }
+    )
+    expect(config).toEqual({ moonshot: { apiKey: 'sk-live', baseURL: 'https://api.moonshot.cn/v1' } })
+  })
+})
+
 describe('preset-derived (copied) providers deliver like their preset', () => {
   it('emits the zhipu marker for a copied Zhipu provider', () => {
     const params = getWebSearchParams(

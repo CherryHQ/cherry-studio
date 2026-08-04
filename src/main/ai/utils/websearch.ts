@@ -5,7 +5,15 @@ import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 import { matchesPreset } from '@shared/utils/provider'
 
+import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
+
+/**
+ * aiCore derives `WebSearchPluginConfig` from ITS OWN extensions, so an app-registered one (Moonshot)
+ * has no key there. Widen it here rather than teaching aiCore about a vendor it does not ship —
+ * `providerToolPlugin` takes the config as a plain record, so nothing downstream needs the extra key.
+ */
+export type AppWebSearchPluginConfig = WebSearchPluginConfig & { moonshot?: KimiFormulaCredentials }
 
 /** Inputs for provider-builtin web-search plugin configuration. */
 export interface CherryWebSearchConfig {
@@ -91,9 +99,15 @@ export function buildProviderBuiltinWebSearchConfig(
   providerId: AppProviderId,
   webSearchConfig: CherryWebSearchConfig,
   model?: Model,
-  provider?: Provider
-): WebSearchPluginConfig | undefined {
+  provider?: Provider,
+  serving?: KimiFormulaCredentials
+): AppWebSearchPluginConfig | undefined {
   switch (providerId) {
+    // Kimi's tool EXECUTES a formula fiber, so it needs this request's credential. The tool factory
+    // cannot read it off the provider instance (`getToolProvider` hands it a settings-less one), so
+    // the resolved serving credential rides the plugin config.
+    case 'moonshot':
+      return { moonshot: serving ?? {} }
     case 'azure-responses':
     case 'openai': {
       // Doubao (Ark) and DashScope (Bailian) responses-endpoint models ride the openai Responses
@@ -181,7 +195,7 @@ export function buildProviderBuiltinWebSearchConfig(
             : endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
               ? 'anthropic'
               : endpoint
-      return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model, provider) : {}
+      return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model, provider, serving) : {}
     }
     default: {
       return {}

@@ -61,6 +61,28 @@ export async function runFormulaFiber(
  * AI SDK needs the schema synchronously when the tool set is built; the fiber call is what actually
  * runs the search, so a drifted description costs nothing.
  */
+export interface KimiFormulaCredentials {
+  apiKey?: string
+  baseURL?: string
+  fetch?: FetchFunction
+}
+
+/** Build the tool from this request's serving credential (see the factory in extensions.ts). */
+export function createKimiWebSearchToolFor(credentials: KimiFormulaCredentials) {
+  return createKimiWebSearchTool((args) =>
+    runFormulaFiber(
+      {
+        baseURL: credentials.baseURL || 'https://api.moonshot.cn/v1',
+        apiKey: credentials.apiKey ?? '',
+        fetch: credentials.fetch
+      },
+      KIMI_WEB_SEARCH_FORMULA_URI,
+      KIMI_WEB_SEARCH_TOOL_NAME,
+      args
+    )
+  )
+}
+
 export function createKimiWebSearchTool(runFiber: (args: unknown) => Promise<string>) {
   return tool({
     description: 'Search the web for information',
@@ -89,12 +111,6 @@ export interface MoonshotProvider extends ProviderV3 {
   chatModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   textEmbeddingModel(modelId: string): EmbeddingModelV3
-  /**
-   * Formula execution needs the same credential and base URL as chat, and the tool factory only ever
-   * receives the provider instance — so the runner is exposed here rather than threaded through a
-   * second credential path.
-   */
-  runWebSearchFiber(args: unknown): Promise<string>
 }
 
 export function createMoonshotProvider(settings: MoonshotProviderSettings = {}): MoonshotProvider {
@@ -135,21 +151,6 @@ export function createMoonshotProvider(settings: MoonshotProviderSettings = {}):
   provider.imageModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: 'imageModel' })
   }
-  provider.runWebSearchFiber = (args: unknown) =>
-    runFormulaFiber(
-      {
-        baseURL,
-        apiKey: loadApiKey({
-          apiKey: settings.apiKey,
-          environmentVariableName: 'MOONSHOT_API_KEY',
-          description: 'Moonshot'
-        }),
-        fetch: customFetch
-      },
-      KIMI_WEB_SEARCH_FORMULA_URI,
-      KIMI_WEB_SEARCH_TOOL_NAME,
-      args
-    )
 
   return provider as MoonshotProvider
 }
