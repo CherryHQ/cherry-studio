@@ -94,7 +94,8 @@ function getNavigationPathSegments(value: string): string[] | undefined {
 
 const NAVIGATE_TOOL: Tool = {
   name: 'navigate',
-  description: 'Create a clickable link to a route returned by product_info for the current Cherry Studio package.',
+  description:
+    'Create a clickable entry for a route returned by product_info. Use this in the same turn whenever answering where to find, open, configure, or use a Cherry Studio page or feature; written UI steps are not a substitute.',
   inputSchema: {
     type: 'object',
     properties: {

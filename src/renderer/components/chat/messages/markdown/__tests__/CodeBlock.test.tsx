@@ -5,11 +5,13 @@ import CodeBlock from '../CodeBlock'
 
 // Hoisted mocks
 const mocks = vi.hoisted(() => {
+  const navigateToRoute = vi.fn()
   const saveCodeBlock = vi.fn()
 
   return {
+    navigateToRoute,
     saveCodeBlock,
-    messageListActions: { saveCodeBlock } as any,
+    messageListActions: { navigateToRoute, saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
     isCodeFenceIncomplete: false,
     renderConfig: { codeFancyBlock: true },
@@ -49,6 +51,7 @@ vi.mock('../../MessageListProvider', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
   get isWin() {
     return mocks.isWin
   }
@@ -96,7 +99,7 @@ describe('CodeBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isWin = false
-    mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
+    mocks.messageListActions = { navigateToRoute: mocks.navigateToRoute, saveCodeBlock: mocks.saveCodeBlock }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isCodeFenceIncomplete = false
@@ -134,6 +137,20 @@ describe('CodeBlock', () => {
 
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
       expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
+    })
+
+    it('should render known app routes as navigation entries instead of file paths', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="/app/chat" />)
+
+      expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button'))
+      expect(mocks.navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: undefined })
+    })
+
+    it('should keep unknown app-like paths as file paths', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="/app/not-a-route" />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
     })
 
     it('should render ClickableFilePath for workspace-relative file paths', () => {

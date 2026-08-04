@@ -54,6 +54,11 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
 // Sorted by path length descending for longest prefix match
 const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
 
+export function isKnownNavigationPath(path: string): boolean {
+  const cleanPath = path.split('?')[0]
+  return SORTED_ROUTES.some(([route]) => cleanPath === route || cleanPath.startsWith(`${route}/`))
+}
+
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first
   if (ROUTE_LABELS[path]) return ROUTE_LABELS[path]
