@@ -50,7 +50,6 @@ describe('BuiltinAgentProvisioner', () => {
 
     writeFile(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), '{"name":"builtin-test"}')
     writeFile(path.join(templateDir, '.claude', 'skills', 'cherry-assistant-guide', 'SKILL.md'), 'SKILL_V1')
-    writeFile(path.join(templateDir, '.claude', 'plugins.json'), '{"plugins":[]}')
     writeFile(path.join(templateDir, 'SOUL.md'), 'TEMPLATE_SOUL')
     writeFile(path.join(templateDir, 'USER.md'), 'TEMPLATE_USER')
     writeFile(path.join(templateDir, 'memory', 'FACT.md'), 'TEMPLATE_FACT')

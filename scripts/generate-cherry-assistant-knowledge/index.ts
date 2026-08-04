@@ -11,7 +11,6 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { serializeProductManifest } from './generators/manifest'
-import { serializeBundledPluginsManifest } from './generators/plugins'
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..')
 const AGENT_DIR = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant')
@@ -28,7 +27,7 @@ function serializeAgentTemplate(): string {
   return `${JSON.stringify(agent, null, 2)}\n`
 }
 
-const baseOutputs: GeneratedOutput[] = [
+const outputs: GeneratedOutput[] = [
   {
     path: path.join(AGENT_DIR, 'product-manifest.json'),
     content: serializeProductManifest()
@@ -46,18 +45,11 @@ const baseOutputs: GeneratedOutput[] = [
   }
 ]
 
-function pluginManifestOutput(): GeneratedOutput {
-  return {
-    path: path.join(AGENT_DIR, '.claude/plugins.json'),
-    content: serializeBundledPluginsManifest()
-  }
-}
-
 const isCheck = process.argv.includes('--check')
 
 if (isCheck) {
   let valid = true
-  for (const output of [...baseOutputs, pluginManifestOutput()]) {
+  for (const output of outputs) {
     const relativeOutput = path.relative(ROOT_DIR, output.path)
     if (!fs.existsSync(output.path)) {
       console.error(`build:builtin-knowledge:check failed - ${relativeOutput} does not exist`)
@@ -72,13 +64,8 @@ if (isCheck) {
   }
   console.log('build:builtin-knowledge:check passed')
 } else {
-  for (const output of baseOutputs) {
+  for (const output of outputs) {
     fs.writeFileSync(output.path, output.content, 'utf-8')
     console.log(`[builtin-knowledge] wrote ${path.relative(ROOT_DIR, output.path)} (${output.content.length} chars)`)
   }
-  const pluginOutput = pluginManifestOutput()
-  fs.writeFileSync(pluginOutput.path, pluginOutput.content, 'utf-8')
-  console.log(
-    `[builtin-knowledge] wrote ${path.relative(ROOT_DIR, pluginOutput.path)} (${pluginOutput.content.length} chars)`
-  )
 }
