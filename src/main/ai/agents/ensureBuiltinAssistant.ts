@@ -8,8 +8,10 @@ export function ensureBuiltinAssistant(): AgentEntity {
   const defaults = loadBuiltinAssistantDefaults()
   const defaultModelId = (application.get('PreferenceService').get('chat.default_model_id') ??
     null) as UniqueModelId | null
-  return agentService.ensureBuiltinAssistant({
+  return agentService.ensureBuiltinAgent({
     ...defaults,
-    defaultModelId
+    builtinRole: 'assistant',
+    preferredModelId: defaultModelId,
+    type: 'claude-code'
   })
 }

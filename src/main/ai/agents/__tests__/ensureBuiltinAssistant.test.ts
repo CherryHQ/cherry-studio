@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@application', () => ({ application: { get: mocks.appGet } }))
 vi.mock('@data/services/AgentService', () => ({
-  agentService: { ensureBuiltinAssistant: mocks.ensure }
+  agentService: { ensureBuiltinAgent: mocks.ensure }
 }))
 vi.mock('@data/builtinAgentDefinition', () => ({
   loadBuiltinAssistantDefaults: mocks.loadDefaults
@@ -43,7 +43,9 @@ describe('ensureBuiltinAssistant command', () => {
     expect(mocks.preferenceGet).toHaveBeenCalledWith('chat.default_model_id')
     expect(mocks.ensure).toHaveBeenCalledWith({
       name: 'Cherry Assistant',
-      defaultModelId: 'anthropic::claude-sonnet-4-5',
+      builtinRole: 'assistant',
+      preferredModelId: 'anthropic::claude-sonnet-4-5',
+      type: 'claude-code',
       configuration: {
         avatar: '🍒',
         permission_mode: 'default',

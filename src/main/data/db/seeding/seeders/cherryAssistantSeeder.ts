@@ -1,13 +1,11 @@
 import { loadBuiltinAssistantDefaults } from '@data/builtinAgentDefinition'
-import { agentTable } from '@data/db/schemas/agent'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { sql } from 'drizzle-orm'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { DbOrTx, DbType, ISeeder } from '../../types'
+import type { DbType, ISeeder } from '../../types'
 
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
@@ -20,7 +18,7 @@ export class CherryAssistantSeeder implements ISeeder {
 
   run(db: DbType): void {
     db.transaction((tx) => {
-      const existing = this.findBuiltinAssistant(tx)
+      const existing = agentService.findBuiltinAgentByRoleTx(tx, 'assistant', { includeDeleted: true })
       if (existing) return
 
       const defaults = loadBuiltinAssistantDefaults(this.getPreferredSystemLanguage())
@@ -50,16 +48,6 @@ export class CherryAssistantSeeder implements ISeeder {
         workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       })
     })
-  }
-
-  private findBuiltinAssistant(tx: DbOrTx) {
-    const [existing] = tx
-      .select({ id: agentTable.id })
-      .from(agentTable)
-      .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
-      .limit(1)
-      .all()
-    return existing
   }
 
   private getPreferredSystemLanguage(): string {
