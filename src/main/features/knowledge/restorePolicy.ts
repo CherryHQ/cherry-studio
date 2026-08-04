@@ -7,7 +7,7 @@ import type {
   RestoreOwnerProgressReadResult,
   RestoreOwnerSummaryBag,
   RestoreOwnerSummaryReadResult
-} from '@data/portableProfilePolicy'
+} from '@data/db/restore/portableProfileContracts'
 
 const MAX_RESTORED_KNOWLEDGE_BASES = 50_000
 

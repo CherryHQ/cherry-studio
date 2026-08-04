@@ -1,5 +1,5 @@
+import type { PortableProfileSanitization } from '@data/db/restore/portableProfileContracts'
 import type { McpServerRow } from '@data/db/schemas/mcpServer'
-import type { PortableProfileSanitization } from '@data/portableProfilePolicy'
 import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 

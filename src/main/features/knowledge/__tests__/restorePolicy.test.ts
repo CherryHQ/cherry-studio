@@ -1,6 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import type { RestoreOwnerProgressReadResult, RestoreOwnerSummaryReadResult } from '@data/portableProfilePolicy'
+import type {
+  RestoreOwnerProgressReadResult,
+  RestoreOwnerSummaryReadResult
+} from '@data/db/restore/portableProfileContracts'
 
 import {
   createKnowledgeRestoreOwnerSummary,
