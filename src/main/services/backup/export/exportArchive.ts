@@ -38,7 +38,7 @@ import { currentBackupPlatform } from '../platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from '../portability/managedPathRebase'
 import type { MaterializationSummary } from '../portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from '../portability/materializeDatabase'
-import type { BackupStageReporter } from '../progress'
+import type { BackupResourceReporter, BackupStageReporter } from '../progress'
 import { collectResourceRequirements, resolveResourceRoots } from '../resources/collectRequirements'
 import { measureRequirementBytes } from '../resources/measureRequirements'
 import { createOwnerResourceCapture } from '../resources/ownerCapture'
@@ -58,6 +58,8 @@ export interface ExportArchiveInputs {
   readonly signal?: AbortSignal
   /** Names each stage boundary for the progress event; absent in tests. */
   readonly reportStage?: BackupStageReporter
+  /** Called as each resource unit is entered; absent in tests. */
+  readonly reportUnit?: BackupResourceReporter
 }
 
 export interface ExportArchiveResult {
@@ -103,7 +105,7 @@ function readSealedChain(dbPath: string): ReturnType<typeof readAppliedChain> {
 }
 
 export async function exportArchive(inputs: ExportArchiveInputs): Promise<ExportArchiveResult> {
-  const { outPath, signal, reportStage } = inputs
+  const { outPath, signal, reportStage, reportUnit } = inputs
   throwIfAborted(signal)
   reportStage?.('preparing')
 
@@ -167,7 +169,8 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       resourcesDir,
       requiredContent: inventory.requiredContent,
       ...ownerCapture,
-      signal
+      signal,
+      reportUnit
     })
     throwIfAborted(signal)
 

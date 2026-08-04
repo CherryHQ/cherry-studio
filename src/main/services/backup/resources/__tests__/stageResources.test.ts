@@ -265,6 +265,26 @@ describe('stageResources', () => {
     ])
   })
 
+  // Reporting on entry is what makes the count reach its total: the second unit
+  // here never produces a payload, and counting staged units would stall at 1/2.
+  it('counts every unit it enters, including one that degrades out', async () => {
+    writeSource('Data/Files/here.pdf', 'HERE')
+    const seen: Array<{ done: number; total: number; livePath: string }> = []
+
+    const result = await stageResources({
+      requirements: [req('file-blob', 'file', 'Data/Files/here.pdf'), req('file-blob', 'file', 'Data/Files/gone.pdf')],
+      userDataPath: userData,
+      resourcesDir,
+      reportUnit: ({ done, total, livePath }) => seen.push({ done, total, livePath })
+    })
+
+    expect(result.payloads).toHaveLength(1)
+    expect(seen).toEqual([
+      { done: 1, total: 2, livePath: 'Data/Files/here.pdf' },
+      { done: 2, total: 2, livePath: 'Data/Files/gone.pdf' }
+    ])
+  })
+
   it('omits a symlink standing where a managed directory belongs and discloses the whole unit', async () => {
     mkdirSync(join(userData, 'Data', 'KnowledgeBase'), { recursive: true })
     const target = join(userData, 'Data', 'KnowledgeBase', 'kb-1')
