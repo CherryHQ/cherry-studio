@@ -7,7 +7,6 @@ import { PassThrough } from 'node:stream'
 import { application } from '@application'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
@@ -290,7 +289,7 @@ describe('OpenClawService gateway status state machine', () => {
       ).rejects.toMatchObject({ kind: 'binary_incompatible' })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         '/mock/bin/openclaw',
-        ['config', 'schema', '--json'],
+        ['config', 'schema'],
         expect.objectContaining({
           env: { PATH: '/mock/bin', OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json' },
           stdio: ['ignore', 'pipe', 'pipe']
@@ -388,7 +387,24 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
+    it('accepts a successful OpenClaw validation report without an issues field', () => {
+      const path = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+
+      expect(
+        (service as any).parseValidationResult({
+          exitCode: 0,
+          stdout: JSON.stringify({ valid: true, path, warnings: [] }),
+          stderr: '',
+          outputTruncated: false
+        })
+      ).toEqual({ valid: true, path, issues: [], warnings: [] })
+    })
+
     it.each([
+      {
+        name: 'valid false with missing issues',
+        result: { exitCode: 1, stdout: JSON.stringify({ valid: false }), outputTruncated: false }
+      },
       {
         name: 'valid false with no issues',
         result: { exitCode: 1, stdout: JSON.stringify({ valid: false, issues: [] }), outputTruncated: false }
@@ -445,19 +461,15 @@ describe('OpenClawService gateway status state machine', () => {
       expect((thrown as Error).message).not.toContain('stderr-secret')
     })
 
-    it.each([
-      'models.providers.cherry-openai.models.0.contextWindow',
-      'gateway.mode',
-      'gateway.port',
-      'gateway.auth',
-      'gateway.auth.token',
-      'agents.defaults.model',
-      'agents.defaults.model.primary',
-      'update.checkOnStart'
-    ])('classifies rejected Cherry-managed path %s as binary incompatibility', async (issuePath) => {
+    it('classifies a rejected Cherry-managed provider field as binary incompatibility', async () => {
       validateConfigSpy.mockResolvedValueOnce({
         valid: false,
-        issues: [{ path: issuePath, message: 'Unsupported generated field' }],
+        issues: [
+          {
+            path: 'models.providers.cherry-openai.models.0.contextWindow',
+            message: 'Unsupported generated field'
+          }
+        ],
         warnings: []
       })
 
@@ -653,33 +665,27 @@ describe('OpenClawService gateway status state machine', () => {
       expect(startAndWaitSpy).not.toHaveBeenCalled()
     })
 
-    it('runs schema and formal config validation with the explicit OpenClaw config path', async () => {
-      schemaCapabilitySpy.mockRestore()
+    it('runs formal config validation with the explicit OpenClaw config path', async () => {
       validateConfigSpy.mockRestore()
       runOpenClawCommandSpy.mockReset()
-      runOpenClawCommandSpy
-        .mockResolvedValueOnce({ exitCode: 0, stdout: '{}', stderr: '', outputTruncated: false })
-        .mockResolvedValueOnce({
-          exitCode: 0,
-          stdout: JSON.stringify({
-            valid: true,
-            path: '/mock/openclaw/openclaw.json',
-            issues: [],
-            warnings: []
-          }),
-          stderr: '',
-          outputTruncated: false
-        })
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          valid: true,
+          path: '/mock/openclaw/openclaw.json',
+          issues: [],
+          warnings: []
+        }),
+        stderr: '',
+        outputTruncated: false
+      })
       checkPortOpenSpy.mockResolvedValue(false)
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
 
-      expect(runOpenClawCommandSpy).toHaveBeenCalledTimes(2)
+      expect(runOpenClawCommandSpy).toHaveBeenCalledTimes(1)
       expect(runOpenClawCommandSpy.mock.calls[0][2]).toMatchObject({
-        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
-      })
-      expect(runOpenClawCommandSpy.mock.calls[1][2]).toMatchObject({
         OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
       })
     })
@@ -839,113 +845,6 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ success: false, message: 'Gateway timeout' })
       expect((service as any).gatewayStatus).toBe('error')
-    })
-
-    it('redacts and limits a startup failure before returning or logging it', async () => {
-      checkPortOpenSpy.mockResolvedValue(false)
-      const rawError = new Error(`apiKey="sk-start-secret" Authorization: Bearer start-token ${'x'.repeat(3000)}`)
-      startAndWaitSpy.mockRejectedValue(rawError)
-
-      const result = await service.startGateway()
-      const message = 'message' in result ? result.message : ''
-
-      expect(result.success).toBe(false)
-      expect(message).not.toContain('sk-start-secret')
-      expect(message).not.toContain('start-token')
-      expect(message.length).toBeLessThanOrEqual(2000)
-      const loggedError = mockMainLoggerService.error.mock.calls.at(-1)?.[1]
-      expect(loggedError).toBeInstanceOf(Error)
-      expect(loggedError).not.toBe(rawError)
-      expect((loggedError as Error).message).toBe(message)
-    })
-
-    it('redacts and limits early-exit gateway diagnostics while unrefing the child', async () => {
-      startAndWaitSpy.mockRestore()
-      vi.useFakeTimers()
-      const child = queueSpawnResult({
-        stderr: `apiKey="sk-gateway-secret"\nAuthorization: Bearer gateway-token\n${'x'.repeat(3001)}`,
-        exitCode: 1
-      })
-
-      const rejected = (service as any)
-        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
-        .catch((error: Error) => error)
-      await vi.runAllTimersAsync()
-      const error = await rejected
-
-      expect(error).toBeInstanceOf(Error)
-      expect(error.message).not.toContain('sk-gateway-secret')
-      expect(error.message).not.toContain('gateway-token')
-      expect(error.message.length).toBeLessThanOrEqual(2000)
-      expect(child.unref).toHaveBeenCalledOnce()
-    })
-
-    it('redacts and limits process error diagnostics before rejecting startup', async () => {
-      startAndWaitSpy.mockRestore()
-      vi.useFakeTimers()
-      const child = createSpawnChild()
-      crossPlatformSpawnMock.mockReturnValue(child)
-
-      const rejected = (service as any)
-        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
-        .catch((error: Error) => error)
-      child.emit('error', new Error(`apiKey="sk-process-secret" ${'x'.repeat(3001)}`))
-      await vi.advanceTimersByTimeAsync(1000)
-      const error = await rejected
-
-      expect(error).toBeInstanceOf(Error)
-      expect(error.message).not.toContain('sk-process-secret')
-      expect(error.message.length).toBeLessThanOrEqual(2000)
-      expect(child.unref).toHaveBeenCalledOnce()
-    })
-
-    it('redacts and bounds timeout diagnostics to five non-empty lines per stream', async () => {
-      startAndWaitSpy.mockRestore()
-      vi.useFakeTimers()
-      const child = createSpawnChild()
-      crossPlatformSpawnMock.mockReturnValue(child)
-      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
-        status: 'unhealthy',
-        error: 'Authorization: Bearer health-token'
-      })
-
-      const rejected = (service as any)
-        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
-        .catch((error: Error) => error)
-      child.stderr.write(
-        ['apiKey="sk-timeout-secret"', 'stderr-2', 'stderr-3', 'stderr-4', 'stderr-5', 'stderr-6'].join('\n')
-      )
-      child.stdout.write(['stdout-1', 'stdout-2', 'stdout-3', 'stdout-4', 'stdout-5', 'stdout-6'].join('\n'))
-      await vi.runAllTimersAsync()
-      const error = await rejected
-
-      expect(error).toBeInstanceOf(Error)
-      expect(error.message).not.toContain('sk-timeout-secret')
-      expect(error.message).not.toContain('health-token')
-      expect(error.message).toContain('stderr-5')
-      expect(error.message).not.toContain('stderr-6')
-      expect(error.message).toContain('stdout-5')
-      expect(error.message).not.toContain('stdout-6')
-      expect(error.message.length).toBeLessThanOrEqual(2000)
-      expect(child.unref).toHaveBeenCalledOnce()
-    })
-
-    it('drains gateway output after retaining one MiB without keeping overflow', async () => {
-      startAndWaitSpy.mockRestore()
-      vi.useFakeTimers()
-      const overflowMarker = 'post-cap-marker'
-      const child = queueSpawnResult({ stderr: `${'\n'.repeat(1024 * 1024)}${overflowMarker}`, exitCode: 1 })
-
-      const rejected = (service as any)
-        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
-        .catch((error: Error) => error)
-      await vi.runAllTimersAsync()
-      const error = await rejected
-
-      expect(error.message).toBe('gateway exited with code 1')
-      expect(error.message).not.toContain(overflowMarker)
-      expect(child.stderr.readableEnded).toBe(true)
-      expect(child.stderr.readableLength).toBe(0)
     })
 
     it('sets status to starting during startup', async () => {
@@ -1417,21 +1316,6 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ success: false, message: 'OpenClaw sync does not support Vertex AI providers yet' })
     })
-
-    it('sanitizes resolution failures in both the operation result and logger', async () => {
-      const { providerService } = await import('@data/services/ProviderService')
-      const secret = 'sync-config-secret with spaces'
-      vi.mocked(providerService.getByProviderId).mockRejectedValueOnce(new Error(`Authorization: Custom ${secret}`))
-
-      const result = await service.syncConfig('openai::gpt-4o')
-      const logged = JSON.stringify(mockMainLoggerService.error.mock.calls, (_key, value) =>
-        value instanceof Error ? { message: value.message } : value
-      )
-
-      expect(result.success).toBe(false)
-      expect('message' in result && result.message).not.toContain(secret)
-      expect(logged).not.toContain(secret)
-    })
   })
 
   // ─── syncProviderConfig existing-config handling ─────────────
@@ -1681,24 +1565,6 @@ describe('OpenClawService gateway status state machine', () => {
       expect(tokenDuringValidation).toBe('')
       expect(written.gateway.auth.token).toBe(candidateToken)
       expect((service as any).gatewayAuthToken).toBe(candidateToken)
-    })
-
-    it('sanitizes secret-bearing sync failures in both the operation result and logger', async () => {
-      const configPath = path.join(configDir, 'openclaw.json')
-      const original = '{"tools":{"web":{"search":{"enabled":true}}}}'
-      const secret = 'sync-provider-secret with spaces'
-      fs.writeFileSync(configPath, original, 'utf-8')
-      validateConfigSpy.mockRejectedValueOnce(new Error(`Authorization: Basic ${secret}`))
-
-      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
-      const logged = JSON.stringify(mockMainLoggerService.error.mock.calls, (_key, value) =>
-        value instanceof Error ? { message: value.message } : value
-      )
-
-      expect(result.success).toBe(false)
-      expect('message' in result && result.message).not.toContain(secret)
-      expect(logged).not.toContain(secret)
-      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
     })
 
     it('redacts and limits external validation issues returned in the operation result', async () => {

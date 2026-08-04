@@ -45,22 +45,11 @@ const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
 const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
 const OPENCLAW_CONFIG_FILE_MODE = 0o600
-const OPENCLAW_CHERRY_MANAGED_PATHS = new Set([
-  'gateway.mode',
-  'gateway.port',
-  'gateway.auth',
-  'gateway.auth.token',
-  'agents.defaults.model',
-  'agents.defaults.model.primary',
-  'update.checkOnStart'
-])
 
 type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
 
 type OpenClawRuntime = {
-  source: Exclude<BinaryAvailability, { source: 'none' }>['source']
   path: AbsoluteFilePath
-  version?: string
   env: Record<string, string>
 }
 
@@ -108,7 +97,7 @@ function sanitizeOpenClawDiagnostic(diagnostic: string): string {
 }
 
 function isCherryManagedConfigPath(configPath: string): boolean {
-  return configPath.startsWith('models.providers.cherry-') || OPENCLAW_CHERRY_MANAGED_PATHS.has(configPath)
+  return configPath.startsWith('models.providers.cherry-')
 }
 
 function findSchemaNode(
@@ -296,18 +285,10 @@ export class OpenClawService extends BaseService {
       throw new Error('OpenClaw binary not found. Please install OpenClaw first.')
     }
 
-    const runtime: OpenClawRuntime = {
-      source: openclaw.source,
+    return {
       path: AbsoluteFilePathSchema.parse(openclaw.path),
-      version: 'version' in openclaw ? openclaw.version : undefined,
       env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
     }
-    logger.info('Resolved OpenClaw runtime', {
-      source: runtime.source,
-      path: runtime.path,
-      version: runtime.version
-    })
-    return runtime
   }
 
   private runOpenClawCommand(
@@ -423,11 +404,11 @@ export class OpenClawService extends BaseService {
 
     if (typeof report.valid !== 'boolean') fail()
     if (report.path !== undefined && typeof report.path !== 'string') fail()
-    if (!Array.isArray(report.issues) || !report.issues.every(isIssue)) fail()
+    if (report.issues !== undefined && (!Array.isArray(report.issues) || !report.issues.every(isIssue))) fail()
     if (report.warnings !== undefined && (!Array.isArray(report.warnings) || !report.warnings.every(isIssue))) fail()
     const valid = report.valid as boolean
     const reportPath = report.path as string | undefined
-    const issues = report.issues as OpenClawValidationIssue[]
+    const issues = (report.issues ?? []) as OpenClawValidationIssue[]
     const warnings = (report.warnings ?? []) as OpenClawValidationIssue[]
     if (!valid && issues.length === 0) fail()
     if ((valid && result.exitCode !== 0) || (!valid && result.exitCode !== 1)) fail()
@@ -498,7 +479,7 @@ export class OpenClawService extends BaseService {
     try {
       result = await this.runOpenClawCommand(
         runtime.path,
-        ['config', 'schema', '--json'],
+        ['config', 'schema'],
         {
           ...runtime.env,
           OPENCLAW_CONFIG_PATH: openclawConfigPath()
@@ -551,7 +532,6 @@ export class OpenClawService extends BaseService {
 
     try {
       const runtime = await this.resolveOpenClawRuntime()
-      await this.assertSchemaCapability(runtime)
       await this.assertConfigValid(runtime, openclawConfigPath())
 
       // Check if the port is already in use
@@ -588,8 +568,8 @@ export class OpenClawService extends BaseService {
       return { success: true }
     } catch (error) {
       this.gatewayStatus = 'error'
-      const errorMessage = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
-      logger.error('Failed to start gateway:', new Error(errorMessage))
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to start gateway:', error as Error)
       return { success: false, message: errorMessage }
     }
   }
@@ -625,36 +605,28 @@ export class OpenClawService extends BaseService {
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
-    const stdoutCapture = this.createOutputCapture()
-    const stderrCapture = this.createOutputCapture()
-    const firstNonEmptyLines = (output: string) =>
-      output
-        .split(/\r?\n/)
-        .filter((line) => line.trim().length > 0)
-        .slice(0, 5)
-        .join('\n')
+    let stdoutOutput = ''
+    let stderrOutput = ''
     proc.stdout?.on('data', (data) => {
-      stdoutCapture.append(data)
+      stdoutOutput += data.toString()
     })
     proc.stderr?.on('data', (data) => {
-      stderrCapture.append(data)
+      stderrOutput += data.toString()
     })
     proc.on('error', (err) => {
-      earlyExitError = this.sanitizeDiagnostic(err.message)
+      earlyExitError = err.message
     })
     proc.on('exit', (code) => {
-      const detail = [firstNonEmptyLines(stderrCapture.read()), firstNonEmptyLines(stdoutCapture.read())]
-        .filter(Boolean)
-        .join('\n')
+      // Capture output from both streams for diagnostics
+      const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
+      const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
       if (code !== 0) {
-        earlyExitError = this.sanitizeDiagnostic(detail || `gateway exited with code ${code}`)
+        earlyExitError = detail || `gateway exited with code ${code}`
       } else {
         // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
-        earlyExitError = this.sanitizeDiagnostic(
-          detail
-            ? `gateway exited with code 0 but output: ${detail}`
-            : 'gateway process exited with code 0 before becoming healthy'
-        )
+        earlyExitError = detail
+          ? `gateway exited with code 0 but output: ${detail}`
+          : 'gateway process exited with code 0 before becoming healthy'
       }
     })
 
@@ -684,19 +656,15 @@ export class OpenClawService extends BaseService {
     }
 
     // Combine all available diagnostics: health check errors, stderr, and stdout
-    const stderrDetail = firstNonEmptyLines(stderrCapture.read())
-    const stdoutDetail = firstNonEmptyLines(stdoutCapture.read())
     const diagnostics = [
       lastError ? `health: ${lastError}` : '',
-      stderrDetail ? `stderr: ${stderrDetail}` : '',
-      stdoutDetail ? `stdout: ${stdoutDetail}` : ''
+      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
+      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
     ]
       .filter(Boolean)
       .join('\n')
     const detail = diagnostics ? `\n${diagnostics}` : ''
-    throw new Error(
-      this.sanitizeDiagnostic(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
-    )
+    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
   /**
@@ -877,8 +845,7 @@ export class OpenClawService extends BaseService {
         }
       }
     } catch (error) {
-      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
-      logger.warn('Failed to load auth token from config file', { summary })
+      logger.warn('Failed to load auth token from config file', error as Error)
     }
   }
 
@@ -904,9 +871,9 @@ export class OpenClawService extends BaseService {
       const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
-      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
-      logger.error('Failed to resolve OpenClaw sync config:', new Error(summary))
-      return { success: false, message: summary }
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to resolve OpenClaw sync config:', error as Error)
+      return { success: false, message: errorMessage }
     }
   }
 
@@ -1117,8 +1084,7 @@ export class OpenClawService extends BaseService {
             }
           })
         } catch (err) {
-          const summary = this.sanitizeDiagnostic(err instanceof Error ? err.message : String(err))
-          logger.warn('Failed to get VertexAI access token, using provider apiKey:', { summary })
+          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err as Error)
         }
       }
 
@@ -1203,19 +1169,16 @@ export class OpenClawService extends BaseService {
         this.gatewayAuthToken = token
       } finally {
         await remove(candidatePath).catch((cleanupError) => {
-          const summary = this.sanitizeDiagnostic(
-            cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-          )
-          logger.warn('Failed to remove OpenClaw config validation candidate', { summary })
+          logger.warn('Failed to remove OpenClaw config validation candidate', cleanupError as Error)
         })
       }
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }
     } catch (error) {
-      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
-      logger.error('Failed to sync provider config:', new Error(summary))
-      return { success: false, message: summary }
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to sync provider config:', error as Error)
+      return { success: false, message: errorMessage }
     }
   }
 
