@@ -169,13 +169,22 @@ const TranslatePage: FC = () => {
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const [renderedFor, setRenderedFor] = useState<string>('')
   const markdownRenderSeq = useRef(0)
+  const settledTextRef = useRef('')
+  const translateOutputRef = useRef(translateOutput)
+  useEffect(() => {
+    translateOutputRef.current = translateOutput
+  })
   const [settledTick, setSettledTick] = useState(0)
   const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
     onUpdate: setTranslateOutput,
     streamDone: !isTranslating,
     initialText: translateOutput,
-    onSettled: () => setSettledTick((tick) => tick + 1)
+    onSettled: () => {
+      settledTextRef.current = translateOutputRef.current
+      setSettledTick((tick) => tick + 1)
+    }
   })
   smoothUpdateRef.current = smoothUpdate
 
@@ -184,7 +193,9 @@ const TranslatePage: FC = () => {
   const smoothReset = useCallback(
     (text = '') => {
       markdownRenderSeq.current += 1
+      settledTextRef.current = ''
       setRenderedMarkdown('')
+      setRenderedFor('')
       smoothResetBase(text)
     },
     [smoothResetBase]
@@ -425,20 +436,22 @@ const TranslatePage: FC = () => {
   // frame grows quadratically. Streamed output stays plain text; the single
   // parse happens when useSmoothStream reports the queue drained, and the
   // sequence guard keeps a slow parse from overwriting newer output.
-  const translateOutputRef = useRef(translateOutput)
-  useEffect(() => {
-    translateOutputRef.current = translateOutput
-  })
-
   useEffect(() => {
     if (!enableMarkdown) {
       markdownRenderSeq.current += 1
       setRenderedMarkdown('')
+      setRenderedFor('')
       return
     }
     const text = translateOutputRef.current
-    if (!text) {
-      setRenderedMarkdown('')
+    // Only the settle may start a parse. Toggling Markdown or the Shiki
+    // theme mid-stream would otherwise freeze a partial snapshot into HTML
+    // while the stream is still playing out.
+    if (!text || text !== settledTextRef.current) {
+      if (!text) {
+        setRenderedMarkdown('')
+        setRenderedFor('')
+      }
       return
     }
     const seq = ++markdownRenderSeq.current
@@ -446,6 +459,7 @@ const TranslatePage: FC = () => {
     void shikiMarkdownIt(text).then((markdown) => {
       if (!cancelled && seq === markdownRenderSeq.current) {
         setRenderedMarkdown(markdown)
+        setRenderedFor(text)
       }
     })
     return () => {
@@ -817,7 +831,7 @@ const TranslatePage: FC = () => {
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}
-              renderedMarkdown={renderedMarkdown}
+              renderedMarkdown={renderedFor === translateOutput ? renderedMarkdown : ''}
               enableMarkdown={enableMarkdown}
               translating={isTranslating || isDetecting}
               copied={copied}

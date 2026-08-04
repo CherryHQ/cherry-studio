@@ -318,15 +318,18 @@ vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
     translating,
     translatedContent,
+    renderedMarkdown,
     onExportToNotes
   }: {
     translating: boolean
     translatedContent: string
+    renderedMarkdown?: string
     onExportToNotes?: () => void | Promise<void>
   }) => (
     <div data-testid="translate-output-pane">
       {translating && <span>translate.processing</span>}
       <span data-testid="translate-output-content">{translatedContent}</span>
+      <span data-testid="rendered-markdown">{renderedMarkdown ?? ''}</span>
       <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
     </div>
   )
@@ -1275,6 +1278,8 @@ describe('TranslatePage', () => {
 
     it('drops a stale in-flight render when a new translation starts', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
       mockShikiMarkdownIt.mockClear()
 
       let resolveStale: ((html: string) => void) | undefined
@@ -1296,13 +1301,52 @@ describe('TranslatePage', () => {
       fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
         target: { value: 'something new' }
       })
+      // the useCache mock is not reactive, so re-render for the page to see it
+      rerender(<TranslatePage />)
       fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
       await act(async () => {})
       resolveStale?.('<p>stale html</p>')
       await act(async () => {})
 
-      expect(document.querySelector('.markdown')).toBeNull()
+      // the pane mock exposes what the page actually passes down: the stale
+      // resolve must not have landed as rendered HTML
+      expect(screen.getByTestId('rendered-markdown').textContent).toBe('')
+    })
+
+    it('does not parse when markdown is toggled mid-stream', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', false)
+      mockShikiMarkdownIt.mockClear()
+
+      const { rerender } = render(<TranslatePage />)
+      setOutput('partial output')
+      rerender(<TranslatePage />)
+
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
+      rerender(<TranslatePage />)
+      await act(async () => {})
+
+      expect(mockShikiMarkdownIt).not.toHaveBeenCalled()
+    })
+
+    it('does not show HTML rendered for a different output', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
+      mockShikiMarkdownIt.mockClear()
+      mockShikiMarkdownIt.mockResolvedValue('<p>rendered A</p>')
+
+      const { rerender } = render(<TranslatePage />)
+      setOutput('output A')
+      rerender(<TranslatePage />)
+      settle()
+
+      await screen.findByText('<p>rendered A</p>', undefined, { timeout: 3000 })
+
+      // replacing the output without a new settle (history pick, language
+      // exchange) must fall back to text, not keep A's HTML
+      setOutput('output B')
+      rerender(<TranslatePage />)
+      expect(screen.getByTestId('rendered-markdown').textContent).toBe('')
+      expect(screen.getByTestId('translate-output-content').textContent).toBe('output B')
     })
   })
 })
