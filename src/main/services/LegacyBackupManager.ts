@@ -118,7 +118,6 @@ export class BackupOperationBusyError extends Error {
 
 class BackupManager {
   private readonly operationMutex = new Mutex()
-  private readonly backupWorkflowMutex = new Mutex()
 
   // Cached instance to avoid recreating
   private s3Storage: S3Storage | null = null
@@ -214,18 +213,16 @@ class BackupManager {
    * @returns Path to the created backup file
    */
   async backup(
-    event: BackupInvocationEvent,
+    _event: BackupInvocationEvent,
     fileName: string,
     destinationPath?: string,
     slimBackup: boolean = false
   ): Promise<string> {
-    return this.runBackupWorkflow(event, () => this.createBackup(event, fileName, destinationPath, slimBackup))
+    return this.runBackupWorkflow(() => this.backupDirect(fileName, destinationPath, slimBackup))
   }
 
-  private runBackupWorkflow<T>(event: BackupInvocationEvent, operation: () => Promise<T>): Promise<T> {
-    const mutex =
-      event === null ? tryAcquire(this.backupWorkflowMutex, new BackupOperationBusyError()) : this.backupWorkflowMutex
-    return mutex.runExclusive(operation)
+  private runBackupWorkflow<T>(operation: () => Promise<T>): Promise<T> {
+    return tryAcquire(this.operationMutex, new BackupOperationBusyError()).runExclusive(operation)
   }
 
   private createBackupFileName(): string {
@@ -280,17 +277,6 @@ class BackupManager {
     }
   }
 
-  private createBackup(
-    event: BackupInvocationEvent,
-    fileName: string,
-    destinationPath: string | undefined,
-    slimBackup: boolean,
-    signal?: AbortSignal
-  ): Promise<string> {
-    const mutex = event === null ? tryAcquire(this.operationMutex, new BackupOperationBusyError()) : this.operationMutex
-    return mutex.runExclusive(() => this.backupDirect(fileName, destinationPath, slimBackup, signal))
-  }
-
   private async backupDirect(
     fileName: string,
     destinationPath: string | undefined,
@@ -300,7 +286,7 @@ class BackupManager {
     signal?.throwIfAborted()
     this.assertNoActiveDataWriters()
 
-    if (destinationPath && (path.posix.basename(fileName) !== fileName || path.win32.basename(fileName) !== fileName)) {
+    if (path.posix.basename(fileName) !== fileName || path.win32.basename(fileName) !== fileName) {
       throw new Error('Backup file name must not contain path separators')
     }
 
@@ -503,15 +489,13 @@ class BackupManager {
    * @returns Path to the created backup file
    */
   async backupLegacy(
-    event: Electron.IpcMainInvokeEvent,
+    _event: Electron.IpcMainInvokeEvent,
     fileName: string,
     data: string,
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
-    return this.runBackupWorkflow(event, () =>
-      this.operationMutex.runExclusive(() => this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile))
-    )
+    return this.runBackupWorkflow(() => this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile))
   }
 
   private async backupLegacyUnlocked(
@@ -675,31 +659,25 @@ class BackupManager {
     localConfig: LocalBackupConfig,
     signal?: AbortSignal
   ): Promise<BackupWorkflowResult<string>> {
-    try {
-      return await this.runBackupWorkflow(event, async () => {
-        const operationSignal = event === null ? signal : undefined
-        operationSignal?.throwIfAborted()
-        const backupDir = localConfig.localBackupDir || this.backupDir
-        await fs.ensureDir(backupDir)
-        const result = await this.createBackup(
-          event,
-          fileName || this.createBackupFileName(),
-          backupDir,
-          localConfig.skipBackupFile ?? false,
-          operationSignal
-        )
-        const cleanupError = await this.cleanupOldBackups(
-          localConfig.maxBackups ?? 0,
-          (cleanupSignal) => this.listLocalBackupFiles(null, backupDir, cleanupSignal),
-          (oldFileName, cleanupSignal) => this.deleteLocalBackupFile(null, oldFileName, backupDir, cleanupSignal),
-          operationSignal
-        )
-        return { result, cleanupError }
-      })
-    } catch (error) {
-      logger.error('[backupToLocalDir] Local backup failed:', error as Error)
-      throw error
-    }
+    return this.runBackupWorkflow(async () => {
+      const operationSignal = event === null ? signal : undefined
+      operationSignal?.throwIfAborted()
+      const backupDir = localConfig.localBackupDir || this.backupDir
+      await fs.ensureDir(backupDir)
+      const result = await this.backupDirect(
+        fileName || this.createBackupFileName(),
+        backupDir,
+        localConfig.skipBackupFile ?? false,
+        operationSignal
+      )
+      const cleanupError = await this.cleanupOldBackups(
+        localConfig.maxBackups ?? 0,
+        (cleanupSignal) => this.listLocalBackupFiles(null, backupDir, cleanupSignal),
+        (oldFileName, cleanupSignal) => this.deleteLocalBackupFile(null, oldFileName, backupDir, cleanupSignal),
+        operationSignal
+      )
+      return { result, cleanupError }
+    })
   }
 
   /**
@@ -714,11 +692,10 @@ class BackupManager {
     webdavConfig: WebDavConfig,
     signal?: AbortSignal
   ): Promise<BackupWorkflowResult<boolean>> {
-    return this.runBackupWorkflow(event, async () => {
+    return this.runBackupWorkflow(async () => {
       const operationSignal = event === null ? signal : undefined
       const filename = webdavConfig.fileName || this.createBackupFileName()
-      const backupedFilePath = await this.createBackup(
-        event,
+      const backupedFilePath = await this.backupDirect(
         filename,
         undefined,
         webdavConfig.skipBackupFile ?? false,
@@ -784,37 +761,29 @@ class BackupManager {
     s3Config: S3Config,
     signal?: AbortSignal
   ): Promise<BackupWorkflowResult<unknown>> {
-    return this.runBackupWorkflow(event, async () => {
+    return this.runBackupWorkflow(async () => {
       const operationSignal = event === null ? signal : undefined
       const filename = s3Config.fileName || this.createBackupFileName()
 
       logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
-      const backupedFilePath = await this.createBackup(
-        event,
+      const backupedFilePath = await this.backupDirect(
         filename,
         undefined,
         s3Config.skipBackupFile ?? false,
         operationSignal
       )
       const s3Client = this.getS3Storage(s3Config)
-      const idleTimeout = new IdleTimeoutController(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
-      const uploadSignal = operationSignal ? AbortSignal.any([operationSignal, idleTimeout.signal]) : idleTimeout.signal
       let result: unknown
       try {
-        uploadSignal.throwIfAborted()
+        operationSignal?.throwIfAborted()
         const contentLength = (await fs.stat(backupedFilePath)).size
         result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), contentLength, {
-          signal: uploadSignal,
-          onProgress: idleTimeout.reset
+          signal: operationSignal
         })
-        uploadSignal.throwIfAborted()
+        operationSignal?.throwIfAborted()
         logger.info(`S3 backup completed: ${filename}`)
-      } catch (error) {
-        logger.error('[backupToS3] S3 backup failed:', error as Error)
-        throw error
       } finally {
-        idleTimeout.cleanup()
         await fs.remove(backupedFilePath).catch(() => {})
       }
 
@@ -873,12 +842,10 @@ class BackupManager {
    * @param backupPath - Path to the backup ZIP file
    */
   async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<void> {
-    await this.stageRestore(backupPath)
-    application.relaunch()
-  }
-
-  private async stageRestore(backupPath: string): Promise<void> {
-    return this.operationMutex.runExclusive(() => this.restoreUnlocked(backupPath))
+    return this.runBackupWorkflow(async () => {
+      await this.restoreUnlocked(backupPath)
+      application.relaunch()
+    })
   }
 
   private async restoreUnlocked(backupPath: string): Promise<void> {
@@ -1393,21 +1360,22 @@ class BackupManager {
    * @returns Result from restore operation
    */
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    const downloadDir = await this.createOperationDir('webdav-download')
-    const backupedFilePath = path.join(downloadDir, path.basename(filename))
-    try {
-      await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
-
-      await this.stageRestore(backupedFilePath)
-    } catch (error: any) {
-      logger.error('Failed to restore from WebDAV:', error)
-      throw new Error(error.message || 'Failed to restore backup file')
-    } finally {
-      await fs.remove(downloadDir).catch(() => {})
-    }
-    application.relaunch()
+    return this.runBackupWorkflow(async () => {
+      const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
+      const webdavClient = this.getWebDavInstance(webdavConfig)
+      const downloadDir = await this.createOperationDir('webdav-download')
+      const backupedFilePath = path.join(downloadDir, path.basename(filename))
+      try {
+        await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
+        await this.restoreUnlocked(backupedFilePath)
+      } catch (error: any) {
+        logger.error('Failed to restore from WebDAV:', error)
+        throw new Error(error.message || 'Failed to restore backup file')
+      } finally {
+        await fs.remove(downloadDir).catch(() => {})
+      }
+      application.relaunch()
+    })
   }
 
   /**
@@ -1418,25 +1386,27 @@ class BackupManager {
    * @returns Result from restore operation
    */
   async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+    return this.runBackupWorkflow(async () => {
+      const filename = s3Config.fileName || 'cherry-studio.backup.zip'
 
-    logger.debug(`Starting restore from S3: ${filename}`)
+      logger.debug(`Starting restore from S3: ${filename}`)
 
-    const s3Client = this.getS3Storage(s3Config)
-    const downloadDir = await this.createOperationDir('s3-download')
-    const backupedFilePath = path.join(downloadDir, path.basename(filename))
-    try {
-      await pipeline(await s3Client.getFileStream(filename), fs.createWriteStream(backupedFilePath))
+      const s3Client = this.getS3Storage(s3Config)
+      const downloadDir = await this.createOperationDir('s3-download')
+      const backupedFilePath = path.join(downloadDir, path.basename(filename))
+      try {
+        await pipeline(await s3Client.getFileStream(filename), fs.createWriteStream(backupedFilePath))
 
-      logger.info(`S3 restore file downloaded successfully: ${filename}`)
-      await this.stageRestore(backupedFilePath)
-    } catch (error: any) {
-      logger.error('[BackupManager] Failed to restore from S3:', error)
-      throw new Error(error.message || 'Failed to restore backup file')
-    } finally {
-      await fs.remove(downloadDir).catch(() => {})
-    }
-    application.relaunch()
+        logger.info(`S3 restore file downloaded successfully: ${filename}`)
+        await this.restoreUnlocked(backupedFilePath)
+      } catch (error: any) {
+        logger.error('[BackupManager] Failed to restore from S3:', error)
+        throw new Error(error.message || 'Failed to restore backup file')
+      } finally {
+        await fs.remove(downloadDir).catch(() => {})
+      }
+      application.relaunch()
+    })
   }
 
   // ==================== File Utility Methods ====================

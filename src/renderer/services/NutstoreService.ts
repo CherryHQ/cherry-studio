@@ -66,16 +66,9 @@ export async function checkConnection() {
   return isSuccess
 }
 
-let isManualBackupRunning = false
-
 export async function backupToNutstore({ customFileName = '' }: { customFileName?: string } = {}) {
   const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
-    return
-  }
-
-  if (isManualBackupRunning) {
-    logger.verbose('[backupToNutstore] Backup already in progress')
     return
   }
 
@@ -90,8 +83,6 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
       ? customFileName
       : `${customFileName}.zip`
     : undefined
-
-  isManualBackupRunning = true
 
   setNutstoreSyncState({ syncing: true, lastSyncError: null })
 
@@ -126,7 +117,6 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
     toast.error(message)
   } finally {
     setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
-    isManualBackupRunning = false
   }
 }
 
@@ -141,13 +131,8 @@ export async function restoreFromNutstore(fileName?: string) {
     throw new Error('Nutstore credentials are unavailable')
   }
 
-  try {
-    await window.api.backup.restoreFromWebdav({ ...config, fileName })
-    logger.info('[Nutstore] Backup restore staged, app will restart')
-  } catch (error) {
-    logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    throw error
-  }
+  await window.api.backup.restoreFromWebdav({ ...config, fileName })
+  logger.info('[Nutstore] Backup restore staged, app will restart')
 }
 
 export async function createDirectory(path: string, options?: CreateDirectoryOptions) {

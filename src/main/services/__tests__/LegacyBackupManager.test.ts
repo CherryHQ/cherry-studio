@@ -504,11 +504,14 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
-  it('rejects local backup file names containing path separators', async () => {
+  it('rejects remote backup file names containing path separators', async () => {
     for (const fileName of ['../outside.zip', '..\\outside.zip']) {
-      await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, fileName, '/backups')).rejects.toThrow(
-        'Backup file name must not contain path separators'
-      )
+      await expect(
+        backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
+          webdavHost: 'https://example.com',
+          fileName
+        })
+      ).rejects.toThrow('Backup file name must not contain path separators')
     }
 
     expect(fs.ensureDir).not.toHaveBeenCalled()
@@ -766,7 +769,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
       createReadStream
     })
-    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockResolvedValue(undefined)
     const events: string[] = []
     vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
       events.push(`remove:${String(entryPath)}`)
@@ -780,7 +783,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       fileName: 'backup.zip'
     })
 
-    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
+    expect(restoreUnlocked).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
     expect(createReadStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/webdav-download-operation-id', 'relaunch'])
   })
@@ -791,7 +794,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
       getFileStream
     })
-    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockResolvedValue(undefined)
     const events: string[] = []
     vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
       events.push(`remove:${String(entryPath)}`)
@@ -812,7 +815,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       maxBackups: 1
     })
 
-    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
+    expect(restoreUnlocked).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
     expect(getFileStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/s3-download-operation-id', 'relaunch'])
   })
@@ -821,7 +824,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const backupPath = '/mock/temp/backup/backup.zip'
     const uploadStream = Readable.from(Buffer.from('backup'))
     const putFileContents = vi.fn().mockResolvedValue({})
-    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents })
     vi.mocked(fs.stat).mockResolvedValue(createStats('file', 6) as never)
     vi.mocked(fs.createReadStream).mockReturnValue(uploadStream as never)
@@ -838,12 +841,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       maxBackups: 1
     })
 
-    expect(putFileContents).toHaveBeenCalledWith(
-      'backup.zip',
-      uploadStream,
-      6,
-      expect.objectContaining({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) })
-    )
+    expect(putFileContents).toHaveBeenCalledWith('backup.zip', uploadStream, 6, { signal: undefined })
     expect(fs.promises.readFile).not.toHaveBeenCalled()
   })
 
@@ -884,7 +882,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     )
     const putWebdavFile = vi.fn().mockResolvedValue(true)
     const putS3File = vi.fn().mockResolvedValue({})
-    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
     vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
       putFileContents: putWebdavFile,
       getDirectoryContents
@@ -928,7 +926,7 @@ describe('BackupManager direct v2 data compatibility', () => {
         })
     )
     const backupDirect = vi.spyOn(backupManager as any, 'backupDirect')
-    const restore = (backupManager as any).stageRestore('/restore.zip')
+    const restore = backupManager.restore({} as Electron.IpcMainInvokeEvent, '/restore.zip')
     await vi.waitFor(() => expect(restoreUnlocked).toHaveBeenCalledWith('/restore.zip'))
 
     try {
@@ -978,7 +976,7 @@ describe('BackupManager direct v2 data compatibility', () => {
         size: 1
       }
     ])
-    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
     vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
       putFileContents: vi.fn().mockResolvedValue(true),
       getDirectoryContents,
@@ -1015,7 +1013,7 @@ describe('BackupManager direct v2 data compatibility', () => {
             options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
           })
       )
-      vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+      vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
       vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents })
       vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
 
@@ -1228,29 +1226,24 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockRelaunch).not.toHaveBeenCalled()
   })
 
-  it('serializes overlapping backup operations', async () => {
+  it('rejects overlapping backup operations', async () => {
     let releaseFirst!: () => void
     const firstDone = new Promise<void>((resolve) => {
       releaseFirst = resolve
     })
-    const direct = vi
-      .spyOn(backupManager as any, 'backupDirect')
-      .mockImplementationOnce(async () => {
-        await firstDone
-        return '/backups/first.zip'
-      })
-      .mockResolvedValueOnce('/backups/second.zip')
+    const direct = vi.spyOn(backupManager as any, 'backupDirect').mockImplementation(async () => {
+      await firstDone
+      return '/backups/first.zip'
+    })
 
     const first = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'first.zip', '/backups')
     await Promise.resolve()
     const second = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'second.zip', '/backups')
-    await Promise.resolve()
 
+    await expect(second).rejects.toBeInstanceOf(BackupOperationBusyError)
     expect(direct).toHaveBeenCalledTimes(1)
     releaseFirst()
     await expect(first).resolves.toBe('/backups/first.zip')
-    await expect(second).resolves.toBe('/backups/second.zip')
-    expect(direct).toHaveBeenCalledTimes(2)
   })
 
   it('restores legacy standalone .claude state but excludes the generated skills mirror', async () => {

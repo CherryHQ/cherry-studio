@@ -290,4 +290,14 @@ describe('AutoBackupService', () => {
     service.acknowledgeNotification(failure.type, failure.id)
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
+
+  it('keeps the last result in snapshots while the next backup is running', () => {
+    ;(service as any).emit({ type: 'webdav', status: 'succeeded', timestamp: 123 })
+    ;(service as any).emit({ type: 'webdav', status: 'running' })
+
+    expect(service.getStateSnapshot().events.filter((event) => event.type === 'webdav')).toMatchObject([
+      { status: 'succeeded', timestamp: 123 },
+      { status: 'running' }
+    ])
+  })
 })

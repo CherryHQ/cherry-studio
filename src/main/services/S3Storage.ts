@@ -12,13 +12,13 @@ import * as net from 'net'
 import { Readable } from 'stream'
 
 const logger = loggerService.withContext('S3Storage')
+const S3_SOCKET_IDLE_TIMEOUT_MS = 5 * 60_000
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
 interface S3UploadOptions {
   signal?: AbortSignal
-  onProgress?: () => void
 }
 
 /**
@@ -58,6 +58,7 @@ export default class S3Storage {
         secretAccessKey: secretAccessKey
       },
       forcePathStyle: usePathStyle,
+      requestHandler: { socketTimeout: S3_SOCKET_IDLE_TIMEOUT_MS },
       // Avoid aws-chunked framing, which some S3-compatible providers reject for streamed PUTs.
       requestChecksumCalculation: 'WHEN_REQUIRED'
     })
@@ -108,13 +109,7 @@ export default class S3Storage {
           ContentLength: contentLength
         }
       })
-      if (options.onProgress) upload.on('httpUploadProgress', options.onProgress)
-
-      try {
-        return await upload.done()
-      } finally {
-        if (options.onProgress) upload.off('httpUploadProgress', options.onProgress)
-      }
+      return await upload.done()
     } catch (error) {
       logger.error('[S3Storage] Error putting object:', error as Error)
       throw error

@@ -1,9 +1,9 @@
-import type { AutoBackupEvent } from '@shared/types/backup'
+import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
-const autoBackupTypeSchema = z.enum(['webdav', 's3', 'local', 'nutstore'])
+const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
 const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
 const autoBackupEventSchema = z.discriminatedUnion('status', [
   z.object({ ...eventFields, status: z.literal('running') }),

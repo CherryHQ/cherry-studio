@@ -6,13 +6,14 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type {
-  AutoBackupEvent,
-  AutoBackupEventInput,
-  AutoBackupSnapshot,
-  AutoBackupType,
-  S3Config,
-  WebDavConfig
+import {
+  AUTO_BACKUP_TYPES,
+  type AutoBackupEvent,
+  type AutoBackupEventInput,
+  type AutoBackupSnapshot,
+  type AutoBackupType,
+  type S3Config,
+  type WebDavConfig
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
@@ -21,7 +22,6 @@ import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
 
-const AUTO_BACKUP_TYPES: AutoBackupType[] = ['webdav', 's3', 'local', 'nutstore']
 const SCHEDULE_ID_PREFIX = 'auto-backup:'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
@@ -70,7 +70,8 @@ export class AutoBackupService extends BaseService {
   private activeRunType: AutoBackupType | null = null
   private activeAbortController: AbortController | null = null
   private nextEventId = 0
-  private readonly latestEvents = new Map<AutoBackupType, AutoBackupEvent>()
+  private readonly latestTerminalEvents = new Map<AutoBackupType, AutoBackupEvent>()
+  private readonly latestTransientEvents = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingNotifications = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingRuns = new Map<AutoBackupType, number>()
   private readonly schedules: Record<AutoBackupType, ScheduleState> = {
@@ -104,6 +105,7 @@ export class AutoBackupService extends BaseService {
     this.active = false
     this.unregisterAllSchedules()
     this.pendingRuns.clear()
+    this.latestTransientEvents.clear()
     this.activeAbortController?.abort(new DOMException('Automatic backup service stopped.', 'AbortError'))
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].generation++
@@ -115,7 +117,9 @@ export class AutoBackupService extends BaseService {
 
   getStateSnapshot(): AutoBackupSnapshot {
     return {
-      events: [...this.latestEvents.values()],
+      events: [...this.latestTerminalEvents.values(), ...this.latestTransientEvents.values()].sort(
+        (first, second) => first.id - second.id
+      ),
       pendingNotifications: [...this.pendingNotifications.values()]
     }
   }
@@ -402,7 +406,12 @@ export class AutoBackupService extends BaseService {
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
     const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
-    this.latestEvents.set(event.type, emittedEvent)
+    if (event.status === 'running' || event.status === 'stopped') {
+      this.latestTransientEvents.set(event.type, emittedEvent)
+    } else {
+      this.latestTerminalEvents.set(event.type, emittedEvent)
+      this.latestTransientEvents.delete(event.type)
+    }
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)
     }

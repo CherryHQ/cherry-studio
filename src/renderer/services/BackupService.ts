@@ -101,13 +101,6 @@ export async function restore() {
 
 // 备份到 webdav
 export async function backupToWebdav({ customFileName = '' }: ManualBackupOptions = {}) {
-  if (isManualBackupRunning) {
-    logger.verbose('Manual backup already in progress')
-    return
-  }
-
-  isManualBackupRunning = true
-
   setWebDAVSyncState({ syncing: true, lastSyncError: null })
 
   const {
@@ -186,7 +179,6 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
     logger.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
   } finally {
     setWebDAVSyncState({ lastSyncTime: Date.now(), syncing: false })
-    isManualBackupRunning = false
   }
 }
 
@@ -198,23 +190,11 @@ export async function restoreFromWebdav(fileName?: string) {
     webdavPass: 'data.backup.webdav.pass',
     webdavPath: 'data.backup.webdav.path'
   })
-  try {
-    await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
-    logger.info('[WebDAVBackup] Backup restore staged, app will restart')
-  } catch (error) {
-    logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    throw error
-  }
+  await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+  logger.info('[WebDAVBackup] Backup restore staged, app will restart')
 }
 
 export async function backupToS3({ customFileName = '' }: ManualBackupOptions = {}) {
-  if (isManualBackupRunning) {
-    logger.verbose('Manual backup already in progress')
-    return
-  }
-
-  isManualBackupRunning = true
-
   setS3SyncState({ syncing: true, lastSyncError: null })
 
   const s3Config = await preferenceService.getMultiple({
@@ -282,7 +262,6 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
     toast.error(message)
   } finally {
     setS3SyncState({ lastSyncTime: Date.now(), syncing: false })
-    isManualBackupRunning = false
   }
 }
 
@@ -316,8 +295,6 @@ export async function restoreFromS3(fileName?: string) {
   }
 }
 
-let isManualBackupRunning = false
-
 // Data producer for the export-to-phone file flow, consumed by main's
 // LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
 // the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
@@ -333,13 +310,6 @@ export async function getBackupData() {
  * Backup to local directory
  */
 export async function backupToLocal({ customFileName = '' }: ManualBackupOptions = {}) {
-  if (isManualBackupRunning) {
-    logger.verbose('Manual backup already in progress')
-    return
-  }
-
-  isManualBackupRunning = true
-
   setLocalBackupSyncState({ syncing: true, lastSyncError: null })
 
   const { localBackupDirSetting, localBackupMaxBackups, localBackupSkipBackupFile } =
@@ -402,20 +372,14 @@ export async function backupToLocal({ customFileName = '' }: ManualBackupOptions
     throw error
   } finally {
     setLocalBackupSyncState({ lastSyncTime: Date.now(), syncing: false })
-    isManualBackupRunning = false
   }
 }
 
 export async function restoreFromLocal(fileName: string) {
-  try {
-    const localBackupDirSetting = await preferenceService.get('data.backup.local.dir')
-    const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
-    await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
-    logger.info('[LocalBackup] Backup restore staged, app will restart')
+  const localBackupDirSetting = await preferenceService.get('data.backup.local.dir')
+  const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
+  await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+  logger.info('[LocalBackup] Backup restore staged, app will restart')
 
-    return true
-  } catch (error) {
-    logger.error('[LocalBackup] Restore failed:', error as Error)
-    throw error
-  }
+  return true
 }

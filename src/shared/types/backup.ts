@@ -40,7 +40,8 @@ export type BackupResult<T> = {
   cleanupFailed: boolean
 }
 
-export type AutoBackupType = 'webdav' | 's3' | 'local' | 'nutstore'
+export const AUTO_BACKUP_TYPES = ['webdav', 's3', 'local', 'nutstore'] as const
+export type AutoBackupType = (typeof AUTO_BACKUP_TYPES)[number]
 
 export type AutoBackupEventInput =
   | { type: AutoBackupType; status: 'running' }
