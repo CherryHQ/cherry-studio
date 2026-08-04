@@ -65,6 +65,8 @@ const mocks = vi.hoisted(() => ({
   topicLayout: undefined as string | undefined,
   inputAdapterFocus: vi.fn(),
   assistantHookArgs: [] as unknown[][],
+  knowledgeBaseHookArgs: [] as unknown[][],
+  modelHookArgs: [] as unknown[][],
   providerHookArgs: [] as unknown[][],
   speedControlProps: undefined as
     | {
@@ -492,12 +494,18 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
+  useKnowledgeBases: (...args: unknown[]) => {
+    mocks.knowledgeBaseHookArgs.push(args)
+    return { bases: mocks.knowledgeBases, isLoading: false }
+  }
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModels: () => ({ models: [mocks.model ?? model, modelB] })
+  useModels: (...args: unknown[]) => {
+    mocks.modelHookArgs.push(args)
+    return { models: [mocks.model ?? model, modelB] }
+  }
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -741,6 +749,8 @@ describe('ChatComposer', () => {
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
     mocks.assistantHookArgs = []
+    mocks.knowledgeBaseHookArgs = []
+    mocks.modelHookArgs = []
     mocks.providerHookArgs = []
     mocks.speedControlProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -853,6 +863,14 @@ describe('ChatComposer', () => {
 
     view.unmount()
     expect(nextConversationControlsChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('defers optional resource catalogs on a normal single-model conversation', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: false }])
+    expect(mocks.modelHookArgs.at(-1)).toEqual([{ enabled: true }, { fetchEnabled: false }])
+    expect(mocks.providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {

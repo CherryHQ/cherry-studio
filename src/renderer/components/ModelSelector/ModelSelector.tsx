@@ -386,6 +386,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     toggleTag,
     visibleSelectedModelIdSet
   } = useModelSelectorData({
+    enabled: open,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,

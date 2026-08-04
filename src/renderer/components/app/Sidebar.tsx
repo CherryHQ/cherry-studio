@@ -44,9 +44,9 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
+  const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned } = useMiniApps()
+  const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the

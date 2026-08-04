@@ -69,6 +69,7 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 }
 
 export function useModelSelectorData({
+  enabled = true,
   selectedModelIds = [],
   maxSelectedCount,
   searchText,
@@ -77,8 +78,16 @@ export function useModelSelectorData({
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const { providers, isLoading: isProvidersLoading, refetch: refetchProviders } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels({ enabled: true })
+  const {
+    providers,
+    isLoading: isProvidersLoading,
+    refetch: refetchProviders
+  } = useProviders({ enabled: true }, { enabled })
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -86,7 +95,7 @@ export function useModelSelectorData({
     pinnedIds: rawPinnedIds,
     refetch: refetchPinnedModels,
     togglePin
-  } = usePins('model')
+  } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
