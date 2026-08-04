@@ -21,7 +21,7 @@ import type {
   BackupMigrationCompatibilityDiagnostic
 } from '@shared/ipc/schemas/backup'
 import type { OutputFor } from '@shared/ipc/types'
-import { Copy, FolderOpen, SaveIcon } from 'lucide-react'
+import { Copy, FolderOpen, Loader, SaveIcon } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -554,7 +554,20 @@ const BackupV2Settings: FC = () => {
       if (!preview) return
       const confirmed = await popup.confirm({
         title: t('settings.data.backup_v2.restore.confirm_title'),
-        content: t('settings.data.backup_v2.restore.confirm_content'),
+        content: (
+          <div className="flex flex-col gap-3">
+            <p>{t('settings.data.backup_v2.restore.confirm_content')}</p>
+            {preview.knowledge.rebuild > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                message={t('settings.data.backup_v2.preview.knowledge_rebuild_cost', {
+                  count: preview.knowledge.rebuild
+                })}
+              />
+            )}
+          </div>
+        ),
         okText: t('settings.data.backup_v2.restore.confirm_ok'),
         cancelText: t('common.cancel'),
         centered: true,
@@ -705,7 +718,8 @@ const AbortableAction: FC<{
 
   if (active) {
     return (
-      <Button variant="outline" onClick={onCancel}>
+      <Button variant="outline" aria-busy onClick={onCancel}>
+        <Loader className="size-3.5 animate-spin motion-reduce:animate-none" />
         {t('common.cancel')}
       </Button>
     )
@@ -737,9 +751,13 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
         </SettingHelpText>
       )}
       {preview.knowledge.rebuild > 0 && (
-        <SettingHelpText>
-          {t('settings.data.backup_v2.preview.knowledge_rebuild', { count: preview.knowledge.rebuild })}
-        </SettingHelpText>
+        <Alert
+          type="warning"
+          showIcon
+          message={t('settings.data.backup_v2.preview.knowledge_rebuild_cost', {
+            count: preview.knowledge.rebuild
+          })}
+        />
       )}
       {preview.degradations.length > 0 && (
         <SettingHelpText>
