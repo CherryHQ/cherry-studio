@@ -271,33 +271,17 @@ export class OpenClawService extends BaseService {
         return
       }
 
-      const stdoutChunks: Buffer[] = []
-      const stderrChunks: Buffer[] = []
-      let stdoutBytes = 0
-      let stderrBytes = 0
+      const stdoutCapture = this.createBoundedOutputCapture()
+      const stderrCapture = this.createBoundedOutputCapture()
       let outputTruncated = false
       let settled = false
 
-      const captureChunk = (stream: 'stdout' | 'stderr', chunk: Buffer | string) => {
-        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-        const capturedBytes = stream === 'stdout' ? stdoutBytes : stderrBytes
-        const remaining = Math.max(0, OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES - capturedBytes)
-        const retainedBytes = Math.min(bytes.length, remaining)
-        if (retainedBytes > 0) {
-          ;(stream === 'stdout' ? stdoutChunks : stderrChunks).push(bytes.subarray(0, retainedBytes))
-        }
-        if (bytes.length > retainedBytes) {
-          outputTruncated = true
-        }
-        if (stream === 'stdout') {
-          stdoutBytes += retainedBytes
-        } else {
-          stderrBytes += retainedBytes
-        }
-      }
-
-      proc.stdout?.on('data', (chunk) => captureChunk('stdout', chunk))
-      proc.stderr?.on('data', (chunk) => captureChunk('stderr', chunk))
+      proc.stdout?.on('data', (chunk) => {
+        if (stdoutCapture.append(chunk)) outputTruncated = true
+      })
+      proc.stderr?.on('data', (chunk) => {
+        if (stderrCapture.append(chunk)) outputTruncated = true
+      })
 
       const timeoutId = setTimeout(() => {
         if (settled) return
@@ -321,12 +305,31 @@ export class OpenClawService extends BaseService {
         clearTimeout(timeoutId)
         resolve({
           exitCode,
-          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-          stderr: Buffer.concat(stderrChunks).toString('utf8'),
+          stdout: stdoutCapture.read(),
+          stderr: stderrCapture.read(),
           outputTruncated
         })
       })
     })
+  }
+
+  private createBoundedOutputCapture() {
+    const chunks: Buffer[] = []
+    let capturedBytes = 0
+
+    return {
+      append: (chunk: Buffer | string): boolean => {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        const remaining = Math.max(0, OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES - capturedBytes)
+        const retainedBytes = Math.min(bytes.length, remaining)
+        if (retainedBytes > 0) {
+          chunks.push(bytes.subarray(0, retainedBytes))
+          capturedBytes += retainedBytes
+        }
+        return bytes.length > retainedBytes
+      },
+      read: (): string => Buffer.concat(chunks).toString('utf8')
+    }
   }
 
   private sanitizeDiagnostic(diagnostic: string | OpenClawValidationIssue | OpenClawValidationIssue[]): string {
@@ -481,56 +484,47 @@ export class OpenClawService extends BaseService {
       return { success: false, message: 'Gateway is already starting' }
     }
 
-    // Check if the port is already in use
-    const isPortOpen = await this.checkPortOpen(this.gatewayPort)
-    if (isPortOpen) {
-      // Check if this is our gateway already running on this port
-      const { status } = await this.checkGatewayHealth()
-      if (status === 'healthy') {
-        // Stop the stale gateway (e.g. respawned orphan from a previous session)
-        logger.info('Detected stale gateway on port, stopping before restart...')
-        await this.stopGateway()
+    try {
+      const runtime = await this.resolveOpenClawRuntime()
+      await this.assertSchemaCapability(runtime)
+      await this.assertConfigValid(runtime, openclawConfigPath())
 
-        // Verify port is now free
-        const stillOpen = await this.checkPortOpen(this.gatewayPort)
-        if (stillOpen) {
+      // Check if the port is already in use
+      const isPortOpen = await this.checkPortOpen(this.gatewayPort)
+      if (isPortOpen) {
+        // Check if this is our gateway already running on this port
+        const { status } = await this.checkGatewayHealth()
+        if (status === 'healthy') {
+          // Stop the stale gateway (e.g. respawned orphan from a previous session)
+          logger.info('Detected stale gateway on port, stopping before restart...')
+          await this.stopGateway()
+
+          // Verify port is now free
+          const stillOpen = await this.checkPortOpen(this.gatewayPort)
+          if (stillOpen) {
+            return {
+              success: false,
+              message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
+            }
+          }
+        } else {
           return {
             success: false,
-            message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
+            message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
           }
         }
-      } else {
-        return {
-          success: false,
-          message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
-        }
       }
-    }
 
-    // Refresh first so both system discovery and the spawned process see the
-    // current login-shell environment. System tools retain the user's MISE_*;
-    // Cherry-managed shims use Cherry's execution environment.
-    const managedShellEnv = await refreshShellEnv()
-    const openclaw = await this.findOpenClawBinary()
-    if (!openclaw) {
-      return {
-        success: false,
-        message: 'OpenClaw binary not found. Please install OpenClaw first.'
-      }
-    }
+      this.gatewayStatus = 'starting'
 
-    const shellEnv = openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
-    this.gatewayStatus = 'starting'
-
-    try {
-      await this.startAndWaitForGateway(openclaw.path, shellEnv)
+      await this.startAndWaitForGateway(runtime.path, runtime.env)
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }
     } catch (error) {
       this.gatewayStatus = 'error'
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to start gateway:', error as Error)
+      const errorMessage = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.error('Failed to start gateway:', new Error(errorMessage))
       return { success: false, message: errorMessage }
     }
   }
@@ -553,7 +547,11 @@ export class OpenClawService extends BaseService {
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
-      env: { ...shellEnv, OPENCLAW_NO_AUTO_UPDATE: '1' },
+      env: {
+        ...shellEnv,
+        OPENCLAW_CONFIG_PATH: openclawConfigPath(),
+        OPENCLAW_NO_AUTO_UPDATE: '1'
+      },
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -562,28 +560,36 @@ export class OpenClawService extends BaseService {
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
-    let stdoutOutput = ''
-    let stderrOutput = ''
+    const stdoutCapture = this.createBoundedOutputCapture()
+    const stderrCapture = this.createBoundedOutputCapture()
+    const firstNonEmptyLines = (output: string) =>
+      output
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .slice(0, 5)
+        .join('\n')
     proc.stdout?.on('data', (data) => {
-      stdoutOutput += data.toString()
+      stdoutCapture.append(data)
     })
     proc.stderr?.on('data', (data) => {
-      stderrOutput += data.toString()
+      stderrCapture.append(data)
     })
     proc.on('error', (err) => {
-      earlyExitError = err.message
+      earlyExitError = this.sanitizeDiagnostic(err.message)
     })
     proc.on('exit', (code) => {
-      // Capture output from both streams for diagnostics
-      const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
-      const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
+      const detail = [firstNonEmptyLines(stderrCapture.read()), firstNonEmptyLines(stdoutCapture.read())]
+        .filter(Boolean)
+        .join('\n')
       if (code !== 0) {
-        earlyExitError = detail || `gateway exited with code ${code}`
+        earlyExitError = this.sanitizeDiagnostic(detail || `gateway exited with code ${code}`)
       } else {
         // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
-        earlyExitError = detail
-          ? `gateway exited with code 0 but output: ${detail}`
-          : 'gateway process exited with code 0 before becoming healthy'
+        earlyExitError = this.sanitizeDiagnostic(
+          detail
+            ? `gateway exited with code 0 but output: ${detail}`
+            : 'gateway process exited with code 0 before becoming healthy'
+        )
       }
     })
 
@@ -613,15 +619,19 @@ export class OpenClawService extends BaseService {
     }
 
     // Combine all available diagnostics: health check errors, stderr, and stdout
+    const stderrDetail = firstNonEmptyLines(stderrCapture.read())
+    const stdoutDetail = firstNonEmptyLines(stdoutCapture.read())
     const diagnostics = [
       lastError ? `health: ${lastError}` : '',
-      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
-      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+      stderrDetail ? `stderr: ${stderrDetail}` : '',
+      stdoutDetail ? `stdout: ${stdoutDetail}` : ''
     ]
       .filter(Boolean)
       .join('\n')
     const detail = diagnostics ? `\n${diagnostics}` : ''
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    throw new Error(
+      this.sanitizeDiagnostic(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    )
   }
 
   /**

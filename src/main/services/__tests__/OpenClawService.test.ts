@@ -7,19 +7,24 @@ import { PassThrough } from 'node:stream'
 import { application } from '@application'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 
-function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
-  const child = Object.assign(new EventEmitter(), {
+function createSpawnChild() {
+  return Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),
     stderr: new PassThrough(),
     kill: vi.fn(),
     unref: vi.fn()
   })
+}
+
+function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
+  const child = createSpawnChild()
 
   crossPlatformSpawnMock.mockImplementationOnce(() => {
     queueMicrotask(() => {
@@ -508,16 +513,117 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
-    it('starts a system OpenClaw with the raw user environment', async () => {
+    it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
+      checkPortOpenSpy.mockResolvedValue(true)
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+      const stopGatewaySpy = vi.spyOn(service, 'stopGateway').mockResolvedValue({ success: true })
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        path: '/mock/openclaw/openclaw.json',
+        issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unrecognized key' }],
+        warnings: []
+      })
+
+      const result = await service.startGateway()
+
+      expect(result.success).toBe(false)
+      expect(validateConfigSpy).toHaveBeenCalledWith(expect.any(Object), '/mock/openclaw/openclaw.json')
+      expect(checkPortOpenSpy).not.toHaveBeenCalled()
+      expect(stopGatewaySpy).not.toHaveBeenCalled()
+      expect(startAndWaitSpy).not.toHaveBeenCalled()
+    })
+
+    it('runs schema and formal config validation with the explicit OpenClaw config path', async () => {
+      schemaCapabilitySpy.mockRestore()
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockReset()
+      runOpenClawCommandSpy
+        .mockResolvedValueOnce({ exitCode: 0, stdout: '{}', stderr: '', outputTruncated: false })
+        .mockResolvedValueOnce({
+          exitCode: 0,
+          stdout: JSON.stringify({
+            valid: true,
+            path: '/mock/openclaw/openclaw.json',
+            issues: [],
+            warnings: []
+          }),
+          stderr: '',
+          outputTruncated: false
+        })
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
-      expect(startAndWaitSpy).toHaveBeenCalledWith('/usr/local/bin/openclaw', {
-        PATH: '/usr/local/bin:/usr/bin',
-        MISE_DATA_DIR: '/user/mise'
+
+      expect(runOpenClawCommandSpy).toHaveBeenCalledTimes(2)
+      expect(runOpenClawCommandSpy.mock.calls[0][2]).toMatchObject({
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
       })
+      expect(runOpenClawCommandSpy.mock.calls[1][2]).toMatchObject({
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
+      })
+    })
+
+    it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {
+      const child = createSpawnChild()
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(started).resolves.toEqual({ success: true })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/usr/local/bin/openclaw',
+        ['gateway', 'run', '--force'],
+        expect.objectContaining({
+          env: {
+            PATH: '/usr/local/bin:/usr/bin',
+            MISE_DATA_DIR: '/user/mise',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          }
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
+      const child = createSpawnChild()
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(started).resolves.toEqual({ success: true })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['gateway', 'run', '--force'],
+        expect.objectContaining({
+          env: {
+            PATH: '/mock/bin:/usr/bin',
+            MISE_DATA_DIR: '/mock/mise',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          }
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
     })
 
     it('launches a system OpenClaw .cmd through the process runner on Windows', async () => {
@@ -546,7 +652,11 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           detached: false,
-          env: { Path: 'C:\\Windows\\System32', OPENCLAW_NO_AUTO_UPDATE: '1' },
+          env: {
+            Path: 'C:\\Windows\\System32',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true
         })
@@ -609,6 +719,113 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ success: false, message: 'Gateway timeout' })
       expect((service as any).gatewayStatus).toBe('error')
+    })
+
+    it('redacts and limits a startup failure before returning or logging it', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      const rawError = new Error(`apiKey="sk-start-secret" Authorization: Bearer start-token ${'x'.repeat(3000)}`)
+      startAndWaitSpy.mockRejectedValue(rawError)
+
+      const result = await service.startGateway()
+      const message = 'message' in result ? result.message : ''
+
+      expect(result.success).toBe(false)
+      expect(message).not.toContain('sk-start-secret')
+      expect(message).not.toContain('start-token')
+      expect(message.length).toBeLessThanOrEqual(2000)
+      const loggedError = mockMainLoggerService.error.mock.calls.at(-1)?.[1]
+      expect(loggedError).toBeInstanceOf(Error)
+      expect(loggedError).not.toBe(rawError)
+      expect((loggedError as Error).message).toBe(message)
+    })
+
+    it('redacts and limits early-exit gateway diagnostics while unrefing the child', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.useFakeTimers()
+      const child = queueSpawnResult({
+        stderr: `apiKey="sk-gateway-secret"\nAuthorization: Bearer gateway-token\n${'x'.repeat(3001)}`,
+        exitCode: 1
+      })
+
+      const rejected = (service as any)
+        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+        .catch((error: Error) => error)
+      await vi.runAllTimersAsync()
+      const error = await rejected
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error.message).not.toContain('sk-gateway-secret')
+      expect(error.message).not.toContain('gateway-token')
+      expect(error.message.length).toBeLessThanOrEqual(2000)
+      expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('redacts and limits process error diagnostics before rejecting startup', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.useFakeTimers()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+
+      const rejected = (service as any)
+        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+        .catch((error: Error) => error)
+      child.emit('error', new Error(`apiKey="sk-process-secret" ${'x'.repeat(3001)}`))
+      await vi.advanceTimersByTimeAsync(1000)
+      const error = await rejected
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error.message).not.toContain('sk-process-secret')
+      expect(error.message.length).toBeLessThanOrEqual(2000)
+      expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('redacts and bounds timeout diagnostics to five non-empty lines per stream', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.useFakeTimers()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'unhealthy',
+        error: 'Authorization: Bearer health-token'
+      })
+
+      const rejected = (service as any)
+        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+        .catch((error: Error) => error)
+      child.stderr.write(
+        ['apiKey="sk-timeout-secret"', 'stderr-2', 'stderr-3', 'stderr-4', 'stderr-5', 'stderr-6'].join('\n')
+      )
+      child.stdout.write(['stdout-1', 'stdout-2', 'stdout-3', 'stdout-4', 'stdout-5', 'stdout-6'].join('\n'))
+      await vi.runAllTimersAsync()
+      const error = await rejected
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error.message).not.toContain('sk-timeout-secret')
+      expect(error.message).not.toContain('health-token')
+      expect(error.message).toContain('stderr-5')
+      expect(error.message).not.toContain('stderr-6')
+      expect(error.message).toContain('stdout-5')
+      expect(error.message).not.toContain('stdout-6')
+      expect(error.message.length).toBeLessThanOrEqual(2000)
+      expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('drains gateway output after retaining one MiB without keeping overflow', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.useFakeTimers()
+      const overflowMarker = 'post-cap-marker'
+      const child = queueSpawnResult({ stderr: `${'\n'.repeat(1024 * 1024)}${overflowMarker}`, exitCode: 1 })
+
+      const rejected = (service as any)
+        .startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+        .catch((error: Error) => error)
+      await vi.runAllTimersAsync()
+      const error = await rejected
+
+      expect(error.message).toBe('gateway exited with code 1')
+      expect(error.message).not.toContain(overflowMarker)
+      expect(child.stderr.readableEnded).toBe(true)
+      expect(child.stderr.readableLength).toBe(0)
     })
 
     it('sets status to starting during startup', async () => {

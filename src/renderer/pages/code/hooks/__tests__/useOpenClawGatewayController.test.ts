@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
-  requestMock: vi.fn()
+  requestMock: vi.fn(),
+  toastError: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -24,6 +25,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
   }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -113,5 +118,31 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: undefined })
+  })
+
+  it('stops launch and shows the original validation message when config sync fails', async () => {
+    const validationMessage = 'tools.web.fetch.ssrfPolicy: Unrecognized key'
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.sync_config') return Promise.resolve({ success: false, message: validationMessage })
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
+    expect(mocks.toastError).toHaveBeenCalledWith(validationMessage)
   })
 })
