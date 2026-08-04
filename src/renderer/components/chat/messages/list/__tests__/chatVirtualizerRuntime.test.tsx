@@ -2821,4 +2821,214 @@ describe('useChatVirtualizerRuntime', () => {
       raf.restore()
     }
   })
+
+  it('cancels read navigation when a real downward scroll interrupts the animation', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 800
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => handle!.scrollToTop('smooth'))
+      raf.tick()
+      const midFlight = scrollTop
+      expect(midFlight).toBeLessThan(800)
+
+      // A PageDown-style input scrolls *down* while the animation runs up.
+      // The animation must die where the user put the viewport instead of
+      // rewriting scrollTop on its next frame.
+      const interrupted = midFlight + 120
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = interrupted
+        runtime!.scrollerProps.onScroll(interrupted)
+      })
+      raf.tick(10)
+      expect(scrollTop).toBe(interrupted)
+      expect(handle!.isFollowing()).toBe(false)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('resumes following when a real jump lands on the live bottom mid-navigation', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 800
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => handle!.scrollToTop('smooth'))
+      raf.tick()
+      expect(scrollTop).toBeLessThan(800)
+
+      // An End-style jump goes straight to the live bottom (2000 - 400): the
+      // animation is cancelled and the user's destination hands the wheel back.
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 1600
+        runtime!.scrollerProps.onScroll(1600)
+      })
+      expect(handle!.isFollowing()).toBe(true)
+      raf.tick(10)
+      expect(scrollTop).toBe(1600)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('does not resume following when latched compensation lands on the live bottom', () => {
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 1200
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      now = 1_010
+      act(() => {
+        runtime!.markUserInput()
+        scrollTop = 1400
+        runtime!.scrollerProps.onScroll(1400)
+      })
+      expect(handle!.isFollowing()).toBe(false)
+
+      // Long after the real input, virtua compensation inside the still-latched
+      // gesture happens to land exactly on the live bottom. Without fresh user
+      // intent that must not hand the wheel back.
+      now = 2_000
+      act(() => {
+        scrollTop = 1600
+        runtime!.scrollerProps.onScroll(1600)
+      })
+      expect(handle!.isFollowing()).toBe(false)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('keeps the navigation target anchored after virtua reports scroll-end', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 800
+      let anchorAbsoluteTop = 950
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: 0, bottom: 400, left: 0, right: 800, width: 800, height: 400, x: 0, y: 0 })
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      const item = document.createElement('div')
+      item.dataset.messageKey = 'message-a'
+      const heading = document.createElement('h2')
+      Object.defineProperty(heading, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => {
+          const top = anchorAbsoluteTop - scrollTop
+          return { top, bottom: top + 32, left: 0, right: 200, width: 200, height: 32, x: 0, y: top }
+        }
+      })
+      item.append(heading)
+      runtime!.contentRef.current!.prepend(item)
+
+      act(() => runtime!.scrollToElement(heading))
+      raf.tick(60)
+      expect(scrollTop).toBe(950)
+
+      // virtua synthesizes scroll-end after the animation's quiet period. The
+      // semantic target captured at navigation completion must survive it.
+      act(() => runtime!.scrollerProps.onScrollEnd())
+
+      // Async reflow moves the heading: the runtime keeps the *heading*
+      // anchored, not whatever element sat at the viewport top at scroll-end.
+      anchorAbsoluteTop = 1010
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(1010)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
 })

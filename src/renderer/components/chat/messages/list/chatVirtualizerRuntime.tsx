@@ -599,17 +599,21 @@ export function useChatVirtualizerRuntime<T>({
       lastUserInputDirectionRef.current = direction
     }
 
-    // Smooth scrolling is reserved for explicit reading navigation. A real
-    // upward gesture cancels it; virtualizer compensation never does.
+    // Smooth scrolling is reserved for explicit reading navigation. Any real
+    // directional user scroll cancels it; virtualizer compensation never does.
+    // Wheel cancels in onWheel already — this covers scroll keys and native
+    // scrollbar drags, in both directions: without it the next animation frame
+    // would rewrite scrollTop and take the viewport away from the user.
     if (smoothScroll.isAnimating()) {
-      lastScrollOffsetRef.current = offset
-      if (isUserInitiated && direction === 'up') {
-        smoothScroll.cancel()
-        takeUserControl('user-scrolled-up')
+      if (!isUserInitiated || direction === 'none') {
+        lastScrollOffsetRef.current = offset
+        updateScrollToBottomButtonVisibility()
+        return
       }
-      updateScrollToBottomButtonVisibility()
-      if (isUserInitiated) saveScrollPosition()
-      return
+      smoothScroll.cancel()
+      readNavigationActiveRef.current = false
+      // Fall through: the user's scroll goes through the normal reading/bottom
+      // reconciliation below (an End jump to the live bottom resumes following).
     }
 
     const distanceToBottom = getDistanceToBottom(el, bottomFollowInsetRef.current)
@@ -629,7 +633,11 @@ export function useChatVirtualizerRuntime<T>({
     if (!viewportFollow.isFollowing()) {
       if (isUserInitiated) {
         beginUserScrollGesture()
-        if (direction !== 'up' && distanceToBottom <= FREEZE_REASSERT_TOLERANCE_PX) {
+        // Resuming follow requires this scroll to be tied to fresh real input.
+        // The gesture latch alone is not enough: until scrollend it also covers
+        // virtua's remeasure compensation, which must not hand the wheel back
+        // just because it happened to land on the live bottom.
+        if (hasRecentUserScrollIntent && direction !== 'up' && distanceToBottom <= FREEZE_REASSERT_TOLERANCE_PX) {
           enterFollowingMode('user-reached-bottom')
           stickToEffectiveBottom()
         }
@@ -673,7 +681,11 @@ export function useChatVirtualizerRuntime<T>({
     // still be holding the native thumb while pausing to reverse direction.
     if (!scrollbarDragActiveRef.current) {
       settleUserScrollGesture()
-      if (!viewportFollow.isFollowing()) captureFreezeAnchor()
+      // A settled gesture already captured its resting anchor above. Only fill
+      // in a missing anchor here — an existing one is often the semantic target
+      // of a finished navigation and must not be replaced by whatever element
+      // happens to sit at the viewport top.
+      if (!viewportFollow.isFollowing() && !freezeAnchorRef.current) captureFreezeAnchor()
     }
     // Scrolling has settled — capture the exact resting position, bypassing the
     // throttle that paces the in-flight `onScroll` saves.
