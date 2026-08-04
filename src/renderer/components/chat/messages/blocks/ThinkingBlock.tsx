@@ -1,11 +1,12 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
+import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 // This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
@@ -17,6 +18,14 @@ const THINKING_PREVIEW_MIN_DURATION_MS = 1000
 
 function normalizeThinkingPreview(content: string): string {
   return content.replace(/\s+/g, ' ').trim()
+}
+
+function getThinkingPreviewKey(preview: string): string {
+  return preview
+}
+
+function shouldBypassThinkingPreviewStabilization(currentPreview: string): boolean {
+  return !currentPreview
 }
 
 function getLatestCompletedThinkingPreview(content: string): string {
@@ -42,60 +51,7 @@ function getLatestCompletedThinkingPreview(content: string): string {
     segmentStart = index + 1
   }
 
-  return latestCompletedSegment || normalizeThinkingPreview(content)
-}
-
-function useStableThinkingPreview(nextPreview: string, isStreaming: boolean): string {
-  const [displayPreview, setDisplayPreview] = useState(nextPreview)
-  const displayPreviewRef = useRef(nextPreview)
-  const lastChangeAtRef = useRef(Date.now())
-  const pendingPreviewRef = useRef<string | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    const clearPendingTimer = () => {
-      if (!timerRef.current) return
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
-    const commitPreview = (preview: string) => {
-      displayPreviewRef.current = preview
-      lastChangeAtRef.current = Date.now()
-      setDisplayPreview(preview)
-    }
-
-    if (displayPreviewRef.current === nextPreview) {
-      clearPendingTimer()
-      pendingPreviewRef.current = null
-      return clearPendingTimer
-    }
-
-    if (!isStreaming || !displayPreviewRef.current) {
-      clearPendingTimer()
-      pendingPreviewRef.current = null
-      commitPreview(nextPreview)
-      return clearPendingTimer
-    }
-
-    pendingPreviewRef.current = nextPreview
-    const elapsedMs = Date.now() - lastChangeAtRef.current
-    const remainingMs = Math.max(0, THINKING_PREVIEW_MIN_DURATION_MS - elapsedMs)
-
-    clearPendingTimer()
-    timerRef.current = setTimeout(() => {
-      const pendingPreview = pendingPreviewRef.current
-      if (pendingPreview === null) return
-      pendingPreviewRef.current = null
-      timerRef.current = null
-      commitPreview(pendingPreview)
-    }, remainingMs)
-
-    return clearPendingTimer
-  }, [isStreaming, nextPreview])
-
-  if (!isStreaming || !displayPreviewRef.current || displayPreviewRef.current === nextPreview) return nextPreview
-  return displayPreview
+  return latestCompletedSegment
 }
 
 interface Props {
@@ -160,7 +116,12 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
     () => (isThinking ? getLatestCompletedThinkingPreview(content ?? '') : ''),
     [content, isThinking]
   )
-  const streamingPreviewText = useStableThinkingPreview(nextStreamingPreview, isThinking)
+  const streamingPreviewText = useMinimumDisplayDuration(nextStreamingPreview, {
+    enabled: isThinking,
+    getKey: getThinkingPreviewKey,
+    minimumDurationMs: THINKING_PREVIEW_MIN_DURATION_MS,
+    shouldBypass: shouldBypassThinkingPreviewStabilization
+  })
 
   useEffect(() => {
     if (thoughtAutoCollapse) {

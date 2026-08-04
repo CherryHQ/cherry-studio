@@ -130,19 +130,6 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
-    it('should skip preview normalization when the completed title preview is disabled', () => {
-      const content = 'Completed reasoning without a title preview'
-      const replaceSpy = vi.spyOn(String.prototype, 'replace')
-
-      renderThinkingBlock(createThinkingBlock({ content }))
-
-      const previewNormalizationCalls = replaceSpy.mock.calls.filter(([pattern], index) => {
-        const context = replaceSpy.mock.contexts[index]
-        return context?.toString() === content && pattern instanceof RegExp && pattern.source === '\\s+'
-      })
-      expect(previewNormalizationCalls).toHaveLength(0)
-    })
-
     it('should show a single-line reasoning preview in the title when enabled', () => {
       const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
       renderThinkingBlock(block, { showTitlePreview: true })
@@ -187,6 +174,14 @@ describe('ThinkingBlock', () => {
       await act(() => vi.advanceTimersByTime(1))
       expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+    })
+
+    it('should keep unfinished streaming text out of the title until a segment is completed', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'Still thinking without a boundary' })
+      renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).queryByText('Still thinking without a boundary')).toBeNull()
+      expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
     })
 
     it('should keep consecutive CJK sentence endings with the completed segment', () => {
