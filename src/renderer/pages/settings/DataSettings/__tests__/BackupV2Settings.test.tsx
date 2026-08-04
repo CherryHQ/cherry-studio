@@ -19,7 +19,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: tMock })
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
+// `useIpcOn` feeds the progress dialog. These cases assert the settings surface,
+// not the dialog, so the subscription is inert here.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock }, useIpcOn: () => {} }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
