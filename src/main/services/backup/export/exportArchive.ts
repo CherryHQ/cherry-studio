@@ -37,6 +37,7 @@ import { currentBackupPlatform } from '../platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from '../portability/managedPathRebase'
 import type { MaterializationSummary } from '../portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from '../portability/materializeDatabase'
+import type { BackupStageReporter } from '../progress'
 import { collectResourceRequirements, resolveResourceRoots } from '../resources/collectRequirements'
 import { createOwnerResourceCapture } from '../resources/ownerCapture'
 import { stageResources } from '../resources/stageResources'
@@ -53,6 +54,8 @@ export interface ExportArchiveInputs {
   /** Destination `.cherrybackup` path. Must not already exist. */
   readonly outPath: string
   readonly signal?: AbortSignal
+  /** Names each stage boundary for the progress event; absent in tests. */
+  readonly reportStage?: BackupStageReporter
 }
 
 export interface ExportArchiveResult {
@@ -98,8 +101,9 @@ function readSealedChain(dbPath: string): ReturnType<typeof readAppliedChain> {
 }
 
 export async function exportArchive(inputs: ExportArchiveInputs): Promise<ExportArchiveResult> {
-  const { outPath, signal } = inputs
+  const { outPath, signal, reportStage } = inputs
   throwIfAborted(signal)
+  reportStage?.('preparing')
 
   const operation = await createExportOperation(application.getPath('feature.backup.temp'), outPath)
   const { stagingRoot } = operation
@@ -121,6 +125,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     // SQLite supplies the authoritative point-in-time cut. File resources do
     // not share a process-wide seal with it: each owner/unit captures its own
     // independently provable cut after the database requirement set is known.
+    reportStage?.('snapshotting-db')
     dbService.createSnapshot(stagedDbPath)
     const snapshotInventory = collectResourceRequirements({
       dbPath: stagedDbPath,
@@ -130,6 +135,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     const snapshotRequirements = snapshotInventory.requirements
     throwIfAborted(signal)
 
+    reportStage?.('materializing-db')
     const materialized = await materializePortableDatabase({ dbPath: stagedDbPath, mode: { kind: 'export' }, signal })
     throwIfAborted(signal)
 
@@ -139,6 +145,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     }
 
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
+    reportStage?.('capturing-resources')
     const ownerCapture = createOwnerResourceCapture({ detachedDbPath: stagedDbPath, roots: resourceRoots })
     const resources = await stageResources({
       requirements: inventory.requirements,
