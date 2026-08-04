@@ -1614,6 +1614,10 @@
           "description": "Nu activa căutarea web",
           "label": "Dezactivează căutarea web"
         },
+        "route": {
+          "builtin": "[to be translated]:Searches with the model's built-in tool",
+          "client": "[to be translated]:Searches with {{provider}}"
+        },
         "settings": "Setări căutare web"
       }
     },
@@ -1696,6 +1700,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "[to be translated]:Jump to turn {{number}}"
+      },
       "bottom": "Înapoi jos",
       "close": "Închide",
       "first": "Deja la primul mesaj",
@@ -3165,6 +3172,7 @@
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă."
       },
       "processor": "Furnizor de procesare",
+      "processor_not_configured": "[to be translated]:Not configured",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -4273,6 +4281,7 @@
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
       "fetch_empty": "Nu au fost găsite rezultate de căutare",
+      "fetch_opaque": "[to be translated]:Searched by the model",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
@@ -5145,6 +5154,7 @@
     "reset": "Resetează",
     "rotate_left": "Rotire la stânga",
     "rotate_right": "Rotire la dreapta",
+    "save_as": "[to be translated]:Save As",
     "source": "Vezi codul sursă",
     "zoom_in": "Mărește",
     "zoom_out": "Micșorează"
@@ -5870,7 +5880,168 @@
       },
       "backup": {
         "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
-        "skip_file_data_title": "Backup simplificat"
+        "skip_file_data_title": "Backup simplificat",
+        "v2_unavailable": "[to be translated]:Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
+      },
+      "backup_v2": {
+        "compatibility": {
+          "ahead_lineage": "[to be translated]:This backup contains {{count}} database update(s) this build does not have. Use the build that created it, or a later build from the same migration line, then choose the backup again.",
+          "ahead_title": "[to be translated]:This backup needs a newer database version",
+          "ahead_update": "[to be translated]:This backup contains {{count}} database update(s) this app does not have. Check for updates, then choose the backup again.",
+          "archive_app": "[to be translated]:Backup app",
+          "archive_build": "[to be translated]:Backup build",
+          "archive_tip": "[to be translated]:Backup migration",
+          "build_type": {
+            "development": "[to be translated]:Development",
+            "packaged": "[to be translated]:Packaged",
+            "unknown": "[to be translated]:Unknown"
+          },
+          "check_updates": "[to be translated]:Check for updates",
+          "copied": "[to be translated]:Backup diagnostics copied.",
+          "copy": "[to be translated]:Copy diagnostics",
+          "copy_failed": "[to be translated]:Could not copy the backup diagnostics.",
+          "current_app": "[to be translated]:Current app",
+          "current_tip": "[to be translated]:Current migration",
+          "fork_lineage": "[to be translated]:This backup and this app come from different database histories. Use the build that created the backup, or a descendant of that build, and try again.",
+          "fork_title": "[to be translated]:This backup comes from a different database line",
+          "format": "[to be translated]:Backup format",
+          "format_legacy": "[to be translated]:This backup uses format {{archive}}, which this app no longer restores. Open it with a compatible version and create a new backup.",
+          "format_newer_lineage": "[to be translated]:This backup uses format {{archive}}, while this app supports format {{current}}. Use the build that created it or a newer compatible build.",
+          "format_newer_update": "[to be translated]:This backup uses format {{archive}}, while this app supports format {{current}}. Check for updates, then choose the backup again.",
+          "format_title": "[to be translated]:This backup format is not supported",
+          "format_versions": "[to be translated]:Backup {{archive}}, current {{current}}",
+          "migration_counts": "[to be translated]:Backup {{archive}}, current {{current}}",
+          "migrations": "[to be translated]:Database migrations",
+          "nothing_changed": "[to be translated]:Nothing was restored or changed on this device."
+        },
+        "error": {
+          "archive_rejected": "[to be translated]:This backup file was rejected: it is damaged, incomplete, or made by an incompatible version.",
+          "arm_failed": "[to be translated]:The restart that performs the restore could not be started. Nothing was changed.",
+          "busy": "[to be translated]:Another backup operation is still running. Wait for it to finish.",
+          "export_destination": "[to be translated]:The backup cannot be published at that location. Pick a new filename or another drive.",
+          "export_source": "[to be translated]:Some source files changed or cannot be stored portably. Check the managed files and try the backup again.",
+          "export_source_changed": "[to be translated]:A managed file changed during the backup, so no backup was created. Wait for editing or syncing to stop, then try again.",
+          "export_source_changed_path": "[to be translated]:\"{{path}}\" changed during the backup, so no backup was created. Wait for editing or syncing to stop, then try again.",
+          "export_source_collision": "[to be translated]:A managed directory contains names that differ only by letter case or Unicode normalization. Rename one of them, then try again.",
+          "export_source_collision_path": "[to be translated]:\"{{path}}\" conflicts with another name by letter case or Unicode normalization. Rename one of them, then try again.",
+          "export_source_limit": "[to be translated]:The managed data exceeds a backup safety limit. Reduce the contents of managed directories, then try again.",
+          "export_source_limit_count": "[to be translated]:A managed directory contains too many files or folders for a safe backup. Move some contents out, then try again.",
+          "export_source_limit_entry": "[to be translated]:A managed file exceeds the per-file backup limit. Move it out or reduce its size, then try again.",
+          "export_source_limit_manifest": "[to be translated]:The managed directory entries or paths exceed a backup metadata limit. Reduce the number of entries or shorten paths, then try again.",
+          "export_source_limit_total": "[to be translated]:The managed files exceed the total backup size limit. Move some contents out, then try again.",
+          "export_source_non_regular": "[to be translated]:A managed directory contains a symbolic link or special file that cannot be backed up safely. Replace it with a regular file or folder, or move it out, then try again.",
+          "export_source_non_regular_path": "[to be translated]:\"{{path}}\" is a symbolic link or special file that cannot be backed up safely. Replace it with a regular file or folder, or move it out, then try again.",
+          "export_source_unportable": "[to be translated]:A managed directory contains a path that cannot be restored across platforms. Avoid reserved names, restricted characters, trailing dots or spaces, and overly deep folders, then try again.",
+          "export_source_unportable_path": "[to be translated]:\"{{path}}\" cannot be restored across platforms. Rename it to avoid reserved names, restricted characters, or trailing dots or spaces, then try again.",
+          "journal_unreadable": "[to be translated]:The restore record on this device cannot be read. The next start will quarantine it.",
+          "recovery_incomplete": "[to be translated]:The last restore could not put every file back. Restart the app to finish it before releasing anything.",
+          "restore_resources": "[to be translated]:The backup files cannot be installed safely at their target paths. Remove conflicting files or links, then prepare the restore again.",
+          "restore_state": "[to be translated]:That does not match the current state of the restore. Finish or discard the pending restore first.",
+          "rollback_unavailable": "[to be translated]:The data from before this restore has already been released, so it can no longer be rolled back. Keep the restored data to finish cleanup.",
+          "storage_unavailable": "[to be translated]:There is not enough usable disk space to finish this operation. Free space on the app-data and backup drives, then try again.",
+          "unexpected": "[to be translated]:The operation failed unexpectedly."
+        },
+        "export": {
+          "credentials_warning": "[to be translated]:A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
+          "done": "[to be translated]:Backup exported.",
+          "done_degraded": "[to be translated]:The backup was created with {{count}} exclusion(s) or portability change(s). Review the details below and make a fresh backup after addressing the listed causes.",
+          "done_degraded_title": "[to be translated]:Backup created with exclusions"
+        },
+        "notice": {
+          "completed_description": "[to be translated]:The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused. Open Settings → Data → Backup & restore to roll back or keep the restored data.",
+          "completed_title": "[to be translated]:Restore complete — review the result",
+          "expired_description": "[to be translated]:A prepared restore expired before it could run, so nothing was replaced. Prepare it again from Settings → Data → Backup & restore.",
+          "expired_title": "[to be translated]:The restore did not run",
+          "failed_description": "[to be translated]:Your previous data was kept and nothing was replaced. See Settings → Data → Backup & restore for what happened.",
+          "failed_title": "[to be translated]:The restore did not complete",
+          "rolled_back_description": "[to be translated]:Your previous database and files are active again. Open Settings → Data → Backup & restore and confirm to release the displaced restored data.",
+          "rolled_back_title": "[to be translated]:Restore rolled back"
+        },
+        "outcome": {
+          "abandon_rebuild_button": "[to be translated]:Stop rebuilding and keep restored data",
+          "acknowledge_button": "[to be translated]:Keep restored data",
+          "acknowledged": "[to be translated]:Restore outcome confirmed. Data no longer in use has been released.",
+          "completed_help": "[to be translated]:Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
+          "degradation": {
+            "capability_malformed": "[to be translated]:{{count}} integration configuration entries were malformed and kept disabled.",
+            "cyclic_reference": "[to be translated]:{{count}} link(s) formed a cycle and were not included.",
+            "dangling_reference": "[to be translated]:{{count}} link(s) pointed to missing targets and were not included.",
+            "external_file_dropped": "[to be translated]:{{count}} external file references were removed because source-device paths cannot be opened safely here.",
+            "external_reference": "[to be translated]:{{count}} link(s) pointed outside Cherry Studio's managed resource unit and were not included.",
+            "knowledge_index_rebuild": "[to be translated]:{{count}} knowledge search index(es) could not be transported consistently and will be rebuilt from the included source material.",
+            "path_collision": "[to be translated]:{{count}} managed paths collided on this device and were kept as inactive metadata.",
+            "path_unportable": "[to be translated]:{{count}} managed paths could not be moved portably and were kept as inactive metadata.",
+            "resource_changed": "[to be translated]:{{count}} managed resource unit(s) changed while the backup was being created. Stop related active writes, then make a fresh backup.",
+            "resource_limit": "[to be translated]:{{count}} managed resource unit(s) exceeded a backup limit.",
+            "resource_nonportable": "[to be translated]:{{count}} managed resource unit(s) could not be transported safely.",
+            "resource_unavailable": "[to be translated]:{{count}} managed files or folders were unavailable when the backup was created.",
+            "unclassified_reference": "[to be translated]:{{count}} filesystem reference(s) could not be classified safely and were not included.",
+            "unknown": "[to be translated]:{{count}} entries were reduced for a reason this app version cannot describe.",
+            "workspace_disconnected": "[to be translated]:{{count}} agent workspace(s) pointed at folders from the source device and were disconnected. Choose a folder again to use them here."
+          },
+          "degradations": "[to be translated]:This backup was created without {{count}} item(s).",
+          "keep_previous_button": "[to be translated]:Keep previous data",
+          "knowledge_rebuild_pending": "[to be translated]:Rebuilding the search index for the restored knowledge content.",
+          "reconfirm_integrations": "[to be translated]:Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
+          "recovery_incomplete": "[to be translated]:This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
+          "resources_incomplete": "[to be translated]:The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",
+          "rolled_back_help": "[to be translated]:Your previous database and replaced files are active again. Confirm to release the displaced restored copies.",
+          "state": {
+            "armed": "[to be translated]:A restore is armed and will run at the next start.",
+            "completed": "[to be translated]:A restore completed.",
+            "expired": "[to be translated]:A prepared restore expired without running.",
+            "failed": "[to be translated]:The last restore did not complete. Your previous data was kept.",
+            "prepared": "[to be translated]:A restore is prepared.",
+            "promoting": "[to be translated]:A restore is in progress.",
+            "reverting": "[to be translated]:The failed restore is being reversed.",
+            "rollback_armed": "[to be translated]:The restore will be rolled back at the next start.",
+            "rolled_back": "[to be translated]:The restore was rolled back. Your previous data is active again."
+          },
+          "title": "[to be translated]:Last restore",
+          "unreadable": "[to be translated]:The restore record on this device cannot be read. The next start will quarantine it."
+        },
+        "preview": {
+          "degradations": "[to be translated]:{{count}} item(s) were not included when this backup was made.",
+          "destructive": "[to be translated]:Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
+          "knowledge_ready": "[to be translated]:{{count}} knowledge search index(es) are included and can be used immediately after restore.",
+          "knowledge_rebuild": "[to be translated]:{{count}} knowledge search index(es) need to be rebuilt after restore."
+        },
+        "progress": {
+          "cancelling": "[to be translated]:Stopping…",
+          "exporting": "[to be translated]:Creating backup",
+          "preparing": "[to be translated]:Checking backup",
+          "stage": {
+            "admitting": "[to be translated]:Reading and verifying archive",
+            "capturing-resources": "[to be translated]:Collecting files",
+            "materializing-db": "[to be translated]:Making the copy portable",
+            "planning": "[to be translated]:Working out what to restore",
+            "preparing": "[to be translated]:Preparing",
+            "snapshotting-db": "[to be translated]:Copying database",
+            "staging": "[to be translated]:Staging for restart",
+            "verifying": "[to be translated]:Verifying and writing archive"
+          },
+          "starting": "[to be translated]:Starting…",
+          "stop": "[to be translated]:Stop backup"
+        },
+        "restore": {
+          "arm_button": "[to be translated]:Restore and restart",
+          "choose_button": "[to be translated]:Choose backup…",
+          "choose_title": "[to be translated]:Restore from a backup file",
+          "confirm_content": "[to be translated]:The current database will be replaced by the backup and the app will restart. The backup also replaces each managed folder it carries as a whole; anything the backup does not carry is left alone.",
+          "confirm_ok": "[to be translated]:Replace and restart",
+          "confirm_title": "[to be translated]:Replace all data with this backup?",
+          "discard_button": "[to be translated]:Discard preparation",
+          "discarded": "[to be translated]:Prepared restore discarded.",
+          "pending_elsewhere": "[to be translated]:A restore prepared earlier is still waiting. Choose the backup again to see its details.",
+          "title": "[to be translated]:Restore"
+        },
+        "rollback": {
+          "button": "[to be translated]:Roll back restore",
+          "confirm_content": "[to be translated]:Cherry Studio will restart with the database and files from immediately before this restore. Changes made after the restore will not be merged and will be released after you confirm the rollback result.",
+          "confirm_ok": "[to be translated]:Roll back and restart",
+          "confirm_title": "[to be translated]:Return to the data from before this restore?"
+        },
+        "title": "[to be translated]:Backup & restore"
       },
       "clear_cache": {
         "button": "Golește memoria cache",
@@ -8071,6 +8242,10 @@
         "check": "Verifică",
         "check_failed": "Verificare eșuată",
         "check_success": "Verificare reușită",
+        "client_tools_preferred": {
+          "description": "[to be translated]:Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "[to be translated]:Prefer configured search services"
+        },
         "compression": {
           "cutoff": {
             "limit": {

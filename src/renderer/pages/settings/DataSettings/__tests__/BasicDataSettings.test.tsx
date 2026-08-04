@@ -15,7 +15,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: requestMock }
+  ipcApi: { request: requestMock },
+  // Reached through the embedded Backup v2 surface's progress dialog; these
+  // cases assert the data page, so the subscription is inert here.
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({

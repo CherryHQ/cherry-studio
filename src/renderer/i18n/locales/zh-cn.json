@@ -6068,6 +6068,23 @@
           "knowledge_rebuild": "有 {{count}} 个知识库搜索索引需要在恢复后重建。",
           "knowledge_rebuild_cost": "恢复后将重建 {{count}} 个知识库搜索索引。重建可能调用已配置的嵌入模型服务并消耗 API 配额；应用重启后可以停止重建。"
         },
+        "progress": {
+          "cancelling": "正在停止…",
+          "exporting": "正在创建备份",
+          "preparing": "正在检查备份",
+          "stage": {
+            "admitting": "正在读取并校验归档",
+            "capturing-resources": "正在收集文件",
+            "materializing-db": "正在处理为可迁移副本",
+            "planning": "正在确定恢复内容",
+            "preparing": "准备中",
+            "snapshotting-db": "正在复制数据库",
+            "staging": "正在暂存以待重启",
+            "verifying": "正在校验并写入归档"
+          },
+          "starting": "正在开始…",
+          "stop": "停止备份"
+        },
         "restore": {
           "arm_button": "恢复并重启",
           "choose_button": "选择备份文件…",
