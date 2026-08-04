@@ -30,10 +30,12 @@ import { BinaryManager } from '@main/services/BinaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
+import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -87,6 +89,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  ConversationNavigationService,
   CitationPreviewService,
   LanTransferService,
   FileManager,
@@ -109,6 +112,7 @@ export const services = {
   WebviewService,
   OAuthRuntimeService,
   MainWindowService,
+  NotificationService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,

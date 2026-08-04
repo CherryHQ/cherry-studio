@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "Sarcină nouă",
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
         "missing": "Calea către spațiul de lucru nu există: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Mărește",
     "zoomOut": "Micșorează"
   },
+  "chat": {
+    "conversation": {
+      "new": "Conversație nouă"
+    }
+  },
   "common": {
     "copy": "Copiază",
     "cut": "Decupează",
@@ -96,6 +102,12 @@
     "save_file": "Salvează fișier",
     "select_folder": "Selectează folderul",
     "word_document": "Document Word"
+  },
+  "notification": {
+    "completion": {
+      "agent": "Sarcina agentului a fost finalizată",
+      "assistant": "Răspunsul asistentului a fost finalizat"
+    }
   },
   "paintings": {
     "generate_failed": "Nu s-a putut genera imaginea",

@@ -1693,6 +1693,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "[to be translated]:Jump to turn {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -4598,7 +4601,7 @@
       "error": "{{error}}",
       "success": "Adicionado com sucesso {{type}} à base de conhecimento"
     },
-    "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
+    "tip": "Este interruptor controla apenas as notificações do sistema quando o Cherry Studio está em segundo plano. Os cartões de conclusão na aplicação estão sempre ativados."
   },
   "ocr": {
     "processing": "Processamento OCR em andamento..."
@@ -5141,6 +5144,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Guardar como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -7323,7 +7327,7 @@
     },
     "no_provider_selected": "Não foi selecionado nenhum fornecedor",
     "notification": {
-      "assistant": "Mensagem do assistente",
+      "assistant": "Notificações de conclusão do agente e do assistente",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
       "title": "Notificações"

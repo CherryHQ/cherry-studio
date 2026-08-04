@@ -1,3 +1,4 @@
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import type { Notification } from '@shared/types/notification'
 import * as z from 'zod'
 
@@ -12,9 +13,14 @@ import { defineRoute } from '../define'
  * only the fields it renders. It is fully serializable: callbacks are not carried across IPC;
  * an 'action' notification uses the string `actionKey` instead (see @shared/types/notification).
  *
- * Event `notification.clicked`: fires when the user clicks an OS notification; the main
- * NotificationService broadcasts the originating Notification back to the renderer. This is
- * the seam for future action-click dispatch (a renderer subscriber routing by `actionKey`).
+ * Event `notification.clicked`: fires when the user clicks an OS notification that is not handled
+ * directly by the main process. NotificationService broadcasts the originating Notification back
+ * to the renderer as the existing action-click dispatch seam.
+ *
+ * Event `notification.task_completed`: fires once when a persistent assistant topic or agent
+ * session reaches a successful terminal state. Main resolves every user-facing string and directs
+ * a presentation-ready payload to exactly one foreground full-chrome renderer. Background system
+ * notifications stay main-owned.
  */
 export const notificationRequestSchemas = {
   'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() })
@@ -22,4 +28,10 @@ export const notificationRequestSchemas = {
 
 export type NotificationEventSchemas = {
   'notification.clicked': Notification
+  'notification.task_completed': {
+    turnId: string
+    target: ConversationNavigationTarget
+    title: string
+    message: string
+  }
 }

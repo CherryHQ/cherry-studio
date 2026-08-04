@@ -5,7 +5,15 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
@@ -40,7 +48,9 @@ import type {
   ActiveStream,
   AiStreamManagerConfig,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamChunkPayload,
+  StreamConversation,
   StreamDoneResult,
   StreamErrorResult,
   StreamExecution,
@@ -100,6 +110,7 @@ export interface SendInput {
   siblingsGroupId?: number
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
+  conversation?: StreamConversation
 }
 
 export interface SendResult {
@@ -117,6 +128,7 @@ export interface StartRuntimeTurnInput {
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
+  conversation: StreamConversation
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -228,6 +240,8 @@ const nullStreamListener: StreamListener = {
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
+  private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
+  public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `Ai_Stream_Open` can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
@@ -276,7 +290,9 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs)
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) =>
+      this._onConversationCompleted.fire(event)
+    )
   }
 
   protected async onInit(): Promise<void> {
@@ -523,6 +539,10 @@ export class AiStreamManager extends BaseService {
     await Promise.allSettled(loopPromises)
   }
 
+  protected onDestroy(): void {
+    this._onConversationCompleted.dispose()
+  }
+
   // ── Public: unified send ──────────────────────────────────────────
 
   /**
@@ -595,15 +615,16 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
-      // Surfaced into the topic status snapshot for per-window turn de-dup. Not yet read by any
-      // consumer on any branch — the renderer reader lands in the renderer split (keep it).
+      // Surfaced into the topic status snapshot and the main-only completion event as this turn's
+      // stable identity.
       turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
       status: 'pending',
       isMultiModel,
-      lifecycle: input.lifecycle ?? this.chatLifecycle
+      lifecycle: input.lifecycle ?? this.chatLifecycle,
+      conversation: input.conversation
     }
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
@@ -685,7 +706,8 @@ export class AiStreamManager extends BaseService {
           abortController: input.abortController
         }
       ],
-      listeners: [...carriedListeners, ...input.listeners]
+      listeners: [...carriedListeners, ...input.listeners],
+      conversation: input.conversation
     })
   }
 

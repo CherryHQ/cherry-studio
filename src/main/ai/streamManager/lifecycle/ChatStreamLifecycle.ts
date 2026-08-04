@@ -1,14 +1,18 @@
 import { application } from '@application'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
-import type { ActiveStream } from '../types'
+import type { ActiveStream, ConversationCompletedEvent } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
 
 /**
  * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
- * attach re-enabled, 30 s grace-period before eviction.
+ * main-only persistent-conversation completion event, attach re-enabled, and a
+ * 30 s grace-period before eviction.
  */
-export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycle {
+export function createChatStreamLifecycle(
+  gracePeriodMs: number,
+  onConversationCompleted: (event: ConversationCompletedEvent) => void
+): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const activeExecutions: ActiveExecution[] = []
     const awaitingApprovalAnchors: ActiveExecution[] = []
@@ -32,6 +36,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       awaitingApprovalAnchors,
       lastCompletedAt
     })
+    return lastCompletedAt
   }
 
   return {
@@ -46,7 +51,15 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       broadcast(stream, stream.status)
     },
     onTerminal(stream) {
-      broadcast(stream, stream.status)
+      const completedAt = broadcast(stream, stream.status)
+      if (stream.status === 'done' && completedAt !== undefined && stream.conversation) {
+        onConversationCompleted({
+          topicId: stream.topicId,
+          turnId: stream.turnId,
+          completedAt,
+          conversation: stream.conversation
+        })
+      }
     },
     canAttach() {
       return true

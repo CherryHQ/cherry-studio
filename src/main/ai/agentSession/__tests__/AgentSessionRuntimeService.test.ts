@@ -4412,6 +4412,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
+      conversation: { type: 'agent', id: 'session-1' },
       rootSpan: expect.anything(),
       request: {
         chatId: 'agent-session:session-1',

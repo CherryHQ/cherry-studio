@@ -12,7 +12,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
-import type { StreamListener } from '../types'
+import type { StreamConversation, StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
 export interface PreparedDispatch {
@@ -45,6 +45,8 @@ export interface PreparedDispatch {
   isMultiModel: boolean
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
+  /** Present only when the stream belongs to a persistent conversation. */
+  conversation?: StreamConversation
 }
 
 export interface DispatchContext {

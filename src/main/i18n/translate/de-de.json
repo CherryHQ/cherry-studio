@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "Neue Aufgabe",
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
         "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Heranzoomen",
     "zoomOut": "Herauszoomen"
   },
+  "chat": {
+    "conversation": {
+      "new": "Neuer Chat"
+    }
+  },
   "common": {
     "copy": "Kopieren",
     "cut": "Ausschneiden",
@@ -96,6 +102,12 @@
     "save_file": "Datei speichern",
     "select_folder": "Ordner auswählen",
     "word_document": "Word-Dokument"
+  },
+  "notification": {
+    "completion": {
+      "agent": "Agent-Aufgabe abgeschlossen",
+      "assistant": "Assistentenantwort abgeschlossen"
+    }
   },
   "paintings": {
     "generate_failed": "Fehler beim Generieren des Bildes",

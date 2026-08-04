@@ -8,6 +8,8 @@ import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
+  ConversationCompletedEvent,
+  StreamConversation,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -204,13 +206,15 @@ function startSingle(
     listeners: StreamListener[]
     siblingsGroupId?: number
     abortController?: AbortController
+    conversation?: StreamConversation
   }
 ) {
   manager.send({
     topicId: opts.topicId,
     models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
-    siblingsGroupId: opts.siblingsGroupId
+    siblingsGroupId: opts.siblingsGroupId,
+    conversation: opts.conversation
   })
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
@@ -221,10 +225,13 @@ function startSingle(
 
 describe('AiStreamManager', () => {
   let mgr: ReturnType<typeof createManager>
+  let conversationCompletedEvents: ConversationCompletedEvent[]
 
   beforeEach(() => {
     vi.useFakeTimers()
     mgr = createManager()
+    conversationCompletedEvents = []
+    mgr.onConversationCompleted((event) => conversationCompletedEvents.push(event))
     vi.clearAllMocks()
     mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
@@ -375,6 +382,7 @@ describe('AiStreamManager', () => {
 
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
+        conversation: { type: 'agent', id: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [new FakeListener('agent-runtime:replaced')]
@@ -384,6 +392,7 @@ describe('AiStreamManager', () => {
       const currentListener = new FakeListener('agent-runtime:current')
       mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
+        conversation: { type: 'agent', id: 's1' },
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
         listeners: [currentListener]
@@ -1900,6 +1909,7 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
       expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
+      expect(conversationCompletedEvents).toEqual([])
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
@@ -1907,6 +1917,67 @@ describe('AiStreamManager', () => {
       // via `topic.stream.last_seen_completion.*`.
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+    })
+
+    it('reports one persistent assistant completion after all models finish', async () => {
+      vi.setSystemTime(1_234)
+
+      mgr.send({
+        topicId: 'topic-1',
+        models: [
+          { modelId: 'p::m1', request: req('topic-1') },
+          { modelId: 'p::m2', request: req('topic-1') }
+        ],
+        listeners: [new FakeListener('l:topic-1')],
+        conversation: { type: 'assistant', id: 'topic-1' }
+      })
+      await mgr.onExecutionDone('topic-1', 'p::m1')
+      expect(conversationCompletedEvents).toEqual([])
+
+      await mgr.onExecutionDone('topic-1', 'p::m2')
+
+      expect(conversationCompletedEvents).toEqual([
+        {
+          topicId: 'topic-1',
+          turnId: expect.stringMatching(/^\d+:\d+$/),
+          completedAt: 1_234,
+          conversation: { type: 'assistant', id: 'topic-1' }
+        }
+      ])
+    })
+
+    it('does not report a completion for a stream without a persistent completion target', async () => {
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'p::m',
+        request: req('topic-1'),
+        listeners: [new FakeListener('l:topic-1')]
+      })
+      await mgr.onExecutionDone('topic-1', 'p::m')
+
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('reports the explicit Agent completion target', async () => {
+      vi.setSystemTime(2_345)
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'p::m',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('l:session-1')],
+        conversation: { type: 'agent', id: 'session-1' }
+      })
+      await mgr.onExecutionDone('agent-session:session-1', 'p::m')
+
+      expect(conversationCompletedEvents).toEqual([
+        {
+          topicId: 'agent-session:session-1',
+          turnId: expect.stringMatching(/^\d+:\d+$/),
+          completedAt: 2_345,
+          conversation: { type: 'agent', id: 'session-1' }
+        }
+      ])
     })
 
     it('sets lastCompletedAt only on done; carries forward through subsequent live; bumps on next done', async () => {
@@ -1964,7 +2035,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        conversation: { type: 'assistant', id: 't' }
       })
       mgr.abort('t', 'user-stop')
       await vi.runAllTimersAsync()
@@ -1972,6 +2044,7 @@ describe('AiStreamManager', () => {
       const abortedEntry = statusWritesFor('t').at(-1)
       expect(abortedEntry?.status).toBe('aborted')
       expect(abortedEntry?.lastCompletedAt).toBeUndefined()
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('records aborted when the user stops the stream', async () => {
@@ -1992,13 +2065,15 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        conversation: { type: 'assistant', id: 't' }
       })
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
@@ -2006,7 +2081,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        conversation: { type: 'assistant', id: 't' }
       })
 
       // `tool-approval-request` records the pending toolCallId and flips pending → streaming.
@@ -2019,6 +2095,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {

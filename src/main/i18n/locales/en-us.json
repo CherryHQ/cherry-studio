@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "New task",
       "workspace_status": {
         "inaccessible": "Workspace path is not accessible: {{path}}",
         "missing": "Workspace path does not exist: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out"
   },
+  "chat": {
+    "conversation": {
+      "new": "New Chat"
+    }
+  },
   "common": {
     "copy": "Copy",
     "cut": "Cut",
@@ -96,6 +102,12 @@
     "save_file": "Save File",
     "select_folder": "Select Folder",
     "word_document": "Word Document"
+  },
+  "notification": {
+    "completion": {
+      "agent": "Agent task complete",
+      "assistant": "Assistant response complete"
+    }
   },
   "paintings": {
     "generate_failed": "Failed to generate image",

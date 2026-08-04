@@ -1693,6 +1693,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "[to be translated]:Jump to turn {{number}}"
+      },
       "bottom": "下部に戻る",
       "close": "閉じる",
       "first": "最初のメッセージです",
@@ -4598,7 +4601,7 @@
       "error": "{{error}}",
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
-    "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
+    "tip": "このスイッチは、Cherry Studio がバックグラウンドにあるときのシステム通知のみを制御します。アプリ内の完了カードは常に有効です。"
   },
   "ocr": {
     "processing": "OCR処理中..."
@@ -5141,6 +5144,7 @@
     "reset": "リセット",
     "rotate_left": "左回転",
     "rotate_right": "右に回転",
+    "save_as": "名前を付けて保存",
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
@@ -7323,7 +7327,7 @@
     },
     "no_provider_selected": "未選択のプロバイダー",
     "notification": {
-      "assistant": "アシスタントメッセージ",
+      "assistant": "Agent・アシスタントの完了通知",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知"

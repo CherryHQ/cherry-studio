@@ -23,5 +23,12 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
   },
   'navigation.ack_open_route': async ({ requestId }, { senderId }) => {
     if (senderId) acknowledgeMainWindowNavigation(senderId, requestId)
+  },
+  'navigation.focus_or_open_conversation': async ({ target, title }, { senderId }) => {
+    await application.get('ConversationNavigationService').focusOrOpen(target, title, senderId)
+  },
+  'navigation.report_conversation_ownership': async ({ requestId, ownsTarget }, { senderId }) => {
+    if (!senderId) return
+    application.get('ConversationNavigationService').reportOwnership(requestId, senderId, ownsTarget)
   }
 }

@@ -6,6 +6,7 @@
       }
     },
     "session": {
+      "new": "Nova tarefa",
       "workspace_status": {
         "inaccessible": "O caminho do workspace não está acessível: {{path}}",
         "missing": "O caminho do espaço de trabalho não existe: {{path}}",
@@ -73,6 +74,11 @@
     "zoomIn": "Ampliar",
     "zoomOut": "Reduzir Zoom"
   },
+  "chat": {
+    "conversation": {
+      "new": "Nova conversa"
+    }
+  },
   "common": {
     "copy": "Copiar",
     "cut": "Cortar",
@@ -96,6 +102,12 @@
     "save_file": "Salvar Arquivo",
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"
+  },
+  "notification": {
+    "completion": {
+      "agent": "Tarefa do agente concluída",
+      "assistant": "Resposta do assistente concluída"
+    }
   },
   "paintings": {
     "generate_failed": "Falha ao gerar imagem",

@@ -1,22 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(
-  () => ({
-    acknowledgeMainWindowNavigationMock: vi.fn(),
-    openRouteInMainWindowMock: vi.fn(),
-    protocolServiceMock: {
-      onMainRendererReady: vi.fn()
-    },
-    loggerMock: {
-      warn: vi.fn()
-    }
-  })
-)
+const {
+  acknowledgeMainWindowNavigationMock,
+  conversationNavigationServiceMock,
+  openRouteInMainWindowMock,
+  protocolServiceMock,
+  loggerMock
+} = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
+  conversationNavigationServiceMock: {
+    focusOrOpen: vi.fn(),
+    reportOwnership: vi.fn()
+  },
+  openRouteInMainWindowMock: vi.fn(),
+  protocolServiceMock: {
+    onMainRendererReady: vi.fn()
+  },
+  loggerMock: {
+    warn: vi.fn()
+  }
+}))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'ProtocolService') return protocolServiceMock
+      if (name === 'ConversationNavigationService') return conversationNavigationServiceMock
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -78,5 +87,22 @@ describe('navigationHandlers', () => {
     await navigationHandlers['navigation.ack_open_route']({ requestId: 7 }, ctx)
 
     expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
+  })
+
+  it('delegates conversation focus-or-open with the trusted caller window id', async () => {
+    const target = { conversationType: 'assistant' as const, conversationId: 'topic-1' }
+
+    await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Research notes' }, ctx)
+
+    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Research notes', 'w1')
+  })
+
+  it('reports conversation ownership against the trusted caller window id', async () => {
+    await navigationHandlers['navigation.report_conversation_ownership'](
+      { requestId: 'request-1', ownsTarget: true },
+      ctx
+    )
+
+    expect(conversationNavigationServiceMock.reportOwnership).toHaveBeenCalledWith('request-1', 'w1', true)
   })
 })
