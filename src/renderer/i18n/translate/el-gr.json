@@ -7931,6 +7931,7 @@
       "emptyTip": "Συμβουλή: Μπορείς επίσης να ζητήσεις από έναν πράκτορα να εγκαταστήσει δεξιότητες για εσένα.",
       "emptyTitle": "Δεν έχει επιλεγεί δεξιότητα",
       "filterPlaceholder": "Φιλτράρισμα δεξιοτήτων...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Εγκατάσταση",
       "installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",
       "installFromDirectory": "Εγκατάσταση από φάκελο",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
       "viewSource": "Προβολή Πηγής",
       "zip": "Τ.Κ.",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "Σύστημα"

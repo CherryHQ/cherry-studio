@@ -7931,6 +7931,7 @@
       "emptyTip": "Consejo: También puedes pedirle a un agente que te instale habilidades.",
       "emptyTitle": "Sin habilidad seleccionada",
       "filterPlaceholder": "Filtrar habilidades...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Instalar",
       "installFailed": "Error al instalar la habilidad: {{name}}",
       "installFromDirectory": "Instalar desde directorio",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "Habilidad desinstalada: {{name}}",
       "viewSource": "Ver fuente",
       "zip": "CÓDIGO POSTAL",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "Sistema"

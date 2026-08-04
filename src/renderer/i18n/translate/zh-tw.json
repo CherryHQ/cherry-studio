@@ -7931,6 +7931,7 @@
       "emptyTip": "提示：你也可以讓 Agent 幫你安裝技能。",
       "emptyTitle": "未選擇技能",
       "filterPlaceholder": "篩選技能...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "安裝",
       "installFailed": "技能安裝失敗：{{name}}",
       "installFromDirectory": "從資料夾安裝",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "技能已解除安裝：{{name}}",
       "viewSource": "查看原始碼",
       "zip": "ZIP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "系統"

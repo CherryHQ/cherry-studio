@@ -7931,6 +7931,7 @@
       "emptyTip": "Sfat: Poți, de asemenea, să ceri unui agent să instaleze abilități pentru tine.",
       "emptyTitle": "Nicio competență selectată",
       "filterPlaceholder": "Filtrează abilitățile...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Instalare",
       "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
       "installFromDirectory": "Instalează din director",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
       "viewSource": "Vezi sursa",
       "zip": "ZIP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "Sistem"

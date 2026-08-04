@@ -7931,6 +7931,7 @@
       "emptyTip": "Mẹo: Bạn cũng có thể yêu cầu một đại lý cài đặt các kỹ năng cho bạn.",
       "emptyTitle": "Không có kỹ năng nào được chọn",
       "filterPlaceholder": "Lọc kỹ năng...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Cài đặt",
       "installFailed": "Không thể cài đặt kỹ năng: {{name}}",
       "installFromDirectory": "Cài đặt từ thư mục",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "Kỹ năng đã gỡ cài đặt: {{name}}",
       "viewSource": "Ver código fuente",
       "zip": "ZIP",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "Hệ thống"

@@ -11,6 +11,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSkillImportErrorMessage } from './skillImportError'
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -70,14 +72,6 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
     [t]
   )
 
-  const getItemInstallErrorMessage = useCallback(
-    (item: ImportItem) =>
-      item.kind === 'directory'
-        ? t('settings.skills.directoryImportFailed', { name: item.name })
-        : t('settings.skills.zipImportFailed', { name: item.name }),
-    [t]
-  )
-
   const updateItem = useCallback((id: string, patch: Partial<ImportItem>) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)))
   }, [])
@@ -108,9 +102,9 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             lastSkill = skill
             successCount += 1
             updateItem(item.id, { status: 'success', skillName: skill.name })
-          } catch {
+          } catch (error) {
             failedCount += 1
-            updateItem(item.id, { status: 'error', error: getItemInstallErrorMessage(item) })
+            updateItem(item.id, { status: 'error', error: getSkillImportErrorMessage(error, item, t) })
           }
         }
 
@@ -136,7 +130,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         setInstalling(null)
       }
     },
-    [getItemInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
+    [installFromDirectory, installFromZip, installing, t, updateItem]
   )
 
   const createImportItem = useCallback(
@@ -342,13 +336,11 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
                 </div>
                 {item.status !== 'success' ? (
                   <div
-                    className="mt-0.5 min-w-0 text-foreground-tertiary"
+                    className="mt-0.5 min-w-0 whitespace-normal break-words text-foreground-tertiary [overflow-wrap:anywhere]"
                     title={item.status === 'error' ? item.error : undefined}>
-                    <MarqueeText>
-                      {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                      {item.status === 'installing' ? t('common.loading') : null}
-                      {item.status === 'error' ? item.error : null}
-                    </MarqueeText>
+                    {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                    {item.status === 'installing' ? t('common.loading') : null}
+                    {item.status === 'error' ? item.error : null}
                   </div>
                 ) : null}
               </div>

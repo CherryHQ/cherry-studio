@@ -163,21 +163,20 @@ describe('ImportSkillDialog', () => {
   it('shows localized skill-root guidance for a directory failure', async () => {
     const user = userEvent.setup()
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
-    installFromDirectory.mockRejectedValue(new Error('[object Object]'))
+    installFromDirectory.mockRejectedValue(new Error('SKILL.md or skill.md not found in skill folder'))
 
     render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
 
     expect(await screen.findByText('settings.skills.directoryImportFailed:broken-skill')).toBeInTheDocument()
-    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('uses hover marquees for long import names and errors while preserving their titles', async () => {
+  it('uses a hover marquee for a long import name and wraps a long error', async () => {
     const user = userEvent.setup()
     const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
-    const localizedError = `settings.skills.zipImportFailed:${longName}`
+    const localizedError = `settings.skills.installFailed:${longName}`
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: longName, path: `/tmp/${longName}` }] as any)
     installFromZip.mockRejectedValue(new Error('corrupt archive'))
 
@@ -186,11 +185,12 @@ describe('ImportSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
     expect(await screen.findByTitle(longName)).toHaveTextContent(longName)
-    expect(screen.getByTitle(localizedError)).toHaveTextContent(localizedError)
+    const errorMessage = screen.getByTitle(localizedError)
+    expect(errorMessage).toHaveTextContent(localizedError)
+    expect(errorMessage).toHaveClass('whitespace-normal', 'break-words', '[overflow-wrap:anywhere]')
     const marquees = screen.getAllByTestId('marquee-text')
-    expect(marquees).toHaveLength(2)
+    expect(marquees).toHaveLength(1)
     expect(marquees[0]).toHaveTextContent(longName)
-    expect(marquees[1]).toHaveTextContent(localizedError)
   })
 
   it('uses the marketplace success toast without a duplicate success banner', async () => {

@@ -7931,6 +7931,7 @@
       "emptyTip": "Совет: вы также можете попросить агента установить навыки за вас.",
       "emptyTitle": "Навык не выбран",
       "filterPlaceholder": "Фильтровать навыки...",
+      "importConflict": "[to be translated]:Could not install \"{{name}}\" because its folder name is already in use.",
       "install": "Установить",
       "installFailed": "Не удалось установить навык: {{name}}",
       "installFromDirectory": "Установить из каталога",
@@ -7954,7 +7955,9 @@
       "uninstallSuccess": "Навык удалён: {{name}}",
       "viewSource": "Посмотреть исходный код",
       "zip": "ЗИП",
-      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory."
+      "zipImportFailed": "[to be translated]:Could not install \"{{name}}\". Make sure the ZIP contains a valid skill directory.",
+      "zipTooLarge": "[to be translated]:Could not install \"{{name}}\" because the extracted ZIP exceeds the size limit.",
+      "zipTooManyFiles": "[to be translated]:Could not install \"{{name}}\" because the ZIP contains too many files."
     },
     "system": {
       "title": "Система"
