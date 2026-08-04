@@ -31,6 +31,7 @@ import {
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
+import { compactionAnchorChunkId } from '@shared/ai/compaction'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
@@ -193,7 +194,10 @@ export const inLoopCompactionFeature: RequestFeature = {
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
         const startedAt = new Date().toISOString()
-        scope.compactionSink?.({ status: 'compacting', phase: 'in-loop', startedAt })
+        // One id per fold — a tool-heavy turn folds repeatedly, and a shared id
+        // would make each fold overwrite the previous one's anchor.
+        const anchorId = compactionAnchorChunkId()
+        scope.compactionSink?.(anchorId, { status: 'compacting', phase: 'in-loop', startedAt })
         let compacted: ModelMessage[]
         try {
           compacted = await compactModelMessages(candidate, model, {
@@ -218,11 +222,16 @@ export const inLoopCompactionFeature: RequestFeature = {
           })
           // Clear the spinner: the turn continues (un-compacted), so leaving a
           // permanent "compacting…" on screen would misreport the state.
-          scope.compactionSink?.({ status: 'done', phase: 'in-loop', startedAt, completedAt: new Date().toISOString() })
+          scope.compactionSink?.(anchorId, {
+            status: 'done',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
           return foldCache ? { messages: candidate } : undefined
         }
         const completedAt = new Date().toISOString()
-        scope.compactionSink?.({
+        scope.compactionSink?.(anchorId, {
           status: 'done',
           phase: 'in-loop',
           startedAt,

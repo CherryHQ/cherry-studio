@@ -456,7 +456,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     void prepared
     const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
     expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
-    // One id → the done event REPLACES the spinner instead of stacking anchors.
+    // One fold → one id, so the done event REPLACES the spinner rather than
+    // stacking two anchors. (Separate folds get separate ids — see the in-loop suite.)
     expect(new Set(anchors.map((c) => c.id)).size).toBe(1)
     expect(anchors.every((c) => c.data.phase === 'turn-start')).toBe(true)
   })

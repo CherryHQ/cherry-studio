@@ -21,7 +21,7 @@ import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { COMPACTION_ANCHOR_CHUNK_ID, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
+import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
@@ -71,8 +71,8 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
  * replaces the spinner rather than appending a second anchor.
  */
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (data) =>
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: COMPACTION_ANCHOR_CHUNK_ID, data } as UIMessageChunk)
+  return (anchorId, data) =>
+    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
 }
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
@@ -729,6 +729,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // clear a failed fold would leave "compacting…" pinned on a live turn.
     const startedAt = new Date().toISOString()
     const preTokens = this.estimateContext(effective)
+    // One id per fold: a turn can compact several times, and a shared id would
+    // make each later fold overwrite the previous one's anchor.
+    const anchorId = compactionAnchorChunkId()
     try {
       // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
       // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
@@ -749,7 +752,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // otherwise be handed a 128k-derived budget and overflow immediately.
       const compressionWindow = compressionModel.contextWindow ?? minContextWindow
       const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
-      compactionSink?.({ status: 'compacting', phase: 'turn-start', startedAt })
+      compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
         maxInputTokens: Math.max(
@@ -762,7 +765,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // "compacting…" on screen would misreport a turn that is really running.
       const settle = (extra?: Partial<CompactionAnchorData>) => {
         const completedAt = new Date().toISOString()
-        compactionSink?.({
+        compactionSink?.(anchorId, {
           status: 'done',
           phase: 'turn-start',
           startedAt,
@@ -784,7 +787,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
-      compactionSink?.({ status: 'done', phase: 'turn-start', startedAt, completedAt: new Date().toISOString() })
+      compactionSink?.(anchorId, {
+        status: 'done',
+        phase: 'turn-start',
+        startedAt,
+        completedAt: new Date().toISOString()
+      })
       return serve(effective)
     }
   }

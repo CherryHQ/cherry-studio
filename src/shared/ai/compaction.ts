@@ -53,12 +53,21 @@ export interface CompactionAnchorData {
  * manager (the only layer that can reach the turn's chunk sink) and invoked by
  * whichever path is compacting. A no-op when the caller has no live stream.
  */
-export type CompactionSink = (data: CompactionAnchorData) => void
+export type CompactionSink = (anchorId: string, data: CompactionAnchorData) => void
 
 /**
- * Stable id shared by every compaction anchor chunk of a turn. AI SDK data
- * parts are keyed by id, so reusing it makes the `done` write REPLACE the
- * `compacting` one — one anchor per turn that changes state, instead of a
- * growing pile of parts.
+ * Id for ONE compaction's anchor chunks.
+ *
+ * AI SDK data parts are keyed by id, so the two writes of a single fold
+ * (`compacting`, then `done`) must share an id — that is what makes the second
+ * replace the first instead of stacking a spinner and a result.
+ *
+ * They must NOT share it across folds. A long turn compacts repeatedly (a 16k
+ * window leaves only `trigger - keep` ≈ 0.5×window of working room, so a
+ * tool-heavy turn folds every few steps), and a fixed id made every later fold
+ * overwrite the previous one's anchor — the timeline showed a single marker
+ * reflecting only the last fold. One id per fold, generated when it starts.
  */
-export const COMPACTION_ANCHOR_CHUNK_ID = 'compaction-anchor'
+export function compactionAnchorChunkId(): string {
+  return `compaction-anchor:${crypto.randomUUID()}`
+}

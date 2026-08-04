@@ -202,9 +202,10 @@ describe('inLoopCompactionFeature', () => {
   // MUST settle on every exit or the spinner outlives the work.
   describe('compaction progress events', () => {
     const withSink = () => {
-      const events: Array<{ status: string; phase: string }> = []
+      const events: Array<{ id: string; status: string; phase: string }> = []
       const s = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
-      ;(s as { compactionSink?: unknown }).compactionSink = (d: { status: string; phase: string }) => events.push(d)
+      ;(s as { compactionSink?: unknown }).compactionSink = (id: string, d: { status: string; phase: string }) =>
+        events.push({ id, ...d })
       return { events, prepareStep: getPrepareStep(s) }
     }
 
@@ -223,6 +224,27 @@ describe('inLoopCompactionFeature', () => {
       const { events, prepareStep } = withSink()
       await prepareStep({ messages: [userMessage(90_000)] } as any)
       expect(events.map((e) => e.status)).toEqual(['compacting', 'done'])
+    })
+
+    // A tool-heavy turn folds repeatedly; a shared id made every later fold
+    // overwrite the previous one's anchor, so the timeline showed one marker
+    // reflecting only the last fold.
+    it('gives each fold its own anchor id, shared by that fold two events', async () => {
+      compactModelMessages.mockClear()
+      const { events, prepareStep } = withSink()
+      compactModelMessages.mockResolvedValue([userMessage(10)])
+      const first = [userMessage(90_000)]
+      await prepareStep({ messages: first } as any)
+      // The fold cache consumes `first`, so the next step must bring a large
+      // INCREMENT for the candidate to cross the trigger again.
+      compactModelMessages.mockResolvedValue([userMessage(20)])
+      await prepareStep({ messages: [...first, userMessage(90_000)] } as any)
+
+      expect(events).toHaveLength(4)
+      const [a1, a2, b1, b2] = events
+      expect(a1.id).toBe(a2.id) // one fold → one anchor that changes state
+      expect(b1.id).toBe(b2.id)
+      expect(a1.id).not.toBe(b1.id) // separate folds → separate anchors
     })
 
     it('emits nothing when the prompt is under the trigger', async () => {
