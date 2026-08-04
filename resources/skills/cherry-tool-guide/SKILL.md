@@ -1,6 +1,6 @@
 ---
 name: cherry-tool-guide
-description: Cherry Studio first-party tool routing guide for general agents. Use this WHENEVER a task could be served by Cherry's built-in tools — even if the user never names a tool — including researching current/online information (web search & fetch), answering from the user's own documents and knowledge bases, recalling or saving things across sessions (persistent memory), scheduling recurring or one-time tasks and sending notifications, connecting or repairing IM channels (Telegram/Feishu/Discord/Slack/WeChat/QQ), generating images or reporting produced files, discovering or installing command-line tools, and finding or installing new skills. Consult it BEFORE reaching for shell, Bash, or file tools to do any of these, so you route through the correct mcp__cherry-tools__*, mcp__agent-memory__*, and mcp__skills__* tool instead of inventing a workaround.
+description: Cherry Studio first-party tool routing guide for general agents. Use this WHENEVER a task could be served by Cherry's built-in tools — even if the user never names a tool — including researching current/online information or requesting browser interaction (Cherry's web built-ins search and fetch but do not automate pages), answering from the user's own documents and knowledge bases, recalling or saving things across sessions (persistent memory), scheduling recurring or one-time tasks and sending notifications, connecting or repairing IM channels (Telegram/Feishu/Discord/Slack/WeChat/QQ), generating images or reporting produced files, discovering or installing command-line tools, and finding or installing new skills. Consult it BEFORE reaching for shell, Bash, or file tools to do any of these, so you route through the correct mcp__cherry-tools__*, mcp__agent-memory__*, and mcp__skills__* tool instead of inventing a workaround.
 version: 1.0.0
 ---
 
@@ -82,6 +82,10 @@ snippets and URLs; call `mcp__cherry-tools__web_fetch` only on the few URLs whos
 text you actually need. Fetching every result wastes context — be selective. If search
 returns nothing useful, refine the query before fetching.
 
+These web built-ins cannot click, fill forms, navigate authenticated pages, or capture
+screenshots. If no separately exposed browser-automation tool exists, say the requested
+interaction is unavailable rather than approximating it with shell commands.
+
 ### Knowledge base
 
 When the answer should come from the user's own documents, stay inside the knowledge
@@ -111,9 +115,10 @@ This memory survives across sessions and workspaces for the same agent. Three ac
 - `update` — overwrite the durable fact file with long-lived knowledge and decisions.
 
 Choose `update` vs. `append` by longevity: *"Will this still matter in six months?"*
-Durable preferences and standing decisions → `update`; a thing that just happened →
-`append`. Because `update` **overwrites the whole fact file**, preserve existing durable
-content when you rewrite it — add to it, don't clobber it.
+Durable preferences, standing decisions, corrections to how you should work, and
+reusable tool-usage lessons → `update`; a thing that just happened → `append`. Because
+`update` **overwrites the whole fact file**, preserve existing durable content when you
+rewrite it — add to it, don't clobber it.
 
 ### Scheduling & notification
 
