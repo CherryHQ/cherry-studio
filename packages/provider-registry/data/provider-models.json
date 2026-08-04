@@ -30352,11 +30352,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       },
       "providerId": "openrouter"
@@ -37307,5 +37307,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "3b3ddb8b543be042"
+  "version": "575c567531d2c161"
 }
