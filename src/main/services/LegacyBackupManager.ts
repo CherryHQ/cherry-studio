@@ -219,7 +219,7 @@ class BackupManager {
     destinationPath?: string,
     slimBackup: boolean = false
   ): Promise<string> {
-    return this.runBackupWorkflow(event, () => this.createBackup(fileName, destinationPath, slimBackup))
+    return this.runBackupWorkflow(event, () => this.createBackup(event, fileName, destinationPath, slimBackup))
   }
 
   private runBackupWorkflow<T>(event: BackupInvocationEvent, operation: () => Promise<T>): Promise<T> {
@@ -281,12 +281,14 @@ class BackupManager {
   }
 
   private createBackup(
+    event: BackupInvocationEvent,
     fileName: string,
     destinationPath: string | undefined,
     slimBackup: boolean,
     signal?: AbortSignal
   ): Promise<string> {
-    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath, slimBackup, signal))
+    const mutex = event === null ? tryAcquire(this.operationMutex, new BackupOperationBusyError()) : this.operationMutex
+    return mutex.runExclusive(() => this.backupDirect(fileName, destinationPath, slimBackup, signal))
   }
 
   private async backupDirect(
@@ -680,6 +682,7 @@ class BackupManager {
         const backupDir = localConfig.localBackupDir || this.backupDir
         await fs.ensureDir(backupDir)
         const result = await this.createBackup(
+          event,
           fileName || this.createBackupFileName(),
           backupDir,
           localConfig.skipBackupFile ?? false,
@@ -715,6 +718,7 @@ class BackupManager {
       const operationSignal = event === null ? signal : undefined
       const filename = webdavConfig.fileName || this.createBackupFileName()
       const backupedFilePath = await this.createBackup(
+        event,
         filename,
         undefined,
         webdavConfig.skipBackupFile ?? false,
@@ -787,6 +791,7 @@ class BackupManager {
       logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
       const backupedFilePath = await this.createBackup(
+        event,
         filename,
         undefined,
         s3Config.skipBackupFile ?? false,

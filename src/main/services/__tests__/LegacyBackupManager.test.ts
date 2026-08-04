@@ -919,6 +919,34 @@ describe('BackupManager direct v2 data compatibility', () => {
     await manualBackup
   })
 
+  it('rejects an automatic backup while restore is in progress', async () => {
+    let finishRestore = () => {}
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRestore = resolve
+        })
+    )
+    const backupDirect = vi.spyOn(backupManager as any, 'backupDirect')
+    const restore = (backupManager as any).stageRestore('/restore.zip')
+    await vi.waitFor(() => expect(restoreUnlocked).toHaveBeenCalledWith('/restore.zip'))
+
+    try {
+      await expect(
+        backupManager.backupToLocalDir(
+          null,
+          'auto.zip',
+          { localBackupDir: '/backups', maxBackups: 0 },
+          new AbortController().signal
+        )
+      ).rejects.toBeInstanceOf(BackupOperationBusyError)
+      expect(backupDirect).not.toHaveBeenCalled()
+    } finally {
+      finishRestore()
+      await restore
+    }
+  })
+
   it('limits and cancels WebDAV retention cleanup for the exact current device', async () => {
     const backupPath = '/mock/temp/backup/backup.zip'
     const controller = new AbortController()
