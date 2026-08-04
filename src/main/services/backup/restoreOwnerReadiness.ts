@@ -1,5 +1,5 @@
+import type { RestoreOwnerProgressBag } from '@data/db/restore/portableProfileContracts'
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import type { RestoreOwnerProgressBag } from '@data/portableProfilePolicy'
 import {
   type KnowledgeRestoreProgress,
   type KnowledgeRestoreProgressRead,
