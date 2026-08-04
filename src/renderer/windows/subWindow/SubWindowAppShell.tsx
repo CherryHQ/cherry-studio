@@ -78,8 +78,6 @@ export const SubWindowAppShell = () => {
   }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
-  const showFallbackTitleBar =
-    !!activeTab && !isPageTitledRoute(activeTab.url) && !activeTab.url.startsWith('/settings')
 
   // Conversation pages switch topics/sessions inside their existing tab and
   // publish the current instance through metadata. Keep the tab URL canonical
@@ -103,25 +101,13 @@ export const SubWindowAppShell = () => {
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div
         data-ui="app.detached-window"
-        className={cn(
-          'relative flex h-screen w-screen flex-col overflow-hidden text-foreground',
-          showFallbackTitleBar ? 'app-shell-theme' : isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-        )}
+        className="app-shell-theme relative flex h-screen w-screen flex-col overflow-hidden text-foreground"
         data-glass-active={isGlassActive}
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
-        {showFallbackTitleBar && <SubWindowTitleBar />}
+        <SubWindowTitleBar />
         {/* Content Area - Multi MemoryRouter Architecture */}
-        <main
-          className={cn(
-            'relative min-h-0 flex-1 overflow-hidden',
-            showFallbackTitleBar ? 'px-1.5 pb-1.5' : isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-          )}>
-          <div
-            className={cn(
-              'relative h-full w-full',
-              showFallbackTitleBar &&
-                'app-shell-content-frame overflow-hidden rounded-[16px] border-[0.5px] bg-background'
-            )}>
+        <main className="relative min-h-0 flex-1 overflow-hidden px-1.5 pb-1.5">
+          <div className="app-shell-content-frame relative h-full w-full overflow-hidden rounded-[16px] border-[0.5px] bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             <ResourceViewSourceProvider>
               {tabs

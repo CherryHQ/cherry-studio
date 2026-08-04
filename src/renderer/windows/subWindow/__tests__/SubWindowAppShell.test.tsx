@@ -118,23 +118,23 @@ describe('SubWindowAppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
   })
 
-  it('lets conversation pages own their window chrome', async () => {
+  it('keeps detached-window controls available on conversation pages', async () => {
     await renderSubWindowAppShell({
       isPageTitledRoute: (url) => url.startsWith('/app/chat'),
       tabs: [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
     })
 
-    expect(screen.queryByTestId('sub-window-title-bar')).not.toBeInTheDocument()
-    expect(document.querySelector('.app-shell-content-frame')).not.toBeInTheDocument()
+    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(document.querySelector('.app-shell-content-frame')).toBeInTheDocument()
   })
 
-  it('lets detached settings own their responsive frame', async () => {
+  it('keeps detached-window controls available in settings', async () => {
     await renderSubWindowAppShell({
       tabs: [{ id: 'home', type: 'route', url: '/settings/provider', title: 'Settings' }]
     })
 
-    expect(screen.queryByTestId('sub-window-title-bar')).not.toBeInTheDocument()
-    expect(document.querySelector('.app-shell-content-frame')).not.toBeInTheDocument()
+    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(document.querySelector('.app-shell-content-frame')).toBeInTheDocument()
   })
 
   it('opens the detached tab from WindowManager init data', async () => {

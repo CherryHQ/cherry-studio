@@ -175,8 +175,6 @@ export class SubWindowService extends BaseService {
       ...(hasPosition && { x, y })
     }
 
-    const isSettingsWindow = url.startsWith('/settings')
-
     const windowId = wm.open(WindowType.SubWindow, { initData, options })
     const win = wm.getWindow(windowId)
     if (!win) {
@@ -186,15 +184,18 @@ export class SubWindowService extends BaseService {
 
     this.tabIdToWindowId.set(tabId, windowId)
 
-    // A pre-warmed pooled window keeps its registry geometry, so apply per-tab
-    // minimums and the initial detach position before revealing it.
-    if (!win.isDestroyed()) {
-      if (isSettingsWindow) {
-        win.setMinimumSize(760, 560)
-      }
-      if (hasPosition) {
-        this.moveWindow(win, tabId, Math.round(x), Math.round(y))
-      }
+    // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
+    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
+    // it here, unconditionally and immediately, mirroring SelectionService.showActionWindow.
+    // This works for both fresh and reused windows because the SubWindow registry keeps
+    // paintWhenInitiallyHidden (Electron's default true): the hidden window — whether a freshly
+    // created one or a pre-warmed pooled standby — paints its renderer while hidden, so show()
+    // reveals already-rendered content. We deliberately do NOT gate on isLoadingMainFrame() /
+    // wait for ready-to-show: a standby's ready-to-show already fired during pre-warm and won't
+    // fire again (so a conditional wait would either flash the empty pre-warm shell or, on a
+    // failed load, leave the window stuck hidden forever). resetPooledWindowGeometry has already
+    // centered it.
+    if (!hasPosition && !win.isDestroyed()) {
       win.show()
     }
 
