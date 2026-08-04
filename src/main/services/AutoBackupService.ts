@@ -93,7 +93,7 @@ export class AutoBackupService extends BaseService {
     this.registerDisposable(() => this.unregisterAllSchedules())
   }
 
-  protected override onAllReady(): void {
+  protected override onReady(): void {
     this.active = true
     for (const type of AUTO_BACKUP_TYPES) {
       this.restartSchedule(type, 'fromLastSyncTime')

@@ -161,6 +161,15 @@ describe('AutoBackupService', () => {
     expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
   })
 
+  it('restores enabled automatic backup schedules after a service restart', async () => {
+    await service._doStop()
+    await service._doInit()
+
+    for (const type of ['webdav', 's3', 'local', 'nutstore']) {
+      expect(scheduler.has(`auto-backup:${type}`)).toBe(true)
+    }
+  })
+
   it('does not reschedule after automatic backup is disabled during an upload', async () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.local.auto_sync', false)
