@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Saltar al turno {{number}}"
+      },
       "bottom": "Volver abajo",
       "close": "Cerrar",
       "first": "Ya es el primer mensaje",
@@ -3164,6 +3167,7 @@
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta."
       },
       "processor": "Proveedor de Procesamiento",
+      "processor_not_configured": "No configurado",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
       "reset_action": "Restablecer valores predeterminados",
@@ -5143,6 +5147,7 @@
     "reset": "Restablecer",
     "rotate_left": "Rotar a la izquierda",
     "rotate_right": "Rotar a la derecha",
+    "save_as": "Guardar como",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"

@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Passer au tour {{number}}"
+      },
       "bottom": "Retour en bas",
       "close": "Fermer",
       "first": "Déjà premier message",
@@ -3164,6 +3167,7 @@
         "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte."
       },
       "processor": "Fournisseur de traitement",
+      "processor_not_configured": "Non configuré",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
       "reset_action": "Restaurer les paramètres par défaut",
@@ -5143,6 +5147,7 @@
     "reset": "Réinitialiser",
     "rotate_left": "Rotation vers la gauche",
     "rotate_right": "Rotation vers la droite",
+    "save_as": "Enregistrer sous",
     "source": "Voir le code source",
     "zoom_in": "agrandir",
     "zoom_out": "réduire"

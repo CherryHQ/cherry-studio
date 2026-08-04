@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "ターン{{number}}にジャンプ"
+      },
       "bottom": "下部に戻る",
       "close": "閉じる",
       "first": "最初のメッセージです",
@@ -3164,6 +3167,7 @@
         "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。"
       },
       "processor": "処理プロバイダ",
+      "processor_not_configured": "未設定",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -5143,6 +5147,7 @@
     "reset": "リセット",
     "rotate_left": "左回転",
     "rotate_right": "右に回転",
+    "save_as": "名前を付けて保存",
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"

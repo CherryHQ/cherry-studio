@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Salt la tura {{number}}"
+      },
       "bottom": "Înapoi jos",
       "close": "Închide",
       "first": "Deja la primul mesaj",
@@ -3164,6 +3167,7 @@
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă."
       },
       "processor": "Furnizor de procesare",
+      "processor_not_configured": "Neconfigurat",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -5143,6 +5147,7 @@
     "reset": "Resetează",
     "rotate_left": "Rotire la stânga",
     "rotate_right": "Rotire la dreapta",
+    "save_as": "Salvează ca",
     "source": "Vezi codul sursă",
     "zoom_in": "Mărește",
     "zoom_out": "Micșorează"

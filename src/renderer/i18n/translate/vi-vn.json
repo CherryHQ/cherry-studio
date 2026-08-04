@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Nhảy đến lượt {{number}}"
+      },
       "bottom": "Quay lại đầu trang",
       "close": "Đóng",
       "first": "Đã ngay từ tin nhắn đầu tiên",
@@ -3164,6 +3167,7 @@
         "threshold": "Ngưỡng độ tương đồng để lọc các đoạn có độ liên quan thấp. Giá trị cao hơn sẽ làm cho việc truy xuất trở nên nghiêm ngặt hơn."
       },
       "processor": "Nhà cung cấp xử lý",
+      "processor_not_configured": "Chưa được cấu hình",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -5143,6 +5147,7 @@
     "reset": "Đặt lại",
     "rotate_left": "Xoay Trái",
     "rotate_right": "Xoay phải",
+    "save_as": "Lưu Thành",
     "source": "Ver Código Fuente",
     "zoom_in": "Phóng to",
     "zoom_out": "Zum Herauszoomen"
