@@ -294,11 +294,7 @@ const LocalBackupSettings: React.FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <LocalBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          localBackupDir={resolvedLocalBackupDir}
-        />
+        <LocalBackupManager visible={backupManagerVisible} onClose={closeBackupManager} destination="local" />
       </>
     </SettingGroup>
   )

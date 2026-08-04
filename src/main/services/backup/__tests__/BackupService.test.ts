@@ -53,6 +53,25 @@ vi.mock('../restore/prepareRestore', async (importOriginal) => ({
 }))
 vi.mock('../restore/rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
 
+const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
+  exportArchiveMock: vi.fn<(input: { outPath: string }) => Promise<unknown>>(),
+  transportMock: {
+    upload: vi.fn<(localPath: string, name: string) => Promise<void>>(async () => undefined),
+    download: vi.fn(async () => undefined),
+    list: vi.fn<() => Promise<Array<{ name: string; modifiedAt: number; size: number }>>>(async () => []),
+    remove: vi.fn<(name: string) => Promise<void>>(async () => undefined),
+    check: vi.fn(async () => true)
+  }
+}))
+
+vi.mock('../export/exportArchive', () => ({ exportArchive: exportArchiveMock }))
+vi.mock('../export/exportOperation', () => ({ sweepStaleExportOperations: vi.fn(async () => undefined) }))
+vi.mock('../destinations/destinationConfig', () => ({
+  resolveDestination: vi.fn(async () => ({ kind: 'webdav', maxBackups: 1 }))
+}))
+vi.mock('../destinations/destinationTransport', () => ({ createTransport: () => transportMock }))
+vi.mock('@main/utils/system', () => ({ getHostname: () => 'work-laptop', getDeviceType: () => 'mac' }))
+
 let userDataDir = ''
 
 vi.mock('@application', () => ({
@@ -612,5 +631,76 @@ describe('BackupService', () => {
       expect(loggerMock.error).toHaveBeenCalled()
       expect(service.getStatus().restore.kind).toBe('unreadable')
     })
+  })
+})
+
+describe('BackupService.exportToDestination', () => {
+  let service: InstanceType<typeof BackupService>
+  const calls: string[] = []
+
+  beforeEach(() => {
+    calls.length = 0
+    userDataDir = mkdtempSync(join(tmpdir(), 'cs-backup-destination-'))
+    BaseService.resetInstances()
+    vi.clearAllMocks()
+    service = new BackupService()
+    init(service)
+
+    exportArchiveMock.mockImplementation(async ({ outPath }) => {
+      writeFileSync(outPath, 'archive')
+      return { outPath, manifest: { degradations: [] } }
+    })
+    transportMock.upload.mockImplementation(async () => {
+      calls.push('upload')
+    })
+    transportMock.list.mockImplementation(async () => {
+      calls.push('list')
+      return [
+        { name: 'cherry-studio.20260102000000.work-laptop.mac.zip', modifiedAt: 2, size: 1 },
+        { name: 'cherry-studio.20260101000000.work-laptop.mac.zip', modifiedAt: 1, size: 1 }
+      ]
+    })
+    transportMock.remove.mockImplementation(async () => {
+      calls.push('remove')
+    })
+  })
+
+  afterEach(() => {
+    rmSync(userDataDir, { recursive: true, force: true })
+  })
+
+  // The order is the whole safety property: pruning first is how a limit of 1
+  // turned a failed upload into a user with no backups at all.
+  it('uploads before it prunes', async () => {
+    await service.exportToDestination('webdav')
+
+    expect(calls[0]).toBe('upload')
+    expect(calls).toContain('remove')
+  })
+
+  it('prunes nothing when the upload fails', async () => {
+    transportMock.upload.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(service.exportToDestination('webdav')).rejects.toThrow('network down')
+
+    expect(transportMock.remove).not.toHaveBeenCalled()
+  })
+
+  it('removes the staged archive whether or not the upload lands', async () => {
+    transportMock.upload.mockImplementationOnce(async (localPath) => {
+      expect(readFileSync(localPath, 'utf8')).toBe('archive')
+      throw new Error('network down')
+    })
+
+    await expect(service.exportToDestination('webdav')).rejects.toThrow('network down')
+
+    const staged = exportArchiveMock.mock.calls[0][0].outPath
+    expect(() => readFileSync(staged)).toThrow()
+  })
+
+  it('sends the name the user typed instead of the generated one', async () => {
+    await service.exportToDestination('webdav', 'before-the-big-update')
+
+    expect(transportMock.upload).toHaveBeenCalledWith(expect.any(String), 'before-the-big-update.zip')
   })
 })
