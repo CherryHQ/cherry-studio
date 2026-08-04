@@ -1325,7 +1325,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
   })
 
   it('filters reranker models from the composer model selector', () => {
@@ -1336,14 +1336,16 @@ describe('ChatComposer', () => {
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
   })
 
-  it('keeps web search enabled when switching to a function-calling model', () => {
+  // The composer no longer duplicates the web-search reconciliation: `setModel` does it with an
+  // ungated providers list, while the composer's own list is deferred and empty here.
+  it('delegates the web-search reconciliation to setModel when switching models', () => {
     mocks.selectedModel = modelBWithFunctionCall
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, { enableWebSearch: true })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, {})
   })
 
   it('uses mentioned-model multi-select when requested by the composer toolbar', () => {
@@ -1379,7 +1381,7 @@ describe('ChatComposer', () => {
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
-    expect(mocks.setModel).toHaveBeenCalledWith(model, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(model, {})
     expect(onSend).toHaveBeenCalledWith(
       'hello',
       expect.objectContaining({
@@ -1410,7 +1412,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
   })
 
@@ -2959,7 +2961,7 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
 
     mocks.model = undefined
     mocks.modelPending = true

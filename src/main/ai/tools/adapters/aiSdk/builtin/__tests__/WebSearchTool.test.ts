@@ -233,18 +233,20 @@ describe('web_search', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+    it('returns true only when the request selected client search', () => {
       const applies = searchEntry.applies!
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
-          assistant: { id: 'a', settings: {} } as never,
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'server', webFetch: 'server' },
           mcpToolIds: new Set()
         })
       ).toBe(false)
       expect(
         applies({
           assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'client', webFetch: 'client' },
           mcpToolIds: new Set()
         })
       ).toBe(true)
@@ -369,18 +371,20 @@ describe('web_fetch', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+    it('returns true only when the request selected client fetch', () => {
       const applies = fetchEntry.applies!
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
-          assistant: { id: 'a', settings: {} } as never,
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'server', webFetch: 'server' },
           mcpToolIds: new Set()
         })
       ).toBe(false)
       expect(
         applies({
           assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'client', webFetch: 'client' },
           mcpToolIds: new Set()
         })
       ).toBe(true)

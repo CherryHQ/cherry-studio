@@ -1595,7 +1595,6 @@
         "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
-      "url_context": "网页上下文",
       "web_search": {
         "builtin": {
           "disabled_content": "当前模型不支持网络搜索功能",
@@ -1612,13 +1611,16 @@
           "description": "不启用网络搜索功能",
           "label": "不使用网络"
         },
+        "route": {
+          "builtin": "使用模型内置搜索",
+          "client": "使用 {{provider}} 搜索"
+        },
         "settings": "网络搜索设置"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
-        "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
+        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用"
       }
     },
     "message": {
@@ -4275,6 +4277,7 @@
       "cutoff": "正在截断搜索内容...",
       "fetch_complete": "{{count}} 个搜索结果",
       "fetch_empty": "未找到搜索结果",
+      "fetch_opaque": "已由模型完成搜索",
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
@@ -8073,6 +8076,10 @@
         "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
+        "client_tools_preferred": {
+          "description": "即使模型自带联网搜索，也优先使用上方配置的搜索与网页读取服务；关闭后由模型内置搜索处理。",
+          "label": "优先使用已配置的搜索服务"
+        },
         "compression": {
           "cutoff": {
             "limit": {
