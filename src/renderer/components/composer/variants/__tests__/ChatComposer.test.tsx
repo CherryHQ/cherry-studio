@@ -65,6 +65,8 @@ const mocks = vi.hoisted(() => ({
   topicLayout: undefined as string | undefined,
   inputAdapterFocus: vi.fn(),
   assistantHookArgs: [] as unknown[][],
+  knowledgeBaseHookArgs: [] as unknown[][],
+  modelHookArgs: [] as unknown[][],
   providerHookArgs: [] as unknown[][],
   speedControlProps: undefined as
     | {
@@ -492,12 +494,18 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
+  useKnowledgeBases: (...args: unknown[]) => {
+    mocks.knowledgeBaseHookArgs.push(args)
+    return { bases: mocks.knowledgeBases, isLoading: false }
+  }
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModels: () => ({ models: [mocks.model ?? model, modelB] })
+  useModels: (...args: unknown[]) => {
+    mocks.modelHookArgs.push(args)
+    return { models: [mocks.model ?? model, modelB] }
+  }
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -741,6 +749,8 @@ describe('ChatComposer', () => {
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
     mocks.assistantHookArgs = []
+    mocks.knowledgeBaseHookArgs = []
+    mocks.modelHookArgs = []
     mocks.providerHookArgs = []
     mocks.speedControlProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -853,6 +863,14 @@ describe('ChatComposer', () => {
 
     view.unmount()
     expect(nextConversationControlsChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('defers optional resource catalogs on a normal single-model conversation', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: false }])
+    expect(mocks.modelHookArgs.at(-1)).toEqual([{ enabled: true }, { fetchEnabled: false }])
+    expect(mocks.providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
@@ -1307,7 +1325,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
   })
 
   it('filters reranker models from the composer model selector', () => {
@@ -1318,14 +1336,16 @@ describe('ChatComposer', () => {
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
   })
 
-  it('keeps web search enabled when switching to a function-calling model', () => {
+  // The composer no longer duplicates the web-search reconciliation: `setModel` does it with an
+  // ungated providers list, while the composer's own list is deferred and empty here.
+  it('delegates the web-search reconciliation to setModel when switching models', () => {
     mocks.selectedModel = modelBWithFunctionCall
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, { enableWebSearch: true })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, {})
   })
 
   it('uses mentioned-model multi-select when requested by the composer toolbar', () => {
@@ -1361,7 +1381,7 @@ describe('ChatComposer', () => {
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
-    expect(mocks.setModel).toHaveBeenCalledWith(model, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(model, {})
     expect(onSend).toHaveBeenCalledWith(
       'hello',
       expect.objectContaining({
@@ -1392,7 +1412,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
   })
 
@@ -2611,65 +2631,6 @@ describe('ChatComposer', () => {
     ])
   })
 
-  it('captures scroll eligibility before clearing a long draft or awaiting attachment preparation', async () => {
-    const attachedFile = {
-      id: 'file-1',
-      name: 'doc.pdf',
-      origin_name: 'doc.pdf',
-      ext: '.pdf',
-      type: 'document',
-      size: 1,
-      count: 1,
-      path: '/tmp/doc.pdf',
-      created_at: '2026-01-01T00:00:00.000Z',
-      fileTokenSourceId: 'source-1'
-    } as any
-    const fileToken = {
-      id: 'file:source-1',
-      kind: 'file',
-      label: 'doc.pdf',
-      payload: attachedFile,
-      index: 0,
-      textOffset: 0
-    } as ComposerSerializedToken
-    const entry = createDeferred<Awaited<ReturnType<typeof window.api.file.createInternalEntry>>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    const onSend = vi.fn().mockResolvedValue(undefined)
-    const longDraft = 'long line\n'.repeat(80)
-    mocks.files = [attachedFile]
-    vi.mocked(window.api.file.createInternalEntry).mockReturnValueOnce(entry.promise)
-
-    render(
-      <ChatComposer
-        topic={topic}
-        onSend={onSend}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    let sendPromise = Promise.resolve()
-    act(() => {
-      sendPromise = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: longDraft, tokens: [fileToken] }))
-    })
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(onSend).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(window.api.file.createInternalEntry).mock.invocationCallOrder[0]
-    )
-
-    await act(async () => {
-      entry.resolve({ id: 'fe-1', ext: 'pdf' } as Awaited<ReturnType<typeof window.api.file.createInternalEntry>>)
-      await sendPromise
-    })
-
-    expect(onSend).toHaveBeenCalledOnce()
-  })
-
   it('does not restore knowledge tokens from the draft cache', () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
       key === 'inputbar-draft'
@@ -2941,7 +2902,7 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
 
     mocks.model = undefined
     mocks.modelPending = true

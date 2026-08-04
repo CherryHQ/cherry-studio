@@ -1595,7 +1595,6 @@
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
-      "url_context": "Contexto da Página da Web",
       "web_search": {
         "builtin": {
           "disabled_content": "Este modelo não suporta busca na web",
@@ -1617,8 +1616,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
+        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções."
       }
     },
     "message": {
@@ -6778,6 +6776,7 @@
         "allStatuses": "Todos os status",
         "allTypes": "Todos os tipos",
         "builtinOnly": "Apenas integrado",
+        "label": "Filtro",
         "status": "Filtrar por status",
         "type": "Filtrar por tipo"
       },
@@ -6844,6 +6843,9 @@
         "loadError": "Falha ao carregar dicas",
         "noPromptsAvailable": "Nenhuma dica disponível",
         "requiredField": "Campo obrigatório"
+      },
+      "protocolInstall": {
+        "title": "Instalar MCP"
       },
       "protocolInstallWarning": {
         "command": "Comando de inicialização",

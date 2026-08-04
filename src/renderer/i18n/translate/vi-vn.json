@@ -1595,7 +1595,6 @@
         "image_or_document": "Tải lên tệp hình ảnh hoặc tài liệu",
         "upload_from_local": "Tải tệp tin cục bộ..."
       },
-      "url_context": "Bối cảnh URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Mô hình hiện tại không hỗ trợ tìm kiếm web",
@@ -1617,8 +1616,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
-        "url_context": "Gemini không hỗ trợ sử dụng ngữ cảnh url và gọi hàm đồng thời"
+        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm"
       }
     },
     "message": {
@@ -6778,6 +6776,7 @@
         "allStatuses": "Tất cả trạng thái",
         "allTypes": "Tất cả các loại",
         "builtinOnly": "Chỉ tích hợp sẵn",
+        "label": "Lọc",
         "status": "Lọc theo trạng thái",
         "type": "Lọc theo loại"
       },
@@ -6844,6 +6843,9 @@
         "loadError": "Lỗi lấy prompt",
         "noPromptsAvailable": "Không có lời nhắc nào có sẵn",
         "requiredField": "Trường bắt buộc"
+      },
+      "protocolInstall": {
+        "title": "Cài đặt MCP"
       },
       "protocolInstallWarning": {
         "command": "Lệnh khởi động",

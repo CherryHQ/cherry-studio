@@ -174,7 +174,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
-  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
+  const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
@@ -386,6 +386,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     toggleTag,
     visibleSelectedModelIdSet
   } = useModelSelectorData({
+    enabled: open,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,

@@ -42,7 +42,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
-import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -396,7 +396,7 @@ export class McpRuntimeService extends BaseService {
 
           // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
           if (
-            isBuiltinMcpServer(server) &&
+            isInMemoryBuiltinMcpServer(server) &&
             (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
           ) {
             const httpUrlMap: Record<string, string> = {
@@ -420,7 +420,7 @@ export class McpRuntimeService extends BaseService {
             return new StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
-          if (isBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
+          if (isInMemoryBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
@@ -612,8 +612,9 @@ export class McpRuntimeService extends BaseService {
             }
 
             const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) => {
-              const msg = data.toString()
+            const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
+            stdioTransport.stderr?.on('data', (data: Buffer) => {
+              const msg = stderrDecoder.decode(data, { stream: true })
               getServerLogger(server).debug(`Stdio stderr`, { data: msg })
               this.emitServerLog(server, {
                 timestamp: Date.now(),
@@ -621,6 +622,18 @@ export class McpRuntimeService extends BaseService {
                 message: msg.trim(),
                 source: 'stdio'
               })
+            })
+            stdioTransport.stderr?.on('end', () => {
+              const remaining = stderrDecoder.decode()
+              if (remaining.trim()) {
+                getServerLogger(server).debug(`Stdio stderr (end)`, { data: remaining })
+                this.emitServerLog(server, {
+                  timestamp: Date.now(),
+                  level: 'stderr',
+                  message: remaining.trim(),
+                  source: 'stdio'
+                })
+              }
             })
             // StdioClientTransport does not expose stdout as a readable stream for raw logging
             // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.

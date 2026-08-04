@@ -1595,7 +1595,6 @@
         "image_or_document": "上傳圖片或檔案",
         "upload_from_local": "上傳本機檔案..."
       },
-      "url_context": "網頁上下文",
       "web_search": {
         "builtin": {
           "disabled_content": "目前模型不支援網路搜尋功能",
@@ -1617,8 +1616,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫",
-        "url_context": "Gemini 不支援同時使用網頁內容與函式呼叫"
+        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫"
       }
     },
     "message": {
@@ -6778,6 +6776,7 @@
         "allStatuses": "所有狀態",
         "allTypes": "所有類型",
         "builtinOnly": "內建 only",
+        "label": "篩選",
         "status": "按狀態篩選",
         "type": "按類型篩選"
       },
@@ -6844,6 +6843,9 @@
         "loadError": "取得提示失敗",
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
+      },
+      "protocolInstall": {
+        "title": "安裝 MCP"
       },
       "protocolInstallWarning": {
         "command": "啟動命令",
