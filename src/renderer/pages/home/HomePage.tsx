@@ -156,8 +156,12 @@ const HomePage: FC = () => {
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
-  const canUseGlobalTopicFallback =
-    !currentTab || (currentTab.id === 'home' && !hasTabInstanceMetadataForApp(currentTab, 'assistants'))
+  // Frozen at mount for the same reason as `resumeTopicId` below: `useTabSelfMetadata` stamps this
+  // page's own instance metadata during the first effect flush, so a reactive read would retract the
+  // fallback one render later and race the very queries it gates.
+  const [canUseGlobalTopicFallback] = useState(
+    () => !currentTab || (currentTab.id === 'home' && !hasTabInstanceMetadataForApp(currentTab, 'assistants'))
+  )
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -254,21 +258,6 @@ const HomePage: FC = () => {
       : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
-  // The global latest query is the final fallback, not a parallel page dependency. An explicit
-  // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve
-  // before we ask for the globally latest topic.
-  const shouldLoadLatestTopic =
-    shouldAutoCreateTopic &&
-    canUseGlobalTopicFallback &&
-    !isMessageOnlyView &&
-    !routeActiveTopicId &&
-    !routeAssistantId &&
-    !isResumeTopicLoading &&
-    !resumeApiTopic
-  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({
-    enabled: shouldLoadLatestTopic
-  })
-  const isLatestTopicReady = !shouldLoadLatestTopic || !isLatestTopicLoading
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -288,6 +277,35 @@ const HomePage: FC = () => {
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
+  // The tab-metadata entry target no longer exists: its by-id query settled with no row. `last_used_
+  // topic_id` is never cleared on delete, so the sidebar can bind a tab to a deleted topic — the tab
+  // has no identity left to keep, and stranding it on a blank draft is worse than falling through to
+  // global history. Derived, not stored: it must be true in the same render the query settles, or the
+  // first-entry effect below would create a draft before the latest query is even enabled. An
+  // explicit `?topicId=` deep link keeps its target instead — a bad link is the caller's to fix.
+  const isEntryTopicMissing =
+    !isMessageOnlyView &&
+    !routeTopicId &&
+    !!routeActiveTopicId &&
+    activeTopicId === routeActiveTopicId &&
+    !activeTopic &&
+    !isActiveTopicLoading
+  const activeTargetTopicId = isEntryTopicMissing ? null : routeActiveTopicId
+  // The global latest query is the final fallback, not a parallel page dependency. An explicit
+  // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve
+  // before we ask for the globally latest topic.
+  const shouldLoadLatestTopic =
+    shouldAutoCreateTopic &&
+    (canUseGlobalTopicFallback || isEntryTopicMissing) &&
+    !isMessageOnlyView &&
+    !activeTargetTopicId &&
+    !routeAssistantId &&
+    !isResumeTopicLoading &&
+    !resumeApiTopic
+  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({
+    enabled: shouldLoadLatestTopic
+  })
+  const isLatestTopicReady = !shouldLoadLatestTopic || !isLatestTopicLoading
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic = isMessageOnlyView
     ? routeTopic

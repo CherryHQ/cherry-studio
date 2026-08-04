@@ -656,11 +656,35 @@ describe('app Sidebar', () => {
       url: '/app/agents',
       title: 'Work',
       icon: undefined,
-      metadata: { instanceAppId: 'agents' }
+      metadata: undefined
     })
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('leaves the tab unbound when there is no last-used conversation to target', () => {
+    mocks.sidebarFavorites = [appFavorite('agents')]
+    mocks.lastUsedSessionId = null
+    mocks.activeTab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Chat',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', keep: true }
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
+
+    // A bare app id would read as an explicit draft and cut AgentPage off from its own
+    // resume / latest-session fallbacks, so nothing is bound when there is no target.
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
+      url: '/app/agents',
+      title: 'Work',
+      icon: undefined,
+      metadata: { keep: true }
+    })
   })
 
   it('replaces the active tab with the last-used conversation without activating its existing tab', () => {
@@ -759,8 +783,7 @@ describe('app Sidebar', () => {
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
       forceNew: true,
-      title: 'Work',
-      metadata: { instanceAppId: 'agents' }
+      title: 'Work'
     })
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()

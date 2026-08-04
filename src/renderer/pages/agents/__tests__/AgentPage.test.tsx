@@ -1389,6 +1389,43 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
+  it('keeps the bootstrap tab on global history after the page stamps its own instance metadata', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.currentTab = { id: 'home' }
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+    ]
+
+    const { rerender } = render(<AgentPage />)
+
+    // `useTabSelfMetadata` writes `{ instanceAppId: 'agents' }` back during the first effect flush.
+    // A reactive gate would read its own write, retract the fallback and race the latest query into
+    // a draft, so the gate is frozen at mount.
+    agentPageMocks.currentTab = { id: 'home', metadata: { instanceAppId: 'agents' } }
+    rerender(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(agentPageMocks.latestSessionOptions).toHaveBeenLastCalledWith({ enabled: true })
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the latest session when tab metadata points at a deleted session', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    // `last_used_session_id` is never cleared on delete, so the sidebar can bind a tab to a session
+    // that no longer exists. The tab must recover to a reachable conversation, not strand blank.
+    agentPageMocks.currentTab = { id: 'home', metadata: { instanceAppId: 'agents', instanceKey: 'session-deleted' } }
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
   it('keeps a named draft tab independent from global session history', async () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.currentTab = { id: 'agent-draft', metadata: { instanceAppId: 'agents' } }
@@ -2165,6 +2202,10 @@ describe('AgentPage', () => {
   it('uses tab metadata as the session entry when the URL is the agents route', () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.currentTab = { metadata: { instanceAppId: 'agents', instanceKey: 'session-from-metadata' } }
+    // Let the entry target resolve: one that settles with no row reads as a deleted session and hands
+    // the tab over to global history, which is a different path than the one under test.
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-from-metadata' }
+    activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
 
@@ -2174,6 +2215,10 @@ describe('AgentPage', () => {
   it('keeps the created session when clearing the tab metadata after starting a new task', async () => {
     agentPageMocks.routeSearch = {}
     agentPageMocks.currentTab = { metadata: { instanceAppId: 'agents', instanceKey: 'session-from-metadata' } }
+    // Let the entry target resolve: one that settles with no row reads as a deleted session and hands
+    // the tab over to global history, which is a different path than the one under test.
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-from-metadata' }
+    activeSessionMocks.sessionSource = 'query'
 
     const { rerender } = render(<AgentPage />)
 

@@ -1255,6 +1255,39 @@ describe('HomePage', () => {
     expect(homeMocks.activeTopicOptions?.activeTopicId).not.toBe('topic-last-viewed')
   })
 
+  it('keeps the bootstrap tab on global history after the page stamps its own instance metadata', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.currentTab = { id: 'home' }
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+
+    const { rerender } = render(<HomePage />)
+
+    // `useTabSelfMetadata` writes `{ instanceAppId: 'assistants' }` back during the first effect
+    // flush. A reactive gate would read its own write, retract the fallback and race the latest
+    // query into a draft, so the gate is frozen at mount.
+    homeMocks.currentTab = { id: 'home', metadata: { instanceAppId: 'assistants' } }
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.latestTopicOptions).not.toContainEqual({ enabled: false })
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the latest topic when tab metadata points at a deleted topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // `last_used_topic_id` is never cleared on delete, so the sidebar can bind a tab to a topic that
+    // no longer exists. The tab must recover to a reachable conversation, not open a blank draft.
+    homeMocks.currentTab = { id: 'home', metadata: { instanceAppId: 'assistants', instanceKey: 'topic-deleted' } }
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('prefers the route topic over the last-used topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
