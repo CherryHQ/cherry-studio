@@ -266,12 +266,11 @@ export function useChatVirtualizerRuntime<T>({
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
-    const isMoreThanOneViewportAway = el ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
-    const nextVisible = !smoothScroll.isAnimating() && isMoreThanOneViewportAway
+    const nextVisible = el ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
     if (isScrollToBottomButtonVisibleRef.current === nextVisible) return
     isScrollToBottomButtonVisibleRef.current = nextVisible
     setIsScrollToBottomButtonVisible(nextVisible)
-  }, [smoothScroll])
+  }, [])
 
   // ---- user-held viewport freeze --------------------------------------
 

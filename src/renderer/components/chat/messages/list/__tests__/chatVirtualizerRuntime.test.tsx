@@ -514,6 +514,43 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
   })
 
+  it('keeps the scroll-to-bottom button visible during reading navigation while still far from bottom', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      render(
+        <RuntimeProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+
+      runtime!.scrollerRef.current = {
+        scrollTop: 500,
+        scrollHeight: 2000,
+        clientHeight: 400
+      } as HTMLDivElement
+
+      act(() => runtime!.takeUserControl('navigation'))
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+        runtime!.scrollerProps.onScroll(500)
+      })
+
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('shows the scroll-to-bottom button when content growth leaves more than one viewport below', () => {
     const originalResizeObserver = globalThis.ResizeObserver
     const callbacks: ResizeObserverCallback[] = []
