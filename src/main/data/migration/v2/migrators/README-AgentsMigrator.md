@@ -32,6 +32,11 @@ resolves migration storage through the live application path registry.
   then the Agent-level path, then the v1 managed default.
 - A managed default becomes a Session-specific system workspace. External user
   workspaces remain in place.
+- A v1 default path restored under a different same-platform user-data root is
+  relocated to the current managed default only when the persisted path has the
+  exact `Data/Agents/{legacyAgentId suffix}` shape, no entry remains at that
+  path, and the restored current-root directory is a valid non-symlink managed
+  workspace. Existing and differently shaped external paths remain unchanged.
 - Legacy `session_messages` are read through a stable SQLite cursor in batches
   and normalized into a temporary SQLite staging table. Legacy message blocks
   become v2 message parts, and inline base64 images are materialized before the

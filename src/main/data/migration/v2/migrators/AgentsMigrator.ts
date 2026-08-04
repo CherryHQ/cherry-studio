@@ -1,3 +1,5 @@
+import { lstat } from 'node:fs/promises'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -974,6 +976,59 @@ function extractPrimaryWorkspacePath(rawPaths: string | null, source: 'session' 
   return path.normalize(trimmed)
 }
 
+async function lstatIfExists(entryPath: string) {
+  try {
+    return await lstat(entryPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
+function hasLegacyManagedDefaultShape(workspacePath: string, agentsDataDir: string, legacyAgentId: string): boolean {
+  const expectedWorkspacePath = legacyAgentWorkspacePath(agentsDataDir, legacyAgentId)
+  const candidateAgentsDir = path.dirname(workspacePath)
+  const candidateDataDir = path.dirname(candidateAgentsDir)
+  // Compare directory names rather than roots because a cross-machine restore
+  // intentionally changes the absolute user-data prefix.
+  return (
+    path.basename(workspacePath) === path.basename(expectedWorkspacePath) &&
+    path.basename(candidateAgentsDir) === path.basename(agentsDataDir) &&
+    path.basename(candidateDataDir) === path.basename(path.dirname(agentsDataDir))
+  )
+}
+
+async function resolveLegacyWorkspaceSourcePath(
+  agentsDataDir: string,
+  legacyAgentId: string,
+  explicitWorkspacePath: string | null
+): Promise<string> {
+  const currentDefaultPath = legacyAgentWorkspacePath(agentsDataDir, legacyAgentId)
+  if (!explicitWorkspacePath || path.normalize(explicitWorkspacePath) === path.normalize(currentDefaultPath)) {
+    return explicitWorkspacePath ?? currentDefaultPath
+  }
+  if (!hasLegacyManagedDefaultShape(explicitWorkspacePath, agentsDataDir, legacyAgentId)) {
+    return explicitWorkspacePath
+  }
+
+  const [explicitWorkspaceStat, currentDefaultStat] = await Promise.all([
+    lstatIfExists(explicitWorkspacePath),
+    lstatIfExists(currentDefaultPath)
+  ])
+  if (explicitWorkspaceStat || !currentDefaultStat) return explicitWorkspacePath
+  if (!currentDefaultStat.isDirectory() || currentDefaultStat.isSymbolicLink()) return explicitWorkspacePath
+  if (!(await isManagedLegacyAgentWorkspace(agentsDataDir, legacyAgentId, currentDefaultPath))) {
+    return explicitWorkspacePath
+  }
+
+  logger.info('Relocated restored v1 managed Agent workspace to the current data root', {
+    legacyAgentId,
+    persistedWorkspacePath: explicitWorkspacePath,
+    restoredWorkspacePath: currentDefaultPath
+  })
+  return currentDefaultPath
+}
+
 function workspaceNameFromPath(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
 }
@@ -1018,12 +1073,22 @@ async function deriveSessionWorkspaces(
   const migrationStartedAtMs = Date.now()
   const agentsDataDir = ctx.paths.agentsDataDir
   const systemWorkspacesDir = ctx.paths.agentSystemWorkspacesDir
+  const sourceWorkspacePathsByAgent = new Map<string, Map<string | null, string>>()
 
   for (const row of rows) {
     const explicitWorkspacePath =
       extractPrimaryWorkspacePath(row.session_accessible_paths, 'session') ??
       extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent')
-    const sourceWorkspacePath = explicitWorkspacePath ?? legacyAgentWorkspacePath(agentsDataDir, row.agent_id)
+    let sourceWorkspacePaths = sourceWorkspacePathsByAgent.get(row.agent_id)
+    if (!sourceWorkspacePaths) {
+      sourceWorkspacePaths = new Map()
+      sourceWorkspacePathsByAgent.set(row.agent_id, sourceWorkspacePaths)
+    }
+    let sourceWorkspacePath = sourceWorkspacePaths.get(explicitWorkspacePath)
+    if (!sourceWorkspacePath) {
+      sourceWorkspacePath = await resolveLegacyWorkspaceSourcePath(agentsDataDir, row.agent_id, explicitWorkspacePath)
+      sourceWorkspacePaths.set(explicitWorkspacePath, sourceWorkspacePath)
+    }
     const isManagedDefault = await isManagedLegacyAgentWorkspace(agentsDataDir, row.agent_id, sourceWorkspacePath)
     const createdAt = legacyTimestampToMs(row.created_at, migrationStartedAtMs)
     const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
