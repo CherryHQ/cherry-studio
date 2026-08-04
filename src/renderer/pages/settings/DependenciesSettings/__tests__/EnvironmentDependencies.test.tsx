@@ -240,13 +240,13 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
-    expect(screen.getByText('BabelDOC')).toBeInTheDocument()
+    expect(screen.getByText('BabelDOC Stream')).toBeInTheDocument()
   })
 
   it('renders the BabelDOC preset with its bundled image icon (not the fallback glyph)', async () => {
     render(<EnvironmentDependencies />)
 
-    const card = (await screen.findByText('BabelDOC')).closest<HTMLElement>('[role="listitem"]')
+    const card = (await screen.findByText('BabelDOC Stream')).closest<HTMLElement>('[role="listitem"]')
     expect(card).not.toBeNull()
     // BabelDOC has no iconify mark, so it must resolve to the bundled PNG — dropping the `name`
     // prop would silently fall back to the Terminal glyph and this src would disappear.

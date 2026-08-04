@@ -29,54 +29,38 @@ import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
-const BABELDOC_ERROR_PREFIX = '__CHERRY_BABELDOC_ERROR__'
-const BABELDOC_PROGRESS_PREFIX = '__CHERRY_BABELDOC_PROGRESS__'
+const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v1'
 const BABELDOC_ASSET_DOWNLOAD_PATTERNS = [
   /not found or corrupted, downloading/i,
   /downloading (?:all assets|fonts|cmaps)(?: from)?/i
 ]
-// BabelDOC 0.6.3 exposes structured events to Python callers but renders only
-// terminal output in its CLI. This per-run hook preserves those events as NDJSON.
-const BABELDOC_PROGRESS_ADAPTER = `import contextlib
-import json
-import math
-import sys
-
-def _emit_progress(event):
-    event_type = event.get("type")
-    if event_type == "error":
-        error = event.get("error")
-        payload = {"name": type(error).__name__, "message": str(error)}
-        sys.stdout.write("${BABELDOC_ERROR_PREFIX}" + json.dumps(payload, separators=(",", ":")) + "\\n")
-        sys.stdout.flush()
-        return
-    if event_type not in ("progress_update", "progress_end"):
-        return
-    stage = event.get("stage")
-    progress = event.get("overall_progress")
-    if not isinstance(stage, str) or not isinstance(progress, (int, float)) or not math.isfinite(progress):
-        return
-    payload = {"stage": stage, "progress": max(0.0, min(100.0, float(progress)))}
-    sys.stdout.write("${BABELDOC_PROGRESS_PREFIX}" + json.dumps(payload, separators=(",", ":")) + "\\n")
-    sys.stdout.flush()
-
-def _create_progress_handler(_translation_config, show_log=False):
-    return contextlib.nullcontext(), _emit_progress
-
-try:
-    import babeldoc.main as _babeldoc_main
-    _babeldoc_main.create_progress_handler = _create_progress_handler
-except Exception as _error:
-    sys.stderr.write("Cherry Studio progress adapter failed: " + str(_error) + "\\n")
-`
-const babeldocErrorSchema = z.strictObject({
-  name: z.string().min(1),
-  message: z.string().min(1)
-})
-const babeldocProgressSchema = z.strictObject({
+const babeldocStreamProgressSchema = z.strictObject({
+  schema: z.literal(BABELDOC_STREAM_SCHEMA),
+  type: z.literal('progress'),
   stage: z.string().min(1),
   progress: z.number().finite().min(0).max(100)
 })
+const babeldocStreamErrorSchema = z.strictObject({
+  schema: z.literal(BABELDOC_STREAM_SCHEMA),
+  type: z.literal('error'),
+  name: z.string().min(1),
+  message: z.string().min(1)
+})
+const babeldocStreamFinishSchema = z.strictObject({
+  schema: z.literal(BABELDOC_STREAM_SCHEMA),
+  type: z.literal('finish'),
+  result: z.strictObject({
+    original_pdf_path: z.string().nullable(),
+    mono_pdf_path: z.string().nullable(),
+    dual_pdf_path: z.string().nullable(),
+    total_seconds: z.number().finite().nonnegative()
+  })
+})
+const babeldocStreamEventSchema = z.discriminatedUnion('type', [
+  babeldocStreamProgressSchema,
+  babeldocStreamErrorSchema,
+  babeldocStreamFinishSchema
+])
 // Env vars forwarded from the user shell into the BabelDOC (Python) sidecar. The
 // allowlist deliberately excludes the user's provider API keys (OPENAI_API_KEY, …):
 // BabelDOC's key is injected via babeldoc.toml pointing at the local gateway, so
@@ -265,7 +249,7 @@ export class PdfTranslationService extends BaseService {
       await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onStage, onProgress)
       this.throwIfCancelled(job)
 
-      // BabelDOC 0.6.3 inserts a `.no_watermark` segment into the mono filename whenever the
+      // BabelDOC Stream 0.6.4.post1 inserts a `.no_watermark` segment into the mono filename whenever the
       // watermark mode is not `watermarked` (we pass `--watermark-output-mode no_watermark`), e.g.
       // `paper.no_watermark.zh-CN.mono.pdf`. Omitting it would ENOENT here and delete the artifact.
       const fileName = `${path.parse(request.sourcePath).name}.no_watermark.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
@@ -341,11 +325,6 @@ export class PdfTranslationService extends BaseService {
     onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
-    const progressAdapterDir = path.join(outputDir, '.progress-adapter')
-    await fs.promises.mkdir(progressAdapterDir, { recursive: true })
-    await fs.promises.writeFile(path.join(progressAdapterDir, 'sitecustomize.py'), BABELDOC_PROGRESS_ADAPTER, {
-      mode: 0o600
-    })
     await fs.promises.writeFile(configPath, stringifyToml({ babeldoc: { 'openai-api-key': apiKey } }), { mode: 0o600 })
     const args = [
       '--config',
@@ -365,11 +344,12 @@ export class PdfTranslationService extends BaseService {
       normalizeLanguageCode(request.targetLangCode),
       '--report-interval',
       '0.2',
+      '--progress-json',
       '--watermark-output-mode',
       'no_watermark',
       '--no-dual'
     ]
-    const env = { ...(await this.buildSidecarEnv(baseUrl)), PYTHONPATH: progressAdapterDir }
+    const env = await this.buildSidecarEnv(baseUrl)
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -386,47 +366,32 @@ export class PdfTranslationService extends BaseService {
         let stderr = ''
         let sidecarError: Error | null = null
         let downloadingAssets = false
-        let adapterWarned = false
+        let assetDownloadObserved = false
+        let finishReceived = false
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
         progressLines?.on('line', (line) => {
-          if (line.startsWith(BABELDOC_ERROR_PREFIX)) {
-            let candidate: unknown
-            try {
-              candidate = JSON.parse(line.slice(BABELDOC_ERROR_PREFIX.length))
-            } catch {
-              logger.warn('Ignored malformed BabelDOC error event')
-              return
-            }
-            const parsed = babeldocErrorSchema.safeParse(candidate)
-            if (!parsed.success) {
-              logger.warn('Ignored invalid BabelDOC error event')
-              return
-            }
-            sidecarError =
+          let candidate: unknown
+          try {
+            candidate = JSON.parse(line)
+          } catch {
+            logger.warn('Ignored malformed BabelDOC Stream event')
+            return
+          }
+          const parsed = babeldocStreamEventSchema.safeParse(candidate)
+          if (!parsed.success) {
+            logger.warn('Ignored invalid BabelDOC Stream event')
+            return
+          }
+          if (parsed.data.type === 'error') {
+            sidecarError ??=
               parsed.data.name === 'ScannedPDFError' || parsed.data.message.includes('Scanned PDF detected')
                 ? createOcrRequiredError()
                 : new Error(parsed.data.message)
             return
           }
-          if (!line.startsWith(BABELDOC_PROGRESS_PREFIX)) {
-            if (!downloadingAssets && BABELDOC_ASSET_DOWNLOAD_PATTERNS.some((pattern) => pattern.test(line))) {
-              downloadingAssets = true
-              onStage?.('downloading_assets')
-            }
-            logger.debug(line.trim())
-            return
-          }
-          let candidate: unknown
-          try {
-            candidate = JSON.parse(line.slice(BABELDOC_PROGRESS_PREFIX.length))
-          } catch {
-            logger.warn('Ignored malformed BabelDOC progress event')
-            return
-          }
-          const parsed = babeldocProgressSchema.safeParse(candidate)
-          if (!parsed.success) {
-            logger.warn('Ignored invalid BabelDOC progress event')
+          if (parsed.data.type === 'finish') {
+            finishReceived = true
             return
           }
           if (downloadingAssets) {
@@ -444,13 +409,10 @@ export class PdfTranslationService extends BaseService {
         })
         child.stderr?.on('data', (chunk) => {
           stderr = `${stderr}${String(chunk)}`.slice(-8000)
-          // The progress adapter (sitecustomize.py) monkeypatches BabelDOC; if it breaks
-          // (version bump, packaging change), no progress/structured-error events arrive.
-          if (!adapterWarned && stderr.includes('Cherry Studio progress adapter failed')) {
-            adapterWarned = true
-            logger.warn('BabelDOC progress adapter failed; progress and structured errors unavailable', {
-              jobId: request.jobId
-            })
+          if (!assetDownloadObserved && BABELDOC_ASSET_DOWNLOAD_PATTERNS.some((pattern) => pattern.test(stderr))) {
+            assetDownloadObserved = true
+            downloadingAssets = true
+            onStage?.('downloading_assets')
           }
         })
         child.once('error', (error) => {
@@ -465,28 +427,25 @@ export class PdfTranslationService extends BaseService {
           } else if (sidecarError) {
             reject(sidecarError)
           } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
-            // Checked BEFORE `code === 0`: BabelDOC 0.6.3 only logs the error event and breaks, so a
-            // scanned PDF can still exit 0. A broken adapter can't emit the structured
-            // ScannedPDFError, so match the raw traceback (class name or exact message) and still
-            // surface the friendly OCR hint. Kept narrow so an unrelated failure whose stderr merely
-            // mentions "scanned PDF" isn't misreported as OCR-required.
+            // Keep a narrow stderr fallback in case BabelDOC Stream fails before its JSON writer starts.
             reject(createOcrRequiredError())
-          } else if (code === 0) {
+          } else if (code === 0 && finishReceived) {
             resolve()
+          } else if (code === 0) {
+            reject(new Error('BabelDOC Stream exited successfully without a finish event'))
           } else {
-            reject(new Error(stderr.trim() || `BabelDOC exited with code ${code ?? 'null'} (${signal ?? 'no signal'})`))
+            reject(
+              new Error(
+                stderr.trim() || `BabelDOC Stream exited with code ${code ?? 'null'} (${signal ?? 'no signal'})`
+              )
+            )
           }
         })
       })
     } finally {
-      await Promise.all([
-        fs.promises.rm(configPath, { force: true }).catch((error) => {
-          logger.warn('Failed to remove BabelDOC credential file', { error: String(error) })
-        }),
-        fs.promises.rm(progressAdapterDir, { force: true, recursive: true }).catch((error) => {
-          logger.warn('Failed to remove BabelDOC progress adapter', { error: String(error) })
-        })
-      ])
+      await fs.promises.rm(configPath, { force: true }).catch((error) => {
+        logger.warn('Failed to remove BabelDOC credential file', { error: String(error) })
+      })
     }
   }
 

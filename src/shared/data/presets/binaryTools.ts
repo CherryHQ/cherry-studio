@@ -62,7 +62,7 @@ export interface BinaryToolPreset {
 }
 
 /** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
-export const BABELDOC_TOOL_NAME = 'babeldoc'
+export const BABELDOC_TOOL_NAME = 'babeldoc-stream'
 
 /**
  * Whether the managed BabelDOC recipe is installed and applied. Shared by the renderer (to
@@ -142,9 +142,10 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
   },
   {
     name: BABELDOC_TOOL_NAME,
-    displayName: 'BabelDOC',
-    tool: 'pipx:babeldoc',
-    repoUrl: 'https://github.com/funstory-ai/BabelDOC'
+    displayName: 'BabelDOC Stream',
+    tool: 'pipx:babeldoc-stream',
+    repoUrl: 'https://github.com/eeee0717/BabelDOC',
+    homepage: 'https://pypi.org/project/babeldoc-stream/'
   }
   // CLI code tools (claude, codex, opencode, openclaw) are managed
   // in the Code CLI page instead of here.

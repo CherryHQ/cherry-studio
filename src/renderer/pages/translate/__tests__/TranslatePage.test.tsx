@@ -27,15 +27,15 @@ const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 const babeldocInstalledSnapshot: BinaryToolSnapshot = {
-  name: 'babeldoc',
-  availability: { source: 'mise', path: '/shims/babeldoc' },
+  name: 'babeldoc-stream',
+  availability: { source: 'mise', path: '/shims/babeldoc-stream' },
   application: { status: 'applied' }
 }
 const binaryMock = vi.hoisted(() => ({
   snapshots: {
-    babeldoc: {
-      name: 'babeldoc',
-      availability: { source: 'mise', path: '/shims/babeldoc' },
+    'babeldoc-stream': {
+      name: 'babeldoc-stream',
+      availability: { source: 'mise', path: '/shims/babeldoc-stream' },
       application: { status: 'applied' }
     }
   } as Record<string, BinaryToolSnapshot>
@@ -422,7 +422,7 @@ describe('TranslatePage', () => {
     })
     ipcRequestMock.mockReset()
     ipcEventHandlers.clear()
-    binaryMock.snapshots = { babeldoc: babeldocInstalledSnapshot }
+    binaryMock.snapshots = { 'babeldoc-stream': babeldocInstalledSnapshot }
     ipcRequestMock.mockImplementation((channel: string, payload?: unknown) => {
       if (channel === 'file_processing.start_job') return fileMock.startJob(payload)
       if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
@@ -771,7 +771,7 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc-stream' }))
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })

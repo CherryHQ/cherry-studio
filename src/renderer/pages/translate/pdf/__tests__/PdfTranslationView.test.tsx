@@ -267,7 +267,7 @@ describe('PdfTranslationView', () => {
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'translate.pdf.start') {
         return Promise.reject(
-          new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC 0.6.3 is not installed')
+          new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC Stream is not installed')
         )
       }
       return Promise.resolve(undefined)
