@@ -1,7 +1,7 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
 import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BeatLoader } from 'react-spinners'
+import BeatLoader from 'react-spinners/BeatLoader'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -152,8 +152,14 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
-  const previewText = useMemo(() => normalizeThinkingPreview(content ?? ''), [content])
-  const nextStreamingPreview = useMemo(() => getLatestCompletedThinkingPreview(content ?? ''), [content])
+  const previewText = useMemo(
+    () => (!isThinking && showTitlePreview ? normalizeThinkingPreview(content ?? '') : ''),
+    [content, isThinking, showTitlePreview]
+  )
+  const nextStreamingPreview = useMemo(
+    () => (isThinking ? getLatestCompletedThinkingPreview(content ?? '') : ''),
+    [content, isThinking]
+  )
   const streamingPreviewText = useStableThinkingPreview(nextStreamingPreview, isThinking)
 
   useEffect(() => {

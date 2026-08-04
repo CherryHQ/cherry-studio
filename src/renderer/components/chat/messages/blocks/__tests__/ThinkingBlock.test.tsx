@@ -127,6 +127,19 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
+    it('should skip preview normalization when the completed title preview is disabled', () => {
+      const content = 'Completed reasoning without a title preview'
+      const replaceSpy = vi.spyOn(String.prototype, 'replace')
+
+      renderThinkingBlock(createThinkingBlock({ content }))
+
+      const previewNormalizationCalls = replaceSpy.mock.calls.filter(([pattern], index) => {
+        const context = replaceSpy.mock.contexts[index]
+        return context?.toString() === content && pattern instanceof RegExp && pattern.source === '\\s+'
+      })
+      expect(previewNormalizationCalls).toHaveLength(0)
+    })
+
     it('should show a single-line reasoning preview in the title when enabled', () => {
       const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
       renderThinkingBlock(block, { showTitlePreview: true })
