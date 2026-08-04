@@ -8077,8 +8077,8 @@
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
         "client_tools_preferred": {
-          "description": "When on, requests use the search and URL-fetch services configured above even if the model has built-in search. When off, the model searches on its own.",
-          "label": "Prefer my own search services"
+          "description": "Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "Prefer configured search services"
         },
         "compression": {
           "cutoff": {
