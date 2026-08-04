@@ -50,7 +50,6 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
-  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
@@ -103,7 +102,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
-      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
@@ -120,7 +118,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
-      state.localSendGeneration,
       state.streamingLayers
     ]
   )
