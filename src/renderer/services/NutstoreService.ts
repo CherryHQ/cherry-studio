@@ -97,12 +97,12 @@ async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number)
       .filter((file) => file.fileName.startsWith('cherry-studio') && file.fileName.endsWith('.zip'))
       .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
 
-    if (backupFiles.length < maxBackups) {
+    if (backupFiles.length <= maxBackups) {
       logger.info(`[cleanupOldBackups] No cleanup needed: ${backupFiles.length}/${maxBackups} backups`)
       return
     }
 
-    const filesToDelete = backupFiles.slice(maxBackups - 1)
+    const filesToDelete = backupFiles.slice(maxBackups)
     logger.info(`[cleanupOldBackups] Deleting ${filesToDelete.length} old backup files`)
 
     let deletedCount = 0
@@ -163,9 +163,6 @@ export async function backupToNutstore({
   const maxBackups = await preferenceService.get('data.backup.nutstore.max_backups')
 
   try {
-    // 先清理旧备份
-    await cleanupOldBackups(config, maxBackups)
-
     const isSuccess = await window.api.backup.backupToWebdav({
       ...config,
       fileName: finalFileName,
@@ -175,6 +172,9 @@ export async function backupToNutstore({
     if (isSuccess) {
       setNutstoreSyncState({ lastSyncError: null })
       showMessage && toast.success(i18n.t('message.backup.success'))
+
+      // 上传成功后再修剪，否则上传失败会让用户一份备份都不剩
+      await cleanupOldBackups(config, maxBackups)
     } else {
       setNutstoreSyncState({ lastSyncError: 'Backup failed' })
       toast.error(i18n.t('message.backup.failed'))

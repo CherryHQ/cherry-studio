@@ -118,15 +118,8 @@ export default class S3Storage {
 
   async deleteFile(key: string) {
     try {
-      const keyWithRoot = this.buildKey(key)
-      const variations = new Set([keyWithRoot, key.replace(/^\//, '')])
-      for (const k of variations) {
-        try {
-          await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: k }))
-        } catch {
-          // 忽略删除失败
-        }
-      }
+      // 只删 root 下的对象：裸 key 会命中桶根的同名对象，那不是本应用写入的
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
     } catch (error) {
       logger.error('[S3Storage] Error deleting object:', error as Error)
       throw error
