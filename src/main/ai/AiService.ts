@@ -25,6 +25,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -171,6 +172,12 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
+  /**
+   * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
+   * In-process only (a closure), same as `runtimeTimingSink` — the stream
+   * manager supplies it because only it can reach the turn's chunk sink.
+   */
+  compactionSink?: CompactionSink
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -1022,7 +1029,8 @@ export class AiService extends BaseService {
       model,
       assistant,
       extraFeatures,
-      getRepairUsagePlugins
+      getRepairUsagePlugins,
+      compactionSink: request.compactionSink
     })
     return { ...built, provider, model, assistant }
   }
