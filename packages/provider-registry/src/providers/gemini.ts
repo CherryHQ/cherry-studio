@@ -1,41 +1,4 @@
-import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-
-const budgetThinkingWire: ReasoningWireProfile = {
-  off: {
-    operations: [
-      { target: 'thinkingConfig.includeThoughts' as const, value: { source: 'literal' as const, value: false } },
-      { target: 'thinkingConfig.thinkingBudget' as const, value: { source: 'literal' as const, value: 0 } }
-    ]
-  },
-  auto: {
-    operations: [
-      { target: 'thinkingConfig.includeThoughts' as const, value: { source: 'literal' as const, value: true } },
-      { target: 'thinkingConfig.thinkingBudget' as const, value: { source: 'literal' as const, value: -1 } }
-    ]
-  },
-  effort: {
-    operations: [
-      { target: 'thinkingConfig.includeThoughts' as const, value: { source: 'literal' as const, value: true } },
-      { target: 'thinkingConfig.thinkingBudget' as const, value: { source: 'budget' as const } }
-    ],
-    budget: { missing: { type: 'fallback', value: -1 } }
-  }
-}
-
-// Ids as Google serves them (dotted minor version); generation derives the canonical
-// catalog key and keeps the dotted id as the wire `apiModelId`.
-const budgetThinkingModels = [
-  'gemini-2.5-flash-image',
-  'gemini-2.5-flash-image-preview',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-3.1-flash-lite-image',
-  'gemini-omni-flash-preview',
-  'gemini-2.5-pro-preview',
-  'gemini-2.5-pro-preview-05-06'
-]
 
 export default defineProvider({
   id: 'gemini',
@@ -58,11 +21,5 @@ export default defineProvider({
       models: 'https://ai.google.dev/gemini-api/docs/models/gemini',
       official: 'https://gemini.google.com/'
     }
-  },
-  overrides: budgetThinkingModels.map((modelId) => ({
-    modelId,
-    reasoningContracts: {
-      'google-generate-content': { wire: budgetThinkingWire }
-    }
-  }))
+  }
 })

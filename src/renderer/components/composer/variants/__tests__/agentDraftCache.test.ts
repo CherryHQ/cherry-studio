@@ -7,6 +7,7 @@ import {
   getAgentDraftTokens,
   getCacheableAgentDraft,
   getCachedSkillTokens,
+  hasAgentDraftCache,
   readAgentDraftCache,
   writeAgentDraftCache
 } from '../agent/agentDraftCache'
@@ -14,6 +15,7 @@ import {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(),
+    hasCasual: vi.fn(),
     setCasual: vi.fn()
   }
 }))
@@ -104,7 +106,15 @@ const legacyCommandToken: ComposerSerializedToken = {
 describe('agentDraftCache', () => {
   beforeEach(() => {
     vi.mocked(cacheService.getCasual).mockReset()
+    vi.mocked(cacheService.hasCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
+  })
+
+  it('distinguishes an intentionally empty cached draft from a missing draft', () => {
+    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
+
+    expect(hasAgentDraftCache('agent-feedback-draft-session-1')).toBe(true)
+    expect(cacheService.hasCasual).toHaveBeenCalledWith('agent-feedback-draft-session-1')
   })
 
   it('keeps every active non-file input token in the live Agent draft', () => {

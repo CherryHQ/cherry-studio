@@ -146,6 +146,9 @@ jobs:
             exit 1
           fi
 
+      - name: Builtin Knowledge Check
+        run: pnpm build:builtin-knowledge:check
+
       - name: i18n Check
         run: pnpm i18n:check
 

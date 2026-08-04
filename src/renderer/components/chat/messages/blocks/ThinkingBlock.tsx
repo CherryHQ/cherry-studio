@@ -173,7 +173,10 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }
 
   return (
-    <div ref={anchorRef} className="message-thought-container group/thought mb-0.5 max-w-full">
+    <div
+      ref={anchorRef}
+      data-ui="part:message-reasoning"
+      className="message-thought-container group/thought mb-0.5 max-w-full">
       <div
         role="button"
         tabIndex={0}

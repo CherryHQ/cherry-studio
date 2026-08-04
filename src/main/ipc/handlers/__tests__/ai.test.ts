@@ -2,18 +2,27 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, fileEntryService, messageService, createAgent } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  agentSessionMessageService,
+  fileEntryService,
+  messageService,
+  createAgent,
+  ensureBuiltinAssistant
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
-  createAgent: vi.fn()
+  createAgent: vi.fn(),
+  ensureBuiltinAssistant: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/ensureBuiltinAssistant', () => ({ ensureBuiltinAssistant }))
 
 import { aiHandlers } from '../ai'
 
@@ -66,6 +75,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  ensureBuiltinAssistant.mockReturnValue({ id: 'cherry-assistant' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -102,6 +112,13 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates built-in assistant ensure and returns its authoritative entity', async () => {
+    const result = await aiHandlers['ai.agent.builtin_assistant.ensure'](undefined, ctx)
+
+    expect(ensureBuiltinAssistant).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ id: 'cherry-assistant' })
+  })
+
   it('generate_text forwards the request and returns the AiService result', async () => {
     const request = { uniqueModelId: 'openai::gpt-4o', system: 'sys', prompt: 'hi' } as const
     const out = { text: 'hello', usage: { inputTokens: 1, outputTokens: 2 } }
