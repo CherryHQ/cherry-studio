@@ -6,9 +6,11 @@ import { defineRoute } from '../define'
  * Backup v2 IPC schemas — the renderer's whole view of export and restore
  * (docs/references/backup/README.md).
  *
- * Only a Request block. Every state change here is initiated by the window that
- * observes it, and the durable one (the restore journal) survives a relaunch and
- * is read back through `backup.get_status`, so there is nothing for main to push.
+ * Every state change here is initiated by the window that observes it, and the
+ * durable one (the restore journal) survives a relaunch and is read back through
+ * `backup.get_status`. The one thing main pushes is progress: export and restore
+ * preparation run for tens of seconds on a real profile, and the stage they are
+ * in is not derivable from a request that has not resolved yet.
  *
  * NO PATHS CROSS THE BOUNDARY INWARD. `export` and `prepare_restore` take no
  * path: main opens the file dialog itself with fixed filters, so the renderer
@@ -325,4 +327,44 @@ export const backupRequestSchemas = {
     input: DestinationSchema,
     output: z.strictObject({ reachable: z.boolean() })
   })
+}
+
+/**
+ * Where a running operation is, named after the export state machine
+ * (docs/references/backup/README.md §2.1) and the restore preparation sequence
+ * (§8.1).
+ *
+ * `capturing-resources` deliberately covers both `CAPTURING_RESOURCES` and
+ * `RECONCILING_OWNERS`: owner reconciliation runs inside the per-resource loop,
+ * so the two are one interval in code and splitting them here would report a
+ * boundary that does not exist.
+ *
+ * Preboot promotion has no stage of its own. It runs before any service is
+ * alive, across a relaunch, with no window to receive an event — what it did is
+ * read back from the journal afterwards through `backup.get_status`.
+ */
+export type BackupProgressStage =
+  // Export (§2.1)
+  | 'preparing'
+  | 'snapshotting-db'
+  | 'materializing-db'
+  | 'capturing-resources'
+  | 'verifying'
+  // Restore preparation (§8.1); `materializing-db` is shared with export
+  | 'admitting'
+  | 'planning'
+  | 'staging'
+
+// ── Event: main→renderer pushes (pure types, never parsed) ──
+export type BackupEventSchemas = {
+  /**
+   * Emitted as a long-running operation crosses a stage boundary. Advisory
+   * only: the request's own resolution — not this event — is what tells the
+   * caller the operation finished, so a dropped event costs a label, never
+   * correctness.
+   */
+  'backup.progress': {
+    operation: 'export' | 'prepare-restore' | 'arm-restore' | 'rollback-restore'
+    stage: BackupProgressStage
+  }
 }
