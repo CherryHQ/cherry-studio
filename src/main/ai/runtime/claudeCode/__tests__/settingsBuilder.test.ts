@@ -347,6 +347,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 128_000 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000' })
   })
 
   it('clamps model context windows above Claude Code limits', async () => {
@@ -361,6 +362,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 1_000_000 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' })
   })
 
   it.each([undefined, 64_000, 99_999])(
@@ -378,6 +380,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
       expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
     }
   )
 
@@ -393,6 +396,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: contextWindow })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+  })
+
+  it('preserves an explicit maximum context window environment override', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 256_000 }
+    )
+
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 256_000 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {

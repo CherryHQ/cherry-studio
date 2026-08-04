@@ -523,6 +523,9 @@ export async function buildClaudeCodeSessionSettings(
 
   // 10. Build settings
   const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
+  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  }
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
