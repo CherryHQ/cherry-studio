@@ -8,20 +8,20 @@ Knowledge operations are modelled as a lightweight workflow rather than a single
 
 ```text
 API / user action
-  -> KnowledgeWorkflowService
+  -> KnowledgeIngestionService
      -> JobManager
         -> Knowledge job handlers
-           -> KnowledgeLockManager
-              -> SQLite / vector store / FileManager
+           -> KeyedMutex.runExclusive
+              -> SQLite / index store / knowledge-owned files (raw/)
 ```
 
 The design keeps three owners:
 
-- `KnowledgeWorkflowService` decides the next workflow step.
-- `KnowledgeLockManager` serializes same-base mutations and cleanup.
+- `KnowledgeIngestionService` decides the next workflow step.
+- The per-base mutation lock (`KeyedMutex.runExclusive`) serializes same-base mutations and cleanup.
 - Knowledge job handlers execute one durable stage and call the workflow service for the next step.
 
-Helpers may own source planning, lifecycle writes, artifact refs, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
+Helpers may own source planning, lifecycle writes, knowledge-owned raw files, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
 
 ## Workflow Entry Points
 
@@ -78,7 +78,7 @@ Round 1 job types:
 
 ## Mutation And Crash Semantics
 
-Same-base Knowledge mutations must go through `KnowledgeLockManager`. Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the lock manager is not a replacement for that write transaction.
+Same-base Knowledge mutations must go through the per-base mutation lock (`KeyedMutex.runExclusive`). Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the mutation lock is not a replacement for that write transaction.
 
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 
