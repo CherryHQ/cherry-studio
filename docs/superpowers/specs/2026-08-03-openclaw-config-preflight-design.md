@@ -270,7 +270,8 @@ JSON5、用户自定义配置路径、并发外部编辑、`doctor --fix`、动�
 - `src/main/services/__tests__/OpenClawService.test.ts`；
 - `src/renderer/pages/code/hooks/__tests__/useOpenClawGatewayController.test.ts`；
 - `src/main/i18n/locales/en-us.json`；
-- `src/main/i18n/locales/zh-cn.json`。
+- `src/main/i18n/locales/zh-cn.json`；
+- `src/main/i18n/translate/*.json`（由 `pnpm i18n:sync` 按英文基准补齐同构 key，不手工翻译）。
 
 不新增公共模块或共享类型。OpenClaw 专用解析、错误分类和脱敏保持为服务文件内的私有函数或
 私有类型；只有出现第二个明确消费者时才考虑抽取。
@@ -291,4 +292,5 @@ JSON5、用户自定义配置路径、并发外部编辑、`doctor --fix`、动�
 - 外部无效字段不被 Cherry 自动删除，错误能准确指向路径；
 - 校验失败不会在正常候选流程中覆盖正式配置，也不会启动或先停止 Gateway；
 - 日志和 Toast 不泄露配置秘密；
-- 变更保持在上述文件边界，相关定向测试、项目规定的 lint/test/format/build 检查通过。
+- 变更保持在上述文件边界（含 i18n 同步生成文件），相关定向测试、项目规定的
+  lint/test/format/build 检查通过。
