@@ -300,6 +300,18 @@ describe('AgentService', () => {
       expect(activeBuiltinRows()).toHaveLength(1)
     })
 
+    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+      const first = agentService.ensureBuiltinAssistant(defaults)
+
+      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+
+      const restored = agentService.ensureBuiltinAssistant(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(agentService.getAgent(first.id)).toBeNull()
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
     it('leaves the model unset when the default cannot run the Agent runtime', () => {
       dbh.db
         .insert(userProviderTable)

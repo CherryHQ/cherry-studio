@@ -757,6 +757,8 @@ describe('AgentPage', () => {
   })
 
   it('consumes feedback intent once, skips resume, and creates an isolated system task', async () => {
+    // Recovery must not depend on Cherry Assistant still being present in the renderer's stale Agent list.
+    agentPageMocks.agents = []
     const previousSession = {
       ...agentPageMocks.persistedSession,
       id: 'session-previous',
