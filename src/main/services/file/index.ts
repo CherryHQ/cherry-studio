@@ -66,8 +66,8 @@ export type { CreateDirectoryWatcherOptions, DirectoryWatcher, WatcherEvent, Wat
 export { createDirectoryWatcher } from './watcher'
 
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
-export { toInternalBlobFileName } from './portableProfilePolicy'
 export { toFileInfo } from './toFileInfo'
+export { toInternalBlobFileName } from './utils/blobName'
 
 // Path-level system helpers. `safeOpen` is the public default-open primitive;
 // raw Electron shell access remains internal to the file module.
