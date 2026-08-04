@@ -8,6 +8,19 @@ export function isAssistantMultiModelGroup(messages: MessageListItem[]): boolean
   return messages.length > 1 && messages.every((message) => message.role === 'assistant')
 }
 
+export function getPreferredMultiModelMessage(
+  messages: MessageListItem[],
+  getMessageUiState: (messageId: string) => MessageUiState
+): MessageListItem | undefined {
+  return (
+    messages.find((message) => message.isActiveBranch) ??
+    messages.find((message) => getMessageUiState(message.id).foldSelected) ??
+    messages.find((message) => message.status === 'pending') ??
+    messages.at(-1) ??
+    messages[0]
+  )
+}
+
 export function getEffectiveMultiModelMessageStyle(
   messages: MessageListItem[],
   getMessageUiState: (messageId: string) => MessageUiState,

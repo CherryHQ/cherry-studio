@@ -358,7 +358,6 @@ describe('useAgentMessageListProviderValue', () => {
     const listRuntime = {
       scrollToBottom: vi.fn(),
       locateMessage: listLocateMessage,
-      scrollToRange: vi.fn(),
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn()
     } as MessageListRuntime
@@ -738,7 +737,6 @@ describe('useAgentMessageListProviderValue', () => {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),
-      scrollToRange: vi.fn(),
       scrollToBottom: vi.fn()
     }
     const unbindVisible = visibleValue?.actions.bindRuntime?.(visibleRuntime)
@@ -754,7 +752,6 @@ describe('useAgentMessageListProviderValue', () => {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),
-      scrollToRange: vi.fn(),
       scrollToBottom: vi.fn()
     }
     const unbindCapture = captureValue?.actions.bindRuntime?.(captureRuntime)

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, render, screen } from '@testing-library/react'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageListItem } from '../../types'
 import { MessageListSearch } from '../MessageListSearch'
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
@@ -48,7 +50,15 @@ describe('MessageListSearch', () => {
   it('labels icon controls and exposes filter pressed states', async () => {
     const user = userEvent.setup()
     render(
-      <MessageListSearch messages={[]} locateMessage={vi.fn()} scrollToRange={vi.fn()} scopeRef={{ current: null }} />
+      <MessageListSearch
+        messages={[]}
+        partsByMessageId={{}}
+        renderUserTextAsMarkdown={false}
+        locateMessage={vi.fn()}
+        scrollToRange={vi.fn()}
+        getOuterScroller={() => null}
+        scopeRef={{ current: null }}
+      />
     )
 
     act(() => commandMock.handler?.())
@@ -63,5 +73,166 @@ describe('MessageListSearch', () => {
 
     await user.click(includeUserButton)
     expect(includeUserButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps navigation pending until a virtualized result part is mounted', async () => {
+    const user = userEvent.setup()
+    const scope = document.createElement('div')
+    document.body.appendChild(scope)
+
+    const message: MessageListItem = {
+      id: 'a1',
+      role: 'assistant',
+      status: 'success',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    }
+    const partsByMessageId = {
+      a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart]
+    }
+    const locateMessage = vi.fn()
+    const scrollToRange = vi.fn()
+
+    render(
+      <MessageListSearch
+        messages={[message]}
+        partsByMessageId={partsByMessageId}
+        renderUserTextAsMarkdown={false}
+        locateMessage={locateMessage}
+        scrollToRange={scrollToRange}
+        getOuterScroller={() => scope}
+        scopeRef={{ current: scope }}
+      />
+    )
+
+    act(() => commandMock.handler?.())
+    await user.type(screen.getByRole('textbox'), 'apple')
+    const next = screen.getByRole('button', { name: 'common.next' })
+    await waitFor(() => expect(next).toBeEnabled())
+
+    await user.click(next)
+    expect(locateMessage).toHaveBeenCalledTimes(1)
+    expect(scrollToRange).not.toHaveBeenCalled()
+
+    act(() => {
+      const partElement = document.createElement('div')
+      partElement.dataset.messagePartId = 'a1-part-0'
+      partElement.textContent = 'apple apple'
+      scope.appendChild(partElement)
+    })
+    await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
+
+    scope.remove()
+  })
+
+  it('cancels pending navigation when its result disappears', async () => {
+    const user = userEvent.setup()
+    const scope = document.createElement('div')
+    document.body.appendChild(scope)
+
+    const message: MessageListItem = {
+      id: 'a1',
+      role: 'assistant',
+      status: 'success',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    }
+    const props = {
+      messages: [message],
+      renderUserTextAsMarkdown: false,
+      locateMessage: vi.fn(),
+      scrollToRange: vi.fn(),
+      getOuterScroller: () => scope,
+      scopeRef: { current: scope }
+    }
+    const view = render(
+      <MessageListSearch
+        {...props}
+        partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }}
+      />
+    )
+
+    act(() => commandMock.handler?.())
+    await user.type(screen.getByRole('textbox'), 'apple')
+    const next = screen.getByRole('button', { name: 'common.next' })
+    await waitFor(() => expect(next).toBeEnabled())
+
+    await user.click(next)
+    view.rerender(
+      <MessageListSearch
+        {...props}
+        partsByMessageId={{ a1: [{ type: 'text', text: 'banana' } as CherryMessagePart] }}
+      />
+    )
+    view.rerender(
+      <MessageListSearch
+        {...props}
+        partsByMessageId={{ a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }}
+      />
+    )
+    act(() => {
+      const partElement = document.createElement('div')
+      partElement.dataset.messagePartId = 'a1-part-0'
+      partElement.textContent = 'apple apple'
+      scope.appendChild(partElement)
+    })
+
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+    expect(props.scrollToRange).not.toHaveBeenCalled()
+    scope.remove()
+  })
+
+  it('expands a collapsed user part before completing navigation', async () => {
+    const user = userEvent.setup()
+    const scope = document.createElement('div')
+    const partElement = document.createElement('div')
+    const preview = document.createElement('span')
+    const toggle = document.createElement('button')
+    partElement.dataset.messagePartId = 'u1-part-0'
+    preview.textContent = 'preview only'
+    toggle.dataset.userMessageContentToggle = ''
+    toggle.setAttribute('aria-expanded', 'false')
+    toggle.addEventListener('click', () => {
+      toggle.setAttribute('aria-expanded', 'true')
+      preview.textContent = 'preview only hidden apple'
+    })
+    partElement.append(preview, toggle)
+    scope.appendChild(partElement)
+    document.body.appendChild(scope)
+
+    const message: MessageListItem = {
+      id: 'u1',
+      role: 'user',
+      status: 'success',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    }
+    const scrollToRange = vi.fn()
+
+    render(
+      <MessageListSearch
+        messages={[message]}
+        partsByMessageId={{ u1: [{ type: 'text', text: 'preview only hidden apple' } as CherryMessagePart] }}
+        renderUserTextAsMarkdown={false}
+        locateMessage={vi.fn()}
+        scrollToRange={scrollToRange}
+        getOuterScroller={() => scope}
+        scopeRef={{ current: scope }}
+      />
+    )
+
+    act(() => commandMock.handler?.())
+    await user.type(screen.getByRole('textbox'), 'apple')
+    await user.click(screen.getByRole('button', { name: 'button.includes_user_questions' }))
+    const next = screen.getByRole('button', { name: 'common.next' })
+    await waitFor(() => expect(next).toBeEnabled())
+    await user.click(next)
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
+    await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
+
+    scope.remove()
   })
 })

@@ -399,7 +399,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),
-      scrollToRange: vi.fn(),
       scrollToBottom: vi.fn()
     }
 
@@ -504,7 +503,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),
-      scrollToRange: vi.fn(),
       scrollToBottom: vi.fn()
     }
 

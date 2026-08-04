@@ -140,7 +140,7 @@ const AgentSessionMessages = ({
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
       <MessageListProvider value={messageList}>
-        <MessageList />
+        <MessageList enableSearch />
       </MessageListProvider>
     </AskUserQuestionOptimisticInputProvider>
   )

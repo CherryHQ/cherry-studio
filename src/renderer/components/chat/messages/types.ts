@@ -42,7 +42,6 @@ export interface MessageListSelectionState {
 export interface MessageListRuntime {
   scrollToBottom: () => void
   locateMessage: (messageId: string) => void
-  scrollToRange: (range: Range) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
 }

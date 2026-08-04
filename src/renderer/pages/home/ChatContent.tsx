@@ -6,7 +6,6 @@ import {
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import { MessageListSearch } from '@renderer/components/chat/messages/list/MessageListSearch'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
@@ -179,7 +178,6 @@ const ChatContentInner: FC<InnerProps> = ({
   })
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
-  const mainAreaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -213,19 +211,12 @@ const ChatContentInner: FC<InnerProps> = ({
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
-    <div ref={mainAreaRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')} />
         </div>
       )}
-      <MessageListSearch
-        messages={runtime.messages}
-        partsByMessageId={runtime.partsByMessageId}
-        locateMessage={runtime.scrollToMessage}
-        scrollToRange={runtime.scrollToRange}
-        scopeRef={mainAreaRef}
-      />
       <ChatMain
         key={topic.id}
         topic={topic}
