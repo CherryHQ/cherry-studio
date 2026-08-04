@@ -101,31 +101,7 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  handleGuarded(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
-    return { result, cleanupFailed: cleanupError !== null }
-  })
-  handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
   handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
-    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
-    return { result, cleanupFailed: cleanupError !== null }
-  })
-  handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToS3(event, config)
-    return { result, cleanupFailed: cleanupError !== null }
-  })
-  handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
   handleGuarded(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 

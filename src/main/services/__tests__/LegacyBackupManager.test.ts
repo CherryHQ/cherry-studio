@@ -48,18 +48,13 @@ vi.mock('path', posixPathModule)
 vi.mock('node:path', posixPathModule)
 
 // Use vi.hoisted to define mocks that are available during hoisting
-const { mockLogger, mockBackupService, mockWindowManager, mockRandomUUID } = vi.hoisted(() => {
+const { mockLogger, mockWindowManager, mockRandomUUID } = vi.hoisted(() => {
   return {
     mockLogger: {
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn()
-    },
-    mockBackupService: {
-      export: vi.fn(),
-      prepareRestore: vi.fn(),
-      armRestore: vi.fn()
     },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRandomUUID: vi.fn()
@@ -156,9 +151,6 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return mockWindowManager
       }
-      if (name === 'BackupService') {
-        return mockBackupService
-      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn((key: string, filename?: string) => {
@@ -191,12 +183,10 @@ vi.mock('archiver', () => ({
 }))
 
 // Import after mocks
-import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
-import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import BackupManager from '../LegacyBackupManager'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
@@ -216,133 +206,7 @@ const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   isSymbolicLink: () => type === 'symlink'
 })
 
-describe('BackupManager v2 compatibility adapter', () => {
-  let backupManager: BackupManager
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    backupManager = new BackupManager()
-    mockRandomUUID.mockReturnValue('operation-id')
-    mockBackupService.export.mockImplementation(async (outputPath: string) => ({ outPath: outputPath }))
-    mockBackupService.prepareRestore.mockResolvedValue({ restoreId: 'restore-id' })
-    mockBackupService.armRestore.mockResolvedValue(undefined)
-    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
-    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
-  })
-
-  function mockDownloadedFileWrite(): void {
-    vi.mocked(fs.createWriteStream).mockReturnValue(
-      new Writable({
-        write(_chunk, _encoding, callback) {
-          callback()
-        }
-      }) as never
-    )
-  }
-
-  it('routes compatibility backups through the v2 exporter', async () => {
-    const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
-
-    expect(result).toBe('/backups/backup.zip')
-    expect(mockBackupService.export).toHaveBeenCalledWith('/backups/backup.zip')
-    expect(mockWindowManager.broadcastToType).toHaveBeenCalledWith(WindowType.Main, IpcChannel.BackupProgress, {
-      stage: 'completed',
-      progress: 100,
-      total: 100
-    })
-  })
-
-  it('uses an operation-owned temporary name for remote uploads', async () => {
-    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip')
-
-    expect(mockBackupService.export).toHaveBeenCalledWith('/mock/temp/backup/operation-id-backup.zip')
-  })
-
-  it('rejects an overlapping compatibility export before it enters BackupService', async () => {
-    let releaseFirst!: () => void
-    const firstSettled = new Promise<void>((resolve) => {
-      releaseFirst = resolve
-    })
-    mockBackupService.export
-      .mockImplementationOnce(async (outputPath: string) => {
-        await firstSettled
-        return { outPath: outputPath }
-      })
-      .mockImplementationOnce(async (outputPath: string) => ({ outPath: outputPath }))
-
-    const first = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'first.zip', '/backups')
-    await vi.waitFor(() => expect(mockBackupService.export).toHaveBeenCalledTimes(1))
-    const second = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'second.zip', '/backups')
-
-    expect(mockBackupService.export).toHaveBeenCalledTimes(1)
-    await expect(second).rejects.toBeInstanceOf(BackupOperationBusyError)
-    releaseFirst()
-    await expect(first).resolves.toBe('/backups/first.zip')
-  })
-
-  it('prepares and arms restores through BackupService', async () => {
-    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backups/backup.zip')
-
-    expect(mockBackupService.prepareRestore).toHaveBeenCalledWith('/backups/backup.zip')
-    expect(mockBackupService.armRestore).toHaveBeenCalledWith('restore-id')
-    expect(mockBackupService.prepareRestore.mock.invocationCallOrder[0]).toBeLessThan(
-      mockBackupService.armRestore.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('removes a WebDAV download before arming its prepared restore', async () => {
-    mockDownloadedFileWrite()
-    const createReadStream = vi.fn(() => Readable.from(Buffer.from('backup')))
-    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
-      createReadStream
-    })
-
-    await backupManager.restoreFromWebdav({} as Electron.IpcMainInvokeEvent, {
-      webdavHost: 'https://example.com',
-      fileName: 'backup.zip'
-    })
-
-    expect(mockBackupService.prepareRestore).toHaveBeenCalledWith(
-      '/mock/temp/backup/webdav-download-operation-id/backup.zip'
-    )
-    expect(createReadStream).toHaveBeenCalledWith('backup.zip')
-    expect(fs.remove).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id')
-    expect(vi.mocked(fs.remove).mock.invocationCallOrder[0]).toBeLessThan(
-      mockBackupService.armRestore.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('removes an S3 download before arming its prepared restore', async () => {
-    mockDownloadedFileWrite()
-    const getFileStream = vi.fn().mockResolvedValue(Readable.from(Buffer.from('backup')))
-    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
-      getFileStream
-    })
-
-    await backupManager.restoreFromS3({} as Electron.IpcMainInvokeEvent, {
-      endpoint: 'https://s3.example.com',
-      region: 'test',
-      bucket: 'backups',
-      accessKeyId: 'access-key',
-      secretAccessKey: 'secret-key',
-      fileName: 'backup.zip',
-      autoSync: false,
-      syncInterval: 0,
-      maxBackups: 1
-    })
-
-    expect(mockBackupService.prepareRestore).toHaveBeenCalledWith(
-      '/mock/temp/backup/s3-download-operation-id/backup.zip'
-    )
-    expect(getFileStream).toHaveBeenCalledWith('backup.zip')
-    expect(fs.remove).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id')
-    expect(vi.mocked(fs.remove).mock.invocationCallOrder[0]).toBeLessThan(
-      mockBackupService.armRestore.mock.invocationCallOrder[0]
-    )
-  })
-})
-
-describe('BackupManager.copyDirWithProgress', () => {
+describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
   let backupManager: BackupManager
 
   beforeEach(() => {
