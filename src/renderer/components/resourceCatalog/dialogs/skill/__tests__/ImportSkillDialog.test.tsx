@@ -151,6 +151,7 @@ describe('ImportSkillDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
     expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
+    expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:1:1')).not.toBeInTheDocument()
     expect(toast.error).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
   })

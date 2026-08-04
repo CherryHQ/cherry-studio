@@ -111,22 +111,25 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         if (preErrorCount === nextItems.length) return
 
         if (failedCount > 0) {
-          setStatus({
-            kind: 'error',
-            message: t('settings.skills.batchInstallPartialFailed', {
-              failed: failedCount,
-              success: successCount,
-              total: nextItems.length
+          if (nextItems.length > 1) {
+            setStatus({
+              kind: 'error',
+              message: t('settings.skills.batchInstallPartialFailed', {
+                failed: failedCount,
+                success: successCount,
+                total: nextItems.length
+              })
             })
-          })
-        } else {
-          const message =
-            nextItems.length === 1 && lastSkill
-              ? t('settings.skills.installSuccess', { name: lastSkill.name })
-              : t('settings.skills.batchInstallComplete', { count: successCount })
-          toast.success(message)
-          onOpenChange(false)
+          }
+          return
         }
+
+        const message =
+          nextItems.length === 1 && lastSkill
+            ? t('settings.skills.installSuccess', { name: lastSkill.name })
+            : t('settings.skills.batchInstallComplete', { count: successCount })
+        toast.success(message)
+        onOpenChange(false)
       } finally {
         setInstalling(null)
       }
