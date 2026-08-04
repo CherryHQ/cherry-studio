@@ -8,6 +8,7 @@
 import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, gateToolResultMedia, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
 function contentToParts(content: unknown): unknown[] {
@@ -66,6 +67,7 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
+ * render persisted tool-output envelopes back into their <persisted-output> markers →
  * strip media the model can't accept → convert, dropping incomplete tool calls that
  * would otherwise dangle without a result → gate media inside tool-result outputs by
  * `toolResultCaps` (wire-aware, see `resolveToolResultMediaCapabilities`; defaults to
@@ -78,7 +80,8 @@ export async function toModelMessages(
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
+  const rendered = renderPersistedToolOutputs(messages)
+  const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = gateToolResultMedia(model, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))

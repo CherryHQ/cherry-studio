@@ -1,6 +1,6 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -41,7 +41,7 @@ const models = [
     name: 'Gamma',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.WEB_SEARCH],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     isEnabled: true
   },
   {
@@ -87,6 +87,35 @@ describe('modelListDerivedState', () => {
     expect(Object.keys(groupModels(groupedModels as any))).toEqual(['deepseek', 'openai'])
   })
 
+  it('repairs legacy provider-id groups while preserving explicit user groups', () => {
+    const groupedModels = [
+      {
+        id: 'opencode::deepseek-v4-pro',
+        apiModelId: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        providerId: 'opencode',
+        group: 'opencode',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'opencode::gpt-5.6-sol',
+        apiModelId: 'gpt-5.6-sol',
+        name: 'GPT 5.6 Sol',
+        providerId: 'opencode',
+        group: 'Featured',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    const groups = groupModels(groupedModels as any, false, { preferModelGroup: true })
+
+    expect(groups.deepseek.map((model) => model.id)).toEqual(['opencode::deepseek-v4-pro'])
+    expect(groups.Featured.map((model) => model.id)).toEqual(['opencode::gpt-5.6-sol'])
+    expect(groups.opencode).toBeUndefined()
+  })
+
   it('applies search text and capability filters together', () => {
     expect(applyModelFilters(models as any, 'alpha', 'all').map((model) => model.id)).toEqual([
       'openai::reasoning-free',
@@ -96,9 +125,35 @@ describe('modelListDerivedState', () => {
     expect(applyModelFilters(models as any, 'alpha', 'embedding').map((model) => model.id)).toEqual([
       'openai::embedding-alpha'
     ])
-    expect(applyModelFilters(models as any, 'free', 'reasoning').map((model) => model.id)).toEqual([
-      'openai::reasoning-free'
+    // 'text' (language) excludes the embedding kind even when it matches the search.
+    expect(applyModelFilters(models as any, 'alpha', 'text').map((model) => model.id)).toEqual([
+      'openai::reasoning-free',
+      'openai::vision-alpha'
     ])
+  })
+
+  it('separates generated audio from text-to-speech via the TTS endpoint', () => {
+    const audioModels = [
+      {
+        id: 'x::musicgen',
+        name: 'MusicGen',
+        providerId: 'x',
+        capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+        endpointTypes: [],
+        isEnabled: true
+      },
+      {
+        id: 'x::tts',
+        name: 'TTS',
+        providerId: 'x',
+        capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+        isEnabled: true
+      }
+    ] as any[]
+
+    expect(applyModelFilters(audioModels, '', 'audio').map((model) => model.id)).toEqual(['x::musicgen'])
+    expect(applyModelFilters(audioModels, '', 'speech').map((model) => model.id)).toEqual(['x::tts'])
   })
 
   it('matches separator-insensitive model ids in provider settings search', () => {
@@ -198,16 +253,39 @@ describe('modelListDerivedState', () => {
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 5,
-      reasoning: 1,
-      vision: 1,
-      websearch: 1,
-      free: 1,
+      text: 3,
+      image: 0,
       embedding: 1,
+      audio: 0,
+      video: 0,
       rerank: 1,
-      function_calling: 1
+      speech: 0,
+      transcription: 0
     })
     expect(derivedState.duplicateModelNames.has('Alpha')).toBe(true)
     expect(derivedState.modelStatusMap.get('openai::reasoning-free')).toEqual(modelStatuses[0])
+  })
+
+  it('applies search but not the selected type filter to tab counts', () => {
+    const derivedState = calculateModelListDerivedState({
+      models: models as any,
+      searchText: 'alpha',
+      selectedCapabilityFilter: 'embedding',
+      modelStatuses: []
+    })
+
+    expect(derivedState.filteredModels.map((model) => model.id)).toEqual(['openai::embedding-alpha'])
+    expect(derivedState.capabilityModelCounts).toEqual({
+      all: 3,
+      text: 2,
+      image: 0,
+      embedding: 1,
+      audio: 0,
+      video: 0,
+      rerank: 0,
+      speech: 0,
+      transcription: 0
+    })
   })
 
   it('derives empty state and wide layout values without visible models', () => {
@@ -224,13 +302,14 @@ describe('modelListDerivedState', () => {
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 0,
-      reasoning: 0,
-      vision: 0,
-      websearch: 0,
-      free: 0,
+      text: 0,
+      image: 0,
       embedding: 0,
+      audio: 0,
+      video: 0,
       rerank: 0,
-      function_calling: 0
+      speech: 0,
+      transcription: 0
     })
   })
 })

@@ -132,7 +132,6 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
-  ArtifactFilePreview: () => <div />,
   normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
     rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
   resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) =>
@@ -186,12 +185,17 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: () => [null, vi.fn()],
-  useSharedCacheValue: () => undefined,
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: () => [false],
+    useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue: () => undefined,
+    usePersistCache: () => [undefined, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
@@ -205,7 +209,19 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: [{ id: 'agent-1', model: 'provider:model-1' }],
     isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -240,7 +256,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useActiveSession: () => activeSessionMocks.result
+  useActiveSession: () => activeSessionMocks.result,
+  useUpdateSession: () => ({ updateSession: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -271,6 +288,8 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 
@@ -284,7 +303,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -331,7 +350,6 @@ describe('AgentChat locate pending message', () => {
           }
         },
         file: {
-          isTextFile: vi.fn().mockResolvedValue(true),
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
       }
@@ -362,6 +380,20 @@ describe('AgentChat locate pending message', () => {
     expect(agentSessionPartsMocks.loadOlder).not.toHaveBeenCalled()
     expect(agentSessionPartsMocks.locateAgentMessageInList).not.toHaveBeenCalled()
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
+  })
+
+  it('renders the navbar and loading center while the active session is resolving', () => {
+    render(
+      <AgentChat
+        activeSession={undefined}
+        activeSessionLoading={true}
+        activeSessionSource="pending"
+        showResourceListControls
+      />
+    )
+
+    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
+    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
   })
 
   it('loads older session history for pending locate and clears it only after the target appears', async () => {

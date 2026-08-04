@@ -1,5 +1,6 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 
@@ -29,6 +30,7 @@ export interface ConversationShellProps {
   centerClassName?: string
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
 }
 
 export default function ConversationShell({
@@ -50,7 +52,8 @@ export default function ConversationShell({
   centerRef,
   centerClassName,
   onPaneCollapse,
-  onPaneAutoCollapseChange
+  onPaneAutoCollapseChange,
+  paneManualToggle
 }: ConversationShellProps) {
   const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -65,6 +68,7 @@ export default function ConversationShell({
   return (
     <div
       id={id}
+      data-ui="chat.view"
       className={cn(
         'relative flex flex-1 overflow-hidden bg-background',
         isWindow ? 'h-full' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
@@ -88,6 +92,7 @@ export default function ConversationShell({
             centerClassName={centerClassName}
             onPaneCollapse={onPaneCollapse}
             onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
           />
         </ConversationTopBarPortalProvider>
       </QuickPanelProvider>
@@ -107,9 +112,7 @@ const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, c
   const open = presentationState?.presentationOpen ?? false
   const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
   return (
-    <div
-      data-conversation-shell-topbar
-      className='relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]'>
+    <div data-conversation-shell-topbar className="relative flex h-fit w-full min-w-0 items-center">
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">
         {children}
       </div>

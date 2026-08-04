@@ -69,6 +69,7 @@ const providerKeyMap = {
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
   qwenlm: 'provider.qwenlm',
+  'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
@@ -290,6 +291,7 @@ export const getMiniAppsStatusLabelKey = (key: string): string => {
 const httpMessageKeyMap = {
   '400': 'error.http.400',
   '401': 'error.http.401',
+  '402': 'error.http.402',
   '403': 'error.http.403',
   '404': 'error.http.404',
   '429': 'error.http.429',

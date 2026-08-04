@@ -61,8 +61,8 @@ export const ComposerHardBreak = Node.create({
     return {
       setHardBreak:
         () =>
-        ({ commands }) => {
-          return commands.insertContent({ type: this.name })
+        ({ chain }) => {
+          return chain().insertContent({ type: this.name }).scrollIntoView().run()
         }
     }
   },

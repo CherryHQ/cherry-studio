@@ -1,6 +1,5 @@
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -11,20 +10,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   EmptyState,
+  PageHeader,
   Scrollbar
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
-import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
+import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,7 +35,7 @@ import type { FileItem } from './fileDisplay'
 import { formatFileSize } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
-import { FileList } from './FileList'
+import { FileList, FileListHeader } from './FileList'
 import type { SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
 
@@ -51,7 +53,7 @@ type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.
 
 interface EmbeddedFilePreview {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   refreshKey: number
 }
 
@@ -121,8 +123,10 @@ async function requestBatchedFileMutation(
   }
 }
 
-async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
-  const chunks: string[][] = []
+async function requestBatchedInternalEntryCreates(
+  paths: readonly AbsoluteFilePath[]
+): Promise<BatchCreateInternalEntriesResult> {
+  const chunks: AbsoluteFilePath[][] = []
   for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
     chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
   }
@@ -130,7 +134,12 @@ async function requestBatchedInternalEntryCreates(paths: readonly string[]): Pro
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({
+          source: 'path' as const,
+          path,
+          // Files-page upload = add-to-library: 'manual' keeps zero-ref uploads out of GC (spec §4.1)
+          cleanupPolicy: 'manual' as const
+        }))
       })
     )
   )
@@ -170,7 +179,7 @@ function toFileItem(
   metadataById: FileMetadataById,
   physicalPathById: PhysicalPathById,
   danglingStateById: DanglingStateById
-): FileItem | null {
+): FileItem {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
   const type = getFileTypeByExt(format)
@@ -196,13 +205,11 @@ function toFileItem(
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
-    if (!physicalPath && !isMissing) return null
-
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 
@@ -249,110 +256,46 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
 // ─── Toolbar + Action Bar ───
 
 const FileToolbar = memo(function FileToolbar({
-  showSelectionControls,
-  selectionControlsDisabled,
   isTrash,
-  showUpload,
-  canEmptyTrash,
   selectedCount,
-  visibleSelectionState,
   batchDeleteLabel,
-  onUpload,
-  onEmptyTrash,
   onBatchDelete,
-  onBatchRestore,
-  onSelectAll
+  onBatchRestore
 }: {
-  showSelectionControls: boolean
-  selectionControlsDisabled: boolean
   isTrash: boolean
-  showUpload: boolean
-  canEmptyTrash: boolean
   selectedCount: number
-  visibleSelectionState: boolean | 'indeterminate'
   batchDeleteLabel: string
-  onUpload: () => void
-  onEmptyTrash: () => void
   onBatchDelete: () => void
   onBatchRestore: () => void
-  onSelectAll: (checked: boolean) => void
 }) {
   const { t } = useTranslation()
-  const allSelected = visibleSelectionState === true
-  const hasBatchAction = selectedCount > 1
 
   return (
-    <div className="flex min-h-12 items-center gap-2 border-border-muted border-b bg-background px-4">
-      {showSelectionControls && (
-        <div className="-ml-2 flex h-8 items-center overflow-hidden rounded-md border border-border-muted bg-background">
-          <div
-            className={`flex h-full items-center gap-2 px-2 ${
-              selectionControlsDisabled ? 'text-muted-foreground/35' : 'text-foreground hover:bg-accent/50'
-            }`}>
-            <div className="flex w-5 shrink-0 items-center justify-center">
-              <Checkbox
-                size="sm"
-                checked={visibleSelectionState}
-                disabled={selectionControlsDisabled}
-                onCheckedChange={(checked) => onSelectAll(Boolean(checked))}
-                aria-label={t('files.select_all_short')}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={selectionControlsDisabled}
-              className="h-full whitespace-nowrap text-sm leading-none disabled:cursor-default"
-              onClick={() => onSelectAll(!allSelected)}>
-              {t('files.select_all_short')}
-            </button>
-          </div>
-          <div className="h-full w-px bg-border-muted" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                disabled={selectionControlsDisabled}
-                className="h-full w-8 rounded-none p-0 text-muted-foreground hover:text-foreground"
-                aria-label={t('files.actions')}>
-                <MoreHorizontal size={15} strokeWidth={1.8} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-36">
-              {isTrash && selectedCount > 1 && (
-                <DropdownMenuItem onSelect={onBatchRestore}>
-                  {t('files.restore')} ({selectedCount})
-                </DropdownMenuItem>
-              )}
-              {selectedCount > 1 && (
-                <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
-                  {batchDeleteLabel} ({selectedCount})
-                </DropdownMenuItem>
-              )}
-              {!hasBatchAction && <DropdownMenuItem disabled>{t('files.no_actions')}</DropdownMenuItem>}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-      <div className="flex-1" />
-      {isTrash ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={!canEmptyTrash}
-          onClick={onEmptyTrash}
-          className="h-8 px-2.5 text-destructive/65 text-xs hover:bg-destructive/[0.08] hover:text-destructive disabled:text-muted-foreground/35">
-          {t('files.empty_trash')}
-        </Button>
-      ) : showUpload ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onUpload}
-          className="h-8 gap-1.5 px-2.5 text-muted-foreground text-xs">
-          <Upload size={13} />
-          <span>{t('files.upload')}</span>
-        </Button>
-      ) : null}
+    <div className="flex h-7 shrink-0 items-center gap-1">
+      <span className="text-muted-foreground text-xs">
+        {t('files.footer_selected_count', { count: selectedCount })}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+            aria-label={t('files.actions')}>
+            <MoreHorizontal size={14} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-36">
+          {isTrash && (
+            <DropdownMenuItem onSelect={onBatchRestore}>
+              {t('files.restore')} ({selectedCount})
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
+            {batchDeleteLabel} ({selectedCount})
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 })
@@ -497,8 +440,7 @@ function FilesPage() {
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(() => {
-    const items = displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
-    return items.filter((item): item is FileItem => item !== null)
+    return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
   }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {
@@ -510,6 +452,19 @@ function FilesPage() {
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const showUploadButton = filter.kind === 'library' && filter.value === 'all'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
+  const activeFilterLabel =
+    filter.kind === 'library'
+      ? t(filter.value === 'all' ? 'files.all' : 'files.trash')
+      : t(
+          {
+            audio: 'files.audio',
+            document: 'files.document',
+            image: 'files.image',
+            other: 'files.other',
+            text: 'files.text',
+            video: 'files.video'
+          }[filter.value]
+        )
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
   const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
@@ -586,6 +541,14 @@ function FilesPage() {
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
+          if (file.type === 'image') {
+            void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
+              const normalized = error instanceof Error ? error : new Error(String(error))
+              logger.error('Failed to open image preview', normalized)
+              toast.error(t('files.preview.error'))
+            })
+            return
+          }
           setEmbeddedPreview((current) => ({
             fileName: file.name,
             filePath: normalizedPath,
@@ -609,7 +572,7 @@ function FilesPage() {
   }, [])
 
   const handleImportPaths = useCallback(
-    async (paths: string[]) => {
+    async (paths: AbsoluteFilePath[]) => {
       if (paths.length === 0) return
 
       try {
@@ -632,7 +595,9 @@ function FilesPage() {
       })
       if (!selected || selected.length === 0) return
 
-      const paths = selected.map((file) => file.path).filter((path): path is string => Boolean(path))
+      const paths = selected
+        .map((file) => AbsoluteFilePathSchema.safeParse(file.path).data)
+        .filter((path): path is AbsoluteFilePath => Boolean(path))
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
@@ -674,11 +639,6 @@ function FilesPage() {
     }
     return counts
   }, [activeFilesTotal, fileStats, trashedFilesTotal])
-
-  const footerFileCount = useMemo(() => {
-    if (filter.kind === 'library') return filter.value === 'trash' ? fileCounts.trash : fileCounts.all
-    return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
-  }, [fileCounts, filter, filteredFiles.length])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {
@@ -893,193 +853,211 @@ function FilesPage() {
     return () => document.removeEventListener('keydown', handler)
   }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
 
-  if (embeddedPreview) {
-    return (
-      <section
-        aria-label={embeddedPreview.fileName}
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <FilePreview
-          filePath={embeddedPreview.filePath}
-          refreshKey={embeddedPreview.refreshKey}
-          header={
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.back')}
-                className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-                onClick={() => setEmbeddedPreview(null)}>
-                <ArrowLeft className="size-3.5" />
-              </Button>
-              <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
-            </>
-          }
-        />
-      </section>
-    )
-  }
-
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <FileSidebar
-        filter={filter}
-        onFilterChange={(f) => {
-          setFilter(f)
-          setSelectedIds(new Set())
-          setRenamingId(null)
-          setPendingPermanentDeleteIds(null)
-        }}
-        fileCounts={fileCounts}
-      />
+    <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+        <FileSidebar
+          filter={filter}
+          onFilterChange={(f) => {
+            setFilter(f)
+            setSelectedIds(new Set())
+            setRenamingId(null)
+            setPendingPermanentDeleteIds(null)
+          }}
+          fileCounts={fileCounts}
+        />
 
-      <Dialog
-        open={pendingPermanentDeleteIds !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingPermanentDeleteIds(null)
-        }}>
-        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground text-sm">
-            {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
-              {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <div
-        className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (isTrash) {
-            setDragOver(false)
-            return
-          }
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          if (isTrash) return
-          const paths = Array.from(e.dataTransfer.files)
-            .map((file) => window.api.file.getPathForFile(file))
-            .filter((path): path is string => Boolean(path))
-          void handleImportPaths(paths)
-        }}>
-        {!isImageGrid && (
-          <FileToolbar
-            showSelectionControls
-            selectionControlsDisabled={filteredFiles.length === 0}
-            isTrash={isTrash}
-            showUpload={showUploadButton}
-            canEmptyTrash={filteredFiles.length > 0}
-            selectedCount={selectedIds.size}
-            visibleSelectionState={visibleSelectionState}
-            batchDeleteLabel={batchDeleteLabel}
-            onUpload={() => void handleUploadClick()}
-            onEmptyTrash={handleEmptyTrash}
-            onBatchDelete={() => handleDelete()}
-            onBatchRestore={() => void handleRestore(new Set(selectedIds))}
-            onSelectAll={handleSelectAllVisible}
-          />
-        )}
-
-        {dragOver && (
-          <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border/50 border-dashed bg-accent/25">
-            <div className="text-center">
-              <Upload size={28} className="mx-auto mb-2 text-muted-foreground/40" />
-              <p className="text-muted-foreground/40 text-xs">{t('files.drag_upload')}</p>
-            </div>
-          </div>
-        )}
-
-        <Scrollbar
-          data-testid="files-scrollbar"
-          ref={contentScrollRef}
-          className="relative flex-1"
-          onScroll={handleContentScroll}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedIds(new Set())
-              setRenamingId(null)
-            }
+        <Dialog
+          open={pendingPermanentDeleteIds !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingPermanentDeleteIds(null)
           }}>
-          {filteredFiles.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-              {!isFilesLoading && files.filter((f) => !f.trashed).length === 0 ? (
-                <EmptyState preset="no-file" />
-              ) : (
-                <EmptyState
-                  preset="no-result"
-                  title={t('files.empty.no_match_title')}
-                  description={t('files.empty.no_match_description')}
-                />
-              )}
-            </div>
-          ) : (
-            <>
-              {isImageGrid ? (
-                <FileGrid
-                  files={filteredFiles}
-                  scrollRef={contentScrollRef}
-                  onLayoutChange={maybeFillClientFilteredViewport}
-                  onOpen={handleOpen}
-                  onDelete={(id) => handleDelete(new Set([id]))}
-                  isTrash={isTrash}
-                  menuActions={listMenuActions}
-                  renamingId={renamingId}
-                  onRenameConfirm={(id, name) => void handleRename(id, name)}
-                  onRenameCancel={() => setRenamingId(null)}
-                />
-              ) : (
-                <FileList
-                  files={filteredFiles}
-                  scrollRef={contentScrollRef}
-                  selectedIds={selectedIds}
-                  onSelect={handleSelect}
-                  onOpen={handleOpen}
-                  onSelectAll={handleSelectAllVisible}
-                  visibleSelectionState={visibleSelectionState}
-                  isTrash={isTrash}
-                  menuActions={listMenuActions}
-                  onDelete={(id) => handleDelete(new Set([id]))}
-                  onRestore={(id) => void handleRestore(new Set([id]))}
-                  onRename={startInlineRename}
-                  onShowInFolder={handleShowInFolder}
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={handleSort}
-                  renamingId={renamingId}
-                  onRenameConfirm={(id, name) => void handleRename(id, name)}
-                  onRenameCancel={() => setRenamingId(null)}
-                />
-              )}
-            </>
-          )}
-        </Scrollbar>
+          <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
+            <DialogHeader>
+              <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground text-sm">
+              {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
+            </p>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
+                {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-        <div className="flex items-center gap-3 border-border/15 border-t px-4 py-1">
-          <span className="text-muted-foreground/40 text-xs">
-            {t('files.footer_count', { count: footerFileCount })}
-          </span>
-          {!isImageGrid && selectedIds.size > 0 && (
-            <span className="text-muted-foreground/40 text-xs">
-              {t('files.footer_selected_count', { count: selectedIds.size })}
-            </span>
+        <div
+          data-ui="files.content"
+          className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (isTrash) {
+              setDragOver(false)
+              return
+            }
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            if (isTrash) return
+            const paths = Array.from(e.dataTransfer.files)
+              .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
+              .filter((path): path is AbsoluteFilePath => Boolean(path))
+            void handleImportPaths(paths)
+          }}>
+          <PageHeader
+            title={activeFilterLabel}
+            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
+            action={
+              <div className="flex shrink-0 items-center gap-2">
+                {!isImageGrid && selectedIds.size > 0 && (
+                  <FileToolbar
+                    isTrash={isTrash}
+                    selectedCount={selectedIds.size}
+                    batchDeleteLabel={batchDeleteLabel}
+                    onBatchDelete={() => handleDelete()}
+                    onBatchRestore={() => void handleRestore(new Set(selectedIds))}
+                  />
+                )}
+                {isTrash ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={filteredFiles.length === 0}
+                    onClick={handleEmptyTrash}
+                    className="-translate-y-px h-7 px-2.5 text-muted-foreground text-xs hover:text-destructive">
+                    <Trash2 className="size-3.5" />
+                    {t('files.empty_trash')}
+                  </Button>
+                ) : showUploadButton ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleUploadClick()}
+                    className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
+                    <Upload className="size-3.5 translate-y-px" />
+                    <span>{t('files.upload')}</span>
+                  </Button>
+                ) : null}
+              </div>
+            }
+          />
+
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border-strong border-dashed bg-accent/25">
+              <div className="text-center">
+                <Upload size={28} className="mx-auto mb-2 text-muted-foreground" />
+                <p className="text-muted-foreground text-xs">{t('files.drag_upload')}</p>
+              </div>
+            </div>
           )}
-          <div className="flex-1" />
+
+          {!isImageGrid && filteredFiles.length > 0 && (
+            <FileListHeader
+              visibleSelectionState={visibleSelectionState}
+              onSelectAll={handleSelectAllVisible}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          )}
+
+          <Scrollbar
+            ref={contentScrollRef}
+            className="relative flex-1"
+            onScroll={handleContentScroll}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedIds(new Set())
+                setRenamingId(null)
+              }
+            }}>
+            {filteredFiles.length === 0 ? (
+              // While the first load is in flight, show loading feedback instead of
+              // an empty state — otherwise the no-result state flashes before the
+              // list arrives.
+              isFilesLoading ? (
+                <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                  {t('common.loading')}
+                </div>
+              ) : (
+                <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
+                  {isTrash || files.filter((f) => !f.trashed).length === 0 ? (
+                    <EmptyState title={t('files.empty.title')} />
+                  ) : (
+                    <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
+                  )}
+                </div>
+              )
+            ) : (
+              <>
+                {isImageGrid ? (
+                  <FileGrid
+                    files={filteredFiles}
+                    scrollRef={contentScrollRef}
+                    onLayoutChange={maybeFillClientFilteredViewport}
+                    onOpen={handleOpen}
+                    onDelete={(id) => handleDelete(new Set([id]))}
+                    isTrash={isTrash}
+                    menuActions={listMenuActions}
+                    renamingId={renamingId}
+                    onRenameConfirm={(id, name) => void handleRename(id, name)}
+                    onRenameCancel={() => setRenamingId(null)}
+                  />
+                ) : (
+                  <FileList
+                    files={filteredFiles}
+                    scrollRef={contentScrollRef}
+                    selectedIds={selectedIds}
+                    onSelect={handleSelect}
+                    onOpen={handleOpen}
+                    isTrash={isTrash}
+                    menuActions={listMenuActions}
+                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onRename={startInlineRename}
+                    onShowInFolder={handleShowInFolder}
+                    renamingId={renamingId}
+                    onRenameConfirm={(id, name) => void handleRename(id, name)}
+                    onRenameCancel={() => setRenamingId(null)}
+                  />
+                )}
+              </>
+            )}
+          </Scrollbar>
         </div>
       </div>
+
+      {embeddedPreview && (
+        <section
+          aria-label={embeddedPreview.fileName}
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <FilePreview
+            filePath={embeddedPreview.filePath}
+            refreshKey={embeddedPreview.refreshKey}
+            header={
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.back')}
+                  className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                  onClick={() => setEmbeddedPreview(null)}>
+                  <ArrowLeft className="size-3.5" />
+                </Button>
+                <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+              </>
+            }
+          />
+        </section>
+      )}
     </div>
   )
 }

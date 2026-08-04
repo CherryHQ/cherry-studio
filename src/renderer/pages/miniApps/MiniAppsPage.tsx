@@ -17,6 +17,8 @@ import MiniAppSettingsPanel from './MiniAppSettings/MiniAppSettingsPanel'
 import { useMiniAppVisibility } from './MiniAppSettings/useMiniAppVisibility'
 import NewMiniAppPanel from './NewMiniAppPanel'
 
+const MINI_APPS_LOADING_COLOR = 'var(--muted-foreground)'
+
 const MiniAppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
@@ -42,7 +44,10 @@ const MiniAppsPage: FC = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col text-foreground" onContextMenu={handleContextMenu}>
+    <div
+      data-ui="mini-apps.view"
+      className="flex h-full min-h-0 flex-1 flex-col text-foreground"
+      onContextMenu={handleContextMenu}>
       <Navbar>
         <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
@@ -89,7 +94,7 @@ const MiniAppsPage: FC = () => {
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">
-                <BeatLoader color="var(--color-foreground-secondary)" size={8} />
+                <BeatLoader color={MINI_APPS_LOADING_COLOR} size={8} />
               </div>
             ) : error ? (
               <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">

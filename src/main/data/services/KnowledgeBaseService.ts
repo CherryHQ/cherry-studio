@@ -6,8 +6,10 @@
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbType } from '@data/db/types'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
   ListKnowledgeBasesQuery,
@@ -23,10 +25,12 @@ import {
   DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
   DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
   type KnowledgeBase,
-  KnowledgeBaseSchema
+  KnowledgeBaseSchema,
+  KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
+import { groupService } from './GroupService'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
@@ -34,38 +38,20 @@ const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 
-function validateKnowledgeBaseConfig(config: {
-  chunkSize: number
-  chunkOverlap: number
-  chunkStrategy?: string | null
-  chunkSeparator?: string | null
-}): Record<string, string[]> {
-  const fieldErrors: Record<string, string[]> = {}
+function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
 
-  if (config.chunkOverlap >= config.chunkSize) {
-    fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group not found: ${groupId}`]
+    })
   }
-
-  if (config.chunkStrategy === 'delimiter' && !config.chunkSeparator) {
-    fieldErrors.chunkSeparator = ['Separator is required when chunk strategy is delimiter']
+  if (group.entityType !== 'knowledge') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group must have entityType 'knowledge': ${groupId}`]
+    })
   }
-
-  return fieldErrors
-}
-
-// The vector arm of the DB CHECK requires a positive dimensions alongside the model;
-// a no-model base always persists a null dimensions regardless of what is passed. The
-// IPC boundary already rejects a model without dimensions via CreateKnowledgeBaseSchema's
-// refine, so this guards internal callers (e.g. restoreBase) that build a DTO directly,
-// before the write reaches the DB CHECK as an untranslated constraint violation.
-function validateDimensionsForEmbeddingModel(
-  embeddingModelId: string | null,
-  dimensions: number | null | undefined
-): Record<string, string[]> {
-  if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
-    return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
-  }
-  return {}
 }
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
@@ -92,8 +78,47 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class KnowledgeBaseService {
+  private readonly embeddingModelsBeingRemoved = new Set<string>()
+
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  /** Prevents a reference from being added while an owner asynchronously removes a model's weights. */
+  acquireEmbeddingModelRemovalGuard(modelId: string): (() => void) | undefined {
+    if (this.embeddingModelsBeingRemoved.has(modelId)) {
+      return undefined
+    }
+
+    this.embeddingModelsBeingRemoved.add(modelId)
+    try {
+      const [inUse] = this.db
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .where(eq(knowledgeBaseTable.embeddingModelId, modelId))
+        .limit(1)
+        .all()
+      if (inUse) {
+        this.embeddingModelsBeingRemoved.delete(modelId)
+        return undefined
+      }
+    } catch (error) {
+      this.embeddingModelsBeingRemoved.delete(modelId)
+      throw error
+    }
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.embeddingModelsBeingRemoved.delete(modelId)
+    }
+  }
+
+  private assertEmbeddingModelIsNotBeingRemoved(modelId: string | null): void {
+    if (modelId !== null && this.embeddingModelsBeingRemoved.has(modelId)) {
+      throw DataApiErrorFactory.resourceLocked('EmbeddingModel', modelId, 'model weight removal')
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): KnowledgeBaseEntitySearchItem[] {
@@ -197,14 +222,6 @@ export class KnowledgeBaseService {
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
-    const createFieldErrors = {
-      ...validateKnowledgeBaseConfig(createConfig),
-      ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
-    }
-    if (Object.keys(createFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(createFieldErrors)
-    }
-
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
@@ -222,8 +239,25 @@ export class KnowledgeBaseService {
       documentCount: dto.documentCount ?? null
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
+    // threshold/documentCount are nullable in the insert values but optional in the
+    // write schema, so nulls become undefined for validation.
+    const createCandidate = {
+      ...createValues,
+      threshold: createValues.threshold ?? undefined,
+      documentCount: createValues.documentCount ?? undefined
+    }
+    const createValidation = KnowledgeBaseWriteSchema.safeParse(createCandidate)
+    if (!createValidation.success) {
+      throw toDataApiError(createValidation.error, 'create knowledge base')
+    }
+
+    this.assertEmbeddingModelIsNotBeingRemoved(embeddingModelId)
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      const [inserted] = tx.insert(knowledgeBaseTable).values(createValues).returning().all()
+      return inserted
+    })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -280,12 +314,28 @@ export class KnowledgeBaseService {
       chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator
     }
 
-    const updateFieldErrors = {
-      ...validateKnowledgeBaseConfig(nextConfig),
-      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions)
+    // Validate the merged next-state (existing row + this PATCH) against the same
+    // invariants as the read schema — a failed base's leftover-incompatible pairing
+    // isn't governed by these invariants until it goes through restore, so
+    // metadata-only updates (rename, move group) must not be blocked by them; that
+    // gating lives inside `refineKnowledgeBaseInvariants` itself (only enforced
+    // when `status === 'completed'`).
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...existingConfig } = existing
+    void _id // Intentionally unused - excluding id/createdAt/updatedAt from the write candidate
+    void _createdAt
+    void _updatedAt
+    const updateCandidate = {
+      ...existingConfig,
+      embeddingModelId: nextEmbeddingModelId,
+      dimensions: nextDimensions,
+      chunkSize: nextConfig.chunkSize,
+      chunkOverlap: nextConfig.chunkOverlap,
+      chunkStrategy: nextConfig.chunkStrategy,
+      chunkSeparator: nextConfig.chunkSeparator
     }
-    if (Object.keys(updateFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(updateFieldErrors)
+    const updateValidation = KnowledgeBaseWriteSchema.safeParse(updateCandidate)
+    if (!updateValidation.success) {
+      throw toDataApiError(updateValidation.error, 'update knowledge base')
     }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
@@ -331,8 +381,25 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    if (embeddingModelChanged) {
+      this.assertEmbeddingModelIsNotBeingRemoved(nextEmbeddingModelId)
+    }
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      if (dto.groupId !== undefined) {
+        validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      }
+      const [updated] = tx
+        .update(knowledgeBaseTable)
+        .set(updates)
+        .where(eq(knowledgeBaseTable.id, id))
+        .returning()
+        .all()
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      }
+      return updated
+    })
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
@@ -342,8 +409,21 @@ export class KnowledgeBaseService {
     // Verify knowledge base exists
     this.getById(id)
 
-    const db = application.get('DbService').getDb()
-    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    let affectedAgentIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      affectedAgentIds = agentService.removeKnowledgeBaseFromAllAgentsTx(tx, id)
+      tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    })
+
+    try {
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'knowledgeBaseIds')
+    } catch (error) {
+      logger.error('Knowledge base deleted but agent refresh failed; affected agents may retain stale tool scope', {
+        knowledgeBaseId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted knowledge base', { id })
   }

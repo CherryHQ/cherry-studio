@@ -1,7 +1,7 @@
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 
 import {
   CODEX_CHAT_ENDPOINT,
@@ -46,7 +46,8 @@ export function resolveGeminiBaseUrl(provider: Provider): string {
 }
 
 export function resolveClaudeBaseUrl(provider: Provider): string {
-  return provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
+  const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl
+  return baseUrl ? withoutTrailingApiVersion(formatApiHost(baseUrl, false)) : ''
 }
 
 export function resolveCodexBaseUrl(provider: Provider): string {
@@ -106,5 +107,5 @@ export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: 
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {
-  return !!modelRecord?.reasoning?.supportedEfforts?.length
+  return !!modelRecord?.reasoning?.selectableEfforts?.length
 }

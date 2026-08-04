@@ -93,6 +93,87 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates tool_result images into user file parts and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'text', text: 'done' },
+                  { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+                  { type: 'image', source: { type: 'url', url: 'https://img.example/x.png' } }
+                ]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('done')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=1] (image/png)')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=2] (image/png)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="call_img"') },
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+        { type: 'text', text: expect.stringContaining('call_id="call_img"') },
+        { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
+      ]
+    })
+  })
+
+  it('keeps call ids attached to relocated images when parallel results arrive out of order', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'c1', name: 'generate_image', input: { prompt: 'first' } },
+              { type: 'tool_use', id: 'c2', name: 'generate_image', input: { prompt: 'second' } }
+            ]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'c2',
+                content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'BBBB' } }]
+              },
+              {
+                type: 'tool_result',
+                tool_use_id: 'c1',
+                content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect((msgs[0].parts[0] as { output?: string }).output).toContain('call_id="c1"')
+    expect((msgs[0].parts[1] as { output?: string }).output).toContain('call_id="c2"')
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c2"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,BBBB' },
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+    ])
+  })
+
   it('emits an input-available tool part when there is no matching result', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -155,23 +236,20 @@ describe('AnthropicMessageConverter tool_result media', () => {
     return part.output
   }
 
-  it('emits structured image-data for a nested tool_result image (not a base64 string)', () => {
+  // A nested tool_result image never rides inside the tool output — it is relocated into
+  // the carrying user message as a `file` part (covered by the relocation tests above),
+  // so the output keeps only text plus the anchor placeholder.
+  it('keeps the base64 payload out of the tool output when an image is relocated', () => {
     const output = toolPartOutput(
       withToolResult([
         { type: 'text', text: 'here' },
         { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
       ])
     )
-    expect(output).toEqual([
-      { type: 'text', text: 'here' },
-      { type: 'image-data', data: 'AAAA', mediaType: 'image/png' }
-    ])
-    expect(JSON.stringify(output)).not.toContain('data:image/png;base64')
-  })
-
-  it('emits image-url for a url-sourced nested image', () => {
-    const output = toolPartOutput(withToolResult([{ type: 'image', source: { type: 'url', url: 'https://x/y.png' } }]))
-    expect(output).toEqual([{ type: 'image-url', url: 'https://x/y.png' }])
+    expect(typeof output).toBe('string')
+    expect(output as string).toContain('here')
+    expect(output as string).not.toContain('AAAA')
+    expect(output as string).not.toContain('data:image/png;base64')
   })
 
   it('keeps a text-only tool_result as a joined string (unchanged)', () => {
@@ -183,25 +261,6 @@ describe('AnthropicMessageConverter tool_result media', () => {
         ])
       )
     ).toBe('a\nb')
-  })
-})
-
-describe('AnthropicMessageConverter.toAiSdkTools toModelOutput', () => {
-  it('maps an items array → content, a string → text, an object → json', () => {
-    const tools = converter.toAiSdkTools(
-      params({
-        tools: [{ name: 'shot', description: 'd', input_schema: { type: 'object' } }] as MessageCreateParams['tools']
-      })
-    )
-    const toModelOutput = (
-      tools!['shot'] as unknown as {
-        toModelOutput: (o: { toolCallId: string; input: unknown; output: unknown }) => unknown
-      }
-    ).toModelOutput
-    const call = (output: unknown) => toModelOutput({ toolCallId: 't', input: {}, output })
-    expect(call([{ type: 'text', text: 'x' }])).toEqual({ type: 'content', value: [{ type: 'text', text: 'x' }] })
-    expect(call('hi')).toEqual({ type: 'text', value: 'hi' })
-    expect(call({ a: 1 })).toEqual({ type: 'json', value: { a: 1 } })
   })
 })
 

@@ -47,14 +47,18 @@ const textModel = makeModel({ capabilities: [] })
 beforeEach(() => vi.clearAllMocks())
 
 describe('estimateAnthropicRequestTokens', () => {
-  it('#17079: a base64 image nested in tool_result is counted as text (~100K), not ~0', async () => {
-    resolveTo(textModel) // even a non-vision model: nested tool_result images ride as text, never stripped
+  it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {
+    resolveTo(textModel)
     const messages = [
       { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'shot', input: {} }] },
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content: [imageBlock] }] }
     ]
-    // ~16.7K (tokenx over the base64 text) vs the old heuristic's 100000*0.75/100 = 750.
-    expect(await estimateAnthropicRequestTokens(body(messages))).toBeGreaterThan(10_000)
+    // The converter relocates the nested image into the carrying user message as a real
+    // `file` part, so it is counted with the anthropic image constant (~1590) — neither the
+    // ~16.7K tokenx-over-base64 of the old flattening nor the old heuristic's 750.
+    const count = await estimateAnthropicRequestTokens(body(messages))
+    expect(count).toBeGreaterThan(1000)
+    expect(count).toBeLessThan(3000)
   })
 
   it('counts a surviving top-level vision image with the per-dialect constant, not its base64 length', async () => {
@@ -65,11 +69,15 @@ describe('estimateAnthropicRequestTokens', () => {
     expect(count).toBeLessThan(3000)
   })
 
-  it('drops a top-level image to a short note for a non-vision model', async () => {
+  // Image policy belongs to attachment routing (OCR text / a deliberate native fallback that
+  // must reach the provider), so `stripUnsupportedMedia` gates only audio+video. A top-level
+  // image therefore still rides the wire for a non-vision model — and the estimate follows the
+  // wire rather than second-guessing it.
+  it('counts a top-level image for a non-vision model too (image policy is not gated here)', async () => {
     resolveTo(textModel)
     const count = await estimateAnthropicRequestTokens(body([{ role: 'user', content: [imageBlock] }]))
-    expect(count).toBeGreaterThan(0)
-    expect(count).toBeLessThan(200)
+    expect(count).toBeGreaterThan(1000)
+    expect(count).toBeLessThan(3000)
   })
 
   it('adds tool-definition tokens from body.tools', async () => {
@@ -96,7 +104,10 @@ describe('estimateAnthropicRequestTokens', () => {
     expect(count).toBeGreaterThan(0)
   })
 
-  it('openai wire: a tool_result image is gated to a note even for a VISION model (no media slot)', async () => {
+  // Relocation works on every wire (that is why it replaced in-tool-result media): the image
+  // leaves the tool output and rides the user message, so even an openai wire counts a real
+  // image with its own constant (~765) rather than a note — and never the ~100K base64.
+  it('openai wire: a relocated tool_result image costs the openai image constant, not its base64', async () => {
     resolveTo(visionModel, openaiProvider())
     const messages = [
       { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'shot', input: {} }] },
@@ -104,8 +115,8 @@ describe('estimateAnthropicRequestTokens', () => {
     ]
     const tools = [{ name: 'shot', description: 'd', input_schema: { type: 'object' } }]
     const count = await estimateAnthropicRequestTokens(body(messages, tools))
-    // Note text + framing + tool def — nowhere near the ~100K base64 or the 765 pixel constant.
-    expect(count).toBeLessThan(500)
+    expect(count).toBeGreaterThan(500)
+    expect(count).toBeLessThan(2000)
   })
 
   it('degrades to a raw-size heuristic (no 500) when blocks are malformed', async () => {

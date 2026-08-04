@@ -4,28 +4,29 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
+import type { IndexableKnowledgeItem } from '../items'
+import { isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
+import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
+import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../pipeline/indexing/chunk'
+import { embedKnowledgeTexts } from '../pipeline/indexing/embed'
+import { refineLocalEmbeddingChunks } from '../pipeline/indexing/localEmbeddingTokenLimit'
+import { loadKnowledgeItemDocuments } from '../pipeline/readers/KnowledgeReader'
+import { captureNoteSnapshotFile } from '../pipeline/sources/noteSnapshot'
+import { fetchKnowledgeWebPage } from '../pipeline/sources/url'
+import { captureUrlSnapshotFile } from '../pipeline/sources/urlSnapshot'
+import { hashEmbeddingText } from '../pipeline/vectorstore/indexStore/hashing'
+import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
-import type { IndexableKnowledgeItem } from '../types/items'
-import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/indexing/chunk'
-import { embedKnowledgeTexts } from '../utils/indexing/embed'
-import { refineLocalEmbeddingChunks } from '../utils/indexing/localEmbeddingTokenLimit'
-import { toMaterialRelativePath } from '../utils/indexing/materialFields'
-import { isIndexableKnowledgeItem } from '../utils/items'
-import { captureNoteSnapshotFile } from '../utils/sources/noteSnapshot'
-import { fetchKnowledgeWebPage } from '../utils/sources/url'
-import { captureUrlSnapshotFile } from '../utils/sources/urlSnapshot'
-import { collectKnowledgeReservedRelativePaths } from '../utils/storage/pathStorage'
-import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../vectorstore/indexStore/model'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
-import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
+import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
 
@@ -53,7 +54,7 @@ type LoadedIndexDocumentsInput = {
 type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 
 export function createIndexDocumentsJobHandler(
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): JobHandler<KnowledgeIndexDocumentsPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -138,26 +139,9 @@ function loadIndexDocumentsInputOrSkip(
 ): LoadedIndexDocumentsInput | null {
   const { baseId, itemId } = ctx.input
 
+  let base: KnowledgeBase
   try {
-    const base = knowledgeBaseService.getById(baseId)
-    const item = knowledgeItemService.getById(itemId)
-
-    if (item.status === 'deleting') {
-      logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
-      return null
-    }
-
-    if (!isIndexableKnowledgeItem(item)) {
-      throw new Error(`indexDocumentsJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
-    }
-
-    if (item.status === 'completed') {
-      reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
-      return null
-    }
-
-    return { base, item }
+    base = knowledgeBaseService.getById(baseId)
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
@@ -166,6 +150,30 @@ function loadIndexDocumentsInputOrSkip(
     }
     throw error
   }
+
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
+      logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
+    } else {
+      logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
+    }
+    return null
+  }
+  const { item } = result
+
+  if (!isIndexableKnowledgeItem(item)) {
+    throw new Error(`indexDocumentsJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
+  }
+
+  if (item.status === 'completed') {
+    reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
+    return null
+  }
+
+  return { base, item }
 }
 
 async function readItemDocuments(
@@ -178,10 +186,10 @@ async function readItemDocuments(
 
 type SnapshotCaptureSpec = {
   type: 'url' | 'note'
-  /** Produce the snapshot markdown OUTSIDE the base mutation lock; rejects empty input. */
-  produce: (signal: AbortSignal) => Promise<string>
-  /** Write the produced markdown to a base file under the lock, returning its relativePath. */
-  capture: (markdown: string, reservedPaths: Set<string>) => Promise<string>
+  /** Produce snapshot content OUTSIDE the base mutation lock; rejects empty input. */
+  produce: (signal: AbortSignal) => Promise<{ markdown: string; title?: string }>
+  /** Write the produced snapshot to a base file under the lock, returning its relativePath. */
+  capture: (snapshot: { markdown: string; title?: string }, reservedPaths: Set<string>) => Promise<string>
 }
 
 /**
@@ -198,13 +206,14 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
     return {
       type: 'url',
       produce: async (signal) => {
-        const markdown = await fetchKnowledgeWebPage(url, signal)
-        if (!markdown) {
+        const page = await fetchKnowledgeWebPage(url, signal)
+        if (!page.markdown) {
           throw new Error(`Knowledge URL returned empty markdown: ${url}`)
         }
-        return markdown
+        return page
       },
-      capture: (markdown, reservedPaths) => captureUrlSnapshotFile(baseId, url, markdown, reservedPaths)
+      capture: ({ markdown, title }, reservedPaths) =>
+        captureUrlSnapshotFile(baseId, url, markdown, reservedPaths, title)
     }
   }
 
@@ -221,9 +230,9 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
         if (content.trim() === '') {
           throw new Error(`Knowledge note has empty content: ${source}`)
         }
-        return content
+        return { markdown: content }
       },
-      capture: (markdown, reservedPaths) => captureNoteSnapshotFile(baseId, source, markdown, reservedPaths)
+      capture: ({ markdown }, reservedPaths) => captureNoteSnapshotFile(baseId, source, markdown, reservedPaths)
     }
   }
 
@@ -242,23 +251,23 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
 async function ensureSnapshot(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   item: IndexableKnowledgeItem,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<IndexableKnowledgeItem> {
   const spec = resolveSnapshotCaptureSpec(item)
   if (!spec) {
     return item
   }
 
-  const markdown = await spec.produce(ctx.signal)
+  const snapshot = await spec.produce(ctx.signal)
 
-  return await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
+  return await knowledgeLockManager.runExclusive(ctx.input.baseId, async () => {
     const latest = knowledgeItemService.getById(ctx.input.itemId)
     if (latest.type !== spec.type || latest.data.relativePath) {
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
     const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
-    const relativePath = await spec.capture(markdown, reservedPaths)
+    const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
   })
@@ -304,8 +313,8 @@ async function buildRebuildMaterialInput(
   let embeddings: RebuildMaterialEmbeddingInput[] = []
   if (usesEmbeddings) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
-    const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
+    const store = vectorStoreService.getIndexStore(base)
+    const existingHashes = store.listExistingEmbeddingHashes([...bodyByHash.keys()])
     const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
 
     if (missing.length > 0) {
@@ -355,21 +364,21 @@ async function writeItemMaterial(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   base: KnowledgeBase,
   input: RebuildMaterialInput,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<void> {
   const { baseId, itemId } = ctx.input
 
-  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.runExclusive(baseId, async () => {
     ctx.signal.throwIfAborted()
-    const latestItem = knowledgeItemService.getById(itemId)
-    if (latestItem.status === 'deleting') {
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('skip' in result) {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
       return
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
-    await store.rebuildMaterial(itemId, input)
+    const store = vectorStoreService.getIndexStore(base)
+    store.rebuildMaterial(itemId, input)
     knowledgeItemService.updateStatus(itemId, 'completed')
   })
 }

@@ -16,14 +16,15 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
 
-// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+// respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -53,6 +54,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => []
+}))
+
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
 
 vi.mock('react-i18next', () => ({
@@ -177,6 +182,23 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
+  it('invalidates disclosure state after deleting a session message', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.deleteMessage('assistant-1')
+    })
+
+    expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
+    expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
+  })
+
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
@@ -208,7 +230,7 @@ describe('useAgentChatRuntimeState', () => {
           ...assistantMessage,
           metadata: {
             ...assistantMessage.metadata,
-            thoughtsTokens: 256
+            totalTokens: 256
           }
         } as CherryUIMessage
       ],
@@ -224,7 +246,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+    expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
   })
 
   it('keeps the history contract and composer callback stable across stream snapshots', () => {

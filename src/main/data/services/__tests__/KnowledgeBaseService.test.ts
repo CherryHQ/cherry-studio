@@ -1,3 +1,4 @@
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -25,6 +26,8 @@ const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
+const KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const OTHER_ENTITY_GROUP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
@@ -343,6 +346,12 @@ describe('KnowledgeBaseService', () => {
 
       expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Chunk overlap must be smaller than chunk size')
     })
+
+    it('should reject an invalid persisted separator at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkStrategy: 'delimiter', chunkSeparator: '' })
+
+      expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Separator is required when chunk strategy is delimiter')
+    })
   })
 
   describe('create', () => {
@@ -390,6 +399,51 @@ describe('KnowledgeBaseService', () => {
       expect(row.dimensions).toBeNull()
     })
 
+    it('persists a valid knowledge group', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' })
+
+      const result = service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+
+      expect(result.groupId).toBe(KNOWLEDGE_GROUP_ID)
+    })
+
+    it('rejects a missing knowledge group with a field-scoped validation error', async () => {
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
+    it('rejects a group owned by another entity type', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' })
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: OTHER_ENTITY_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
     it('rejects an embedding model without positive dimensions instead of a raw constraint violation', () => {
       // A model without dimensions would insert a row satisfying neither DB CHECK
       // arm (vector needs both; bm25-only needs neither). The IPC boundary already
@@ -405,17 +459,17 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: ['Embedding model and dimensions must be set together']
           }
         }
       })
     })
 
     it.each([
-      ['zero', 0],
-      ['negative', -1],
-      ['non-integer', 1.5]
-    ])('rejects an embedding model with %s dimensions', (_label, dimensions) => {
+      ['zero', 0, 'Too small: expected number to be >0'],
+      ['negative', -1, 'Too small: expected number to be >0'],
+      ['non-integer', 1.5, 'Invalid input: expected int, received number']
+    ])('rejects an embedding model with %s dimensions', (_label, dimensions, message) => {
       let err: unknown
       try {
         service.create({
@@ -430,7 +484,7 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: [message]
           }
         }
       })
@@ -656,6 +710,31 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(128)
     })
 
+    it('rejects a group owned by another entity type and rolls back the update', async () => {
+      await dbh.db.insert(groupTable).values([
+        { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
+        { id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' }
+      ])
+      await seedKnowledgeBase({ groupId: KNOWLEDGE_GROUP_ID })
+      let err: unknown
+
+      try {
+        service.update(KNOWLEDGE_BASE_ID, {
+          name: 'Updated Base',
+          groupId: OTHER_ENTITY_GROUP_ID
+        })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row).toMatchObject({ name: 'Knowledge Base', groupId: KNOWLEDGE_GROUP_ID })
+    })
+
     it('should clear nullable processor and rerank config fields', async () => {
       await seedKnowledgeBase({
         rerankModelId: createUniqueModelId('openai', 'embed-model'),
@@ -686,6 +765,24 @@ describe('KnowledgeBaseService', () => {
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.threshold).toBe(0.7)
+    })
+
+    it('allows renaming or moving a recoverable failed base despite a leftover mismatched embedding/dimensions pair', async () => {
+      // A migration-failed base can carry a leftover embeddingModelId with null
+      // dimensions (or vice versa); the DB CHECK only constrains this pairing for
+      // completed bases, so a plain metadata PATCH must not resurrect that check
+      // (the pairing invariant is still enforced for completed bases — see "rejects
+      // an embedding model without positive dimensions" above).
+      await seedKnowledgeBase({
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        dimensions: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+
+      const result = service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      expect(result.name).toBe('Renamed while failed')
+      expect(result.dimensions).toBeNull()
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
@@ -979,6 +1076,43 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('embedding model removal guard', () => {
+    const embeddingModelId = createUniqueModelId('openai', 'embed-model')
+
+    it('does not acquire the guard while a knowledge base references the model', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.acquireEmbeddingModelRemovalGuard(embeddingModelId)).toBeUndefined()
+    })
+
+    it('rejects writes that add the model until the removal guard is released', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+      const releaseGuard = service.acquireEmbeddingModelRemovalGuard(embeddingModelId)
+      expect(releaseGuard).toBeTypeOf('function')
+
+      let createError: unknown
+      try {
+        service.create({ name: 'Concurrent Base', embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        createError = error
+      }
+      expect(createError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      let updateError: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        updateError = error
+      }
+      expect(updateError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      releaseGuard?.()
+      expect(service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 }).embeddingModelId).toBe(
+        embeddingModelId
+      )
     })
   })
 })

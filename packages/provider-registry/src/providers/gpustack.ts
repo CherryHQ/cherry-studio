@@ -7,7 +7,8 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {
-      adapterFamily: 'openai-compatible'
+      adapterFamily: 'openai-compatible',
+      reasoningFormat: { type: 'openai-chat' }
     }
   },
   metadata: {

@@ -139,11 +139,16 @@
         "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
         "disconnected": "切断されました",
         "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+        "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
         "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
         "qrTitle": "WeChat QRコードログイン",
         "title": "WeChat",
         "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} バックグラウンドタスク実行中",
+      "background_running_other": "{{count}} 個のバックグラウンドタスクが実行中"
     },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
@@ -217,6 +222,25 @@
       "code": "コード",
       "code_unavailable": "バイナリファイルではソースビューは利用できません",
       "default_app": "デフォルトアプリ",
+      "edit": {
+        "conflict": {
+          "description": "このファイルは編集開始後にディスク上で変更されました。再読み込みすると現在の下書きが破棄され、最新のファイルが読み込まれます。",
+          "keep_draft": "Keep draft",
+          "reload": "ファイルを再読み込み",
+          "title": "ディスク上でファイルが変更されました"
+        },
+        "discard": "変更を破棄",
+        "leave": {
+          "description": "続行すると、このファイルの保存されていない変更が失われます。",
+          "discard_and_continue": "破棄して続行",
+          "title": "保存されていない変更を破棄しますか？"
+        },
+        "metadata_pending": "ファイルは保存されましたが、そのメタデータはまだ復旧中です。この保存を再試行しないでください。",
+        "refresh_failed": "最新のファイル内容を再読み込みできません。",
+        "save_failed": "このファイルを保存できません。変更を再試行するか破棄するまで、自動保存は一時停止されています。",
+        "unsaved": "未保存",
+        "unsupported": "このファイルはプレビューできますが、ここでは安全に編集できません。編集はLFまたはCRLFの改行コードが統一されたUTF-8テキストファイルに対応しています。"
+      },
       "empty": {
         "description": "エージェントとのチャットを開始してください。生成されたコードとライブプレビューがここに表示されます。",
         "title": "準備完了"
@@ -302,16 +326,25 @@
         "more": "+{{count}} 件",
         "no_artifacts": "宣言された成果物なし",
         "no_subagents": "サブエージェントなし",
-        "subagents": "サブエージェント"
+        "shell_tasks": "バックグラウンドコマンド",
+        "subagents": "サブエージェント",
+        "workflows": "ワークフロー"
       },
       "status": {
         "activity": "活動",
         "agent": "エージェント",
         "context": "コンテキスト",
         "no_tasks": "アクティブなタスクはありません",
+        "run_task_live_one": "{{count}} ライブ",
+        "run_task_live_other": "{{count}} ライブ",
+        "run_tasks": "サブタスク",
         "selected_tool": "選択されたツール",
+        "stop_run_task": "タスクを停止",
+        "stop_run_task_failed": "タスクの停止に失敗しました",
         "task_count": "{{completed}} / {{total}} 完了",
         "tasks": "タスク",
+        "tool_uses_one": "{{count}} ツールコール",
+        "tool_uses_other": "{{count}} 回のツール呼び出し",
         "tools_active": "アクティブ",
         "tools_done": "完了",
         "tools_failed": "失敗",
@@ -359,6 +392,11 @@
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
+      },
+      "api_retry": {
+        "reason": "リクエスト失敗（{{error}}、HTTP {{status}}）— 再試行中",
+        "retrying": "{{attempt}}/{{max}}を再試行中…",
+        "retrying_in": "{{attempt}}/{{max}}回目の再試行まであと{{seconds}}秒"
       },
       "auto_rename": "タスク名を生成",
       "create": {
@@ -411,12 +449,19 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
+        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
         "yesterday": "昨日"
       },
       "label_one": "セッション",
       "label_other": "セッション",
       "list": {
         "title": "タスク"
+      },
+      "model_switch_confirm": {
+        "confirm": "モデル切り替え",
+        "description": "異なるモデルは、コンテキストの理解や処理方法が異なる場合があります。切り替えると、今後の回答の連続性や品質に影響を与える可能性があります。続行しますか？",
+        "skip_for_app_run": "アプリを終了するまで再度尋ねないでください",
+        "title": "「{{model}}」に切り替えますか？"
       },
       "new": "新しいタスク",
       "pin": {
@@ -566,7 +611,7 @@
       },
       "prompt": "プロンプト設定",
       "skills": {
-        "addMore": "スキルを追加",
+        "addMore": "スキルを管理",
         "builtin": "組み込み",
         "noFilterResults": "一致するスキルがありません",
         "noSkills": "スキルがインストールされていません。設定 > スキルからスキルをインストールしてください。",
@@ -584,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
-            "title": "ファイル編集を自動承認"
+            "description": "ファイルを自由に編集します。コマンドの実行前に確認します。",
+            "title": "編集を自動承認"
+          },
+          "auto": {
+            "description": "通常の確認なしで実行します。安全チェックが危険な操作をブロックします。",
+            "title": "自動で承認",
+            "warning": "対応するモデルが必要です。他のモデルでは無視されるか、確認を求め続ける場合があります。"
           },
           "bypassPermissions": {
-            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
-            "title": "権限チェックをバイパス",
+            "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
+            "title": "フルアクセス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "confirmChange": {
@@ -597,14 +647,14 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "description": "通常の権限チェックが適用されます。",
-            "title": "デフォルト（続行する前に確認）"
+            "description": "ファイルの編集やコマンドの実行前に確認します。",
+            "title": "実行前に確認"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
-            "title": "計画モード（近日公開）"
+            "description": "ファイルを編集せずに計画します。読み取り専用または検査済みのコマンドのみ実行されます。",
+            "title": "計画のみ"
           },
           "title": "権限モード"
         },
@@ -640,10 +690,13 @@
       }
     },
     "sidebar_title": "エージェント",
-    "skill": {
-      "manage": {
-        "title": "スキルを管理する"
-      }
+    "speed": {
+      "effort": "努力",
+      "fast": "速い",
+      "faster": "より速く",
+      "label": "スピード",
+      "smarter": "スマーター",
+      "title": "応答設定"
     },
     "tasks": {
       "add": "タスクを追加",
@@ -665,6 +718,7 @@
         "deleteFailed": "タスクの削除に失敗しました",
         "loadFailed": "タスクの読み込みに失敗しました",
         "runFailed": "タスクの実行に失敗しました",
+        "triggerInvalid": "無効なスケジュール: 式、タイムゾーン、または間隔範囲を確認してください",
         "updateFailed": "タスクの更新に失敗しました"
       },
       "frequency": {
@@ -707,6 +761,38 @@
       "run": "実行",
       "runTriggered": "タスクがトリガーされました",
       "save": "保存",
+      "schedule": {
+        "custom": "カスタムスケジュール",
+        "daily": "毎日",
+        "hour": "時間",
+        "hourly": "毎時",
+        "interval": "カスタム間隔",
+        "intervalMinutes": "インターバル",
+        "invalid": "有効な実行頻度を入力してください。",
+        "minute": "分",
+        "once": "一度",
+        "runAt": "実行",
+        "summary": {
+          "daily": "毎日 {{time}}に",
+          "hourly": "毎時の開始時",
+          "interval": "毎{{count}}分",
+          "weekdays": "平日 {{time}}",
+          "weekly": "毎週{{weekday}}の{{time}}"
+        },
+        "time": "時間",
+        "weekday": "曜日",
+        "weekdays": {
+          "friday": "金曜日",
+          "monday": "月曜日",
+          "saturday": "土曜日",
+          "sunday": "日曜日",
+          "thursday": "木曜日",
+          "tuesday": "火曜日",
+          "wednesday": "水曜日"
+        },
+        "weekdaysOnly": "平日",
+        "weekly": "週次"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "間隔",
@@ -856,6 +942,7 @@
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
+      "pendingBadge": "保留中",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
       "suggestion": {
@@ -983,7 +1070,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "コピー",
       "regenerate": "再生成",
       "restart": {
         "button": "再起動",
@@ -995,8 +1081,6 @@
     "authHeader": {
       "title": "認証ヘッダー"
     },
-    "authHeaderText": "認証ヘッダーで使用：",
-    "configuration": "設定",
     "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
     "documentation": {
       "title": "API ドキュメント"
@@ -1004,13 +1088,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "API キーをコピー",
-        "description": "API アクセスのための安全な認証トークン",
         "label": "API キー",
         "placeholder": "API キーは自動生成されます"
       },
       "port": {
-        "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
-        "helpText": "ポートを変更するにはサーバーを停止してください",
         "label": "ポート"
       },
       "url": {
@@ -1019,7 +1100,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API キーがクリップボードにコピーされました",
       "apiKeyRegenerated": "API キーが再生成されました",
       "notEnabled": "APIサーバーが有効になっていません。",
       "operationFailed": "API サーバーの操作に失敗しました：",
@@ -1029,8 +1109,7 @@
       "startError": "API サーバーの開始に失敗しました：",
       "startSuccess": "API サーバーが正常に開始されました",
       "stopError": "API サーバーの停止に失敗しました：",
-      "stopSuccess": "API サーバーが正常に停止されました",
-      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+      "stopSuccess": "API サーバーが正常に停止されました"
     },
     "status": {
       "running": "実行中",
@@ -1059,12 +1138,18 @@
     "edit": {
       "title": "アシスタントを編集"
     },
+    "groups": {
+      "delete": "グループ削除",
+      "deleteConfirm": "このグループを削除してもよろしいですか？",
+      "group_by": "グループで表示",
+      "ungroup": "グループ化を停止",
+      "ungrouped": "グループ化解除"
+    },
     "icon": {
       "type": "アシスタントアイコン"
     },
     "list": {
-      "showByList": "リスト表示",
-      "showByTags": "タグ表示"
+      "showByList": "リスト表示"
     },
     "pin": {
       "title": "ピンアシスタント"
@@ -1184,10 +1269,6 @@
           "tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します"
         }
       },
-      "max_tool_calls": {
-        "label": "最大ツール呼び出し数",
-        "tip": "1回の会話で許可される最大のツール呼び出し回数。高い値に設定すると、より複雑な多段階操作が可能になりますが、トークン使用量と応答時間が増加する可能性があります。"
-      },
       "mcp": {
         "description": "デフォルトで有効な MCP サーバー",
         "enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
@@ -1222,6 +1303,8 @@
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "low_description": "低レベル推論",
+        "max": "マックス",
+        "max_description": "最大限の推論努力",
         "medium": "普通の思考",
         "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
@@ -1248,20 +1331,6 @@
         "label": "工具調用方式",
         "prompt": "提示詞"
       }
-    },
-    "tags": {
-      "add": "タグ追加",
-      "delete": "タグ削除",
-      "deleteConfirm": "このタグを削除してもよろしいですか？",
-      "group_by": "タグでグループ化",
-      "manage": "タグ管理",
-      "modify": "タグ修正",
-      "none": "タグなし",
-      "settings": {
-        "title": "タグ設定"
-      },
-      "ungroup": "タグのグループ化をオフにする",
-      "untagged": "未分類"
     },
     "title": "アシスタント",
     "unpin": {
@@ -1402,11 +1471,11 @@
       },
       "generate_image": "画像を生成する",
       "generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
+      "image_preview_failed": "画像プレビューに失敗しました",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
-      "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
+      "knowledge_base_unavailable": "ツール対応モデルを選択してください",
       "locate_editing_message": "元のメッセージを見つける",
-      "mcp_unavailable": "ツール対応モデルを選択するか、プロンプトでツール使用を有効にしてください",
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
@@ -1417,6 +1486,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "reference_panel": {
+        "load_failed": "参照された会話の読み込みに失敗しました",
+        "no_room": "メッセージにこの会話を追加する余地が残っていません",
+        "session": {
+          "no_results": {
+            "description": "検索条件に一致するセッションはありません",
+            "label": "セッションが見つかりません"
+          },
+          "title": "セッション"
+        },
+        "topic": {
+          "no_results": {
+            "description": "検索に一致するトピックはありません",
+            "label": "トピックが見つかりません"
+          },
+          "title": "トピック"
+        }
+      },
       "resize_height": "入力の高さを変更",
       "resource_panel": {
         "categories": {
@@ -1494,6 +1581,7 @@
         },
         "open_file": "ファイルを開く",
         "open_file_error": "ファイルを開けませんでした: {{path}}",
+        "open_with": "開く",
         "reveal_in_finder": "Finderで表示"
       },
       "topics": " トピック ",
@@ -1507,7 +1595,6 @@
         "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
-      "url_context": "URLコンテキスト",
       "web_search": {
         "builtin": {
           "disabled_content": "現在のモデルはウェブ検索をサポートしていません",
@@ -1528,14 +1615,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "有効なツール呼び出し形式に変換できません：{{toolCall}}"
-      },
       "warning": {
-        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
-        "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
-        "no_tool": "必要なMCPツール {{tool}} が見つかりません",
-        "url_context": "Geminiは、URLコンテキストと関数呼び出しを同時に使用することをサポートしていません。"
+        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。"
       }
     },
     "message": {
@@ -1573,6 +1654,33 @@
       "regenerate": {
         "model": "モデルを切り替え"
       },
+      "token_details": {
+        "cache_read": "キャッシュ読み取り",
+        "cache_write": "キャッシュ書き込み",
+        "cost": "コスト",
+        "cost_billed": "プロバイダーによる請求",
+        "cost_estimated": "推定",
+        "end_to_end_throughput": "エンドツーエンドのスループット",
+        "input": "入力",
+        "input_breakdown": "入力の内訳",
+        "lane_approval": "承認",
+        "lane_model": "モデル",
+        "lane_other": "その他",
+        "lane_tool": "ツール",
+        "model_throughput": "モデル生成TPS",
+        "output": "出力",
+        "reasoning": "推論",
+        "reasoning_time": "推論",
+        "request_duration": "生成タイミング",
+        "text_generation": "テキスト生成",
+        "text_output": "テキスト出力",
+        "tokens": "{{value}} トークン",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "エンドツーエンドの期間",
+        "uncached": "キャッシュされていない",
+        "usage": "トークン使用量",
+        "waiting_first_token": "待機"
+      },
       "useful": {
         "label": "上下文として設定する",
         "tip": "このメッセージは、このメッセージセットの中でコンテキストに含まれるために選択されます"
@@ -1598,8 +1706,7 @@
     "resource_view": {
       "menu": {
         "agent": "エージェント",
-        "assistant": "アシスタント",
-        "skill": "スキル"
+        "assistant": "アシスタント"
       }
     },
     "save": {
@@ -1843,6 +1950,7 @@
         "this_week": "今週",
         "today": "今日",
         "unknown_assistant": "リンクされていないアシスタント",
+        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。",
         "yesterday": "昨日"
       },
       "list": "トピックリスト",
@@ -1983,6 +2091,7 @@
         "default": "デフォルト",
         "high": "高",
         "low": "低",
+        "max": "マックス",
         "medium": "ミディアム",
         "minimal": "最小限",
         "xhigh": "エクストラハイ"
@@ -2096,7 +2205,7 @@
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
-    "title": "コードツール",
+    "title": "Code Mate",
     "tool_parameters": "パラメータ設定",
     "up_to_date": "最新の状態",
     "update_options": "更新オプション",
@@ -2177,6 +2286,7 @@
     "copy_failed": "コピーに失敗しました",
     "create_success": "正常に作成されました",
     "current": "現在",
+    "decline": "辞退",
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
@@ -2208,6 +2318,12 @@
     "generate_random_seed": "ランダムシードを生成",
     "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
+    "group": {
+      "create": "新規グループ",
+      "create_failed": "グループの作成に失敗しました",
+      "name_placeholder": "グループ名を入力...",
+      "name_required": "グループ名は必須です"
+    },
     "help": "助け",
     "html_preview": "HTMLプレビュー",
     "i_know": "わかりました",
@@ -2235,6 +2351,7 @@
     "open_in": "{{name}}で開く",
     "open_in_new_tab": "新しいタブで開く",
     "open_sidebar": "サイドバーを開く",
+    "other": "その他",
     "placeholders": {
       "select": {
         "model": "モデルを選択"
@@ -2248,6 +2365,7 @@
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
+    "refresh_failed": "リストを更新できませんでした。最後に読み込まれたバージョンを表示しています。",
     "regenerate": "再生成",
     "remove_image": "画像を削除",
     "rename": "名前を変更",
@@ -2279,6 +2397,7 @@
     "swap": "交換",
     "topics": "トピック",
     "translate_text": "翻訳",
+    "undo": "元に戻す",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
@@ -2317,6 +2436,7 @@
     "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "埋め込み（OpenAI）",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2371,6 +2491,8 @@
       "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
       "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
       "quota": "アカウントの利用枠が不足しています。チャージするかプロバイダーを変更してください",
+      "rate_limit": "短時間にリクエストが多すぎます。しばらく待ってから再試行するか、より高いレート制限のモデルに切り替えてください",
+      "region": "お住まいの地域ではご利用いただけません。プロキシを設定するか、お住まいの地域で利用可能なプロバイダーに切り替えてください",
       "server": "サーバーエラーが発生しました。しばらくしてから再試行してください",
       "stream": "応答が中断されました。ネットワークの安定性を確認するか、再試行してください。",
       "unknown": "エラーが発生しました",
@@ -2382,6 +2504,7 @@
     "http": {
       "400": "リクエストに失敗しました。リクエストパラメータが正しいか確認してください。モデルの設定を変更した場合は、デフォルトの設定にリセットしてください",
       "401": "認証に失敗しました。APIキーが正しいか確認してください",
+      "402": "支払いが必要です。アカウントの残高またはクォータが不足しています - プロバイダーのサイトでチャージするか、別のプロバイダーに切り替えてください",
       "403": "アクセスが拒否されました。アカウントが実名認証されているか確認してください。またはサービスプロバイダーに問い合わせてください",
       "404": "モデルが見つからないか、リクエストパスが間違っています",
       "429": "リクエストが多すぎます。後でもう一度試してください",
@@ -2433,13 +2556,19 @@
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
+    "tool_call_limit_reached": "アシスタントは最終回答を生成する前にツール呼び出しの上限に達しました。もう一度試すか、タスクの範囲を縮小してください。",
     "truncated": "データが切り捨てられました、元のサイズ",
     "truncatedBadge": "切り捨て",
     "unknown": "不明なエラー",
     "usage": "用量",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
     "value": "値",
-    "values": "値"
+    "values": "値",
+    "web_lookup_network_error": "Webアクセスに失敗しました。ネットワーク接続を確認して、もう一度お試しください。",
+    "web_search_api_host_invalid": "Web検索は、設定されたプロバイダーのAPIホストが無効であるため利用できません。設定 → Web検索で有効なHTTP(S) URLを入力し、もう一度お試しください。",
+    "web_search_api_host_missing": "Web検索は利用できません。設定されたプロバイダーにAPIホストが設定されていません。設定 → Web検索で追加して、もう一度お試しください。",
+    "web_search_api_key_missing": "Web検索は、設定されたプロバイダーにAPIキーが設定されていないため利用できません。設定 → Web検索 でAPIキーを追加してから、もう一度お試しください。",
+    "web_search_provider_unavailable": "Web検索は、互換性のあるプロバイダーが設定されていないため利用できません。設定 → Web検索でプロバイダーを設定してから、もう一度お試しください。"
   },
   "export": {
     "assistant": "アシスタント",
@@ -2455,6 +2584,10 @@
     "user": "ユーザー"
   },
   "file_preview": {
+    "directory": {
+      "description": "このフォルダ内のファイルを選択してプレビューしてください。",
+      "title": "これはフォルダです"
+    },
     "html": {
       "empty": {
         "description": "このHTMLファイルにはコンテンツがありません。",
@@ -2521,6 +2654,10 @@
         "title": "ファイルが大きすぎます"
       }
     },
+    "unavailable": {
+      "description": "ファイルが移動、削除されたか、アクセスできない可能性があります。",
+      "title": "ファイル利用不可"
+    },
     "unsupported": {
       "action": "デフォルトのアプリで開く",
       "description": "このファイルタイプはまだプレビューできません。",
@@ -2551,7 +2688,8 @@
     "edit": "編集",
     "empty": {
       "no_match_description": "現在のフィルターに一致するファイルはありません",
-      "no_match_title": "一致するファイルが見つかりません"
+      "no_match_title": "一致するファイルが見つかりません",
+      "title": "ファイルがありません"
     },
     "empty_trash": "ゴミ箱を空にする",
     "error": {
@@ -2780,6 +2918,10 @@
     "code": "コード",
     "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",
+    "interactive_preview": {
+      "action": "ウェブページを表示",
+      "description": "このウェブページにはスクリプトまたは外部リソースが含まれており、開くとコードが実行され、ネットワークに接続する場合があります。"
+    },
     "preview": "プレビュー",
     "split": "分割",
     "view_mode": "表示モード"
@@ -2922,6 +3064,7 @@
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
+        "copying": "コピー中 {{percent}}%",
         "embedding": "埋め込み",
         "error": "エラー",
         "pending": "待機中",
@@ -3118,7 +3261,7 @@
       "duplicate": "重複",
       "edit": "編集",
       "enable": "有効にする",
-      "manage_tags": "タグを管理",
+      "manage_groups": "グループを管理",
       "uninstall": "アンインストール"
     },
     "assistant_catalog": {
@@ -3218,7 +3361,7 @@
             "label": "小型モデル（オプション）"
           }
         },
-        "model_config": "モデル構成",
+        "model_config": "モデル",
         "section": {
           "advanced": {
             "desc": "実行制限とランタイムパラメータ",
@@ -3317,9 +3460,13 @@
             "hint": "有効にすると、トークンサンプリングの範囲を制限します"
           }
         },
+        "group": "グループ",
+        "group_empty": "グループがありません",
+        "group_placeholder": "グループを選択",
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
+        "max_tool_calls_default": "デフォルト（{{count}} ラウンド）",
         "mcp_mode": "MCPモード",
         "model": "デフォルトモデル",
         "model_clear": "クリア",
@@ -3335,8 +3482,7 @@
         "tags": "タグ",
         "temperature": "温度",
         "title": "基本設定",
-        "top_p": "Top-P",
-        "unlimited": "無制限"
+        "top_p": "Top-P"
       },
       "breadcrumb": "図書館",
       "dialogs": {
@@ -3415,6 +3561,11 @@
         "insert_variable": "変数を挿入",
         "label": "システムプロンプト",
         "placeholder": "回答スタイル、役割設定、背景情報など、アシスタントへの指示を入力してください",
+        "polish": "ポーランド語のプロンプト",
+        "polish_failed_description": "デフォルトモデルを確認または変更して、もう一度お試しください。",
+        "polish_failed_title": "プロンプトの推敲に失敗しました",
+        "polish_variables_changed_description": "洗練された結果により、プロンプト変数が変更または削除されました。もう一度お試しください。",
+        "polish_variables_changed_title": "磨き上げたプロンプトを適用できませんでした",
         "title": "プロンプト",
         "tokens_label": "トークン:",
         "variables_description": "これらのシステム変数をシステムプロンプトに挿入してください。アシスタントの各返答の前に、現在の情報で変数が埋められます。",
@@ -3517,6 +3668,10 @@
       "title": "リソースなし"
     },
     "export_assistant_failed": "アシスタントのエクスポートに失敗しました",
+    "group_picker": {
+      "no_groups": "まだグループがありません"
+    },
+    "group_sync_failed": "グループの同期に失敗しました",
     "import_dialog": {
       "clipboard": {
         "button": "解析してインポート",
@@ -3564,7 +3719,6 @@
     },
     "sidebar": {
       "all_resources": "すべてのリソース",
-      "all_tags": "すべてのタグ",
       "no_tags": "まだタグはありません",
       "subtitle": "AIリソースを管理する",
       "tags": "タグ",
@@ -3629,11 +3783,11 @@
     },
     "title": "図書館",
     "toolbar": {
-      "add_tag_placeholder": "タグ名...",
-      "all_tags": "すべてのタグ",
+      "add_group_placeholder": "グループ名...",
+      "all_groups": "すべてのグループ",
+      "group_button": "グループ",
       "new_resource": "新しいリソース",
-      "search_placeholder": "リソースを検索...",
-      "tag_button": "タグ"
+      "search_placeholder": "リソースを検索..."
     },
     "type": {
       "agent": "エージェント",
@@ -3701,7 +3855,9 @@
       }
     },
     "citation": "{{count}}個の引用内容",
+    "citation_source": "引用元 {{number}}",
     "citations": "引用内容",
+    "conversation_reset": "以前の会話履歴が見つかりませんでした — 新しい会話を続行します",
     "copied": "コピーしました！",
     "copy": {
       "failed": "コピーに失敗しました",
@@ -3713,6 +3869,8 @@
         "title": "削除確認"
       },
       "failed": "削除に失敗しました",
+      "first_turn_not_supported": "最初のユーザーメッセージは削除できません。",
+      "root_unavailable": "メッセージはまだ読み込み中で、まだ削除できません。",
       "success": "削除が成功しました"
     },
     "dialog": {
@@ -3856,18 +4014,6 @@
     "regenerate": {
       "confirm": "再生成すると現在のメッセージが置き換えられます"
     },
-    "reset": {
-      "confirm": {
-        "content": "すべてのデータをリセットしてもよろしいですか？"
-      },
-      "double": {
-        "confirm": {
-          "content": "すべてのデータが失われます。続行しますか？",
-          "title": "データが失われます！！！"
-        }
-      },
-      "success": "データリセット成功"
-    },
     "restore": {
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
@@ -3993,6 +4139,7 @@
         "write": "保存",
         "writing": "保存"
       },
+      "agent_background": "バックグラウンドで実行中",
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
@@ -4024,6 +4171,7 @@
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
         "webSearch": "ウェブ検索",
+        "workflow": "ワークフロー",
         "write": "書く"
       },
       "noData": "このツールに利用可能なデータはありません",
@@ -4081,6 +4229,15 @@
         "plan_other": "{{count}}件のプラン",
         "result_one": "{{count}}件の結果",
         "result_other": "{{count}}件の結果"
+      },
+      "workflow": {
+        "orchestrating": "ワークフローのオーケストレーション",
+        "run_id": "実行ID",
+        "script": "ワークフロースクリプト",
+        "script_path": "スクリプトパス",
+        "started": "ワークフローを開始しました",
+        "summary": "要約",
+        "workflow": "ワークフロー"
       }
     },
     "topic": {
@@ -4205,6 +4362,9 @@
       "selected": "選択済みのタグ"
     },
     "function_calling": "関数呼び出し",
+    "group": {
+      "ungrouped": "グループ化解除"
+    },
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
     "multi_select": {
@@ -4220,6 +4380,7 @@
     },
     "pinned": "固定済み",
     "price": {
+      "cache_read": "キャッシュ読み取り価格",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
@@ -4249,10 +4410,13 @@
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
+      "image": "画像",
       "reasoning": "推論",
       "rerank": "再順序付け",
       "select": "モデルタイプ",
+      "speech": "スピーチ",
       "text": "テキスト",
+      "transcription": "文字起こし",
       "video": "ビデオ",
       "vision": "画像",
       "websearch": "ウェブ検索"
@@ -4281,6 +4445,12 @@
     },
     "characters": "文字",
     "collapse": "閉じる",
+    "conflict": {
+      "description": "このノートはエディタ外で変更されました。最新バージョンを読み込むには再読み込みしてください（保存されていない編集内容は破棄されます）、または編集を続行してください。",
+      "keep_draft": "編集を続ける",
+      "reload": "再読み込み",
+      "title": "ディスク上でメモが変更されました"
+    },
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
     "create_folder_failed": "フォルダの作成に失敗しました",
@@ -4302,7 +4472,13 @@
     "export_to_pdf_failed": "PDFへのエクスポートに失敗しました",
     "export_to_pdf_success": "PDFにエクスポートされました",
     "export_to_word_failed": "Wordへのエクスポートに失敗しました",
+    "file_removed_draft": "このノートはディスクから削除されました。保存されていない下書きはエディター内でまだ利用可能です。",
     "folder": "フォルダー",
+    "leave": {
+      "description": "このメモを残すと、保存されていない編集内容が破棄されます。続行しますか？",
+      "discard_and_continue": "破棄して続行",
+      "title": "保存されていないメモの編集を破棄しますか？"
+    },
     "load_failed": "ノートの読み込みに失敗しました",
     "load_failed_description": "ファイルを読み取ることができませんでした。ノートの内容を保護するため、編集は無効になっています。",
     "metadata_sync_failed": "ファイルは更新されましたが、状態の同期に失敗しました。操作を再試行してください。",
@@ -4325,6 +4501,10 @@
     "save": "メモに保存する",
     "save_blocked_load_failed": "保存がブロックされました。ノートの読み込みに失敗しました。",
     "save_failed": "メモの保存に失敗しました",
+    "save_failure": {
+      "description": "このノートを保存できませんでした。編集内容はエディタに残っており、自動保存は一時停止されています。",
+      "metadata_pending": "メモは保存されましたが、ファイルのメタデータはまだ復旧中です。この保存を再試行しないでください。"
+    },
     "search": {
       "both": "名称+内容",
       "content": "内容",
@@ -4432,6 +4612,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意して続行",
+      "accept_policy": "プライバシーポリシーに同意する",
+      "notice": "以下を読み、同意します：",
+      "period": "",
+      "policy": "プライバシーポリシー",
+      "update_failed": "プライバシーポリシーへの同意を保存できませんでした。もう一度お試しください。"
+    },
+    "provider_setup": {
+      "missing_model": "有効化されたプロバイダーから少なくとも1つのモデルを有効にしてください",
+      "missing_provider": "プロバイダーを有効にして続行",
+      "next": "次へ",
+      "subtitle": "APIキーを追加するか、CherryINでサインインしてから、プロバイダーを有効化してください。",
+      "title": "プロバイダーを選択"
+    },
     "select_model": {
       "change_later": "いつでも設定で変更できます",
       "start": "始めましょう",
@@ -4440,6 +4635,7 @@
     },
     "skip": "スキップ",
     "toast": {
+      "complete_failed": "セットアップを完了できませんでした。もう一度お試しください。",
       "connected": "CherryINに正常に接続されました"
     },
     "welcome": {
@@ -4448,7 +4644,7 @@
       "other_provider": "他のプロバイダーを選択",
       "select_other_provider": "他のプロバイダーを選択",
       "setup_hint": "ベストな体験のために、少なくとも1つのプロバイダーを設定してください",
-      "subtitle": "CherryINでトップクラスのAIサービスをお楽しみください",
+      "subtitle": "プロバイダーに接続して、オールインワンAIワークステーションを始めましょう",
       "title": "Cherry Studioへようこそ"
     }
   },
@@ -4613,6 +4809,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
       "landscape": "横図",
@@ -4713,6 +4910,7 @@
     "inference_steps": "推論ステップ数",
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
     "input_image": "入力画像",
+    "input_image_limit_exceeded": "選択したモデルに対する参照画像が多すぎます。いくつかの画像を削除して、もう一度お試しください。",
     "input_parameters": "パラメータ入力",
     "invalid_image_url": "無効な画像URLの形式",
     "learn_more": "詳しくはこちら",
@@ -4737,6 +4935,7 @@
     "number_images": "生成数",
     "number_images_tip": "生成する画像の数（1-4）",
     "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
+    "output_compression": "出力圧縮",
     "paint_course": "チュートリアル",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
@@ -4763,6 +4962,8 @@
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
     "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "プロンプトを入力してください",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
@@ -4796,6 +4997,11 @@
     "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
+    "showcase": {
+      "caption": "テンプレートを選んで始め、下のプロンプトを自分好みに調整しましょう。",
+      "styles_label": "プロンプトテンプレート",
+      "title": "次の傑作は、ここから。"
+    },
     "style_options": {
       "anime": "アニメ",
       "auto": "自動",
@@ -4885,6 +5091,7 @@
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
     "installing": "インストール中...",
+    "manage_skills": "スキルを管理する",
     "name": "名称",
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
@@ -4938,6 +5145,16 @@
     "zoom_in": "拡大",
     "zoom_out": "縮小"
   },
+  "privacy_policy": {
+    "load_failed": "プライバシーポリシーを読み込めませんでした。",
+    "title": "プライバシーポリシー"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "お客様の承認を保存できませんでした。もう一度お試しください。",
+    "description_before_link": "プライバシーポリシーを更新しました。最新版をご確認ください。",
+    "policy": "プライバシーポリシー",
+    "title": "プライバシーポリシーが更新されました"
+  },
   "prompts": {
     "explanation": "この概念を説明してください",
     "summarize": "このテキストを要約してください",
@@ -4980,7 +5197,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "ローカルモデル",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
     "mineru": "MinerU",
@@ -5008,6 +5225,7 @@
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5061,6 +5279,7 @@
       "label": "データを復元しますか？"
     },
     "content": "復元操作は現在のアプリデータをバックアップデータで上書きします。復元処理には時間がかかる場合があります。",
+    "messages_paused": "バックアップの復元が進行中です。完了するまで、新しいメッセージは一時停止されています。",
     "progress": {
       "completed": "復元完了",
       "copying_files": "ファイルコピー中... {{progress}}%",
@@ -5508,6 +5727,7 @@
       "create_new": "新しいアシスタント",
       "empty_text": "まだアシスタントはいません",
       "filter": "フィルターアシスタント",
+      "group_filter": "グループでフィルター",
       "multi_hint": "（マルチモデルとは相互に排他的）",
       "multi_label": "マルチアシスタント並列",
       "search_placeholder": "検索アシスタント…"
@@ -5567,6 +5787,7 @@
         "button": "リリース",
         "title": "リリースノート"
       },
+      "repository": "GitHubリポジトリ",
       "social": {
         "title": "ソーシャルアカウント"
       },
@@ -5629,14 +5850,15 @@
         "select": "ディレクトリを変更",
         "select_error": "データディレクトリの変更に失敗しました",
         "select_error_in_app_path": "新しいパスはアプリのインストールパスと同じです。別のパスを選択してください",
+        "select_error_protected_path": "選択されたパスは、オペレーティングシステムまたはCherry Studioによって保護されています。別のフォルダを選択してください。",
         "select_error_root_path": "新しいパスはルートパスにできません",
         "select_error_same_path": "新しいパスは元のパスと同じです。別のパスを選択してください",
         "select_error_write_permission": "新しいパスに書き込み権限がありません",
         "select_not_empty_dir": "新しいパスは空ではありません",
-        "select_not_empty_dir_content": "新しいパスは空ではありません。新しいパスのデータが上書きされます。データが失われるリスクがあります。続行しますか？",
         "select_success": "データディレクトリが変更されました。変更を適用するためにアプリが再起動します",
         "select_title": "アプリデータディレクトリの変更",
-        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません"
+        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません",
+        "switch_existing_notice": "この空でないディレクトリはそのまま使用されます。既存のファイルは上書きされません。"
       },
       "app_logs": {
         "button": "ログを開く",
@@ -5644,8 +5866,7 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ",
-        "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
+        "skip_file_data_title": "精簡バックアップ"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",
@@ -5656,6 +5877,13 @@
       },
       "data": {
         "title": "データディレクトリ"
+      },
+      "data_reset": {
+        "button": "リセット",
+        "confirm_content": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
+        "confirm_title": "アプリデータをリセット",
+        "error": "データのリセットを開始できませんでした",
+        "title": "データをリセット"
       },
       "divider": {
         "basic": "基本データ設定",
@@ -6160,14 +6388,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "アップデートを確認",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "インストール",
       "installError": "Failed to install tool",
+      "installErrorHint": "インストールコマンドが失敗しました。トラブルシューティングのために、またはヘルプを求めるために以下のログをコピーしてください。",
+      "installSettings": {
+        "description": "バンドルされたCLIツールのインストール方法を微調整します。すべてのフィールドはオプションです — デフォルトを維持する場合は空のままにしてください。",
+        "githubMirror": {
+          "help": "GitHubダウンロードおよびGitHub API用のプロキシプレフィックス（例：https://ghfast.top）。直接アクセスする場合は空欄にしてください。",
+          "label": "GitHub ミラー",
+          "placeholder": "https://ghfast.top (直接接続の場合は空欄)"
+        },
+        "githubToken": {
+          "help": "ツール検索のGitHub APIレート制限を引き上げます。ローカルに平文で保存されます。CHERRY_GITHUB_TOKEN環境変数を使用する場合は空欄にしてください。",
+          "hide": "トークンを隠す",
+          "label": "GitHubトークン",
+          "placeholder": "ghp_…",
+          "show": "トークンを表示"
+        },
+        "invalidUrl": "有効なURLを入力してください（https://を含む）",
+        "npmRegistry": {
+          "help": "npm: tools のレジストリ。空にすると、中国本土のミラーを自動選択します。",
+          "label": "npm registry",
+          "placeholder": "自動（中国ミラー）空欄の場合"
+        },
+        "pipIndexUrl": {
+          "help": "pipxのインデックスURL: ツール。空白のままにすると、中国本土のミラーを自動選択します。",
+          "label": "pip index URL",
+          "placeholder": "空の場合は自動（中国ミラー）"
+        },
+        "presetLabels": {
+          "aliyun": "アリユン（中国）",
+          "default": "デフォルト（ミラーなし）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（公式）",
+          "npmmirror": "npmmirror（中国）",
+          "pypiOfficial": "PyPI（公式）",
+          "tsinghua": "清華（中国）"
+        },
+        "presets": "プリセット",
+        "title": "高度なインストール設定",
+        "verifySignatures": {
+          "help": "Sigstore/SLSAの署名をaqua管理ツールで検証します。ネットワークで検証が失敗する場合のみ無効化してください。サプライチェーンのチェックをスキップします。",
+          "label": "ツール署名を確認"
+        }
+      },
       "installing": "インストール中...",
+      "installingHint": "初回インストール時にランタイムをダウンロードする場合があり、数分かかることがあります",
       "invalidTool": "無効なツール名またはキー",
       "localModels": {
         "cancel": "キャンセル",
@@ -6199,10 +6468,19 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "「{{name}}」を安全に削除できませんでした。定義のみを削除するとカードは非表示になりますが、バックエンドファイルはインストールされたままになります。続行しますか？",
+      "removeDefinitionOnlyConfirmTitle": "定義のみを削除しますか？",
+      "removeDefinitionOnlyDependents": "インストール済みツールが依存しています: {{dependents}}。",
+      "removeError": "ツールの削除に失敗しました",
+      "removeErrorHint": "クリーンアップコマンドが失敗しました。トラブルシューティングのために、またはヘルプを求めるために以下のログをコピーしてください。",
+      "removeRuntimeConfirmMessage": "\"{{name}}\"を削除してもよろしいですか？このランタイムをアンインストールすると、それに依存するnpmまたはpipツールが動作しなくなる可能性があります。",
+      "runtimeDependency": "ランタイム",
+      "runtimeDependencyHint": "npm/pipツールのランタイム",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "システム"
       },
       "title": "環境依存",
       "tools": {
@@ -6221,10 +6499,18 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "アンインストール",
+      "uninstallConfirmMessage": "\"{{name}}\"をアンインストールしてもよろしいですか？Cherry Studioのバックエンドコピーが削除されます。",
+      "uninstallConfirmTitle": "アンインストールツール",
+      "uninstallFailed": "ツールのアンインストールに失敗しました",
+      "uninstallSuccess": "ツールをアンインストールしました",
       "update": "Update to latest version",
-      "updateCheckFailed": "アップデートの確認に失敗しました"
+      "updateCheckFailed": "アップデートの確認に失敗しました",
+      "updateCheckSuccess": "バージョンチェック完了",
+      "viewErrorDetails": "詳細を表示"
     },
     "developer": {
+      "client_id": "クライアントID",
       "enable_developer_mode": "開発者モードを有効にする",
       "help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
       "title": "開発者モード"
@@ -6235,8 +6521,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "cherrycss.comから取得",
           "label": "カスタムCSS",
+          "migration_notice": "このスタイルシートは v1 から移行されたため、現在は無効です。v2 向けに調整してから、最初の行を削除して有効にしてください。",
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }
       },
@@ -6332,10 +6618,6 @@
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
       "label": "一般設定",
-      "reset": {
-        "button": "リセット",
-        "title": "データをリセット"
-      },
       "restore": {
         "button": "復元"
       },
@@ -6365,7 +6647,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？",
+        "content_disable": "ハードウェアアクセラレーションを無効にするには、アプリの再起動が必要です。今すぐ再起動しますか？",
+        "content_enable": "ハードウェアアクセラレーションを有効にするには、アプリの再起動が必要です。今すぐ再起動しますか？",
         "title": "再起動が必要"
       },
       "title": "ハードウェアアクセラレーションを無効にする"
@@ -6411,16 +6694,15 @@
       "active": "有効",
       "addError": "サーバーの追加に失敗しました",
       "addServer": {
+        "advanced": "上級",
         "create": "クイック作成",
+        "createDescription": "サーバーを作成するための接続詳細を入力してください。それ以外の設定は後で調整できます。",
         "importFrom": {
           "connectionFailed": "接続に失敗しました",
           "dxt": "DXTパッケージをインポート",
           "dxtFile": "DXTパッケージファイル",
           "dxtHelp": "MCPサーバーパッケージを含む.dxtファイルを選択",
           "dxtProcessFailed": "DXTファイルの処理に失敗しました",
-          "error": {
-            "multipleServers": "複数のサーバーからインポートすることはできません"
-          },
           "invalid": "無効な入力です。JSON形式を確認してください。",
           "json": "JSONからインポート",
           "mcpb": "MCPBバンドルをインポート",
@@ -6491,7 +6773,12 @@
         "success": "MCPサーバーの取得に成功しました"
       },
       "filter": {
-        "label": "フィルター"
+        "allStatuses": "すべてのステータス",
+        "allTypes": "すべての種類",
+        "builtinOnly": "内蔵のみ",
+        "label": "フィルター",
+        "status": "ステータスでフィルター",
+        "type": "タイプでフィルター"
       },
       "findMore": "MCP を見つける",
       "headers": "ヘッダー",
@@ -6548,6 +6835,7 @@
         "usage": "使用法",
         "version": "バージョン"
       },
+      "pageDescription": "MCPサーバーを管理します。有効にすると、エージェントはそれらが提供するツールとリソースを呼び出すことができます。",
       "prompts": {
         "arguments": "引数",
         "availablePrompts": "利用可能なプロンプト",
@@ -6555,6 +6843,9 @@
         "loadError": "プロンプト取得エラー",
         "noPromptsAvailable": "利用可能なプロンプトはありません",
         "requiredField": "必須フィールド"
+      },
+      "protocolInstall": {
+        "title": "MCPをインストール"
       },
       "protocolInstallWarning": {
         "command": "起動コマンド",
@@ -6569,6 +6860,15 @@
       "providers": "プロバイダー",
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
+      "registryOptions": {
+        "custom": "カスタム",
+        "npmTaobao": "タオバオ NPM ミラー",
+        "pipAliyun": "アリババクラウド",
+        "pipHuawei": "ファーウェイクラウド",
+        "pipTencent": "テンセントクラウド",
+        "pipTsinghua": "清華",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
       "requiresConfig": "設定が必要",
       "resources": {
@@ -6744,6 +7044,7 @@
         "display": "ディスプレイ管理",
         "preferences": "設定"
       },
+      "hide_app": "{{name}}を非表示にする",
       "open_link_external": {
         "description": "有効にすると、ミニアプリ内で新しいウィンドウを開くリンクは既定のブラウザで開かれます",
         "title": "新視窗のリンクをブラウザで開く"
@@ -6756,6 +7057,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
+      "show_app": "{{name}}を表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
@@ -6764,6 +7066,9 @@
       "add": {
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
+        "capabilities": {
+          "label": "モデルの機能"
+        },
         "context_window": {
           "label": "コンテキストウィンドウ",
           "placeholder": "例: 128000"
@@ -6779,6 +7084,9 @@
           "label": "グループ名",
           "placeholder": "例：ChatGPT",
           "tooltip": "例：ChatGPT"
+        },
+        "input_modalities": {
+          "label": "入力モダリティ"
         },
         "max_input_tokens": {
           "label": "最大入力トークン",
@@ -6801,6 +7109,26 @@
           "label": "モデル名",
           "placeholder": "例：GPT-5.5",
           "tooltip": "例：GPT-4"
+        },
+        "model_type": {
+          "label": "モデルタイプ"
+        },
+        "purpose": {
+          "chat": {
+            "description": "プロバイダーのテキストAPIを使用する",
+            "label": "チャット"
+          },
+          "chat_protocol": "チャットプロトコル",
+          "description": "このモデルの使用方法を選択してください",
+          "image_edit": {
+            "description": "入力画像を受け取り、編集済み画像を返す",
+            "label": "画像編集"
+          },
+          "image_generation": {
+            "description": "プロンプトから画像を生成する",
+            "label": "画像生成"
+          },
+          "label": "モデルの目的"
         },
         "supported_text_delta": {
           "label": "インクリメンタルテキスト出力のサポート",
@@ -6859,7 +7187,8 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
-      "empty": "モデルが見つかりません",
+      "empty": "モデルを選択",
+      "empty_hint": "上記の「モデル一覧を取得」ボタンをクリックして、モデルを追加してください。",
       "enabled_models": "有効",
       "expand_all": "すべて展開",
       "filter": {
@@ -7176,6 +7505,7 @@
       },
       "balance": "バランス",
       "base_url": {
+        "invalid": "有効なHTTPまたはHTTPS URLを入力してください",
         "label": "ベースURL",
         "placeholder": "https://api.example.com",
         "required": "Base URLを入力してください"
@@ -7269,6 +7599,23 @@
         "toggle_headers_editor_list": "ヘッダーリストに切り替える"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "デフォルト",
+          "label": "エンドポイント設定",
+          "more": "その他のオプション",
+          "more_configured": "{{count}}件設定済み",
+          "set_default_chat": "デフォルトに設定",
+          "text_endpoint_required": "少なくとも1つのテキストエンドポイントを設定してください",
+          "url_help": "APIルートURLを入力して、最終的なリクエストパスをプレビューしてください"
+        },
+        "preset_instance": {
+          "description": "コーディングプランサービス、複数アカウント、またはプロジェクト分離の場合、各ベースURLとAPIキーを独立して設定してください。",
+          "empty": "一致するプロバイダープリセットがありません",
+          "placeholder": "プロバイダープリセットから作成…",
+          "search_placeholder": "検索プロバイダのプリセット",
+          "title": "プリセットから開始（オプション）"
+        },
+        "request_preview": "リクエストパス: {{path}}",
         "title": "カスタムプロバイダーを追加"
       },
       "delete": {
@@ -7307,6 +7654,16 @@
         "sign_in_failed": "サインインに失敗しました。もう一度お試しください。",
         "sign_in_success": "Grok CLIにサインインしました",
         "signing_in": "ブラウザを待機中…"
+      },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "/images/editsに使用します。デフォルトのチャットエンドポイントのBase URLを使用する場合は空白にしてください",
+          "label": "画像編集ベースURL"
+        },
+        "image_generation_base_url": {
+          "help": "/images/generations用; デフォルトのチャットエンドポイントのBase URLを使用する場合は空白にしてください",
+          "label": "画像生成ベースURL"
+        }
       },
       "logo_upload_failed": "選択した画像を処理できませんでした",
       "misc": "その他",
@@ -7357,8 +7714,12 @@
         "usage_title": "使用",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory を開く",
+          "description": "1 日 10 米ドル相当の API クレジットで、現在の料金ではモデルとトークン種別に応じて約 1,000 万～1 億 1,100 万の入力/出力トークンを利用できます。クレジットは毎日リセットされ、現在、追加チャージには対応していません。",
+          "title": "毎日 10 米ドル分の無料 API クレジット"
+        }
       },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
@@ -7435,6 +7796,7 @@
         "autoEmpty": "有効化された MCP サーバーはありません",
         "description": "現在のMCPサーバーのステータスを表示",
         "disabled": "このアシスタントではMCPは無効になっています",
+        "open_config": "MCPサーバーを構成する",
         "unknownServer": "不明な MCP サーバー"
       },
       "multiple": "複数選択",
@@ -7458,12 +7820,39 @@
       "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "scheduledTasks": {
+      "agentCreate": "エージェントで作成",
+      "allAgents": "すべてのエージェント",
+      "allStatuses": "すべてのステータス",
+      "clearFilters": "フィルターをクリア",
+      "createDescription": "エージェントが何をすべきか、そしていつ実行すべきかを設定します。",
+      "createTitle": "新規スケジュールタスク",
       "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
+      "editDescription": "エージェントが行うべきことと、いつ実行すべきかを更新します。",
+      "editTitle": "予定タスクを編集",
+      "filterAgent": "エージェントでフィルター",
+      "filterStatus": "ステータスで絞り込む",
+      "manualCreate": "手動で作成する",
+      "newTask": "新しい",
       "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
       "noAgentsTip": "ヒント: チャットでエージェントにスケジュールされたタスクを作成してもらうこともできます。",
+      "noAgentsTitle": "エージェントなし",
+      "noMatches": "別の検索条件やフィルターをお試しください。",
+      "noMatchesTitle": "一致するタスクがありません",
       "noTasks": "スケジュールされたタスクはありません。「＋追加」をクリックしてエージェント用のタスクを作成してください。",
+      "noTasksTitle": "予定されたタスクはありません",
+      "notFoundDescription": "このタスクは削除されたか、リンクが無効です。",
+      "notFoundTitle": "タスクが見つかりません",
+      "paginationLabel": "スケジュールされたタスクのページネーション",
+      "paginationStatus": "{{page}}/{{pageCount}}ページ · {{total}}件のタスク",
+      "search": "スケジュールされたタスクを検索",
+      "searchPlaceholder": "タスクまたはエージェントを検索",
       "selectTask": "タスクを選択して詳細を表示",
-      "title": "スケジュールされたタスク"
+      "title": "スケジュールされたタスク",
+      "validation": {
+        "agent": "エージェントを選択してください。",
+        "name": "タスク名を入力してください。",
+        "prompt": "タスクのプロンプトを入力してください。"
+      }
     },
     "shortcuts": {
       "action": "操作",
@@ -7552,6 +7941,7 @@
       "noInstalled": "スキルがインストールされていません",
       "noResults": "スキルが見つかりません",
       "noSkillFile": "SKILL.mdが見つかりません",
+      "pageDescription": "インストール済みのスキルを管理します。スキルはエージェントが実行できる機能を拡張し、必要に応じて呼び出されます。",
       "searchPlaceholder": "さらにスキルを見つける...",
       "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
       "searchTitle": "検索スキル",
@@ -7702,7 +8092,7 @@
           "save_failed": "保存に失敗しました",
           "zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。"
         },
-        "fetch_urls_provider": "デフォルトのURL取得プロバイダー",
+        "fetch_urls_provider": "URL取得プロバイダー",
         "free": "無料",
         "is_default": "デフォルト",
         "local_provider": {
@@ -7807,6 +8197,108 @@
       "show": "トレイアイコンを表示",
       "title": "トレイ"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "アクティブ日数",
+        "cacheHitRate": "キャッシュヒット率",
+        "cacheObservedTokens": "観測可能な入力: {{tokens}}",
+        "cacheStartsWithNewRequests": "新しいリクエストから始まります",
+        "dailyAverage": "日平均",
+        "explicitApiKey": "選択されたキー",
+        "lastPeriod": "前期対比",
+        "matchedApiKey": "一致したオーバーライド",
+        "none": "N/A",
+        "peakDay": "ピーク日",
+        "providerAuth": "プロバイダー認証",
+        "streak": "最長連続記録: {{days}} 日",
+        "topModel": "トップモデル",
+        "totalCost": "総費用",
+        "totalRequests": "リクエスト",
+        "totalTokens": "総トークン数",
+        "unattributedApiKey": "未帰属のリクエスト",
+        "unattributedSource": "出典不明"
+      },
+      "chart": {
+        "bar": "バー",
+        "line": "行",
+        "pie": "パイ",
+        "stack": "スタック"
+      },
+      "currency": "通貨",
+      "empty": {
+        "description": "サポートされているAIリクエストが使用レコードを作成すると、使用状況が表示されます。",
+        "title": "まだ使用されていません"
+      },
+      "explore": {
+        "analysis": "分析",
+        "chart": "チャート",
+        "clearDate": "日付フィルターをクリア",
+        "drilldownTitle": "{{date}} ドリルダウン",
+        "entries": "リクエスト",
+        "groupBy": "グループ化",
+        "loadMore": "もっと読み込む",
+        "loading": "読み込み中...",
+        "metric": "メトリック",
+        "noBreakdown": "故障データなし",
+        "noBreakdownDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
+        "noEntries": "エントリがありません",
+        "noEntriesDescription": "より広いウィンドウまたは別のプロバイダーをお試しください。",
+        "rollup": "ロールアップ",
+        "selectedDate": "選択された日付: {{date}}",
+        "shareLabel": "共有",
+        "title": "探索する",
+        "top": "トップ",
+        "totalEntries_one": "{{count}} エントリー",
+        "totalEntries_other": "{{count}} エントリー"
+      },
+      "groupBy": {
+        "apiKey": "APIキー",
+        "model": "モデル",
+        "provider": "プロバイダー",
+        "source": "アシスタント / エージェント"
+      },
+      "heatmap": {
+        "ariaDate": "{{date}}の使用状況",
+        "title": "日常活動"
+      },
+      "metric": {
+        "cost": "コスト",
+        "requests": "リクエスト",
+        "tokens": "トークン"
+      },
+      "overview": {
+        "title": "概要"
+      },
+      "rollup": {
+        "daily": "毎日",
+        "monthly": "月次",
+        "total": "合計",
+        "weekly": "週刊"
+      },
+      "summary": "{{window}} / {{tokens}} トークン / {{requests}} リクエスト",
+      "table": {
+        "cost": "コスト",
+        "date": "日付",
+        "model": "モデル",
+        "source": "ソース",
+        "tokens": "トークン",
+        "tps": "TPS",
+        "tpsValue": "{{value}} トークン/秒",
+        "ttft": "TTFT"
+      },
+      "title": "使用分析",
+      "tooltip": {
+        "cost": "コスト {{value}}",
+        "requests_one": "{{count}} 件のリクエスト",
+        "requests_other": "{{count}} 件のリクエスト",
+        "tokens": "{{value}}トークン"
+      },
+      "window": {
+        "30d": "過去30日間",
+        "365d": "去年",
+        "90d": "過去90日間"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "タイトルバーのスタイルを変更するには、アプリを再起動する必要があります。今すぐ再起動しますか？",
@@ -7837,7 +8329,7 @@
   "title": {
     "apps": "アプリ",
     "chat": "チャット",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",
@@ -7982,6 +8474,7 @@
         "placeholder": "翻訳履歴を検索"
       },
       "source": "ソース",
+      "star": "お気に入り",
       "success": {
         "add": "履歴に保存されました",
         "clear": "履歴はクリアされました",

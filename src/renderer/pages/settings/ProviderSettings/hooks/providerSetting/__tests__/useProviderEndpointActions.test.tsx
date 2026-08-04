@@ -57,6 +57,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
         patchProvider: patchProviderMock
       })
@@ -91,6 +92,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
         patchProvider: patchProviderMock
       })
@@ -114,6 +116,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
         patchProvider: patchProviderMock
       })
@@ -144,6 +147,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
         patchProvider: patchProviderMock
       })
@@ -182,6 +186,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: 'https://anthropic.example.com',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
         patchProvider: patchProviderMock
       })
@@ -207,6 +212,42 @@ describe('useProviderEndpointActions', () => {
     expect(setAnthropicApiHostMock).not.toHaveBeenCalled()
   })
 
+  it('resets the primary host to the registry default and persists it', async () => {
+    const editedProvider = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example.com' }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: editedProvider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://proxy.example.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.resetApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+      }
+    })
+  })
+
   it('shows specific Data API error messages instead of the generic save failure toast', async () => {
     patchProviderMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ apiVersion: ['Unsupported version'] }, 'Unsupported API version')
@@ -221,6 +262,7 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: 'bad-version',
         patchProvider: patchProviderMock
       })

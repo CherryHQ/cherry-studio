@@ -21,12 +21,22 @@ function isFlatUsage(usage: unknown): usage is FlatGatewayUsage {
   return typeof u.inputTokens !== 'object' || u.inputTokens === null
 }
 
-function normalizeUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
+export function normalizeGatewayUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
+  // `inputTokens` is the OpenAI-compatible prompt total, which already contains
+  // `cachedInputTokens`. Deriving the non-cached remainder keeps cost computation
+  // from pricing the cached part twice: it falls back to the total when
+  // `noCache` is missing and then adds the cache-read bucket on top.
+  const cachedInput = flat.cachedInputTokens
+  const noCache =
+    flat.inputTokens !== undefined && cachedInput !== undefined
+      ? Math.max(0, flat.inputTokens - cachedInput)
+      : undefined
+
   return {
     inputTokens: {
       total: flat.inputTokens,
-      noCache: undefined,
-      cacheRead: flat.cachedInputTokens,
+      noCache,
+      cacheRead: cachedInput,
       cacheWrite: undefined
     },
     outputTokens: {
@@ -39,13 +49,17 @@ function normalizeUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
 
 const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   specificationVersion: 'v3',
+  wrapGenerate: async ({ doGenerate }) => {
+    const result = await doGenerate()
+    return isFlatUsage(result.usage) ? { ...result, usage: normalizeGatewayUsage(result.usage) } : result
+  },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
     const normalized = stream.pipeThrough(
       new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish' && isFlatUsage(chunk.usage)) {
-            controller.enqueue({ ...chunk, usage: normalizeUsage(chunk.usage) })
+            controller.enqueue({ ...chunk, usage: normalizeGatewayUsage(chunk.usage) })
             return
           }
           controller.enqueue(chunk)
@@ -59,7 +73,10 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
 function createGatewayUsageNormalizePlugin() {
   return definePlugin({
     name: 'gateway-usage-normalize',
-    enforce: 'pre',
+    // Shape adapters belong directly against the provider. `post` makes this
+    // middleware innermost, so usage capture and the application both observe
+    // the normalized AI SDK v6 shape.
+    enforce: 'post',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
       context.middlewares.push(gatewayUsageNormalizeMiddleware)

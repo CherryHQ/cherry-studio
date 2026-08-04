@@ -5,6 +5,7 @@ import { Elysia } from 'elysia'
 import type { InputParamsMap } from '../adapters'
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
+import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { estimateGeminiRequestTokens } from '../tokens/estimateGeminiRequestTokens'
 import { GeminiGenerateContentBodySchema } from './schemas'
@@ -91,11 +92,18 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
         streaming: method === 'streamGenerateContent',
         inputFormat: 'gemini',
         outputFormat: 'gemini',
-        signal: request.signal
+        signal: request.signal,
+        requestHeaders: request.headers
       })
     },
     {
       body: GeminiGenerateContentBodySchema,
-      detail: { tags: ['Gemini'], summary: 'Generate content (Gemini dialect)' }
+      // `summary` is Gemini's own canonical method name; only `description` is
+      // localized, per request (see chat.ts).
+      detail: {
+        tags: [DOC_TAGS.gemini],
+        summary: 'generateContent',
+        description: DOC_DESCRIPTIONS.generate_content
+      }
     }
   )

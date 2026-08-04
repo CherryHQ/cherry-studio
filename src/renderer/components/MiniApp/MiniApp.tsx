@@ -182,7 +182,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
           className={cn(
             'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}
@@ -205,16 +205,16 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
                 className={cn(
                   'absolute rounded-full bg-background',
                   isLaunchpad
-                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--color-border-subtle)]'
+                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--border-subtle)]'
                     : '-right-0.5 -bottom-0.5 p-0.5'
                 )}>
-                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
+                <IndicatorLight color="var(--success)" size={6} animation={!isActive} />
               </div>
             )}
           </div>
           <div
             className={cn(
-              'w-full select-none text-center text-foreground-secondary',
+              'w-full select-none text-center text-muted-foreground',
               isLaunchpad
                 ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'

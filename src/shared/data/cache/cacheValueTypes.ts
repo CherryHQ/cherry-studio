@@ -1,8 +1,11 @@
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
+import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
@@ -136,7 +139,11 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
+export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
+export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
+export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.

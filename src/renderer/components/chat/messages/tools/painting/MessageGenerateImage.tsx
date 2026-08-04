@@ -56,7 +56,7 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
-  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-foreground-secondary leading-5">{children}</span>
+  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-muted-foreground leading-5">{children}</span>
 )
 
 export const MessageGenerateImageToolTitle = ({
@@ -101,11 +101,13 @@ export const MessageGenerateImageToolTitle = ({
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
       {isSingle ? (
         <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
+      ) : urls.length > 0 ? (
+        <ImageBlock images={urls} isSingle={false} />
       ) : (
         <div className="flex flex-wrap gap-2.5">
-          {urls.length === 0
-            ? items.map((item) => <ImageBlock key={item.id} images={[]} isPending isSingle={false} />)
-            : urls.map((src, index) => <ImageBlock key={index} images={[src]} isSingle={false} />)}
+          {items.map((item) => (
+            <ImageBlock key={item.id} images={[]} isPending isSingle={false} />
+          ))}
         </div>
       )}
     </div>

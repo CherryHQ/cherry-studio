@@ -1,6 +1,7 @@
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
 // ---------------------------------------------------------------------------
 // Form state
@@ -21,9 +22,8 @@ const UI_DEFAULT_MAX_TOOL_CALLS = 20
  * Flat form state for the Assistant edit dialog. Every editable field lives
  * here so the dialog commits in a single PATCH.
  *
- * `tagName` stores one user-facing name, not an id — tag-id resolution happens
- * at save time via `ensureTags`, keeping the form state independent from
- * backend tag ids.
+ * `groupId` stores the canonical assistant group reference. Names are resolved
+ * only for display by the selector.
  */
 export interface AssistantFormState {
   // columns
@@ -45,14 +45,19 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
+  // context management (P2-D assistant override). `contextOverrideEnabled`
+  // is the "自定义/customize" master switch: false → settings.contextSettings
+  // is written as null (inherit globals); true → the three fields below form
+  // the override object.
+  contextOverrideEnabled: boolean
+  contextCompressEnabled: boolean
+  contextTruncateThreshold: number
+  /** null = no explicit pick (follow the global / current model). */
+  contextCompressModelId: string | null
   // relations
-  tagName: string | null
+  groupId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
-}
-
-function normalizeAssistantTagName(tags: readonly string[]): string | null {
-  return tags[0] ?? null
 }
 
 function buildAssistantSettingsFromForm(
@@ -71,12 +76,22 @@ function buildAssistantSettingsFromForm(
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters,
-    mcpMode: form.mcpMode
+    mcpMode: form.mcpMode,
+    // null = clear the override (inherit globals). The `enabled` kill-switch
+    // is deliberately not written here — it stays a global/topic-layer concern.
+    contextSettings: form.contextOverrideEnabled
+      ? {
+          truncateThreshold: form.contextTruncateThreshold,
+          compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
+        }
+      : null
   }
 }
 
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
+  const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
+  const ctx = settings.contextSettings
   return {
     name: assistant.name,
     emoji: assistant.emoji,
@@ -93,8 +108,14 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
-    mcpMode: settings.mcpMode ?? 'auto',
-    tagName: normalizeAssistantTagName((assistant.tags ?? []).map((t) => t.name)),
+    mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    // null/absent contextSettings → override off; show the global defaults as
+    // placeholders (the section seeds live global values on toggle-on).
+    contextOverrideEnabled: ctx != null,
+    contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
+    contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
+    contextCompressModelId: ctx?.compress?.modelId ?? null,
+    groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
     mcpServerIds: assistant.mcpServerIds ?? []
   }
@@ -107,26 +128,20 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
 /**
  * Result of `diffAssistantUpdate`.
  *
- * `dto` is the PATCH body sans `tagIds` — tag resolution is a side
- * effect (`ensureTags` may POST new rows) so it stays at the page
- * level. `tagsChanged` + `tagNames` tell the page whether to call
- * `ensureTags` and what to resolve.
+ * `dto` is the complete PATCH body, including `groupId` when the assignment
+ * changes.
  */
 export interface AssistantDiffResult {
   dto: UpdateAssistantDto
-  tagsChanged: boolean
-  tagNames: string[]
 }
 
 export type AssistantSaveIntent = {
   kind: 'update'
   payload: UpdateAssistantDto
-  tagNames: string[]
-  tagsChanged: boolean
 }
 
 /**
- * Compute the minimal Assistant PATCH payload + side-effect hints.
+ * Compute the minimal Assistant PATCH payload.
  *
  * - Columns block: when ANY of name/emoji/description/modelId/prompt
  *   or any settings field differs, the dto carries all five column
@@ -134,8 +149,7 @@ export type AssistantSaveIntent = {
  *   (preserves unrelated settings keys the UI doesn't surface).
  * - Relation arrays (knowledgeBaseIds / mcpServerIds) ship only when
  *   their set differs — order-insensitive, matches junction semantics.
- * - Tags: NOT placed on the dto here; `tagsChanged` + `tagNames`
- *   let the page decide whether to `ensureTags` and attach `tagIds`.
+ * - Group: placed directly on the DTO as the canonical `groupId`.
  *
  * Returns `null` when nothing changed.
  */
@@ -162,13 +176,20 @@ export function diffAssistantUpdate(
     baseline.maxToolCalls !== form.maxToolCalls ||
     baseline.enableMaxToolCalls !== form.enableMaxToolCalls ||
     baseline.mcpMode !== form.mcpMode ||
+    baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
+    // Sub-fields only matter while the override is on, so an ON→OFF→ON round
+    // trip that lands back on the baseline values fires no spurious PATCH.
+    (form.contextOverrideEnabled &&
+      (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
+        baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
+        baseline.contextCompressModelId !== form.contextCompressModelId)) ||
     customParametersChanged
 
-  const tagsChanged = baseline.tagName !== form.tagName
+  const groupChanged = baseline.groupId !== form.groupId
   const knowledgeBaseIdsChanged = !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds)
   const mcpServerIdsChanged = !sameIdSet(baseline.mcpServerIds, form.mcpServerIds)
 
-  if (!columnsChanged && !tagsChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
+  if (!columnsChanged && !groupChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
     return null
   }
 
@@ -184,10 +205,11 @@ export function diffAssistantUpdate(
         }
       : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
-    ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {})
+    ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
+    ...(groupChanged ? { groupId: form.groupId } : {})
   }
 
-  return { dto, tagsChanged, tagNames: form.tagName ? [form.tagName] : [] }
+  return { dto }
 }
 
 export function diffAssistantSaveIntent(
@@ -200,9 +222,7 @@ export function diffAssistantSaveIntent(
 
   return {
     kind: 'update',
-    payload: diff.dto,
-    tagNames: diff.tagNames,
-    tagsChanged: diff.tagsChanged
+    payload: diff.dto
   }
 }
 

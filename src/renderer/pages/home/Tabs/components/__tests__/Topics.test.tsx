@@ -158,6 +158,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
+  moveTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
   updateTopic: vi.fn().mockResolvedValue(undefined)
 }))
@@ -234,6 +235,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
       deleteTopicsByAssistantId: topicDataMocks.deleteTopicsByAssistantId,
+      moveTopic: topicDataMocks.moveTopic,
       refreshTopics: topicDataMocks.refreshTopics
     })
   }
@@ -349,9 +351,10 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
         if (key === 'assistants.icon.type') return 'Assistant icon'
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
-        if (key === 'assistants.tags.group_by') return 'Group by tag'
-        if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
-        if (key === 'assistants.tags.untagged') return 'Untagged'
+        if (key === 'assistants.groups.group_by') return 'Show in groups'
+        if (key === 'assistants.groups.ungroup') return 'Stop grouping'
+        if (key === 'agent.toolPermission.pendingBadge') return 'Pending'
+        if (key === 'assistants.groups.ungrouped') return 'Ungrouped'
         if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
         if (key === 'settings.assistant.icon.type.model') return 'Model'
         if (key === 'settings.assistant.icon.type.none') return 'None'
@@ -387,16 +390,19 @@ vi.mock('react-i18next', () => ({
         if (key === 'tab.open_in_new_window') return 'Open in New Window'
         if (key === 'common.cancel') return 'Cancel'
         if (key === 'common.copy_failed') return 'Copy failed'
+        if (key === 'common.loading') return 'Loading...'
         if (key === 'common.name') return 'Name'
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
         if (key === 'common.select_all') return 'Select All'
+        if (key === 'message.tools.status.done') return 'Done'
+        if (key === 'message.tools.status.error') return 'Error'
+        if (key === 'message.tools.status.running') return 'Running'
         if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
         if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
         if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
         if (key === 'chat.topics.manage.move.success') return `Moved ${options?.count ?? 0} conversation(s)`
         if (key === 'chat.add.topic.title') return 'New Conversation'
-        if (key === 'chat.default.name') return 'Default Assistant'
         if (key === 'common.prompt') return 'Prompt'
         if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
         if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
@@ -528,7 +534,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
     name: 'Alpha Assistant',
     emoji: '🧪',
     orderKey: 'a',
-    tags: [{ id: 'tag-work', name: 'Work' }],
+    groupId: 'group-work',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
@@ -561,7 +567,7 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
   return {
     error: source.error,
     hasNext: source.hasNext,
-    isFullyLoaded: true,
+    isFullyLoaded: !source.isLoading && !source.hasNext,
     isLoading: source.isLoading,
     isLoadingAll: source.isLoading || source.hasNext,
     isRefreshing: source.isRefreshing,
@@ -663,8 +669,15 @@ const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
-function setTopicStreamCacheStatus(topicId: string, status: 'done' | 'pending' | 'streaming') {
-  cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
+function setTopicStreamCacheStatus(
+  topicId: string,
+  status: 'aborted' | 'awaiting-approval' | 'done' | 'error' | 'pending' | 'streaming',
+  hasAwaitingApprovalAnchor = false
+) {
+  cacheService.setShared(topicStreamStatusCacheKey(topicId), {
+    status,
+    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
+  } as never)
   cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
 
@@ -753,11 +766,38 @@ describe('Topics', () => {
                 name: 'Beta Assistant',
                 emoji: '✍️',
                 orderKey: 'b',
-                tags: [{ id: 'tag-home', name: 'Home' }]
+                groupId: 'group-home'
               })
             ],
             total: 2
           },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/groups') {
+        return {
+          data: [
+            {
+              id: 'group-work',
+              entityType: 'assistant',
+              name: 'Work',
+              orderKey: 'a',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            },
+            {
+              id: 'group-home',
+              entityType: 'assistant',
+              name: 'Home',
+              orderKey: 'b',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+          ],
           isLoading: false,
           isRefreshing: false,
           error: undefined,
@@ -980,17 +1020,6 @@ describe('Topics', () => {
 
     const emptyStateText = screen.getByText('No conversations')
 
-    expect(emptyStateText).toHaveClass(
-      'h-full',
-      'w-full',
-      'max-w-sm',
-      'px-5',
-      'py-10',
-      'text-center',
-      'text-xs',
-      'text-muted-foreground',
-      'break-words'
-    )
     expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
     expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(
@@ -1004,8 +1033,10 @@ describe('Topics', () => {
   it('uses the top header action to add an assistant in assistant display mode', () => {
     const onAddAssistant = vi.fn()
     const { onNewTopic } = renderTopicList({ onAddAssistant })
+    const addAssistantButton = screen.getByRole('button', { name: 'Add Assistant' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add Assistant' }))
+    expect(addAssistantButton).not.toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(addAssistantButton)
 
     expect(onAddAssistant).toHaveBeenCalledTimes(1)
     expect(onNewTopic).not.toHaveBeenCalled()
@@ -1029,7 +1060,7 @@ describe('Topics', () => {
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument()
   })
 
-  it('shows default assistant topics in right panel mode', () => {
+  it('shows assistant-less topics in right panel mode', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1850,10 +1881,10 @@ describe('Topics', () => {
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1-only' })
   })
 
-  it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
+  it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
@@ -1933,10 +1964,10 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    let indicator = indicatorRoot?.querySelector('.animation-pulse')
-    expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-(--color-warning)')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    expect(indicatorRoot).toHaveAccessibleName('Running')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
     setTopicStreamCacheStatus('topic-c', 'done')
@@ -1946,11 +1977,10 @@ describe('Topics', () => {
 
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    indicator = indicatorRoot?.querySelector('span')
-    expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-(--color-success)')
-    expect(indicator).not.toHaveClass('animation-pulse')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    expect(indicatorRoot).toHaveAccessibleName('Done')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
 
     fireEvent.click(topicRow)
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -1965,21 +1995,66 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
   })
 
-  it('positions inactive topic stream indicators at the far right in the classic layout and hides them on hover', () => {
-    setTopicStreamCacheStatus('topic-c', 'pending')
-    renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
-      assistantIdFilter: 'assistant-2',
-      presentation: 'right-panel'
-    })
+  it('keeps running and error indicators on the active topic but suppresses its completion dot', () => {
+    const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+
+    setTopicStreamCacheStatus('topic-a', 'pending')
+    let view = renderTopicList({ activeTopic })
+
+    let topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).toHaveAccessibleName('Running')
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'error'))
+    view.unmount()
+    view = renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    const errorIndicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(errorIndicator).toHaveAccessibleName('Error')
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'done'))
+    view.unmount()
+    renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
+    setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
+    renderTopicList()
 
     const topicRow = getTopicRow('Gamma topic')
-    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
 
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-(--color-warning)')
-    expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
+    expect(badge).toHaveTextContent('Pending')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows only the awaiting-approval badge when a live topic pauses for approval', () => {
+    setTopicStreamCacheStatus('topic-c', 'streaming', true)
+    renderTopicList()
+
+    const topicRow = getTopicRow('Gamma topic')
+
+    expect(within(topicRow).getByTestId('topic-awaiting-approval-badge')).toHaveTextContent('Pending')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('announces an errored topic stream and hides aborted streams', () => {
+    setTopicStreamCacheStatus('topic-c', 'error')
+    let view = renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(indicator).toHaveAccessibleName('Error')
+
+    setTopicStreamCacheStatus('topic-c', 'aborted')
+    view.unmount()
+    view = renderTopicList()
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {
@@ -2153,6 +2228,29 @@ describe('Topics', () => {
     ])
   })
 
+  it('collapses assistant groups across multiple group sections when any group is expanded', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+
+    renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      'topic:assistant:assistant-1',
+      'topic:assistant:assistant-2'
+    ])
+  })
+
   it('re-selects the active topic from an assistant group while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
@@ -2255,8 +2353,6 @@ describe('Topics', () => {
       'This week',
       'Earlier'
     ])
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     rerenderTopicList()
@@ -2277,14 +2373,12 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(getTopicGroupExpansionCache().time).toContain('topic:time:today')
     rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
@@ -2296,7 +2390,7 @@ describe('Topics', () => {
   it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
-    expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-topic')).toHaveAttribute('data-ui', 'chat.topic-list')
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
@@ -2364,7 +2458,7 @@ describe('Topics', () => {
     expect(getTopicGroupExpansionCache().time).toEqual(['topic:time:yesterday'])
   })
 
-  it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {
+  it('shows the first assistant topic page while the remaining pages load', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -2393,14 +2487,13 @@ describe('Topics', () => {
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
-    expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
-    expect(screen.queryByText('First page topic')).not.toBeInTheDocument()
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
-    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
-    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
-    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(screen.getByText('First page topic')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 
   it('reveals a history-selected topic hidden by show-more', async () => {
@@ -2437,7 +2530,6 @@ describe('Topics', () => {
     const revealedRow = screen.getByText('Topic 51').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
-    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
@@ -2451,9 +2543,7 @@ describe('Topics', () => {
 
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
-    expect(createButton).not.toHaveClass('border')
-    expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
-    expect(screen.getByRole('listbox')).toHaveClass('pt-0')
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
 
     fireEvent.click(createButton)
 
@@ -2477,7 +2567,9 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { onNewTopic } = renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+    const createButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(createButton)
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
   })
@@ -2616,30 +2708,25 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic } = renderTopicList()
+    const { onNewTopic, rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(
       screen
         .getByRole('button', { name: 'Alpha Assistant' })
-        .compareDocumentPosition(screen.getByRole('button', { name: 'Default Assistant' })) &
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Unlinked Assistant' })) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(
       screen
         .getByRole('button', { name: 'Beta Assistant' })
-        .compareDocumentPosition(screen.getByRole('button', { name: 'Default Assistant' })) &
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Unlinked Assistant' })) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(
-      screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('[data-resource-list-leading-slot="true"]')
-        ?.firstElementChild
-    ).toHaveClass('rounded-full')
     expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Unlinked Assistant' })).not.toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
       .find((button) => button.hasAttribute('aria-expanded'))
@@ -2647,14 +2734,13 @@ describe('Topics', () => {
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Default Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
-    expect(screen.getByRole('button', { name: 'Default Assistant' }).closest('div')).toHaveTextContent('😀')
+    const unlinkedAssistantHeader = screen.getByRole('button', { name: 'Unlinked Assistant' }).closest('div')
+    expect(unlinkedAssistantHeader?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
@@ -2668,20 +2754,50 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
-    for (const groupName of ['Pinned', 'Default Assistant'] as const) {
+    for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
       expect(header).toBeInTheDocument()
       expect(
         within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
       ).not.toBeInTheDocument()
     }
+
+    const defaultTopic = createRendererTopic({ id: 'topic-c', name: 'Default topic', assistantId: undefined })
+    rerenderTopicList(undefined, defaultTopic)
+    fireEvent.click(screen.getByRole('button', { name: 'Unlinked Assistant' }))
+    rerenderTopicList(undefined, defaultTopic)
+    expect(screen.getByText('Default topic').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+      'data-resource-list-group-header-icon-visible',
+      'true'
+    )
   })
 
-  it('keeps assistant tag sections when assistant topics move back to the left panel', () => {
+  it('keeps pinned assistants ahead of group order when assistant topics move back to the left panel', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant',
       'topic.tab.position': 'left'
+    })
+    const defaultUseQuery = mockUseQuery.getMockImplementation()
+    mockUseQuery.mockImplementation((path, options) => {
+      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      if (path === '/pins' && entityType === 'assistant') {
+        return {
+          data: [
+            createTopicPin({
+              id: 'pin-assistant-2',
+              entityId: 'assistant-2',
+              entityType: 'assistant'
+            })
+          ],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return defaultUseQuery!(path, options)
     })
 
     renderTopicList()
@@ -2695,28 +2811,32 @@ describe('Topics', () => {
     expect(homeSection).toBeInTheDocument()
     expect(alphaAssistant).toBeInTheDocument()
     expect(betaAssistant).toBeInTheDocument()
+    expect(homeSection!.compareDocumentPosition(workSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(workSection!.compareDocumentPosition(alphaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('uses the configured model icon for assistant topic groups', () => {
+  it('renders ungrouped assistants before named groups in group mode', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'assistant.icon_type': 'model',
-      'chat.default_model_id': 'provider-default::default-model',
+      'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant'
     })
-    mockUseQuery.mockImplementation((path) => {
+    const defaultUseQuery = mockUseQuery.getMockImplementation()
+    mockUseQuery.mockImplementation((path, options) => {
       if (path === '/assistants') {
         return {
           data: {
             items: [
+              createAssistant({ groupId: null }),
               createAssistant({
-                id: 'assistant-1',
-                modelId: 'provider-a::model-a',
-                modelName: 'Model A'
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                orderKey: 'b',
+                groupId: 'group-home'
               })
             ],
-            total: 1
+            total: 2
           },
           isLoading: false,
           isRefreshing: false,
@@ -2725,25 +2845,16 @@ describe('Topics', () => {
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
-
-      return {
-        data: undefined,
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        refetch: vi.fn().mockResolvedValue(undefined),
-        mutate: vi.fn().mockResolvedValue(undefined)
-      }
+      return defaultUseQuery!(path, options)
     })
 
     renderTopicList()
 
-    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    expect(assistantHeader).toBeInTheDocument()
-    expect(within(assistantHeader as HTMLElement).getByTestId('model-avatar')).toHaveAttribute(
-      'data-model-id',
-      'model-a'
-    )
+    const ungroupedSection = screen.getByRole('button', { name: 'Ungrouped' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    expect(ungroupedSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(ungroupedSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('moves assistant group actions into the more menu', async () => {
@@ -2795,7 +2906,6 @@ describe('Topics', () => {
     const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Delete all assistant conversations'
     })
-    expect(deleteAssistantChatsButton.querySelector('svg')).not.toHaveClass('text-destructive')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
       deletedCount: 2
@@ -2827,7 +2937,7 @@ describe('Topics', () => {
     )
 
     fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Group by tag' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Show in groups' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
     )
@@ -2847,7 +2957,6 @@ describe('Topics', () => {
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Delete Assistant'
     })
-    expect(deleteAssistantButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
 
     fireEvent.click(deleteAssistantButton)
 
@@ -3105,6 +3214,29 @@ describe('Topics', () => {
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects assistant section drops across different group ids in group mode', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
+  })
+
   it('shows a toast when assistant group reorder persistence fails', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockRejectedValue(new Error('order failed'))
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
@@ -3324,7 +3456,6 @@ describe('Topics', () => {
   })
 
   it('uses the drag rect fallback when dropping without a prior insertion line', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3345,15 +3476,17 @@ describe('Topics', () => {
         rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
     })
+    // Same-group drop: no assistant re-home, just the order anchor.
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-d', {
+        assistantId: undefined,
+        anchor: { before: 'topic-c' }
+      })
     )
-    expect(patchSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('keeps multi-topic same-group drops at the fallback insertion index', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -3396,13 +3529,15 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { before: 'topic-a' } })
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-c', {
+        assistantId: undefined,
+        anchor: { before: 'topic-a' }
+      })
     )
-    expect(patchSpy).toHaveBeenCalledTimes(1)
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('keeps assistant grouped topics stable during cross-group drag hover', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3420,13 +3555,12 @@ describe('Topics', () => {
       })
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
     expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
     expect(document.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
   })
 
   it('keeps assistant grouped topics stable during same-group drag hover', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3444,13 +3578,12 @@ describe('Topics', () => {
       })
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
     expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
     expect(document.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
   })
 
   it('persists same-group drops using the last insertion line position', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3482,13 +3615,15 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-d', {
+        assistantId: undefined,
+        anchor: { before: 'topic-c' }
+      })
     )
-    expect(patchSpy).toHaveBeenCalledTimes(1)
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('moves topics across assistant groups before ordering them at the target position', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3511,21 +3646,24 @@ describe('Topics', () => {
         rowTexts.findIndex((text) => text.includes('Alpha topic'))
       )
     })
+    // Cross-assistant drop: the re-home + order + cache-follow orchestration is delegated to
+    // `moveTopic` (covered in useTopic.test.ts) in a single call.
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-a', {
+        assistantId: 'assistant-2',
+        anchor: { after: 'topic-d' }
+      })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
-    expect(patchSpy).toHaveBeenCalledTimes(2)
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes topics after a cross-assistant move partially succeeds before ordering fails', async () => {
-    const patchSpy = vi
-      .spyOn(dataApiService, 'patch')
-      .mockResolvedValueOnce(undefined as never)
-      .mockRejectedValueOnce(new Error('order failed'))
+  it('rolls back the optimistic row order when a cross-assistant move fails', async () => {
+    topicDataMocks.moveTopic.mockRejectedValueOnce(new Error('order failed'))
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
+
+    const beforeDropRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
 
     dndMocks.onDragEnd?.({
       active: {
@@ -3536,14 +3674,14 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
     })
 
-    await vi.waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(2))
-    expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
-    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1))
+    // The failed move clears the optimistic overlay, snapping rows back to server order.
+    await vi.waitFor(() =>
+      expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeDropRows)
+    )
   })
 
   it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -3612,11 +3750,10 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
 
   it('allows unlinked assistant topics to move into known assistant groups', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -3650,13 +3787,14 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-e', { body: { assistantId: 'assistant-1' } })
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-e', {
+        assistantId: 'assistant-1',
+        anchor: { after: 'topic-a' }
+      })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
   })
 
   it('does not drop topics into pinned or unlinked assistant groups', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -3694,6 +3832,21 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-e'), id: 'item:topic-e' }
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
+  })
+
+  it('offers a retry entry point when a background refresh fails behind a served list', () => {
+    const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
+    Object.assign(assistantTopicsSource, { refreshError: new Error('refresh failed') })
+
+    renderTopicList({ assistantTopicsSource })
+
+    // The stale list stays on screen; the failure gets its own non-destructive strip.
+    expect(getTopicRow('Topic 1')).not.toBeNull()
+    const retryButton = screen.getByRole('button', { name: 'common.retry' })
+
+    fireEvent.click(retryButton)
+
+    expect(assistantTopicsSource.refetch).toHaveBeenCalled()
   })
 })

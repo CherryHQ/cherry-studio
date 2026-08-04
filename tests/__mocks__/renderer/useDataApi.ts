@@ -6,9 +6,16 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/paths'
-import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/types'
+import type {
+  ConcreteApiPaths,
+  DataApiDataChangeEffect,
+  GetMethodApiPaths,
+  PaginationResponse
+} from '@shared/data/api/types'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
+
+import { mockDataApiService } from './DataApiService'
 
 /**
  * Mock useDataApi hooks for testing
@@ -284,6 +291,34 @@ export const mockUseInfiniteFlatItems = vi.fn(
   }
 )
 
+// ---------------------------------------------------------------------------
+// useDataChange mock state
+//
+// Thin binding over the DataApiService mock's fan-out — the same layering as
+// production, where the hook delegates to dataApiService.onDataChanged (no
+// second fan-out implementation to drift). The mock has no React lifecycle:
+// the first registration of a listener identity wins (identical identities
+// dedupe, mirroring "re-renders do not resubscribe"; inline closures
+// accumulate — reset via resetMocks).
+// ---------------------------------------------------------------------------
+
+/** Listener identity → unsubscribe from the DataApiService mock's fan-out. */
+const hookRegistrations = new Map<(effects: DataApiDataChangeEffect[]) => void, () => void>()
+
+/**
+ * Mock useDataChange hook
+ * Matches actual signature: useDataChange(endpoints, listener) => void
+ */
+export const mockUseDataChange = vi.fn(
+  (
+    endpoints: GetMethodApiPaths | GetMethodApiPaths[],
+    listener: (effects: DataApiDataChangeEffect[]) => void
+  ): void => {
+    if (hookRegistrations.has(listener)) return
+    hookRegistrations.set(listener, mockDataApiService.onDataChanged(endpoints, listener))
+  }
+)
+
 /**
  * Mock useInvalidateCache hook
  * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
@@ -374,6 +409,7 @@ export const MockUseDataApi = {
   useInfiniteQuery: mockUseInfiniteQuery,
   useInfiniteFlatItems: mockUseInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
+  useDataChange: mockUseDataChange,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
@@ -393,11 +429,27 @@ export const MockUseDataApiUtils = {
     mockUseInfiniteQuery.mockClear()
     mockUseInfiniteFlatItems.mockClear()
     mockUsePaginatedQuery.mockClear()
+    mockUseDataChange.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
+    for (const unsubscribe of hookRegistrations.values()) {
+      unsubscribe()
+    }
+    hookRegistrations.clear()
+  },
+
+  /**
+   * Deliver a data change notification through the DataApiService mock's
+   * fan-out (production batch semantics: one merged callback per listener per
+   * notification; listener errors isolated). Reaches listeners registered via
+   * this module's `useDataChange` mock and via the service mock alike — one
+   * fan-out, as in production.
+   */
+  emitDataChange: (effects: DataApiDataChangeEffect[]) => {
+    mockDataApiService._emitDataChange(effects)
   },
 
   /**

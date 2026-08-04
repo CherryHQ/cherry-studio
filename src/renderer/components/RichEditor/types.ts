@@ -17,6 +17,8 @@ export interface RichEditorProps {
   onPaste?: (event: ClipboardEvent) => string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to show the table of contents component */
   showTableOfContents?: boolean
   /** Custom CSS class name */

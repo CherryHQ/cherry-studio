@@ -323,6 +323,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   return (
     <div
+      data-ui="notes.navigation"
       className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
       onDragOver={(e) => {
         e.preventDefault()
@@ -393,7 +394,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         {!isShowStarred && !isShowSearch && (
           <div
             className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
-            onClick={handleSelectFolder}>
+            onClick={handleSelectFiles}>
             <FilePlus size={14} className="shrink-0" />
             <span>{t('notes.drop_markdown_hint')}</span>
           </div>

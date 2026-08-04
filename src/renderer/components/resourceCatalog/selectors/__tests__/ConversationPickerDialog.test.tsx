@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -115,16 +116,27 @@ describe('ConversationPickerDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('filters by name and search text', () => {
+  it('keeps search focus through reverse navigation and filters from immediate typing', async () => {
+    const user = userEvent.setup()
+
     render(<ConversationPickerDialog open onOpenChange={vi.fn()} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'roadmap' } })
+    const searchInput = screen.getByPlaceholderText('Search resources')
+    await waitFor(() => expect(searchInput).toHaveFocus())
 
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+    await user.tab()
+    expect(searchInput).toHaveFocus()
+
+    await user.keyboard('roadmap')
+
+    expect(searchInput).toHaveValue('roadmap')
     expect(screen.getByText('Product Manager')).toBeInTheDocument()
     expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
     expect(screen.queryByText('Build Agent')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'alpha' } })
+    fireEvent.change(searchInput, { target: { value: 'alpha' } })
 
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Product Manager')).not.toBeInTheDocument()

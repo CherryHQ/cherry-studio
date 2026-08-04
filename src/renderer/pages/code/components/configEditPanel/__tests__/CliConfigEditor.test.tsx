@@ -16,14 +16,11 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   CodeEditor: ({ value }: { value: string }) => <textarea readOnly value={value} />,
-  Divider: () => <div />,
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  Tooltip: ({ children, content }: { children: ReactNode; content: string }) => (
-    <div data-tooltip={content}>{children}</div>
-  )
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -45,22 +42,9 @@ const files: CliConfigFileDraft[] = [
 ]
 
 describe('CliConfigEditor', () => {
-  it('renders the CLI config file title and path without description text', () => {
+  it('gives the icon-only format action an accessible name', () => {
     render(<CliConfigEditor files={files} onChange={vi.fn()} />)
 
-    expect(screen.getByText('code.cli_config.title')).toHaveClass('text-xs')
-    expect(screen.getByText('/tmp/settings.json')).toBeInTheDocument()
-    expect(screen.queryByText('code.cli_config.hint')).not.toBeInTheDocument()
-  })
-
-  it('renders the format action as an icon-only tooltip button', () => {
-    render(<CliConfigEditor files={files} onChange={vi.fn()} />)
-
-    const formatButton = screen.getByLabelText('code.format_json')
-
-    expect(formatButton).toBeInTheDocument()
-    expect(formatButton.textContent).toBe('')
-    expect(formatButton.parentElement).toHaveAttribute('data-tooltip', 'code.format_json')
-    expect(screen.queryByText('code.format_json')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'code.format_json' })).toBeInTheDocument()
   })
 })

@@ -12,8 +12,24 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
+    },
+    'openai-responses': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/v1'
+    },
+    'google-generate-content': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/gemini/v1beta'
     }
   },
+  // AiHubMix serves the vendors' native endpoints, so its language models carry
+  // `aihubmix.<vendor>` provider strings and resolveToolCapability's aggregator fallback finds the
+  // real vendor factory. `vendors` keeps the openai-compatible passthrough line (grok, deepseek,
+  // qwen …) out — those resolve to `aihubmix.chat`, which owns no tool factory.
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] },
+    { id: 'url-context', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini'] }
+  ],
   metadata: {
     website: {
       apiKey: 'https://aihubmix.com',

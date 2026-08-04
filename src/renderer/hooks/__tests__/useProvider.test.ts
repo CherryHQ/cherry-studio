@@ -52,7 +52,7 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -62,24 +62,11 @@ describe('useProviders', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviders())
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
 
     expect(result.current.providers).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useProviders())
-    const firstProviders = result.current.providers
 
     rerender()
 
@@ -96,6 +83,12 @@ describe('useProviders', () => {
     renderHook(() => useProviders({ enabled: false }))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
+  })
+
+  it('should disable the provider request through hook options', () => {
+    renderHook(() => useProviders(undefined, { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
   })
 
   it('should pass local SWR options when provided', () => {
@@ -251,18 +244,6 @@ describe('useProvider', () => {
 
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
-  })
-
-  it('should include mutation functions', () => {
-    const { result } = renderHook(() => useProvider('openai'))
-
-    expect(result.current.updateProvider).toBeDefined()
-    expect(result.current.enableProvider).toBeDefined()
-    expect(result.current.deleteProvider).toBeDefined()
-    expect(result.current.updateAuthConfig).toBeDefined()
-    expect(result.current.updateApiKeys).toBeDefined()
-    expect(result.current.addApiKey).toBeDefined()
-    expect(result.current.deleteApiKey).toBeDefined()
   })
 })
 

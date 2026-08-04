@@ -52,7 +52,9 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { value?: string }) =>
+      key === 'chat.message.token_details.tokens' ? `${options?.value} Tokens` : key,
+    i18n: { resolvedLanguage: 'en-US' }
   })
 }))
 
@@ -75,8 +77,8 @@ const assistantMessage = {
   createdAt: '2026-01-01T00:00:00.000Z',
   status: 'success',
   stats: {
-    promptTokens: 10,
-    completionTokens: 32,
+    inputTokens: 10,
+    outputTokens: 32,
     totalTokens: 42
   }
 } as MessageListItem
@@ -131,7 +133,6 @@ describe('MessageMenuBar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
@@ -140,13 +141,13 @@ describe('MessageMenuBar', () => {
     )
 
     expect(container.querySelector('.message-tokens')).toBeNull()
+    expect(container.querySelector('[data-ui~="part:message-actions"]')).not.toBeNull()
   })
 
   it('shows assistant token usage in the bubble footer toolbar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
@@ -155,6 +156,6 @@ describe('MessageMenuBar', () => {
       { showEstimatedTokens: true }
     )
 
-    expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:0.0K')
+    expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')
   })
 })

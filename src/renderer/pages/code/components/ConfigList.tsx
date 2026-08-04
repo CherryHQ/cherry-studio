@@ -70,7 +70,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (displayedProviders.length === 0) {
-    return <div className="py-8 text-center text-muted-foreground/50 text-xs">{t('code.no_matching_providers')}</div>
+    return <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_matching_providers')}</div>
   }
 
   return (

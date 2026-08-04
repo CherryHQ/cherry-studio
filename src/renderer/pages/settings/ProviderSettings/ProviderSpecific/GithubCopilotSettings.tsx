@@ -238,12 +238,12 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       case AuthStatus.AUTHENTICATED:
         return (
           <div className="mb-5">
-            <div className="flex gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
+            <div className="flex gap-3 rounded-lg border border-success-border bg-success-subtle p-3 text-success-subtle-foreground">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
               <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   {avatar ? <img src={avatar} alt="" className="size-5 shrink-0 rounded-full" loading="lazy" /> : null}
-                  <span className="truncate text-foreground text-sm">
+                  <span className="truncate text-sm">
                     {username || t('settings.provider.copilot.auth_success_title')}
                   </span>
                 </div>
@@ -263,8 +263,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                 <div key={idx} className="flex gap-2">
                   <span className={stepDotClass(step.status)} />
                   <div className="min-w-0">
-                    <div className="font-medium text-foreground text-sm leading-tight">{step.title}</div>
-                    <div className="mt-1 text-foreground-muted text-xs leading-snug">{step.description}</div>
+                    <div className="text-foreground text-sm leading-tight">{step.title}</div>
+                    <div className="mt-1 text-muted-foreground text-xs leading-snug">{step.description}</div>
                   </div>
                 </div>
               ))}
@@ -272,7 +272,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
             <div className="flex min-w-0 flex-2 flex-col gap-4">
               {currentStep >= 1 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span
                       className={cn(
@@ -282,10 +282,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       2
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_copy_code')}
-                      </div>
-                      <div className="mt-0.5 text-foreground-muted text-xs">
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_copy_code')}</div>
+                      <div className="mt-0.5 text-foreground-tertiary text-xs">
                         {t('settings.provider.copilot.step_copy_code_detail')}
                       </div>
                     </div>
@@ -301,16 +299,14 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               )}
 
               {currentStep >= 1 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
                       3
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_authorize')}
-                      </div>
-                      <div className="mt-0.5 text-foreground-muted text-xs">
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_authorize')}</div>
+                      <div className="mt-0.5 text-foreground-tertiary text-xs">
                         {t('settings.provider.copilot.step_authorize_detail')}
                       </div>
                     </div>
@@ -319,22 +315,20 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     {t('settings.provider.copilot.open_verification_page')}
                   </Button>
                   {verificationUri ? (
-                    <p className="ml-1 break-all text-foreground-muted text-xs">{verificationUri}</p>
+                    <p className="ml-1 break-all text-foreground-tertiary text-xs">{verificationUri}</p>
                   ) : null}
                 </div>
               )}
 
               {currentStep >= 2 && (
-                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
+                <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
                       4
                     </span>
                     <div>
-                      <div className="font-medium text-foreground text-sm">
-                        {t('settings.provider.copilot.step_connect')}
-                      </div>
-                      <div className="mt-0.5 text-foreground-muted text-xs">
+                      <div className="text-foreground text-sm">{t('settings.provider.copilot.step_connect')}</div>
+                      <div className="mt-0.5 text-foreground-tertiary text-xs">
                         {t('settings.provider.copilot.step_connect_detail')}
                       </div>
                     </div>
@@ -354,13 +348,11 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       default:
         return (
           <div className="mb-5">
-            <div className="flex gap-3 rounded-lg border border-info/40 bg-info/10 p-3">
+            <div className="flex gap-3 rounded-lg border border-info-border bg-info-subtle p-3 text-info-subtle-foreground">
               <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-foreground text-sm">{t('settings.provider.copilot.description')}</div>
-                <div className="mt-1 text-foreground-muted text-xs">
-                  {t('settings.provider.copilot.description_detail')}
-                </div>
+                <div className="text-sm">{t('settings.provider.copilot.description')}</div>
+                <div className="mt-1 text-xs">{t('settings.provider.copilot.description_detail')}</div>
               </div>
               <Button className="shrink-0 self-center" disabled={loading} onClick={handleGetDeviceCode}>
                 {t('settings.provider.copilot.start_auth')}

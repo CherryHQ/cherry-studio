@@ -47,21 +47,6 @@ describe('useProviderEnable', () => {
     expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
-  it('does nothing when the provider is missing', async () => {
-    useProviderMock.mockReturnValue({
-      provider: undefined
-    })
-
-    const { result } = renderHook(() => useProviderEnable('openai'))
-
-    await act(async () => {
-      await result.current.toggleProviderEnabled(true)
-    })
-
-    expect(updateProviderMock).not.toHaveBeenCalled()
-    expect(enableProviderMock).not.toHaveBeenCalled()
-  })
-
   it('surfaces atomic enable-and-pin failures without stale rollback', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false }

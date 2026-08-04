@@ -1,3 +1,4 @@
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it, vi } from 'vitest'
 
 import { collectFromFeatures } from '../collectFromFeatures'
@@ -13,11 +14,15 @@ function makeScope(): RequestScope {
     model: { id: 'm1' } as never,
     provider: { id: 'p1' } as never,
     capabilities: undefined,
-    sdkConfig: { providerId: 'p1' as never, providerSettings: {} as never, modelId: 'm1' },
+    sdkConfig: { providerId: 'p1' as never, providerOptionsKey: 'p1', providerSettings: {} as never, modelId: 'm1' },
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible' as never,
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
-    mcpToolIds: new Set()
+    mcpToolIds: new Set(),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 

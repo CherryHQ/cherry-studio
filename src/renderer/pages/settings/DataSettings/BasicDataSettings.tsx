@@ -10,7 +10,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -22,8 +21,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
-import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestorePopup from './RestorePopup'
+
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -115,7 +116,7 @@ const BasicDataSettings: React.FC = () => {
     )
 
     const confirmed = await popup.confirm({
-      title: <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>,
+      title: <div style={{ fontSize: '18px', fontWeight: 600 }}>{t('settings.data.app_data.migration_title')}</div>,
       className: 'migration-modal',
       width: 'min(600px, 90vw)',
       style: { minHeight: '400px' },
@@ -124,8 +125,8 @@ const BasicDataSettings: React.FC = () => {
           <PathsContent />
           <CopyDataContent />
           <MigrationNotice>
-            <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
+            <p style={{ color: 'var(--warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
+            <p style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR, marginTop: '8px' }}>
               {targetNotEmpty
                 ? t('settings.data.app_data.switch_existing_notice')
                 : t('settings.data.app_data.copy_time_notice')}
@@ -191,8 +192,24 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setSkipBackupFile(value)
+  const handleDataReset = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.data_reset.confirm_title'),
+      content: t('settings.data.data_reset.confirm_content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      }
+    })
+    if (!confirmed) return
+
+    try {
+      await ipcApi.request('app.data_reset.request')
+    } catch (error) {
+      toast.error(t('settings.data.data_reset.error'))
+    }
   }
 
   return (
@@ -200,29 +217,27 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
-                <FolderOpen size={14} />
-                {t('settings.general.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupPopup.show()} variant="outline">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <Button onClick={() => RestorePopup.show()} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.general.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
@@ -231,7 +246,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.appDataPath)}>
               {appInfo?.appDataPath}
             </PathText>
@@ -250,7 +265,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
@@ -275,10 +290,10 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
+            <Button onClick={handleDataReset} variant="destructive">
+              {t('settings.data.data_reset.button')}
             </Button>
           </RowFlex>
         </SettingRow>
@@ -302,7 +317,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
     {...props}
   />
 )
@@ -337,7 +352,7 @@ const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithout
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
       className
     )}
     {...props}

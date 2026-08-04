@@ -1,19 +1,8 @@
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
 import { diffAssistantSaveIntent, diffAssistantUpdate, initialAssistantFormState } from '../assistantForm'
-
-function tag(id: string, name: string, color = '#888'): Tag {
-  return {
-    id,
-    name,
-    color,
-    createdAt: '2026-04-20T00:00:00.000Z',
-    updatedAt: '2026-04-20T00:00:00.000Z'
-  }
-}
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
@@ -24,12 +13,12 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     description: '',
     settings: { ...DEFAULT_ASSISTANT_SETTINGS } as AssistantSettings,
     modelId: null,
+    groupId: null,
     orderKey: 'a0',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   }
@@ -69,9 +58,21 @@ describe('initialAssistantFormState', () => {
     })
   })
 
-  it('extracts a single tag name from embedded tag rows', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
-    expect(initialAssistantFormState(assistant).tagName).toBe('alpha')
+  it('copies the canonical group id', () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
+    const assistant = createAssistant({ groupId })
+    expect(initialAssistantFormState(assistant).groupId).toBe(groupId)
+  })
+
+  it.each([true, 'legacy-mode'])('normalizes an invalid runtime MCP mode (%s) to the default', (mcpMode) => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        mcpMode
+      } as unknown as AssistantSettings
+    })
+
+    expect(initialAssistantFormState(assistant).mcpMode).toBe(DEFAULT_ASSISTANT_SETTINGS.mcpMode)
   })
 })
 
@@ -100,7 +101,22 @@ describe('diffAssistantUpdate', () => {
         mcpMode: baseline.mcpMode
       })
     })
-    expect(result!.tagsChanged).toBe(false)
+    expect(result!.dto.groupId).toBeUndefined()
+  })
+
+  it('emits a valid MCP mode when editing an unrelated field on a legacy assistant', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        mcpMode: true
+      } as unknown as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, description: 'edited' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto.settings?.mcpMode).toBe(DEFAULT_ASSISTANT_SETTINGS.mcpMode)
   })
 
   it('falls back to the server name when the form name is blank', () => {
@@ -128,24 +144,24 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.settings).toMatchObject({ reasoning_effort: 'high' })
   })
 
-  it('flags tag changes and passes one form tag through as tagNames', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00')] })
+  it('writes group changes directly into the DTO', () => {
+    const originalGroupId = '11111111-1111-4111-8111-111111111111'
+    const nextGroupId = '22222222-2222-4222-8222-222222222222'
+    const assistant = createAssistant({ groupId: originalGroupId })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: 'new' }
+    const form = { ...baseline, groupId: nextGroupId }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual(['new'])
+    expect(result?.dto.groupId).toBe(nextGroupId)
   })
 
-  it('flags clearing the assistant tag', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
+  it('writes null when clearing the assistant group', () => {
+    const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: null }
+    const form = { ...baseline, groupId: null }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual([])
+    expect(result?.dto.groupId).toBeNull()
   })
 
   it('emits knowledgeBaseIds only when the set changes, ignoring order', () => {
@@ -185,17 +201,81 @@ describe('diffAssistantUpdate', () => {
   })
 })
 
+describe('context-management override (P2-D)', () => {
+  it('seeds the override-off state when no contextSettings are stored', () => {
+    const form = initialAssistantFormState(createAssistant())
+    expect(form.contextOverrideEnabled).toBe(false)
+    expect(form.contextCompressModelId).toBeNull()
+  })
+
+  it('seeds the override-on state from a stored contextSettings object', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000, compress: { enabled: false, modelId: 'openai::c' } }
+      } as AssistantSettings
+    })
+    const form = initialAssistantFormState(assistant)
+    expect(form.contextOverrideEnabled).toBe(true)
+    expect(form.contextTruncateThreshold).toBe(4000)
+    expect(form.contextCompressEnabled).toBe(false)
+    expect(form.contextCompressModelId).toBe('openai::c')
+  })
+
+  it('treats a null contextSettings as override-off (inherit)', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: null } as AssistantSettings
+    })
+    expect(initialAssistantFormState(assistant).contextOverrideEnabled).toBe(false)
+  })
+
+  it('writes contextSettings: null when the override is turned off', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000 }
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextOverrideEnabled: false }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toBeNull()
+  })
+
+  it('builds the override object when the switch is on', () => {
+    const baseline = initialAssistantFormState(createAssistant())
+    const form = {
+      ...baseline,
+      contextOverrideEnabled: true,
+      contextCompressEnabled: false,
+      contextTruncateThreshold: 8000,
+      contextCompressModelId: 'anthropic::c'
+    }
+
+    const result = diffAssistantUpdate(form, baseline, createAssistant())
+    expect(result?.dto.settings?.contextSettings).toEqual({
+      truncateThreshold: 8000,
+      compress: { enabled: false, modelId: 'anthropic::c' }
+    })
+  })
+
+  it('does not PATCH when sub-fields change while the override is off', () => {
+    const baseline = initialAssistantFormState(createAssistant())
+    const form = { ...baseline, contextTruncateThreshold: 999 }
+    expect(diffAssistantUpdate(form, baseline, createAssistant())).toBeNull()
+  })
+})
+
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha')] })
+    const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: 'beta' }
+    const form = { ...baseline, groupId: '22222222-2222-4222-8222-222222222222' }
 
     expect(diffAssistantSaveIntent(form, baseline, assistant)).toEqual({
       kind: 'update',
-      payload: {},
-      tagNames: ['beta'],
-      tagsChanged: true
+      payload: { groupId: '22222222-2222-4222-8222-222222222222' }
     })
   })
 })

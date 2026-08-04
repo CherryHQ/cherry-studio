@@ -17,43 +17,6 @@
   animation: animation-pulse 1.5s infinite;
 }
 
-/* Modal动画 */
-@keyframes animation-move-down-in {
-  0% {
-    transform: translate3d(0, 100%, 0);
-    transform-origin: 0 0;
-    opacity: 0;
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-    transform-origin: 0 0;
-    opacity: 1;
-  }
-}
-@keyframes animation-move-down-out {
-  0% {
-    transform: translate3d(0, 0, 0);
-    transform-origin: 0 0;
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(0, 100%, 0);
-    transform-origin: 0 0;
-    opacity: 0;
-  }
-}
-.animation-move-down-enter,
-.animation-move-down-appear {
-  animation-name: animation-move-down-in;
-  animation-fill-mode: both;
-  animation-duration: 0.25s;
-}
-.animation-move-down-leave {
-  animation-name: animation-move-down-out;
-  animation-fill-mode: both;
-  animation-duration: 0.25s;
-}
-
 /* 旋转动画 */
 @keyframes animation-rotate {
   from {
@@ -75,10 +38,10 @@
     background-color: transparent;
   }
   10% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
   70% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
   100% {
     background-color: transparent;
@@ -115,54 +78,6 @@
   animation: animation-provider-model-pull-guide 1.2s ease-in-out both;
 }
 
-@keyframes animation-chat-message-enter-inline {
-  from {
-    transform: translate3d(-6px, 14px, 0) scale(0.97);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-inline {
-  transform-origin: left top;
-  animation: animation-chat-message-enter-inline 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes animation-chat-message-enter-bubble {
-  from {
-    transform: translate3d(14px, 18px, 0) scale(0.93);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-bubble {
-  transform-origin: right bottom;
-  animation: animation-chat-message-enter-bubble 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes animation-chat-message-enter-assistant {
-  from {
-    transform: translate3d(0, 8px, 0);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-assistant {
-  transform-origin: left top;
-  animation: animation-chat-message-enter-assistant 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 @keyframes animation-chat-composer-dock-down {
   from {
     transform: translate3d(0, -18px, 0) scale(0.985);
@@ -180,9 +95,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animation-chat-message-enter-inline,
-  .animation-chat-message-enter-bubble,
-  .animation-chat-message-enter-assistant,
   .animation-chat-composer-dock-down {
     transform: none;
     animation: none;
@@ -208,7 +120,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 62%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 62%, transparent);
   content: '';
   pointer-events: none;
   animation: animation-resource-list-reveal-focus 1s ease-out both;
@@ -315,9 +227,14 @@
 }
 
 .animation-shimmer {
-  --color-shimmer-mid: var(--color-foreground);
-  --color-shimmer-end: color-mix(in srgb, var(--color-foreground) 25%, transparent);
-  background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+  --animation-shimmer-mid: var(--foreground);
+  --animation-shimmer-end: color-mix(in srgb, var(--foreground) 25%, transparent);
+  background: linear-gradient(
+    to left,
+    var(--animation-shimmer-end),
+    var(--animation-shimmer-mid),
+    var(--animation-shimmer-end)
+  );
   background-size: 200% 100%;
   background-clip: text;
   -webkit-background-clip: text;
@@ -340,33 +257,6 @@
   display: block;
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
-}
-
-@keyframes animation-animated-reveal-text {
-  0% {
-    clip-path: inset(0 100% 0 0);
-  }
-  99% {
-    clip-path: inset(0 0 0 0);
-  }
-  100% {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-.animated-reveal-text {
-  color: color-mix(in srgb, var(--color-foreground-muted) 45%, var(--color-foreground));
-  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-foreground-muted) 10%, transparent));
-  clip-path: inset(0 100% 0 0);
-  animation: animation-animated-reveal-text 0.9s ease-out 0.12s both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animated-reveal-text {
-    filter: none;
-    clip-path: inset(0 0 0 0);
-    animation: none;
-  }
 }
 
 @keyframes animation-migration-confetti-burst {
