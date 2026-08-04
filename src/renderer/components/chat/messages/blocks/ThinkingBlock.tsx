@@ -1,24 +1,19 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
+import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScanState } from './thinkingPreview'
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 // This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
 const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
-const CJK_SENTENCE_ENDINGS = '。！？'
-const ASCII_SENTENCE_ENDINGS = '.!?'
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
-
-function normalizeThinkingPreview(content: string): string {
-  return content.replace(/\s+/g, ' ').trim()
-}
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -26,32 +21,6 @@ function getThinkingPreviewKey(preview: string): string {
 
 function shouldBypassThinkingPreviewStabilization(currentPreview: string): boolean {
   return !currentPreview
-}
-
-function getLatestCompletedThinkingPreview(content: string): string {
-  let latestCompletedSegment = ''
-  let segmentStart = 0
-
-  for (let index = 0; index < content.length; index += 1) {
-    const character = content[index]
-    const nextCharacter = content[index + 1]
-    const isLineEnding = character === '\n' || character === '\r'
-    const isFollowingCjkSentenceEnding = nextCharacter !== undefined && CJK_SENTENCE_ENDINGS.includes(nextCharacter)
-    const isSentenceEnding =
-      (CJK_SENTENCE_ENDINGS.includes(character) && !isFollowingCjkSentenceEnding) ||
-      (ASCII_SENTENCE_ENDINGS.includes(character) && nextCharacter !== undefined && /\s/.test(nextCharacter))
-
-    if (!isLineEnding && !isSentenceEnding) continue
-
-    const segmentEnd = isLineEnding ? index : index + 1
-    const completedSegment = normalizeThinkingPreview(content.slice(segmentStart, segmentEnd))
-    if (completedSegment) latestCompletedSegment = completedSegment
-
-    if (character === '\r' && nextCharacter === '\n') index += 1
-    segmentStart = index + 1
-  }
-
-  return latestCompletedSegment
 }
 
 interface Props {
@@ -105,6 +74,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
+  const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
@@ -112,16 +82,21 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
     () => (!isThinking && showTitlePreview ? normalizeThinkingPreview(content ?? '') : ''),
     [content, isThinking, showTitlePreview]
   )
-  const nextStreamingPreview = useMemo(
-    () => (isThinking ? getLatestCompletedThinkingPreview(content ?? '') : ''),
+  const thinkingPreviewScanResult = useMemo(
+    () => (isThinking ? scanThinkingPreview(content ?? '', thinkingPreviewScanStateRef.current) : undefined),
     [content, isThinking]
   )
+  const nextStreamingPreview = thinkingPreviewScanResult?.preview ?? ''
   const streamingPreviewText = useMinimumDisplayDuration(nextStreamingPreview, {
     enabled: isThinking,
     getKey: getThinkingPreviewKey,
     minimumDurationMs: THINKING_PREVIEW_MIN_DURATION_MS,
     shouldBypass: shouldBypassThinkingPreviewStabilization
   })
+
+  useEffect(() => {
+    thinkingPreviewScanStateRef.current = thinkingPreviewScanResult?.state
+  }, [thinkingPreviewScanResult])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {

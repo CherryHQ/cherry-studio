@@ -11,7 +11,7 @@ export function useMinimumDisplayDuration<TValue>(
   nextValue: TValue,
   { enabled, getKey, minimumDurationMs, shouldBypass }: MinimumDisplayDurationOptions<TValue>
 ): TValue {
-  const [displayValue, setDisplayValue] = useState(nextValue)
+  const [, setRenderVersion] = useState(0)
   const displayValueRef = useRef(nextValue)
   const lastChangeAtRef = useRef(Date.now())
   const pendingValueRef = useRef<{ value: TValue } | null>(null)
@@ -24,10 +24,9 @@ export function useMinimumDisplayDuration<TValue>(
       timerRef.current = null
     }
 
-    const commitValue = (value: TValue) => {
+    const syncValue = (value: TValue) => {
       displayValueRef.current = value
       lastChangeAtRef.current = Date.now()
-      setDisplayValue(value)
     }
 
     const currentValue = displayValueRef.current
@@ -35,14 +34,13 @@ export function useMinimumDisplayDuration<TValue>(
       clearPendingTimer()
       pendingValueRef.current = null
       displayValueRef.current = nextValue
-      setDisplayValue(nextValue)
       return clearPendingTimer
     }
 
     if (!enabled || shouldBypass?.(currentValue, nextValue)) {
       clearPendingTimer()
       pendingValueRef.current = null
-      commitValue(nextValue)
+      syncValue(nextValue)
       return clearPendingTimer
     }
 
@@ -56,7 +54,8 @@ export function useMinimumDisplayDuration<TValue>(
       if (!pendingValue) return
       pendingValueRef.current = null
       timerRef.current = null
-      commitValue(pendingValue.value)
+      syncValue(pendingValue.value)
+      setRenderVersion((version) => version + 1)
     }, remainingMs)
 
     return clearPendingTimer
@@ -67,5 +66,5 @@ export function useMinimumDisplayDuration<TValue>(
     return nextValue
   }
 
-  return displayValue
+  return displayValueRef.current
 }
