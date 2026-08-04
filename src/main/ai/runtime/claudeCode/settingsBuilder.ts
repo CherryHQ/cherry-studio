@@ -91,7 +91,11 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
-import { detectDestructiveAssistantCommand, isPermanentDeletionToolName } from './assistantCommandSafety'
+import {
+  detectDestructiveAssistantCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName
+} from './assistantCommandSafety'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -1134,6 +1138,37 @@ async function buildToolPermissions(
     }
   }
 
+  // The feedback skill submits through Bash, so the MCP-only approval list cannot protect it when
+  // bypassPermissions skips canUseTool. Keep the submission itself behind a live per-call approval;
+  // headless turns may still prepare the local feedback draft and inspect the form schema.
+  const assistantFeedbackSubmissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command !== 'string' || !isLarkFormSubmissionCommand(command)) return {}
+
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep the local feedback draft for an interactive user to review and submit.'
+        }
+      }
+    }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: 'Submitting Cherry Studio feedback to Feishu requires live per-call user approval.'
+      }
+    }
+  }
+
   // `canUseTool` is skipped by the SDK under bypassPermissions and other auto-approved paths.
   // Mirror the explicit per-call approval list into PreToolUse so those tools can never inherit the
   // session's blanket permission mode.
@@ -1267,6 +1302,7 @@ async function buildToolPermissions(
             headlessSkillInstallHook,
             disabledToolHook,
             assistantDestructiveOperationHook,
+            assistantFeedbackSubmissionHook,
             approvalRequiredToolHook,
             workspacePathHook,
             dependencyIsolationHook,

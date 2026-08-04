@@ -580,6 +580,65 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).resolves.toEqual({})
   })
 
+  it('requires a live approval for Cherry Assistant Feishu feedback submission under bypassPermissions', async () => {
+    let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') {
+        return {
+          listTools: mocks.listMcpTools,
+          warmToolsCache: mocks.warmToolsCache,
+          onToolsCacheUpdated: mocks.onToolsCacheUpdated
+        }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return {
+          getInteractionState: () => interactionState,
+          recordToolExecutionTiming: mocks.recordToolExecutionTiming
+        }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const permissionDecisions = async (command: string) =>
+      Promise.all(
+        hooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command } } as never,
+            'tool-use-1',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    const submitCommand = 'lark-cli base +form-submit --share-token token --as user --json fields.json --yes'
+    await expect(permissionDecisions(submitCommand)).resolves.toContain('ask')
+
+    interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
+    await expect(permissionDecisions(submitCommand)).resolves.toContain('deny')
+    await expect(
+      permissionDecisions('lark-cli base +form-detail --share-token token --as user --format json')
+    ).resolves.not.toContain('deny')
+  })
+
   it('forces file-tool paths outside the session workspace through approval', async () => {
     const session = {
       id: 'session-1',
@@ -1519,9 +1578,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
     // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
-    // disabledToolHook + assistantDestructiveOperationHook + approvalRequiredToolHook + workspacePathHook +
-    // dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(10)
+    // disabledToolHook + assistantDestructiveOperationHook + assistantFeedbackSubmissionHook +
+    // approvalRequiredToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(11)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string

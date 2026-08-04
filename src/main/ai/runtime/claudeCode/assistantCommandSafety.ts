@@ -9,6 +9,8 @@ const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
   String.raw`\bgit(?:\s+${GIT_GLOBAL_OPTION_PATTERN})*\s+(?:clean\b|reset\s+--hard\b|checkout\s+(?:(?:[^\s;&|]+)\s+)?--(?:\s|$)|checkout\s+\.(?:[\\/][^\s;&|]*)?(?:\s|$)|(?:checkout|switch)\b[^\r\n;&|]*(?:--discard-changes|--force|-f)(?:\s|$)|restore\b|branch\s+-D\b|stash\s+(?:drop|clear)\b)`,
   'i'
 )
+const LARK_FORM_SUBMISSION_PATTERN =
+  /(?:^|[\s;&|])(?:"[^"\r\n]*lark-cli"|'[^'\r\n]*lark-cli'|[^\s;&|]*lark-cli)\s+base\s+\+form-submit(?:\s|$)/i
 
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
@@ -63,6 +65,11 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
 export function detectDestructiveAssistantCommand(command: string): string | undefined {
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   return DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason
+}
+
+export function isLarkFormSubmissionCommand(command: string): boolean {
+  const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
+  return LARK_FORM_SUBMISSION_PATTERN.test(normalized)
 }
 
 export function isPermanentDeletionToolName(toolName: string): boolean {

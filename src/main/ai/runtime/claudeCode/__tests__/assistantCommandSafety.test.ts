@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { detectDestructiveAssistantCommand, isPermanentDeletionToolName } from '../assistantCommandSafety'
+import {
+  detectDestructiveAssistantCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName
+} from '../assistantCommandSafety'
 
 describe('detectDestructiveAssistantCommand', () => {
   it.each([
@@ -64,4 +68,22 @@ describe('isPermanentDeletionToolName', () => {
       expect(isPermanentDeletionToolName(toolName)).toBe(false)
     }
   )
+})
+
+describe('isLarkFormSubmissionCommand', () => {
+  it.each([
+    'lark-cli base +form-submit --share-token token --as user --json fields.json --yes',
+    '/usr/local/bin/lark-cli base +form-submit --share-token token',
+    '"/Applications/Lark CLI/lark-cli" base +form-submit --share-token token'
+  ])('detects %s', (command) => {
+    expect(isLarkFormSubmissionCommand(command)).toBe(true)
+  })
+
+  it.each([
+    'lark-cli auth status --json --verify',
+    'lark-cli base +form-detail --share-token token --format json',
+    'printf "lark-cli base +form-submit"'
+  ])('allows non-submission command: %s', (command) => {
+    expect(isLarkFormSubmissionCommand(command)).toBe(false)
+  })
 })
