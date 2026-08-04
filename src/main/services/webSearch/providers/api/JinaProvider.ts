@@ -1,4 +1,6 @@
+import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
+import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
@@ -16,6 +18,8 @@ const JINA_CHINA_HOST_BY_DEFAULT: Record<string, string> = {
   'https://s.jina.ai': 'https://s.jinaai.cn',
   'https://r.jina.ai': 'https://r.jinaai.cn'
 }
+
+const logger = loggerService.withContext('JinaProvider')
 
 const JinaReaderResponseSchema = z.looseObject({
   code: z.union([z.number(), z.string()]).optional(),
@@ -62,6 +66,7 @@ const JinaSearchResponseSchema = z.looseObject({
 type JinaContext = BaseSearchContext & {
   apiKey: string
   requestUrl: string
+  fallbackRequestUrl?: string
 }
 
 export class JinaProvider extends BaseWebSearchProvider {
@@ -82,9 +87,21 @@ export class JinaProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
     const context = await this.prepareFetchUrlsContext(query, config, httpOptions)
-    const payload = await this.executeFetchUrls(context)
 
-    return this.buildFetchUrlsResponse(context, payload)
+    try {
+      const payload = await this.executeFetchUrls(context)
+      return this.buildFetchUrlsResponse(context, payload)
+    } catch (error) {
+      if (!context.fallbackRequestUrl || context.signal?.aborted || isAbortError(error)) {
+        throw error
+      }
+
+      logger.warn('Jina Reader China mirror failed; retrying global host', { providerId: this.provider.id })
+      const fallbackContext = { ...context, requestUrl: context.fallbackRequestUrl }
+      const payload = await this.executeFetchUrls(fallbackContext)
+
+      return this.buildFetchUrlsResponse(fallbackContext, payload)
+    }
   }
 
   /**
@@ -130,6 +147,8 @@ export class JinaProvider extends BaseWebSearchProvider {
   ): Promise<JinaContext> {
     const url = query.trim()
     const apiHost = await this.resolveRegionAwareApiHost('fetchUrls')
+    const fallbackApiHost =
+      apiHost === JINA_CHINA_HOST_BY_DEFAULT['https://r.jina.ai'] ? 'https://r.jina.ai' : undefined
 
     return {
       // Jina Reader works without a key (rate-limited); a key is optional and only raises the limits.
@@ -138,6 +157,7 @@ export class JinaProvider extends BaseWebSearchProvider {
       maxResults: config.maxResults,
       // Jina Reader expects the raw target URL after the host; encoding it changes the API path semantics.
       requestUrl: `${withoutTrailingSlash(apiHost)}/${url}`,
+      fallbackRequestUrl: fallbackApiHost ? `${withoutTrailingSlash(fallbackApiHost)}/${url}` : undefined,
       signal: httpOptions?.signal ?? undefined
     }
   }

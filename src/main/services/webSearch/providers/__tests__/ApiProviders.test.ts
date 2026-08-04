@@ -457,6 +457,74 @@ describe('main web search API providers', () => {
 
     const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
     expect(url).toBe('https://r.jinaai.cn/https://example.com/article')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('retries a failed China Jina Reader request through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValueOnce(createTextResponse('mirror unavailable', 'text/plain', 503)).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jinaai.cn/https://example.com/article',
+      'https://r.jina.ai/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Jina Reader China mirror failed; retrying global host', {
+      providerId: 'jina'
+    })
+  })
+
+  it('retries empty China Jina Reader content through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockResolvedValueOnce(createJsonResponse({ code: 200, data: { content: '  ' } })).mockResolvedValueOnce(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://r.jinaai.cn/https://example.com/article',
+      'https://r.jina.ai/https://example.com/article'
+    ])
+    expect(result.results[0]?.content).toBe('Reader Content')
   })
 
   it('routes Jina search URL to the China mirror when the user is in mainland China', async () => {
@@ -531,6 +599,56 @@ describe('main web search API providers', () => {
 
     const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
     expect(url).toBe('https://reader.example.com/https://example.com/article')
+  })
+
+  it('does not retry a failed custom Jina Reader host through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    fetchMock.mockRejectedValue(new Error('custom reader failed'))
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://reader.example.com'
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+      'custom reader failed'
+    )
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://reader.example.com/https://example.com/article'])
+  })
+
+  it('does not retry a caller-aborted China Jina Reader request through the global host', async () => {
+    mocks.isInChina.mockResolvedValue(true)
+    const abortController = new AbortController()
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    fetchMock.mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true })
+        })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+    const request = provider.fetchUrls('https://example.com/article', runtimeConfig, { signal: abortController.signal })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    abortController.abort(abortError)
+
+    await expect(request).rejects.toBe(abortError)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://r.jinaai.cn/https://example.com/article'])
   })
 
   it('throws when Jina Reader returns empty content', async () => {

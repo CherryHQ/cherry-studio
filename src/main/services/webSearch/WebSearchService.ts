@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { resolveRemoteFetchUrl } from '@main/utils/remoteUrlSafety'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
@@ -106,22 +106,19 @@ export class WebSearchService extends BaseService {
     }
 
     const fallbackProviderId = context.provider.id === 'fetch' ? 'jina' : 'fetch'
-    const fallbackInputs = await Promise.allSettled(
-      failedIndexes.map(async (index) => {
-        const input = context.inputs[index]
+    const fallbackCandidates = failedIndexes.flatMap((index) => {
+      const input = context.inputs[index]
 
-        if (context.provider.id === 'fetch') {
-          return {
-            index,
-            input: (await resolveRemoteFetchUrl(input, { signal })).url
-          }
-        }
+      if (context.provider.id !== 'fetch') {
+        return [{ index, input }]
+      }
 
-        return { index, input }
-      })
-    )
-    signal?.throwIfAborted()
-    const fallbackCandidates = fallbackInputs.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
+      try {
+        return [{ index, input: sanitizeRemoteUrl(input) }]
+      } catch {
+        return []
+      }
+    })
 
     if (fallbackCandidates.length === 0) {
       return primaryResults
