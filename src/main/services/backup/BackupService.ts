@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { basename, join } from 'node:path'
+
 import { application } from '@application'
 import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
@@ -5,8 +8,6 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
 import { ensureDir, remove } from 'fs-extra'
-import { randomUUID } from 'node:crypto'
-import { basename, join } from 'node:path'
 
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
