@@ -20,13 +20,14 @@
  *   which wraps this function.
  * - Internal entry missing on disk → a bug. The error propagates for visibility.
  *
- * @see FileInfo (src/shared/file/types/info.ts) for the data shape.
+ * @see FileInfo (src/shared/types/file/info.ts) for the data shape.
  * @see architecture.md §2 for the reference-vs-data-shape design.
  */
 
-import { stat as fsStat } from '@main/utils/file/fs'
+import { stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
-import { type FileInfo, FileInfoSchema, getFileTypeByExt } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
 import { resolvePhysicalPath } from './utils/pathResolver'
@@ -36,10 +37,9 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
   const s = await fsStat(physicalPath)
   const ext = entry.ext
   const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
-  // `FileInfoSchema.parse` rehydrates the `FileInfo` brand. Casting back to
-  // `FileInfo` lets the `path` field carry the `FilePath` template-literal
-  // type at the API surface (Zod can't express template literals); the
-  // runtime shape check is otherwise identical.
+  // `FileInfoSchema.parse` validates the shape and returns the exact `FileInfo`
+  // type (including the branded `AbsoluteFilePath` on `path`) — no `as FileInfo` cast
+  // needed.
   return FileInfoSchema.parse({
     path: physicalPath,
     name: entry.name,
@@ -49,5 +49,5 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
     type: getFileTypeByExt(ext ?? ''),
     createdAt: s.createdAt || s.modifiedAt,
     modifiedAt: s.modifiedAt
-  }) as FileInfo
+  })
 }

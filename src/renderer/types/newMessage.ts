@@ -1,23 +1,16 @@
 //TODO [v2] 类型将转移至 src/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
 
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ProviderMetadata } from 'ai'
 
-import type {
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  McpServer,
-  McpToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  NormalToolResponse,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
-} from '.'
 import type { SerializedError } from './error'
+import type { FileMetadata } from './file'
+import type { GenerateImageResponse } from './image'
+import type { McpToolResponse, NormalToolResponse } from './mcpTool'
+import type { Metrics, Usage } from './message'
+import type { Model } from './model'
+import type { WebSearchResponse, WebSearchSource } from './webSearchProvider'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -30,7 +23,6 @@ export enum MessageBlockType {
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
-  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
   VIDEO = 'video', // 视频内容
   COMPACT = 'compact' // Compact command response
 }
@@ -120,14 +112,6 @@ export interface ToolMessageBlock extends BaseMessageBlock {
   }
 }
 
-// Consolidated and Enhanced Citation Block
-export interface CitationMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.CITATION
-  response?: WebSearchResponse
-  knowledge?: KnowledgeReference[]
-  memories?: MemoryItem[]
-}
-
 // 文件块
 export interface FileMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FILE
@@ -164,7 +148,6 @@ export type MessageBlock =
   | ToolMessageBlock
   | FileMessageBlock
   | ErrorMessageBlock
-  | CitationMessageBlock
   | VideoMessageBlock
   | CompactMessageBlock
 

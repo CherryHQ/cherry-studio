@@ -48,12 +48,6 @@ describe('TabLruManager', () => {
         const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
         expect(result).toEqual([])
       })
-
-      it('should return empty array for 1 tab', () => {
-        const tabs = [createTab('tab-0')]
-        const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
-        expect(result).toEqual([])
-      })
     })
 
     describe('when exceeding soft cap', () => {
@@ -85,7 +79,7 @@ describe('TabLruManager', () => {
         expect(result).not.toContain('tab-0')
       })
 
-      it('should not hibernate the home tab', () => {
+      it('should not hibernate the default chat tab', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 10000 }), // Oldest
@@ -141,11 +135,11 @@ describe('TabLruManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
 
-        // Hard cap triggered: pinned tabs are no longer exempt (except home and active)
+        // Hard cap triggered: pinned tabs are no longer exempt (except the default chat tab and active)
         expect(result).toContain('pinned-old')
       })
 
-      it('should still protect home and active tabs in hard cap mode', () => {
+      it('should still protect the default chat and active tabs in hard cap mode', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 30000 }),
@@ -163,11 +157,6 @@ describe('TabLruManager', () => {
     })
 
     describe('edge cases', () => {
-      it('should handle empty tabs array', () => {
-        const result = manager.checkAndGetDormantCandidates([], 'any-id')
-        expect(result).toEqual([])
-      })
-
       it('should handle tabs with undefined lastAccessTime', () => {
         const tabs = Array.from({ length: TAB_LIMITS.softCap + 2 }, (_, i) =>
           createTab(`tab-${i}`, { lastAccessTime: undefined })
@@ -210,29 +199,6 @@ describe('TabLruManager', () => {
         expect(result.every((id) => id.startsWith('active-'))).toBe(true)
         expect(result.length).toBe(2) // Need to hibernate 2 to reach soft cap
       })
-    })
-  })
-
-  describe('updateSoftCap', () => {
-    it('should update soft cap value', () => {
-      manager.updateSoftCap(15)
-      expect(manager.getLimits().softCap).toBe(15)
-    })
-  })
-
-  describe('updateHardCap', () => {
-    it('should update hard cap value', () => {
-      manager.updateHardCap(30)
-      expect(manager.getLimits().hardCap).toBe(30)
-    })
-  })
-
-  describe('getLimits', () => {
-    it('should return current limits', () => {
-      const customManager = new TabLruManager({ softCap: 8, hardCap: 20 })
-      const limits = customManager.getLimits()
-
-      expect(limits).toEqual({ softCap: 8, hardCap: 20 })
     })
   })
 

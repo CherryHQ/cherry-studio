@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -36,7 +37,8 @@ const mockBot = {
   send: vi.fn().mockResolvedValue(undefined),
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
-  stopTyping: vi.fn().mockResolvedValue(undefined)
+  stopTyping: vi.fn().mockResolvedValue(undefined),
+  sendImage: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
@@ -69,6 +71,8 @@ describe('WeChatAdapter', () => {
     mockBot.reply.mockClear().mockResolvedValue(undefined)
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
+    mockBot.sendImage.mockClear().mockResolvedValue(undefined)
+    vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
   })
 
   afterEach(() => {
@@ -98,6 +102,44 @@ describe('WeChatAdapter', () => {
     expect(mockBot.login).toHaveBeenCalledTimes(1)
     expect(mockBot.onMessage).toHaveBeenCalledTimes(1)
     expect(mockBot.run).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports QR login errors to the renderer', async () => {
+    mockBot.login.mockRejectedValue(new Error('Login unavailable'))
+    const adapter = createAdapter()
+
+    await expect(adapter.connect()).rejects.toThrow('Login unavailable')
+
+    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'channel.wechat.qr_login',
+      {
+        channelId: 'ch-1',
+        url: '',
+        status: 'error',
+        userId: undefined
+      }
+    )
+  })
+
+  it('reports exhausted QR codes as expired to the renderer', async () => {
+    mockBot.login.mockRejectedValue(
+      new Error('QR login failed after 3 expired QR codes. Use config tool to reconnect.')
+    )
+    const adapter = createAdapter()
+
+    await expect(adapter.connect()).rejects.toThrow('expired QR codes')
+
+    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'channel.wechat.qr_login',
+      {
+        channelId: 'ch-1',
+        url: '',
+        status: 'expired',
+        userId: undefined
+      }
+    )
   })
 
   it('disconnect() stops the bot', async () => {
@@ -130,6 +172,34 @@ describe('WeChatAdapter', () => {
     expect(mockBot.send).toHaveBeenCalledTimes(2)
     expect(mockBot.send.mock.calls[0][1]).toHaveLength(2000)
     expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
+  })
+
+  it('sendFile() forwards an image via bot.sendImage()', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await adapter.sendFile('user-123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+
+    expect(mockBot.sendImage).toHaveBeenCalledTimes(1)
+    const [chatId, buffer] = mockBot.sendImage.mock.calls[0]
+    expect(chatId).toBe('user-123')
+    expect(buffer.toString()).toBe('png-bytes')
+  })
+
+  it('sendFile() rejects non-image files', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await expect(
+      adapter.sendFile('user-123', {
+        filename: 'report.pdf',
+        data: '',
+        media_type: 'application/pdf',
+        size: 0
+      })
+    ).rejects.toThrow('WeChat can only forward image files')
+    expect(mockBot.sendImage).not.toHaveBeenCalled()
   })
 
   it('sendTypingIndicator() calls bot.sendTyping()', async () => {

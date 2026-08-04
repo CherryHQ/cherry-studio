@@ -1,17 +1,26 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import TranslateOutputPane from '../TranslateOutputPane'
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
+    <div ref={ref} {...props}>
+      {children}
+    </div>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -22,17 +31,23 @@ const baseProps = () => ({
   translating: false,
   copied: false,
   onCopy: vi.fn(),
+  onExportToNotes: vi.fn(),
   onScroll: vi.fn()
 })
 
 describe('TranslateOutputPane', () => {
-  it('renders no placeholder when there is no translated content', () => {
-    render(<TranslateOutputPane {...baseProps()} />)
+  it('shows translated content, length, and a copy button', () => {
+    const props = baseProps()
+    props.translatedContent = 'partial output'
 
-    expect(screen.queryByText('translate.output.placeholder')).not.toBeInTheDocument()
+    render(<TranslateOutputPane {...props} />)
+
+    expect(screen.getByText('partial output')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
   })
 
-  it('shows the processing indicator while translating with no content yet', () => {
+  it('shows the processing indicator while waiting for output', () => {
     const props = baseProps()
     props.translating = true
 
@@ -41,12 +56,18 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByText('translate.processing')).toBeInTheDocument()
   })
 
-  it('renders the character count', () => {
+  it('shows an export-to-notes button in the bottom-right footer and calls it for translated content', () => {
     const props = baseProps()
-    props.translatedContent = 'hello'
+    props.translatedContent = 'translated output'
 
     render(<TranslateOutputPane {...props} />)
 
-    expect(screen.getByText('5')).toBeInTheDocument()
+    const buttons = screen.getAllByRole('button')
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['common.copy', 'notes.save'])
+    expect(screen.getByRole('button', { name: 'notes.save' })).toHaveClass('ml-auto')
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    expect(props.onExportToNotes).toHaveBeenCalledTimes(1)
   })
 })

@@ -50,11 +50,12 @@ being a first migration target. This may be relaxed in a future release.
 
 ### Relationship with the auto-updater
 
-The auto-updater (`AppUpdaterService`) controls which versions are
-offered via OTA using `minCompatibleVersion` in the remote config. The
-migration gate is a **separate safety net** for users who manually
-download and install a version. Both systems enforce compatible upgrade
-paths but operate independently.
+The auto-updater (`AppUpdaterService`) sends the installed version and
+other client metadata to the [managed release service](../app-upgrade.md),
+which selects the OTA target and enforces upgrade gateways. The migration
+gate is a **separate safety net** for users who manually download and
+install a version. Both systems enforce compatible upgrade paths but
+operate independently.
 
 ## Directory Layout
 
@@ -69,7 +70,7 @@ src/main/data/migration/v2/
 
 ## Core Contracts
 
-- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
+- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
@@ -86,10 +87,11 @@ src/main/data/migration/v2/
   - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
-- Registration: list migrators (in order) in `migrators/index.ts` so the engine can sort and run them.
+- Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
   - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
+  - `AiUsageRecordMigrator` (implemented): projects usage-bearing migrated chat and agent-session messages into the best-effort AI usage read model. See [`README-AiUsageRecordMigrator.md`](../../../src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md).
   - `BootConfigMigrator` (implemented, file-target): migrates early-boot settings into the file-based `bootConfigService` (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. Reads from Redux (`disableHardwareAcceleration`) and from the v1 home config file (`~/.cherrystudio/config/config.json`'s `appDataPath` → `app.user_data_path`) via a `'configfile'` source kind. See [`README-BootConfigMigrator.md`](../../../src/main/data/migration/v2/migrators/README-BootConfigMigrator.md).
   - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
 - Conventions:
@@ -97,10 +99,11 @@ src/main/data/migration/v2/
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
   - Use `sharedData` to pass IDs or lookup tables between migrators (e.g., assistant -> chat references) instead of re-reading sources.
   - Stream large Dexie exports (`JsonStreamReader`) and batch inserts to avoid memory spikes.
-  - **Foreign keys are OFF for the whole migration — do NOT toggle them per-migrator**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection defaults to `foreign_keys = ON`, and `@libsql/client`'s `transaction()` nullifies its internal connection after each call (`this.#db = null`) — a one-shot `PRAGMA foreign_keys = OFF` would be lost at the first transaction boundary. The engine therefore registers `foreign_keys = OFF` **once** via the patched `client.setPragma()` (in `MigrationDbService`), which replays it on every (re)connection. This lets bulk inserts carry not-yet-resolved references (self-referencing `message.parentId`, or cross-domain refs a later migrator resolves). Integrity is verified in two layers: (1) each migrator calls `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of `execute()` for the tables it owns, giving early, well-attributed failures; (2) the engine runs a whole-database `PRAGMA foreign_key_check` after all migrators complete (`MigrationEngine.verifyForeignKeys`) as the final backstop.
-    - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. **Exclude** polymorphic shared tables that can't be scoped to your rows (e.g. `file_ref`, written by both Chat and Knowledge); the engine's final check covers those.
+  - **Foreign keys are OFF for the whole migration — do NOT toggle them per-migrator**: better-sqlite3 keeps a single persistent connection open for the whole process, so the engine sets `PRAGMA foreign_keys = OFF` **once** on that connection (in `MigrationDbService`) and it stays in effect for the entire migration — there is no per-transaction reconnection that could reset it. This lets bulk inserts carry not-yet-resolved references (self-referencing `message.parentId`, or cross-domain refs a later migrator resolves). Integrity is verified in two layers: (1) each migrator calls `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of `execute()` for the tables it owns, giving early, well-attributed failures; (2) the engine runs a whole-database `PRAGMA foreign_key_check` after all migrators complete (`MigrationEngine.verifyForeignKeys`) as the final backstop.
+    - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. Dedicated file association tables (for example `chat_message_file_ref`) may be self-checked by the migrator that owns both the source rows and ref rows.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
+  - Preserve v1 sources required for downgrade compatibility. `AgentsMigrator` copies legacy Agent files into the v2 layout but never deletes `agents.db` or legacy short-ID workspaces.
   - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
 
 ## Utilities
@@ -114,7 +117,7 @@ src/main/data/migration/v2/
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
   - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
-  - Manages backup flow (dialogs via `BackupManager`) and retry/cancel/restart actions.
+  - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 
 ## Implementation Checklist for New Migrators
@@ -122,7 +125,7 @@ src/main/data/migration/v2/
 - [ ] Add mapping definitions (if needed) under `migrators/mappings/`.
 - [ ] Implement `prepare/execute/validate` with explicit counts, batch inserts, and integrity checks.
 - [ ] Wire progress updates through `reportProgress` so UI shows per-migrator progress.
-- [ ] Register the migrator in `migrators/index.ts` with the correct `order`.
+- [ ] Register the migrator in `migrators/migratorRegistry.ts` with the correct `order`.
 - [ ] Add any new target tables to `MigrationEngine.verifyAndClearNewTables` once those tables exist.
 - [ ] Self-check FK integrity at the end of `execute()` via `this.assertOwnedForeignKeys(ctx.db, [...ownedTables])`, excluding cross-domain-deferred refs and shared polymorphic tables (see Conventions → Foreign keys). Do NOT toggle `PRAGMA foreign_keys` yourself — the engine keeps it OFF for the whole migration.
 - [ ] Include detailed comments for maintainability (file-level, function-level, logic blocks).
@@ -140,7 +143,7 @@ Legacy Redux/Dexie → SQLite migrators for sortable resources must produce `ord
 | Helper | Shape | Use for |
 |---|---|---|
 | `assignOrderKeysInSequence(rows)` | Returns `rows` with one monotonically increasing `orderKey` per row. | Whole-table ordering (e.g. `mcp_server`, `user_provider`, `miniapp`). |
-| `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `topic.groupId`, `user_model.providerId`, `group.entityType`). |
+| `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `user_model.providerId`, `group.entityType`). |
 
 **Pattern — flatten first, stamp last:** keep `transform*` functions pure (no `index` parameter, no `sortOrder` argument); flatten the legacy source into an array, then stamp keys onto the whole array:
 
@@ -161,4 +164,4 @@ const stamped = assignOrderKeysByScope(userModels, (m) => m.providerId)
 
 **Import rule — never reach for `fractional-indexing` directly:** the migrator helpers delegate to `generateOrderKeySequence` exported from `src/main/data/services/utils/orderKey.ts`, which is the **single** sanctioned integration point for the library. Migrator code, migration scripts, and drizzle custom-migration callbacks all re-import from that service-layer wrapper. This keeps the library boundary auditable and leaves a single place to change the character set or swap implementations.
 
-For the runtime counterparts (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` / `resetOrder`) used outside the migration window, see [Reorder Guide — Server-Side Service Helpers](./data-ordering-guide.md#4-server-side-service-helpers).
+For the runtime counterparts (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyMoves` / `resetOrder`) used outside the migration window, see [Reorder Guide — Server-Side Service Helpers](./data-ordering-guide.md#3-server-side-service-helpers).

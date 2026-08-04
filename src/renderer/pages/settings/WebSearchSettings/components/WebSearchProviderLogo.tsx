@@ -1,8 +1,8 @@
-import { cn } from '@renderer/utils'
+import AppLogo from '@renderer/assets/images/logo.png'
+import { cn } from '@renderer/utils/style'
+import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
-
-import { getWebSearchProviderLogo } from '../utils/webSearchProviderMeta'
 
 interface WebSearchProviderLogoProps {
   providerId: WebSearchProviderId
@@ -12,6 +12,18 @@ interface WebSearchProviderLogoProps {
 }
 
 const WebSearchProviderLogo: FC<WebSearchProviderLogoProps> = ({ providerId, providerName, size = 15, className }) => {
+  if (providerId === 'fetch') {
+    return (
+      <img
+        src={AppLogo}
+        alt=""
+        draggable={false}
+        className={cn('inline-block shrink-0 rounded-[20%] object-cover', className)}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
   const logo = getWebSearchProviderLogo(providerId)
 
   if (logo) {

@@ -2,8 +2,8 @@
   "query": "hello",
   "results": [
     {
-      "title": "Searxng Title",
       "content": "Searxng Content",
+      "title": "Searxng Title",
       "url": "https://searx.example/result"
     }
   ]

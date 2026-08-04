@@ -1,5 +1,8 @@
-import type { LegacyAssistant, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Assistant } from '@renderer/types/assistant'
+import type { MainTextMessageBlock, Message, ThinkingMessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
+import type { Topic } from '@renderer/types/topic'
+
+export type ImportMessageBlock = MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock
 
 /**
  * Import result containing parsed data
@@ -7,7 +10,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 export interface ImportResult {
   topics: Topic[]
   messages: Message[]
-  blocks: MessageBlock[]
+  blocks: ImportMessageBlock[]
   metadata?: Record<string, unknown>
 }
 
@@ -16,7 +19,7 @@ export interface ImportResult {
  */
 export interface ImportResponse {
   success: boolean
-  assistant?: LegacyAssistant
+  assistant?: Assistant
   topicsCount: number
   messagesCount: number
   error?: string

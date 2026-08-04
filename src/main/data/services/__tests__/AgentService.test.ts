@@ -1,14 +1,46 @@
+import { randomUUID } from 'node:crypto'
+
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+// Importing the singleton loads AgentGlobalSkillService so it self-registers in the
+// data-service registry, which createAgent resolves lazily for skill validation/join.
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+// The data-service layer is synchronous under better-sqlite3: failing calls
+// throw inline instead of rejecting a promise. Capture the thrown error so we
+// can assert on its shape.
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (error) {
+    return error
+  }
+  throw new Error('Expected the call to throw, but it returned normally')
+}
+
+function createAgentForTest(request: Parameters<typeof agentService.createAgentWithId>[1]) {
+  return agentService.createAgentWithId(randomUUID(), request)
+}
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -26,25 +58,14 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    initSkillsForAgent: vi.fn()
-  }
-}))
-
-// Mock workspace seeding — filesystem ops not needed in unit tests
-vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
-  seedWorkspaceTemplates: vi.fn()
-}))
-
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
-  const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   // Seed a user_model row whose id is the canonical FK form, so createAgent
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
   beforeEach(async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
     await dbh.db
       .insert(userProviderTable)
       .values({ providerId: 'anthropic', name: 'anthropic', orderKey: generateOrderKeyBetween(null, null) })
@@ -56,24 +77,38 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet',
         name: 'claude-3-5-sonnet',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
       .onConflictDoNothing()
   })
 
-  async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
+  async function insertAgent(
+    overrides: Partial<typeof agentTable.$inferInsert> & { mcps?: string[]; knowledgeBaseIds?: string[] } = {}
+  ): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const { mcps, knowledgeBaseIds, ...rest } = overrides
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      // Default to NULL; model-behavior tests override it with a seeded user_model FK.
       model: null,
       orderKey: 'a0',
-      ...overrides,
+      ...rest,
       id
     }
     await dbh.db.insert(agentTable).values(base)
+    // Insert junction rows for MCP associations
+    if (mcps && mcps.length > 0) {
+      await dbh.db.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+    }
+    if (knowledgeBaseIds && knowledgeBaseIds.length > 0) {
+      await dbh.db
+        .insert(agentKnowledgeBaseTable)
+        .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+    }
     return { id }
   }
 
@@ -92,8 +127,10 @@ describe('AgentService', () => {
         id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
         providerId: 'anthropic',
         modelId: 'claude-sonnet-4-5',
-        presetModelId: 'claude-sonnet-4-5',
+        presetModelId: null,
         name: 'Claude Sonnet 4.5',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: generateOrderKeyBetween(null, null)
@@ -101,19 +138,41 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
-  describe('createAgent', () => {
-    it('generates a UUID v4 agent ID', async () => {
-      const agent = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'UUID ID Test',
-        model: TEST_MODEL_ID
+  async function insertMcpServer(id: string, name?: string): Promise<void> {
+    await dbh.db
+      .insert(mcpServerTable)
+      .values({ id, name: name ?? id, sortOrder: 0, isActive: false })
+      .onConflictDoNothing()
+  }
+
+  // BM25-only base: no embedding model / dimensions, which keeps the status/error check
+  // constraint happy without needing to seed a user_model for the embedding FK.
+  async function insertKnowledgeBase(id: string): Promise<void> {
+    await dbh.db
+      .insert(knowledgeBaseTable)
+      .values({
+        id,
+        name: id,
+        status: 'completed',
+        error: null,
+        embeddingModelId: null,
+        dimensions: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
       })
+      .onConflictDoNothing()
+  }
 
-      expect(agent.id).toMatch(uuidV4Pattern)
-    })
+  async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
+    await dbh.db
+      .insert(agentGlobalSkillTable)
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
+      .onConflictDoNothing()
+  }
 
+  describe('createAgent', () => {
     it('persists plan and small models when provided', async () => {
-      const agent = await agentService.createAgent({
+      const agent = createAgentForTest({
         type: 'claude-code',
         name: 'Model Roles Test',
         model: TEST_MODEL_ID,
@@ -128,34 +187,231 @@ describe('AgentService', () => {
       })
     })
 
+    it('does not mislabel non-skill FK failures as stale selected skills', async () => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Missing Model',
+          model: 'anthropic::missing-model'
+        })
+      )
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Agent' },
+        message: expect.not.stringContaining('selected skill no longer exists')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
+      expect(agents).toHaveLength(0)
+    })
+
     it('places newly created agents by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
-      const created = await agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Newest',
         model: TEST_MODEL_ID
       })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       expect(agents.at(-1)?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = await agentService.createAgent({
+      const agent = createAgentForTest({
         type: 'claude-code',
         name: 'Disabled Tools Default',
         model: TEST_MODEL_ID
       })
-      const reloaded = await agentService.getAgent(agent.id)
+      const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('model updates', () => {
+    it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, { model: TEST_MODEL_ID })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'default' }
+      })
+    })
+
+    it('merges a reasoning patch before normalizing it for the new model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', bootstrap_completed: true, reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🤖',
+          bootstrap_completed: true,
+          reasoning_effort: 'default'
+        }
+      })
+    })
+
+    it('preserves an explicit reasoning tombstone while changing the model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: undefined }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖' }
+      })
+      expect(updated?.configuration).not.toHaveProperty('reasoning_effort')
+    })
+  })
+
+  describe('configuration patches', () => {
+    it('merges each patch into the latest persisted configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      })
+
+      agentService.updateAgent(created.id, { configuration: { bootstrap_completed: true } })
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        plugin_state: 'keep-me',
+        bootstrap_completed: true,
+        reasoning_effort: 'high'
+      })
+    })
+
+    it('normalizes an explicit reasoning patch against the current persisted model', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        reasoning_effort: 'default'
+      })
+    })
+
+    it('replaces nested configuration values instead of deep-merging them', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', env_vars: { A: '1', B: '2' } }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { env_vars: { A: '3' } }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        env_vars: { A: '3' }
+      })
+    })
+
+    it('removes an explicitly undefined key while preserving omitted siblings', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', max_turns: 10 }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { max_turns: undefined }
+      })
+
+      expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
+  })
+
+  describe('builtin_role write protection', () => {
+    it('rejects createAgent when configuration carries a builtin_role', async () => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Forged Assistant',
+          model: TEST_MODEL_ID,
+          configuration: { builtin_role: 'assistant' }
+        })
+      )
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('builtin_role')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Assistant'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { configuration: { builtin_role: 'assistant' } })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(created.id)?.configuration?.builtin_role).toBeUndefined()
+    })
+
+    it('rejects updateAgent changing an existing builtin_role', async () => {
+      // Seed through the internal tx path, as the Cherry Assistant seeder does.
+      const agentId = 'agent_builtin_change'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
+    })
+
+    it('preserves the builtin_role when an update omits it from configuration', async () => {
+      const agentId = 'agent_builtin_preserve'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+
+      const updated = agentService.updateAgent(agentId, { configuration: { avatar: '🅰️' } })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🅰️')
+    })
+
+    it('accepts an update that carries the existing builtin_role unchanged', async () => {
+      const agentId = 'agent_builtin_roundtrip'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const updated = agentService.updateAgent(agentId, {
+        configuration: { builtin_role: 'assistant', avatar: '🍒' }
+      })
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🍒')
     })
   })
 
   describe('disabledTools round-trip', () => {
     it('persists disabledTools on create and update', async () => {
-      const created = await agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Disabled Tools',
         model: TEST_MODEL_ID,
@@ -163,11 +419,443 @@ describe('AgentService', () => {
       })
       expect(created.disabledTools).toEqual(['Bash'])
 
-      const updated = await agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
+      const updated = agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
       expect(updated?.disabledTools).toEqual(['Bash', 'Workflow'])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
+    })
+  })
+
+  describe('mcps round-trip', () => {
+    it('persists mcps on create through the service', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'MCP Create',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+      expect([...(created.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect([...(reloaded?.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
+    })
+
+    it('replaces mcps when update provides a new array', async () => {
+      await insertMcpServer('mcp_a')
+      await insertMcpServer('mcp_b')
+      await insertMcpServer('mcp_c')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'MCP Replace',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a', 'mcp_b']
+      })
+
+      const updated = agentService.updateAgent(created.id, { mcps: ['mcp_c'] })
+      expect(updated?.mcps).toEqual(['mcp_c'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_c'])
+    })
+
+    // Load-bearing: the `if (newMcps !== undefined)` guard in updateAgent. If it
+    // ever regressed to an unconditional delete, every unrelated update (e.g. a
+    // rename) would wipe an agent's MCP servers — the exact data-loss class this
+    // PR fixes.
+    it('preserves existing mcps when update omits the field', async () => {
+      await insertMcpServer('mcp_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'MCP Preserve',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { name: 'Renamed' })
+      expect(updated?.name).toBe('Renamed')
+      expect(updated?.mcps).toEqual(['mcp_a'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['mcp_a'])
+    })
+
+    it('clears mcps when update passes an empty array', async () => {
+      await insertMcpServer('mcp_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'MCP Clear',
+        model: TEST_MODEL_ID,
+        mcps: ['mcp_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { mcps: [] })
+      expect(updated?.mcps).toEqual([])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual([])
+    })
+  })
+
+  describe('knowledgeBaseIds round-trip', () => {
+    it('reports a missing create binding as KnowledgeBase and leaves no agent row', async () => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Missing KB Create',
+          model: TEST_MODEL_ID,
+          knowledgeBaseIds: ['missing-kb']
+        })
+      )
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'missing-kb' }
+      })
+      const rows = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing KB Create'))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('rechecks knowledge-base bindings inside the create transaction', async () => {
+      await insertKnowledgeBase('kb_create_race')
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) => {
+        dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_create_race')).run()
+        return dbh.db.transaction(fn as never)
+      })
+
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'KB Create Race',
+          model: TEST_MODEL_ID,
+          knowledgeBaseIds: ['kb_create_race']
+        })
+      )
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'kb_create_race' }
+      })
+      const rows = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'KB Create Race'))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('persists knowledgeBaseIds on create through the service', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Create',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+      expect([...(created.knowledgeBaseIds ?? [])].sort()).toEqual(['kb_a', 'kb_b'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect([...(reloaded?.knowledgeBaseIds ?? [])].sort()).toEqual(['kb_a', 'kb_b'])
+    })
+
+    it('replaces knowledgeBaseIds when update provides a new array', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      await insertKnowledgeBase('kb_c')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Replace',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+
+      const updated = agentService.updateAgent(created.id, { knowledgeBaseIds: ['kb_c'] })
+      expect(updated?.knowledgeBaseIds).toEqual(['kb_c'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_c'])
+    })
+
+    it('reports a missing update binding as KnowledgeBase and preserves the existing binding', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Missing KB Update',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const error = captureError(() => agentService.updateAgent(created.id, { knowledgeBaseIds: ['missing-kb'] }))
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'missing-kb' }
+      })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    it('rechecks knowledge-base bindings inside the update transaction', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Update Race',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) => {
+        dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_b')).run()
+        return dbh.db.transaction(fn as never)
+      })
+
+      const error = captureError(() => agentService.updateAgent(created.id, { knowledgeBaseIds: ['kb_b'] }))
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'kb_b' }
+      })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    // Load-bearing: the `if (newKnowledgeBaseIds !== undefined)` guard in updateAgent —
+    // an unconditional delete would wipe an agent's knowledge bindings on any unrelated
+    // update (e.g. a rename).
+    it('preserves existing knowledgeBaseIds when update omits the field', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Preserve',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { name: 'Renamed' })
+      expect(updated?.name).toBe('Renamed')
+      expect(updated?.knowledgeBaseIds).toEqual(['kb_a'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    it('clears knowledgeBaseIds when update passes an empty array', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Clear',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { knowledgeBaseIds: [] })
+      expect(updated?.knowledgeBaseIds).toEqual([])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual([])
+    })
+
+    // FK ON DELETE CASCADE: deleting a knowledge base must drop the agent's binding so a
+    // stale id can never scope kb_search to a base that no longer exists.
+    it('drops the binding when the bound knowledge base is deleted', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Cascade',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+
+      await dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_a'))
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_b'])
+      const junctionRows = await dbh.db
+        .select()
+        .from(agentKnowledgeBaseTable)
+        .where(eq(agentKnowledgeBaseTable.agentId, created.id))
+      expect(junctionRows.map((r) => r.knowledgeBaseId)).toEqual(['kb_b'])
+    })
+  })
+
+  describe('skill enablement round-trip', () => {
+    it('enables the provided global skills for the new agent on create', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Skill Create',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b', 'skill_a'] // duplicate is deduped
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_a', 'skill_b'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('writes no skill rows when skillIds is omitted or empty', async () => {
+      const omitted = createAgentForTest({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
+      const empty = createAgentForTest({
+        type: 'claude-code',
+        name: 'Empty Skills',
+        model: TEST_MODEL_ID,
+        skillIds: []
+      })
+
+      for (const id of [omitted.id, empty.id]) {
+        const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
+        expect(rows).toHaveLength(0)
+      }
+    })
+
+    it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Bad Skill',
+          model: TEST_MODEL_ID,
+          skillIds: ['does_not_exist']
+        })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Bad Skill'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('reports a stale selected skill if the FK races after pre-validation', async () => {
+      await insertGlobalSkill('skill_race')
+      const originalGetById = agentGlobalSkillService.getById.bind(agentGlobalSkillService)
+      const getByIdSpy = vi.spyOn(agentGlobalSkillService, 'getById').mockImplementationOnce((skillId) => {
+        const skill = originalGetById(skillId)
+        dbh.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId)).run()
+        return skill
+      })
+
+      try {
+        const error = captureError(() =>
+          createAgentForTest({
+            type: 'claude-code',
+            name: 'Raced Skill',
+            model: TEST_MODEL_ID,
+            skillIds: ['skill_race']
+          })
+        )
+        expect(error).toMatchObject({
+          code: ErrorCode.INVALID_OPERATION,
+          message: expect.stringContaining('selected skill no longer exists')
+        })
+      } finally {
+        getByIdSpy.mockRestore()
+      }
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Raced Skill'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('leaves skill rows unchanged when update omits skillUpdates', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Skill Preserve',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      agentService.updateAgent(created.id, { name: 'Renamed Skill Preserve' })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('applies skillUpdates without replacing omitted skill rows', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+      await insertGlobalSkill('skill_c')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Skill Replace',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b']
+      })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [
+          { skillId: 'skill_a', isEnabled: false },
+          { skillId: 'skill_c', isEnabled: true }
+        ]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_a', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_b', isEnabled: true }),
+          expect.objectContaining({ skillId: 'skill_c', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(3)
+    })
+
+    it('writes an explicit disabled row when a builtin skill is disabled', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Builtin Disable',
+        model: TEST_MODEL_ID
+      })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_builtin', isEnabled: false }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual([expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false })])
+    })
+
+    it('preserves disabled builtin rows when applying other skill updates', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      await insertGlobalSkill('skill_regular')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Builtin Preserve',
+        model: TEST_MODEL_ID
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: created.id, skillId: 'skill_builtin', isEnabled: false })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_regular', isEnabled: true }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_regular', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(2)
+    })
+
+    it('rejects update skillUpdates when a selected skill does not exist', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Skill Bad Update',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { skillUpdates: [{ skillId: 'missing_skill', isEnabled: true }] })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
     })
   })
 
@@ -175,9 +863,10 @@ describe('AgentService', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
-      const deleted = await agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id)
 
-      expect(deleted).toBe(true)
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
@@ -185,13 +874,234 @@ describe('AgentService', () => {
     it('purges agent pins on delete (pin table has no FK)', async () => {
       const { id } = await insertAgent({ id: 'agent_with_pin_001' })
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
-      await pinService.pin({ entityType: 'agent', entityId: id })
-      const otherPin = await pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+      pinService.pin({ entityType: 'agent', entityId: id })
+      const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
 
-      await agentService.deleteAgent(id)
+      agentService.deleteAgent(id)
 
-      const remaining = await pinService.listByEntityType('agent')
+      const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
+      await insertKnowledgeBase('kb_agent_delete')
+      const { id } = await insertAgent({ id: 'agent_with_kb_001', knowledgeBaseIds: ['kb_agent_delete'] })
+
+      agentService.deleteAgent(id)
+
+      const rows = await dbh.db.select().from(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('deletes agent sessions atomically when requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
+        { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-delete-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const result = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(0)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-rollback-1', name: 'Workspace', path: '/tmp/agent-rollback-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-rollback-1',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-rollback-1',
+        orderKey: 'a0'
+      })
+
+      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
+      // the default DbService mock just passes the callback through without one.
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) =>
+        dbh.db.transaction(fn as never)
+      )
+      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
+      // below can only pass if that earlier delete is rolled back with the agent delete.
+      const deleteAgentSpy = vi.spyOn(agentService, 'deleteAgentTx').mockImplementationOnce(() => {
+        throw new Error('agent delete failed')
+      })
+
+      try {
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+      } finally {
+        deleteAgentSpy.mockRestore()
+      }
+
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(1)
+      const sessionRows = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-rollback-1'))
+      expect(sessionRows).toHaveLength(1)
+    })
+  })
+
+  describe('McpServerService.delete() cascade', () => {
+    it('removes a deleted MCP server and cascade-removes references from all agents', async () => {
+      const mcpId = 'mcp_to_delete'
+      await insertMcpServer(mcpId)
+      await insertMcpServer('mcp_keep')
+      await insertAgent({ id: 'agent_with_mcp_1', mcps: [mcpId, 'mcp_keep'] })
+      await insertAgent({ id: 'agent_with_mcp_2', mcps: [mcpId] })
+      await insertAgent({ id: 'agent_without_mcp', mcps: ['mcp_keep'] })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      mcpServerService.delete(mcpId)
+
+      // MCP server row should be deleted
+      const remainingMcps = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, mcpId))
+      expect(remainingMcps).toHaveLength(0)
+
+      const agent1 = agentService.getAgent('agent_with_mcp_1')
+      const agent2 = agentService.getAgent('agent_with_mcp_2')
+      const agent3 = agentService.getAgent('agent_without_mcp')
+
+      expect(agent1?.mcps).toEqual(['mcp_keep'])
+      expect(agent2?.mcps).toEqual([])
+      expect(agent3?.mcps).toEqual(['mcp_keep'])
+
+      expect(events).toHaveLength(2)
+      expect(events.find((e) => e.agentId === 'agent_with_mcp_1')?.mcps).toEqual(['mcp_keep'])
+      expect(events.find((e) => e.agentId === 'agent_with_mcp_2')?.mcps).toEqual([])
+
+      disposable.dispose()
+    })
+
+    it('emits no events when no agents reference the deleted MCP', async () => {
+      await insertMcpServer('mcp_alone')
+      await insertMcpServer('mcp_other')
+      await insertAgent({ id: 'agent_no_ref', mcps: ['mcp_other'] })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      mcpServerService.delete('mcp_alone')
+
+      const agent = agentService.getAgent('agent_no_ref')
+      expect(agent?.mcps).toEqual(['mcp_other'])
+
+      expect(events).toHaveLength(0)
+
+      disposable.dispose()
+    })
+
+    it('handles agents with empty mcps arrays gracefully', async () => {
+      await insertMcpServer('mcp_standalone')
+      await insertAgent({ id: 'agent_empty_mcps' })
+
+      const events: Array<{ agentId: string; mcps: string[] }> = []
+      const disposable = agentService.onAgentUpdated((e) => {
+        if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
+      })
+
+      mcpServerService.delete('mcp_standalone')
+
+      const agent = agentService.getAgent('agent_empty_mcps')
+      expect(agent?.mcps).toEqual([])
+
+      expect(events).toHaveLength(0)
+
+      disposable.dispose()
+    })
+  })
+
+  describe('KnowledgeBaseService.delete() cascade', () => {
+    it('removes bindings and emits the refreshed knowledgeBaseIds for affected agents', async () => {
+      const deletedKbId = '10000000-0000-4000-8000-000000000001'
+      const keptKbId = '10000000-0000-4000-8000-000000000002'
+      await insertKnowledgeBase(deletedKbId)
+      await insertKnowledgeBase(keptKbId)
+      await insertAgent({ id: 'agent_with_kb_1', knowledgeBaseIds: [deletedKbId, keptKbId] })
+      await insertAgent({ id: 'agent_with_kb_2', knowledgeBaseIds: [deletedKbId] })
+      await insertAgent({ id: 'agent_without_deleted_kb', knowledgeBaseIds: [keptKbId] })
+
+      const events: Array<{ agentId: string; knowledgeBaseIds: string[] }> = []
+      const disposable = agentService.onAgentUpdated((event) => {
+        if (event.updates.knowledgeBaseIds !== undefined) {
+          events.push({ agentId: event.agentId, knowledgeBaseIds: event.updates.knowledgeBaseIds })
+        }
+      })
+
+      knowledgeBaseService.delete(deletedKbId)
+
+      expect(agentService.getAgent('agent_with_kb_1')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(agentService.getAgent('agent_with_kb_2')?.knowledgeBaseIds).toEqual([])
+      expect(agentService.getAgent('agent_without_deleted_kb')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(events).toHaveLength(2)
+      expect(events.find((event) => event.agentId === 'agent_with_kb_1')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(events.find((event) => event.agentId === 'agent_with_kb_2')?.knowledgeBaseIds).toEqual([])
+
+      disposable.dispose()
+    })
+
+    it('does not emit an agent update when no agent references the deleted knowledge base', async () => {
+      const unreferencedKbId = '10000000-0000-4000-8000-000000000003'
+      const otherKbId = '10000000-0000-4000-8000-000000000004'
+      await insertKnowledgeBase(unreferencedKbId)
+      await insertKnowledgeBase(otherKbId)
+      await insertAgent({ id: 'agent_other_kb', knowledgeBaseIds: [otherKbId] })
+      const events: string[] = []
+      const disposable = agentService.onAgentUpdated((event) => events.push(event.agentId))
+
+      knowledgeBaseService.delete(unreferencedKbId)
+
+      expect(events).toEqual([])
+      disposable.dispose()
+    })
+
+    it('keeps a committed delete successful when the post-commit agent refresh fails', async () => {
+      const knowledgeBaseId = '10000000-0000-4000-8000-000000000005'
+      await insertKnowledgeBase(knowledgeBaseId)
+      await insertAgent({ id: 'agent_refresh_failure', knowledgeBaseIds: [knowledgeBaseId] })
+      const emitSpy = vi.spyOn(agentService, 'emitAgentUpdatedForIds').mockImplementationOnce(() => {
+        throw new Error('refresh failed')
+      })
+
+      try {
+        expect(() => knowledgeBaseService.delete(knowledgeBaseId)).not.toThrow()
+
+        const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, knowledgeBaseId))
+        expect(rows).toHaveLength(0)
+      } finally {
+        emitSpy.mockRestore()
+      }
     })
   })
 
@@ -201,8 +1111,8 @@ describe('AgentService', () => {
         await insertAgent({ name: `Agent ${i}` })
       }
 
-      const page1 = await agentService.listAgents({ limit: 2, offset: 0 })
-      const page2 = await agentService.listAgents({ limit: 2, offset: 2 })
+      const page1 = agentService.listAgents({ limit: 2, offset: 0 })
+      const page2 = agentService.listAgents({ limit: 2, offset: 2 })
 
       expect(page1.agents).toHaveLength(2)
       expect(page2.agents).toHaveLength(2)
@@ -218,7 +1128,7 @@ describe('AgentService', () => {
       await insertAgent({ name: 'Alpha' })
       await insertAgent({ name: 'Mango' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'name', sortOrder: 'asc' })
+      const { agents } = agentService.listAgents({ sortBy: 'name', sortOrder: 'asc' })
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
@@ -229,7 +1139,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
       await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
@@ -238,10 +1148,10 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_pin_a', name: 'A', orderKey: 'a' })
       await insertAgent({ id: 'agent_pin_b', name: 'B', orderKey: 'b' })
       await insertAgent({ id: 'agent_pin_c', name: 'C', orderKey: 'c' })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_c', 'agent_pin_b', 'agent_pin_a'])
     })
@@ -250,7 +1160,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
       await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
+      const { agents } = agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       const ids = agents.map((a) => a.id)
       expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
@@ -259,9 +1169,9 @@ describe('AgentService', () => {
     it('sorts by updatedAt without pin-first ordering', async () => {
       await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
       await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
+      const { agents } = agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
     })
@@ -270,7 +1180,7 @@ describe('AgentService', () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       const tagged = agents.find((agent) => agent.id === taggedId)
       const untagged = agents.find((agent) => agent.id === untaggedId)
@@ -288,6 +1198,8 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'deleted-model',
         name: 'Deleted Model',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
@@ -305,7 +1217,7 @@ describe('AgentService', () => {
       // Drop the row; FK is `ON DELETE set null`, so agent.model becomes NULL.
       await dbh.db.delete(userModelTable).where(eq(userModelTable.id, deletedModelId))
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
@@ -317,9 +1229,30 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_search_2', name: 'unrelated', description: 'used for research' })
       await insertAgent({ id: 'agent_search_3', name: 'noise' })
 
-      const { agents } = await agentService.listAgents({ search: 'research' })
+      const { agents } = agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
+    })
+
+    it('searches the localized blank builtin description server-side and returns it for display', async () => {
+      await insertAgent({
+        id: 'agent_builtin_assistant',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' }
+      })
+
+      const { agents, total } = agentService.listAgents({ search: 'diagnose issues' })
+
+      expect(total).toBe(1)
+      expect(agents).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_assistant',
+          // Preserve the persistence contract: renderer display fallback must not
+          // masquerade as a user-owned database description.
+          description: ''
+        })
+      ])
     })
   })
 
@@ -341,7 +1274,7 @@ describe('AgentService', () => {
       })
       await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
 
-      const result = await agentService.search({ q: 'Needle', limit: 5 })
+      const result = agentService.search({ q: 'Needle', limit: 5 })
 
       expect(result).toEqual([
         {
@@ -365,11 +1298,29 @@ describe('AgentService', () => {
       ])
       expect(result[0]).not.toHaveProperty('modelName')
     })
+
+    it('matches and displays the localized blank builtin description in global search', async () => {
+      await insertAgent({
+        id: 'agent_builtin_global_search',
+        name: 'Cherry Assistant',
+        description: '',
+        configuration: { builtin_role: 'assistant' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: 'agent_builtin_global_search',
+          subtitle:
+            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
+    })
   })
 
   describe('reorder', () => {
     async function listAgentIds() {
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       return agents.map((agent) => agent.id)
     }
 
@@ -379,7 +1330,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
       await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
 
-      await agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
+      agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
 
       expect(await listAgentIds()).toEqual(['agent_reorder_c', 'agent_reorder_a', 'agent_reorder_b'])
     })
@@ -391,7 +1342,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
 
       const beforeRejectedMove = await listAgentIds()
-      await expect(agentService.reorder('agent_reorder_deleted', { position: 'first' })).rejects.toMatchObject({
+      expect(captureError(() => agentService.reorder('agent_reorder_deleted', { position: 'first' }))).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       expect(await listAgentIds()).toEqual(beforeRejectedMove)
@@ -404,19 +1355,21 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
       await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
 
-      await agentService.reorderBatch([
+      agentService.reorderBatch([
         { id: 'agent_reorder_b', anchor: { position: 'first' } },
         { id: 'agent_reorder_c', anchor: { after: 'agent_reorder_b' } }
       ])
       expect(await listAgentIds()).toEqual(['agent_reorder_b', 'agent_reorder_c', 'agent_reorder_a'])
 
       const beforeRejectedMove = await listAgentIds()
-      await expect(
-        agentService.reorderBatch([
-          { id: 'agent_reorder_a', anchor: { position: 'first' } },
-          { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
-        ])
-      ).rejects.toMatchObject({
+      expect(
+        captureError(() =>
+          agentService.reorderBatch([
+            { id: 'agent_reorder_a', anchor: { position: 'first' } },
+            { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
+          ])
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       expect(await listAgentIds()).toEqual(beforeRejectedMove)

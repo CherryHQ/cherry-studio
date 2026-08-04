@@ -8,6 +8,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -25,6 +26,11 @@ const isProd = process.env.NODE_ENV === 'production'
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
 const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
+
+export const isMainExternalModule = (id: string) => {
+  return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
+}
 
 export default defineConfig({
   main: {
@@ -32,8 +38,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
-        '@application': resolve('src/main/core/application'),
-        '@types': resolve('src/renderer/types'),
+        '@application': resolve('src/main/core/application/Application'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
@@ -50,8 +55,9 @@ export default defineConfig({
       }
     },
     build: {
+      lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies],
+        external: isMainExternalModule,
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
@@ -86,7 +92,7 @@ export default defineConfig({
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
         input: {
-          index: resolve(__dirname, 'src/preload/index.ts'),
+          preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
         },
         external: ['electron'],
@@ -99,6 +105,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      uiContractPlugin(),
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
@@ -116,7 +123,6 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer'),
         '@shared': resolve('src/shared'),
-        '@types': resolve('src/renderer/types'),
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
@@ -146,11 +152,11 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
-          settings: resolve(__dirname, 'src/renderer/windows/settings/index.html'),
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },
         onwarn(warning, warn) {

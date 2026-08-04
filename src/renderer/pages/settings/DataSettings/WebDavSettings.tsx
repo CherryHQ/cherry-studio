@@ -1,18 +1,25 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
@@ -31,7 +38,7 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useAppSelector((state) => state.backup)
+  const { webdavSync } = getBackupSyncState()
 
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
 
@@ -50,10 +57,6 @@ const WebDavSettings: FC = () => {
     void setWebdavMaxBackups(value)
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setWebdavSkipBackupFile(value)
-  }
-
   const onDisableStreamChange = (value: boolean) => {
     void setWebdavDisableStream(value)
   }
@@ -62,20 +65,20 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {webdavSync.syncing && <SyncOutlined spin />}
+        {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-            iconProps={{ color: 'red' }}
+            iconProps={{ color: 'var(--error)' }}
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -148,11 +151,11 @@ const WebDavSettings: FC = () => {
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={showBackupModal} disabled={backuping} variant="outline">
-            <SaveOutlined />
+            <Save size={14} />
             {t('settings.data.webdav.backup.button')}
           </Button>
           <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
-            <FolderOpenOutlined />
+            <FolderOpen size={14} />
             {t('settings.data.webdav.restore.button')}
           </Button>
         </RowFlex>
@@ -201,7 +204,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        <Switch checked={webdavSkipBackupFile} onCheckedChange={(value) => void setWebdavSkipBackupFile(value)} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

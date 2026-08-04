@@ -6,7 +6,7 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
-      "@application": ["./src/main/core/application"],
+      "@application": ["./src/main/core/application/Application"],
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],
@@ -22,8 +22,7 @@
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
       "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@test-helpers/*": ["./tests/helpers/*"],
-      "@test-mocks/*": ["./tests/__mocks__/*"],
-      "@types": ["./src/renderer/types/index.ts"]
+      "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node", "vitest/globals"],
@@ -36,8 +35,6 @@
     "src/main/**/*",
     "src/main/env.d.ts",
     "src/preload/**/*",
-    "src/renderer/services/traceApi.ts",
-    "src/renderer/types/*",
     "packages/mcp-trace/**/*",
     "packages/provider-registry/**/*",
     "packages/aiCore/src/**/*",

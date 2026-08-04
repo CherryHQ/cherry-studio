@@ -1,15 +1,16 @@
 import { cleanup, render } from '@testing-library/react'
+import { type RefObject, useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type Command, CommandCategory } from '../command'
-import CommandListPopover from '../CommandListPopover'
+import CommandListPopover, { type CommandListPopoverRef } from '../CommandListPopover'
 
 const mocks = vi.hoisted(() => ({
   command: vi.fn(),
   scrollToIndex: vi.fn()
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'dark' })
 }))
 
@@ -51,9 +52,10 @@ const items: Command[] = [
   }
 ]
 
-function renderPopover() {
-  return render(
+function createPopover(ref?: RefObject<CommandListPopoverRef | null>) {
+  return (
     <CommandListPopover
+      ref={ref}
       editor={{} as any}
       range={{ from: 0, to: 1 }}
       query=""
@@ -64,6 +66,20 @@ function renderPopover() {
       clientRect={() => null}
     />
   )
+}
+
+function KeyboardPopoverHarness({ onReady }: { onReady: (value: CommandListPopoverRef | null) => void }) {
+  const ref = useRef<CommandListPopoverRef>(null)
+
+  useEffect(() => {
+    onReady(ref.current)
+  }, [onReady])
+
+  return createPopover(ref)
+}
+
+function renderPopover() {
+  return render(createPopover())
 }
 
 describe('CommandListPopover', () => {
@@ -79,6 +95,27 @@ describe('CommandListPopover', () => {
     const { container } = renderPopover()
 
     const popover = container.querySelector('.command-list-popover') as HTMLElement
-    expect(popover.style.background).toBe('var(--color-popover)')
+    expect(popover.style.background).toBe('var(--popover)')
+  })
+
+  it('lets Shift+Enter insert a newline while plain Enter selects the command', () => {
+    const capturedRef: { current: CommandListPopoverRef | null } = { current: null }
+    render(
+      <KeyboardPopoverHarness
+        onReady={(value) => {
+          capturedRef.current = value
+        }}
+      />
+    )
+
+    const shiftEnter = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(capturedRef.current?.onKeyDown(shiftEnter)).toBe(false)
+    expect(shiftEnter.defaultPrevented).toBe(false)
+    expect(mocks.command).not.toHaveBeenCalled()
+
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+    expect(capturedRef.current?.onKeyDown(enter)).toBe(true)
+    expect(enter.defaultPrevented).toBe(true)
+    expect(mocks.command).toHaveBeenCalledWith({ id: 'paragraph', label: 'Text' })
   })
 })

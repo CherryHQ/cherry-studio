@@ -1,7 +1,6 @@
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import type { Provider } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
+import i18n from '@renderer/i18n/resolver'
+import { isSystemProvider, type Provider } from '@renderer/types/provider'
 
 /**
  * 从模型 ID 中提取默认组名。
@@ -108,13 +107,26 @@ export const getFancyProviderName = (provider: Provider) => {
   return isSystemProvider(provider) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
 }
 
+// \uFE0F = VS16 (emoji-presentation selector); \u20E3 = combining enclosing keycap (1️⃣);
+// \u200D = ZWJ joining multi-part sequences (🧛‍♂️). Composed into the emoji regexes below.
+const EMOJI_PART_PATTERN = String.raw`(?:\p{Emoji}\uFE0F|\p{Emoji_Presentation})(?:\p{Emoji_Modifier})?`
+const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
+const REGIONAL_FLAG_EMOJI_PATTERN = String.raw`(?:\p{Regional_Indicator}{2})`
+const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
+const EMOJI_CLUSTER_PATTERN = String.raw`(?:${KEYCAP_EMOJI_PATTERN}|${REGIONAL_FLAG_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})`
+// Anchored at both ends for whole-string checks (isEmoji); anchored at the start only
+// for leading-run extraction/removal (getLeadingEmoji / removeLeadingEmoji).
+const EMOJI_REGEX = new RegExp(`^(?:${EMOJI_CLUSTER_PATTERN})+$`, 'u')
+const EMOJI_LEADING_REGEX = new RegExp(`^(?:${EMOJI_CLUSTER_PATTERN})+`, 'u')
+const FIRST_LETTER_OR_EMOJI_REGEX = new RegExp(`${EMOJI_CLUSTER_PATTERN}|\\p{L}\\p{M}*`, 'u')
+
 /**
  * 用于获取 avatar 名字的辅助函数，会取出字符串的第一个字符，支持表情符号。
  * @param {string} str 输入字符串
  * @returns {string} 第一个字符，或者返回空字符串
  */
 export function firstLetter(str: string): string {
-  const match = str?.match(/\p{L}\p{M}*|\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u)
+  const match = str?.match(FIRST_LETTER_OR_EMOJI_REGEX)
   return match ? match[0] : ''
 }
 
@@ -124,8 +136,7 @@ export function firstLetter(str: string): string {
  * @returns {string} 移除开头表情符号后的字符串
  */
 export function removeLeadingEmoji(str: string): string {
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
-  return str.replace(emojiRegex, '').trim()
+  return str.replace(EMOJI_LEADING_REGEX, '').trim()
 }
 
 /**
@@ -134,8 +145,7 @@ export function removeLeadingEmoji(str: string): string {
  * @returns {string} 开头的表情符号，如果没有则返回空字符串
  */
 export function getLeadingEmoji(str: string): string {
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
-  const match = str.match(emojiRegex)
+  const match = str.match(EMOJI_LEADING_REGEX)
   return match ? match[0] : ''
 }
 
@@ -151,9 +161,7 @@ export function isEmoji(str: string): boolean {
   if (str.startsWith('http')) {
     return false
   }
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+$/u
-  const match = str.match(emojiRegex)
-  return !!match
+  return EMOJI_REGEX.test(str)
 }
 
 /**
@@ -205,31 +213,6 @@ export function getBriefInfo(text: string, maxLength: number = 50): string {
 
   // 截取前面的内容，并在末尾添加 "..."
   return truncatedText + '...'
-}
-
-/**
- * 清理 provider 名称，用于环境变量名：
- * - 只保留 [a-zA-Z0-9_\s.-]（白名单）
- * - 空格转短横线（下游会把 - 和 . 再转 _）
- * - 清理后为空时用 hash 兜底
- * @param {string} name 输入字符串
- * @returns {string} 清理后的字符串
- */
-export function sanitizeProviderName(name: string): string {
-  if (!name) return name
-
-  const sanitized = name
-    .replace(/[^a-zA-Z0-9_\s.-]/g, '') // whitelist: only keep env-var-safe chars
-    .replace(/\s+/g, '-') // spaces -> dashes
-
-  if (!sanitized) {
-    let hash = 0
-    for (let i = 0; i < name.length; i++) {
-      hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0
-    }
-    return 'p_' + Math.abs(hash).toString(36)
-  }
-  return sanitized
 }
 
 /**

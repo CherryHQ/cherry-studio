@@ -26,10 +26,9 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
-import { createDirectoryWatcher, type DirectoryWatcher, type WatcherEvent } from '@main/services/file/watcher'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import {
   type DirectoryTreeOptions,
-  type FilePath,
   type SerializedTreeNode,
   TreeDir,
   TreeDirRoot,
@@ -37,8 +36,9 @@ import {
   type TreeMutationEvent,
   type TreeNode,
   type TreeNodeStats
-} from '@shared/file/types'
+} from '@shared/utils/file'
 
+import { createDirectoryWatcher, type DirectoryWatcher, type WatcherEvent } from '../watcher'
 import { type GitignorePredicate, loadGitignorePredicate } from './gitignore'
 import { listDirectory as searchListDirectory } from './search'
 
@@ -50,6 +50,7 @@ interface ResolvedTreeOptions {
   readonly includeHidden: boolean
   readonly withStats: boolean
   readonly maxDepth: number
+  readonly watchMissingRoot: boolean
 }
 
 function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTreeOptions {
@@ -59,7 +60,8 @@ function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTree
     respectGitignore: options?.respectGitignore ?? true,
     includeHidden: options?.includeHidden ?? false,
     withStats: options?.withStats ?? false,
-    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER
+    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER,
+    watchMissingRoot: options?.watchMissingRoot ?? false
   }
 }
 
@@ -92,6 +94,24 @@ async function statQuiet(absPath: string): Promise<TreeNodeStats | undefined> {
     return statsToFields(s)
   } catch {
     return undefined
+  }
+}
+
+async function findNearestExistingDirectory(absPath: string): Promise<string> {
+  let candidate = normalizePath(path.posix.dirname(absPath))
+  while (true) {
+    try {
+      const stats = await nodeStat(candidate)
+      if (stats.isDirectory()) return candidate
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+
+    const parent = normalizePath(path.posix.dirname(candidate))
+    if (parent === candidate) {
+      throw new Error(`No existing directory found above ${absPath}`)
+    }
+    candidate = parent
   }
 }
 
@@ -142,6 +162,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
+  private watcherRootPath: string
   // Loaded once during `init()`; what the user's `.gitignore` (plus the
   // always-on `.git` exclusion) says to skip. `null` when the caller
   // opted out via `respectGitignore: false` or the file isn't readable.
@@ -150,6 +171,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
+  private rootMissingAtInit = false
   // Paths recently affected by an explicit `rename()` — used to suppress the
   // chokidar `unlink(oldPath)` + `add(newPath)` events that follow shortly
   // after, so the renderer doesn't apply `removed` + `added` on top of the
@@ -160,9 +182,24 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   constructor(rootPath: string, options: ResolvedTreeOptions) {
     this.rootPath = normalizePath(rootPath)
+    this.watcherRootPath = this.rootPath
     this.options = options
     this.root = new TreeDirRoot(this.rootPath)
     this.map.set(this.rootPath, this.root)
+  }
+
+  private shouldIgnorePath(absPath: string): boolean {
+    const normalized = normalizePath(absPath)
+    const relativePath = path.posix.relative(this.rootPath, normalized)
+    const isDescendant = relativePath !== '..' && !relativePath.startsWith('../')
+    if (
+      !this.options.includeHidden &&
+      isDescendant &&
+      relativePath.split('/').some((segment) => segment.startsWith('.'))
+    ) {
+      return true
+    }
+    return this.ignorePredicate?.(normalized) ?? false
   }
 
   async init(): Promise<void> {
@@ -171,6 +208,15 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // work during construction.
     if (this.options.respectGitignore) {
       this.ignorePredicate = await loadGitignorePredicate(this.rootPath)
+    }
+    if (this.options.watchMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        this.rootMissingAtInit = true
+        this.watcherRootPath = await findNearestExistingDirectory(this.rootPath)
+      }
     }
     // Start the watcher *before* the initial scan completes so we don't
     // miss events for paths created during the scan window. The events are
@@ -185,18 +231,33 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private async runInitialScan(): Promise<void> {
+    if (this.options.watchMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        throw error
+      }
+    }
+
     // Let scan failures propagate. Swallowing them resolves File_TreeCreate
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
-    const paths = await searchListDirectory(this.rootPath as FilePath, {
-      recursive: true,
-      maxDepth: this.options.maxDepth,
-      includeHidden: this.options.includeHidden,
-      includeFiles: true,
-      includeDirectories: true,
-      maxEntries: Number.MAX_SAFE_INTEGER
-    })
+    let paths: string[]
+    try {
+      paths = await searchListDirectory(this.rootPath as AbsoluteFilePath, {
+        recursive: true,
+        maxDepth: this.options.maxDepth,
+        includeHidden: this.options.includeHidden,
+        includeFiles: true,
+        includeDirectories: true,
+        maxEntries: Number.MAX_SAFE_INTEGER
+      })
+    } catch (error) {
+      if (this.options.watchMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
 
     // Sort by depth ascending so parents always exist before children are
     // attached. Within a depth, sort alphabetically for stable display.
@@ -207,7 +268,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const normalized = paths
       .map(normalizePath)
       .filter((p) => p !== this.rootPath)
-      .filter((p) => !(this.ignorePredicate && this.ignorePredicate(p)))
+      .filter((p) => !this.shouldIgnorePath(p))
     normalized.sort((a, b) => {
       const da = a.split('/').length
       const db = b.split('/').length
@@ -252,14 +313,30 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const predicate = this.ignorePredicate
-    const watcherIgnore = predicate
-      ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
-      : undefined
+    const watcherIgnore = ((p: AbsoluteFilePath) => {
+      const normalized = normalizePath(p)
+      if (this.rootMissingAtInit) {
+        const isTargetPath = normalized === this.rootPath || normalized.startsWith(`${this.rootPath}/`)
+        const isTargetAncestor = normalized === this.watcherRootPath || this.rootPath.startsWith(`${normalized}/`)
+        if (!isTargetPath && !isTargetAncestor) return true
+        if (isTargetAncestor && !isTargetPath) return false
+      }
+      return this.shouldIgnorePath(normalized)
+    }) as (path: AbsoluteFilePath) => boolean
+    const rootDepthOffset = path.posix.relative(this.watcherRootPath, this.rootPath).split('/').filter(Boolean).length
+    const watcherMaxDepth =
+      this.options.maxDepth === Number.MAX_SAFE_INTEGER
+        ? undefined
+        : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.rootPath as FilePath, {
+    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
       recursive: true,
+      maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,
+      // A missing root can appear with children before chokidar attaches to
+      // the new directory. Emit that first scan so the builder cannot miss
+      // files created in the same burst as the root.
+      emitInitial: this.rootMissingAtInit,
       ignore: watcherIgnore
     })
     this.watcher = watcher
@@ -304,10 +381,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
 
     const evPath = normalizePath(ev.path)
+    if (evPath !== this.rootPath && !evPath.startsWith(`${this.rootPath}/`)) return
     // Belt-and-suspenders: chokidar's ignore predicate runs before
     // recursion, but in case of races (a `node_modules` event arrives
     // before chokidar processes the ignore for it), drop it here too.
-    if (this.ignorePredicate && this.ignorePredicate(evPath)) return
+    if (this.shouldIgnorePath(evPath)) return
 
     // Suppress the chokidar `unlink(oldPath)` + `add(newPath)` pair that
     // follows an explicit `rename()`. Without this the renderer would see
@@ -324,6 +402,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
 
     if (ev.kind === 'unlink' || ev.kind === 'unlinkDir') {
+      if (evPath === this.rootPath) {
+        for (const child of Object.values(this.root.children)) {
+          this.removeNode(child.path, /* emit */ true)
+        }
+        return
+      }
       this.removeNode(evPath, /* emit */ true)
       return
     }
@@ -459,6 +543,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       // double-apply over what the renderer is about to receive.
       this.markRenamed(oldNorm, newNorm)
       return false
+    }
+
+    if (this.shouldIgnorePath(newNorm)) {
+      this.markRenamed(oldNorm, newNorm)
+      this.removeNode(oldNorm, /* emit */ true)
+      return true
     }
 
     // Capture descendant paths before mutation so we can re-key the map.

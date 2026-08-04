@@ -1,4 +1,4 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { type PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,9 +14,7 @@ const KnowledgePageShell = ({ children }: PropsWithChildren) => {
         <NavbarCenter className="border-r-0">{t('knowledge.title')}</NavbarCenter>
       </Navbar>
 
-      <div
-        ref={contentRef}
-        className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 overflow-hidden bg-background">
+      <div ref={contentRef} className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 overflow-hidden">
         {children}
       </div>
     </div>

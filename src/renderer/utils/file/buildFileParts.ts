@@ -1,57 +1,84 @@
 /**
- * Renderer-side helper: turn the user's attached files into v2 `FileUIPart`s
- * that survive userData moves.
+ * Renderer-side send-time bridge: turn the composer's `ComposerAttachment`s
+ * into v2 `FileUIPart`s that survive userData moves.
  *
- * Both the chat send flow (`V2ChatContent.handleSendV2`) and the edit flow
- * (`MessageEditor.buildFinalParts`) feed legacy `FileMetadata` (the shape
- * the existing attach handlers — drop / paste / picker — produce) into
- * here and get back AI-SDK-shaped `FileUIPart`s. Internally each file is
- * promoted to a v2 `FileEntry` via `createInternalEntry`; the resulting
- * `fileEntryId` lives in `providerMetadata.cherry` so
- * `fileProcessor.resolveFileUIPart` (main) can read it path-independently —
- * see `packages/shared/data/types/uiParts.ts` for the accessor + Zod.
- *
- * Phase 2 follow-up: producer-side (drop / paste / picker handlers) should
- * eventually create the FileEntry at attach time and hand `FileEntry[]`
- * down the chat-attach chain; this helper would then drop the
- * `createInternalEntry` call and shrink to just `getPhysicalPath +
- * withCherryMeta`.
+ * The composer holds lean `ComposerAttachment` descriptors; the v2 `FileEntry`
+ * is created here, when the message is actually sent. Each attachment is
+ * promoted to an internal `FileEntry` via `createInternalEntry` (Cherry copies
+ * the bytes into its own storage); the resulting `fileEntryId` and the
+ * composer's stable `fileTokenSourceId` live in `providerMetadata.cherry` so
+ * downstream consumers can identify both the stored file and its composer
+ * token association — see `packages/shared/data/types/uiParts.ts` for the
+ * accessor + Zod.
  */
 
-import type { FileMetadata } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types/file'
+import { ipcApi } from '@renderer/ipc'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { FilePath } from '@shared/file/types/common'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
-function mediaTypeFor(file: FileMetadata, ext: string): string {
-  if (file.type === FILE_TYPE.IMAGE) {
-    const bare = ext.replace(/^\./, '')
-    if (!bare) return 'image/png'
-    return `image/${bare === 'jpg' ? 'jpeg' : bare === 'svg' ? 'svg+xml' : bare}`
-  }
-  return 'application/octet-stream'
+export function withComposerFilePartMeta(
+  part: FileUIPart,
+  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
+  fileEntryId?: string
+): FileUIPart {
+  return withCherryMeta(part, {
+    ...(fileEntryId ? { fileEntryId } : {}),
+    fileTokenSourceId: attachment.fileTokenSourceId,
+    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+  })
 }
 
 /**
- * For each `FileMetadata` (with an absolute `path`), create a v2 internal
- * FileEntry (Cherry copies the bytes into its own storage) and return a
- * `FileUIPart` that carries the new `fileEntryId` plus a `file://` URL
- * pointing at the freshly-copied physical file.
+ * For each `ComposerAttachment`, create a v2 internal FileEntry (Cherry copies
+ * the bytes into its own storage) and return a `FileUIPart` that carries the new
+ * `fileEntryId` plus a `file://` URL pointing at the freshly-copied physical file.
+ *
+ * `ComposerAttachment.path` is already an `AbsoluteFilePath` — producers validate
+ * it — so the only precondition left here is that the path is *present*: an
+ * attachment reconstructed for message editing carries none, and such an
+ * attachment must never be re-sent through `createInternalEntry` (the edit flow
+ * reuses the original part instead).
+ *
+ * That check runs over the WHOLE batch before the first IPC. `createInternalEntry`
+ * copies bytes and inserts a row, and neither orphan sweep reclaims the result
+ * (the DB sweep only reports zero-ref entries; the FS sweep only unlinks files
+ * with no DB row), so a mid-flight rejection would leave permanent residue that
+ * every retry duplicates.
+ *
+ * A rejected `createInternalEntry` still leaves that residue — this batch is not
+ * atomic — but that failure mode is independent of the caller's input.
  */
-export async function buildFilePartsForAttachments(files: FileMetadata[]): Promise<FileUIPart[]> {
+export async function buildFilePartsForAttachments(attachments: ComposerAttachment[]): Promise<FileUIPart[]> {
+  const paths = attachments.map((attachment) => {
+    if (!attachment.path) {
+      throw new Error(`Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path`)
+    }
+    return attachment.path
+  })
   return Promise.all(
-    files.map(async (file) => {
-      const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
+    attachments.map(async (attachment, index) => {
+      const entry = await window.api.file.createInternalEntry({
+        source: 'path',
+        path: paths[index],
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-      const ext = entry.ext ?? file.ext ?? ''
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
+      if (metadata === null) {
+        // The physical file was just created by createInternalEntry above, so an
+        // unreadable (null) metadata means a broken internal invariant — surface
+        // it here rather than silently shipping an octet-stream part.
+        throw new Error(`Failed to read metadata for freshly created file entry ${entry.id}`)
+      }
       const basePart: FileUIPart = {
         type: 'file',
-        mediaType: mediaTypeFor(file, ext),
-        url: `file://${physicalPath}`,
-        filename: file.origin_name || file.name
+        mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
+        url: toFileUrl(physicalPath),
+        filename: attachment.origin_name || attachment.name
       }
-      return withCherryMeta(basePart, { fileEntryId: entry.id })
+      return withComposerFilePartMeta(basePart, attachment, entry.id)
     })
   )
 }

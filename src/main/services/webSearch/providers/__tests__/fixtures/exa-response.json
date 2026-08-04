@@ -2,8 +2,8 @@
   "autopromptString": "refined query",
   "results": [
     {
-      "title": "Exa Title",
       "text": "Exa Content",
+      "title": "Exa Title",
       "url": "https://exa.example/result"
     }
   ]

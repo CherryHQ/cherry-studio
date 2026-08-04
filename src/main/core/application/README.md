@@ -7,10 +7,16 @@ Application is the top-level orchestrator that ties together the lifecycle syste
 
 ## Import
 
-Main-process code imports the singleton (and its companions) via the `@application` path alias:
+Main-process code imports the singleton via the `@application` path alias, which resolves **directly to `Application.ts`** (not a directory barrel) — so importing the locator never drags in the whole service registry:
 
 ```ts
-import { application, serviceList, services } from '@application'
+import { application } from '@application'
+```
+
+The service registry (`serviceList` / `services`) is bootstrap-internal; import it directly from its file when wiring startup:
+
+```ts
+import { serviceList } from '@main/core/application/serviceRegistry'
 ```
 
 The alias is configured in `tsconfig.node.json` (`compilerOptions.paths`) and `electron.vite.config.ts` (`main.resolve.alias`). Vitest inherits the Vite alias automatically.
@@ -28,7 +34,8 @@ The alias is configured in `tsconfig.node.json` (`compilerOptions.paths`) and `e
 
 ```
 application/
-├── Application.ts      # Application singleton + lazy proxy
-├── serviceRegistry.ts  # Central service registry (add services here)
-└── index.ts            # Barrel export
+├── Application.ts      # Application singleton + lazy proxy — the `@application` alias target
+└── serviceRegistry.ts  # Central service registry (add services here); imported directly, not via a barrel
 ```
+
+No `index.ts` barrel: the two files are independent (the locator vs the bootstrap manifest), so each is imported directly by its consumers rather than bundled behind a door (per [Naming §6.4](../../../../docs/references/naming-conventions.md)).

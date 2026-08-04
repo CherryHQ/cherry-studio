@@ -4,7 +4,7 @@ import type {
   FileProcessorId,
   FileProcessorOverride
 } from '@shared/data/preference/preferenceTypes'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import { useCallback, useMemo } from 'react'
 
 const FILE_PROCESSING_KEYS = {

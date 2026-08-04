@@ -16,7 +16,6 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
-  RuntimeReasoningSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -62,8 +61,6 @@ export const CreateModelSchema = z.strictObject({
   maxOutputTokens: z.number().int().positive().optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
-  /** Reasoning configuration */
-  reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
@@ -73,6 +70,7 @@ export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 500
 export const MODELS_BULK_UPDATE_MAX_ITEMS = 1000
+export const MODELS_DELETE_MAX_IDS = 1000
 export const MODELS_RECONCILE_MAX_ITEMS = 5000
 
 /**
@@ -122,6 +120,18 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
 export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
+const DeleteModelsIdsQueryValueSchema = z.union([
+  UniqueModelIdSchema.transform((id) => [id]),
+  z.array(UniqueModelIdSchema).min(1).max(MODELS_DELETE_MAX_IDS)
+])
+
+/** Query params for `DELETE /models`: one or more model IDs, deleted atomically.
+ * A string value is one UniqueModelId; arrays represent repeated/structured query values. */
+export const DeleteModelsQuerySchema = z.strictObject({
+  ids: DeleteModelsIdsQueryValueSchema
+})
+export type DeleteModelsQuery = z.input<typeof DeleteModelsQuerySchema>
+
 /**
  * `POST /providers/:providerId/models:reconcile` body.
  *
@@ -142,9 +152,8 @@ export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsS
 export const ResolveProviderModelsQuerySchema = z.strictObject({
   /**
    * Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers.
-   * Omit ids to list active provider-model pairs from the registry.
    */
-  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional()
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
 })
 export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 
@@ -183,6 +192,11 @@ export type ModelSchemas = {
     PATCH: {
       body: BulkUpdateModelsDto
       response: Model[]
+    }
+    /** Delete one or more models in a single transaction. */
+    DELETE: {
+      query: DeleteModelsQuery
+      response: void
     }
   }
 

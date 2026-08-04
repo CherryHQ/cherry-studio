@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import Scrollbar from '../Scrollbar'
 
-// Mock lodash throttle
-vi.mock('lodash', async () => {
-  const actual = await import('lodash')
+// Mock es-toolkit/compat throttle
+vi.mock('es-toolkit/compat', async () => {
+  const actual = await import('es-toolkit/compat')
   return {
     ...actual,
     throttle: vi.fn((fn) => {
@@ -30,108 +30,32 @@ describe('Scrollbar', () => {
     vi.useRealTimers()
   })
 
-  describe('rendering', () => {
-    it('should render children correctly', () => {
-      render(
-        <Scrollbar data-testid="scrollbar">
-          <div data-testid="child">测试内容</div>
-        </Scrollbar>
-      )
-
-      const child = screen.getByTestId('child')
-      expect(child).toBeDefined()
-      expect(child.textContent).toBe('测试内容')
-    })
-
-    it('should pass custom props to container', () => {
-      render(
-        <Scrollbar data-testid="scrollbar" className="custom-class">
-          内容
-        </Scrollbar>
-      )
-
-      const scrollbar = screen.getByTestId('scrollbar')
-      expect(scrollbar.className).toContain('custom-class')
-    })
-
-    it('should match default styled snapshot', () => {
-      const { container } = render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
-      expect(container.firstChild).toMatchSnapshot()
-    })
-  })
-
   describe('scrolling behavior', () => {
-    it('should update isScrolling state when scrolled', () => {
+    it('should keep the scrolling state active for 1500ms after the latest scroll', () => {
       render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
 
       const scrollbar = screen.getByTestId('scrollbar')
+      expect(scrollbar).toHaveAttribute('data-scrolling', 'false')
 
-      // 初始状态下应该不是滚动状态
-      expect(scrollbar.getAttribute('isScrolling')).toBeFalsy()
-
-      // 触发滚动
       fireEvent.scroll(scrollbar)
+      expect(scrollbar).toHaveAttribute('data-scrolling', 'true')
 
-      // 由于 isScrolling 是组件内部状态，不直接反映在 DOM 属性上
-      // 但可以检查模拟的事件处理是否被调用
-      expect(scrollbar).toBeDefined()
-    })
-
-    it('should reset isScrolling after timeout', () => {
-      render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
-
-      const scrollbar = screen.getByTestId('scrollbar')
-
-      // 触发滚动
-      fireEvent.scroll(scrollbar)
-
-      // 前进时间但不超过timeout
       act(() => {
         vi.advanceTimersByTime(1000)
       })
+      expect(scrollbar).toHaveAttribute('data-scrolling', 'true')
 
-      // 前进超过timeout
+      fireEvent.scroll(scrollbar)
+
       act(() => {
         vi.advanceTimersByTime(600)
       })
+      expect(scrollbar).toHaveAttribute('data-scrolling', 'true')
 
-      // 不测试样式，这里只检查组件是否存在
-      expect(scrollbar).toBeDefined()
-    })
-
-    it('should reset timeout on continuous scrolling', () => {
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
-
-      render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
-
-      const scrollbar = screen.getByTestId('scrollbar')
-
-      // 第一次滚动
-      fireEvent.scroll(scrollbar)
-
-      // 前进一部分时间
       act(() => {
-        vi.advanceTimersByTime(800)
+        vi.advanceTimersByTime(900)
       })
-
-      // 再次滚动
-      fireEvent.scroll(scrollbar)
-
-      // clearTimeout 应该被调用，因为在第二次滚动时会清除之前的定时器
-      expect(clearTimeoutSpy).toHaveBeenCalled()
-    })
-  })
-
-  describe('throttling', () => {
-    it('should use throttled scroll handler', async () => {
-      const { throttle } = await import('lodash')
-
-      render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
-
-      // 验证 throttle 被调用
-      expect(throttle).toHaveBeenCalled()
-      // 验证 throttle 调用时使用了 100ms 延迟和正确的选项
-      expect(throttle).toHaveBeenCalledWith(expect.any(Function), 100, { leading: true, trailing: true })
+      expect(scrollbar).toHaveAttribute('data-scrolling', 'false')
     })
   })
 
@@ -153,7 +77,7 @@ describe('Scrollbar', () => {
       expect(clearTimeoutSpy).toHaveBeenCalled()
 
       // 验证 throttle.cancel 被调用
-      const { throttle } = await import('lodash')
+      const { throttle } = await import('es-toolkit/compat')
       const throttledFunction = (throttle as unknown as Mock).mock.results[0].value
       expect(throttledFunction.cancel).toHaveBeenCalled()
     })

@@ -1,65 +1,32 @@
-import { CloseOutlined } from '@ant-design/icons'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { Typography } from 'antd'
+import { Copy, X } from 'lucide-react'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 interface ClipboardPreviewProps {
-  referenceText: string
+  clipboardText: string
   clearClipboard: () => void
   t: (key: string) => string
 }
 
-const { Paragraph } = Typography
-
-const ClipboardPreview: FC<ClipboardPreviewProps> = ({ referenceText, clearClipboard, t }) => {
-  if (!referenceText) return null
+const ClipboardPreview: FC<ClipboardPreviewProps> = ({ clipboardText, clearClipboard, t }) => {
+  if (!clipboardText) return null
 
   return (
-    <Container>
-      <ClipboardContent>
-        <CopyIcon style={{ fontSize: '14px', flexShrink: 0, cursor: 'pointer' }} className="nodrag" />
-        <Paragraph
-          ellipsis={{ rows: 2 }}
-          style={{ margin: '0 12px', fontSize: 12, flex: 1, minWidth: 0 }}
-          className="nodrag">
-          {referenceText || t('quickAssistant.clipboard.empty')}
-        </Paragraph>
-        <CloseButton onClick={clearClipboard} className="nodrag">
-          <CloseOutlined style={{ fontSize: '14px' }} />
-        </CloseButton>
-      </ClipboardContent>
-    </Container>
+    <div className="mb-2.5 rounded-lg bg-muted p-3">
+      <div className="flex w-full items-center text-muted-foreground">
+        <Copy className="nodrag size-3.5 shrink-0 cursor-pointer" />
+        <p className="nodrag mx-3 min-w-0 flex-1 overflow-hidden text-xs [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]">
+          {clipboardText || t('quickAssistant.clipboard.empty')}
+        </p>
+        <button
+          type="button"
+          onClick={clearClipboard}
+          className="nodrag flex shrink-0 items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={t('common.close')}>
+          <X className="size-3.5" />
+        </button>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  padding: 12px;
-  background-color: var(--color-background-opacity);
-  border-radius: 8px;
-  margin-bottom: 10px;
-`
-const ClipboardContent = styled.div`
-  display: flex;
-  align-items: center;
-  width: 100%;
-  color: var(--color-text-secondary);
-`
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-
-  &:hover {
-    color: var(--color-text);
-  }
-`
 
 export default ClipboardPreview

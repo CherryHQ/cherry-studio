@@ -70,18 +70,18 @@ describe('TemporaryChatContextProvider', () => {
     // sensible defaults
     hasTopicMock.mockReturnValue(true)
     getTopicMock.mockReturnValue({ id: '1', assistantId: 'asst_1' })
-    getAssistantByIdMock.mockResolvedValue({ id: 'asst_1', modelId: 'openai::gpt-4o' })
-    getByKeyMock.mockResolvedValue({
+    getAssistantByIdMock.mockReturnValue({ id: 'asst_1', modelId: 'openai::gpt-4o' })
+    getByKeyMock.mockReturnValue({
       id: 'openai::gpt-4o',
       providerId: 'openai',
       apiModelId: 'gpt-4o',
       name: 'GPT-4o'
     })
-    appendMessageMock.mockImplementation(async (_topicId, input) => ({
+    appendMessageMock.mockImplementation((_topicId, input) => ({
       id: 'service-generated-id',
       ...input
     }))
-    listMessagesMock.mockResolvedValue([
+    listMessagesMock.mockReturnValue([
       {
         id: 'msg-u',
         role: 'user',
@@ -141,8 +141,9 @@ describe('TemporaryChatContextProvider', () => {
 
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     getByKeyMock.mockReset()
-    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+    getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
       providerId,
       apiModelId: modelId,
@@ -162,7 +163,7 @@ describe('TemporaryChatContextProvider', () => {
   it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     getByKeyMock.mockReset()
-    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+    getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
       providerId,
       apiModelId: modelId,
@@ -214,7 +215,24 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
-    // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
-    expect(request.messageId).toBeUndefined()
+    // The stream and temporary backend share one stable message id so
+    // invocation records can link to it before later promotion rebuilds the
+    // same message projection.
+    expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('reads the knowledge scope from the submitted user-message parts', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        userMessageParts: [
+          { type: 'text', text: 'search this' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-1', 'kb-2'] } }
+        ]
+      }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
   })
 })

@@ -1,8 +1,14 @@
-import type { McpTool, Topic } from '@types'
+import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
+import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
+import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { ExternalAppId } from '../../types/externalApp'
+import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -23,7 +29,6 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
-export type CacheTopic = Topic
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
@@ -31,6 +36,13 @@ export type McpRuntimeStatus = {
   lastCheckedAt: number
   lastError?: string
 }
+
+/**
+ * MCP registry "available servers" fetched per marketplace provider, keyed by
+ * provider key. Re-fetchable network data, so it lives in persist cache rather
+ * than Preference/DataApi.
+ */
+export type McpAvailableServers = Record<string, McpServer[]>
 
 /**
  * Tab type for browser-like tabs
@@ -67,6 +79,27 @@ export interface TabsState {
   activeTabId: string
 }
 
+export type GlobalSearchRecentEntry =
+  | {
+      kind: 'route'
+      url: string
+      title: string
+      icon?: string
+      lastAccessTime: number
+    }
+  | {
+      kind: 'topic'
+      topicId: string
+      title: string
+      lastAccessTime: number
+    }
+  | {
+      kind: 'session'
+      sessionId: string
+      title: string
+      lastAccessTime: number
+    }
+
 export type TranslatingState =
   | {
       isTranslating: true
@@ -79,6 +112,24 @@ export type TranslatingState =
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
+/**
+ * Saved scroll position for a chat topic / agent-session message list.
+ *
+ * Stored per topic id in the Memory cache so switching topics or sessions
+ * restores the previous reading position instead of jumping to the first
+ * message. A `null` cache value (the schema default) means "follow the
+ * latest message" — the user was at the bottom or never scrolled, so the
+ * list restores to the newest message.
+ */
+export interface ChatScrollAnchor {
+  /** Stable group key of the top-most visible message group at save time. */
+  key: string
+  /** Pixels scrolled past the top of that group. */
+  offset: number
+}
+
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
   taskId: string | null
@@ -86,5 +137,32 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
-export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
+export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
+export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
+export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
+export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
+export type CacheAgentSessionFlowParts = AgentSessionFlowParts
+
+/**
+ * Persisted window geometry for the WindowManager "remember bounds" capability.
+ *
+ * Stored in the main-process persist cache under `window.bounds`, keyed by
+ * WindowType. Captured from `getNormalBounds()` (the pre-maximize rect) plus the
+ * maximized flag, so a maximized window restores to maximized while un-maximizing
+ * returns to the saved normal size.
+ */
+export type WindowBoundsState = {
+  x: number
+  y: number
+  width: number
+  height: number
+  /** Whether the window was maximized at capture time. Restored by the consumer
+   *  (e.g. MainWindowService) on its own show schedule, not by WindowManager. */
+  isMaximized: boolean
+  /** Bounds of the display the window was last on — used at restore to put the
+   *  window back onto the same display (clamping into it if the saved rect no
+   *  longer fits), instead of resetting to the primary display. */
+  displayBounds: { x: number; y: number; width: number; height: number }
+}

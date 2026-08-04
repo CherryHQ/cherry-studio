@@ -5,7 +5,7 @@ import * as readline from 'readline/promises'
 import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 import { pathToFileURL } from 'url'
 
-import { COMMAND_DEFINITIONS } from '../src/shared/command/definitions'
+import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
 import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')

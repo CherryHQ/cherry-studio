@@ -1,0 +1,629 @@
+/**
+ * File-domain data types — the cross-process shapes for Cherry-managed files.
+ *
+ * Three cohesive sections, all keyed off `FileEntry`:
+ * - **FileEntry** — the managed-file entity (this section).
+ * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
+ * - **FileRef** — the association linking a business entity (chat message,
+ *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
+ *
+ * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
+ *
+ * ## FileEntry
+ *
+ * Zod schemas for runtime validation of FileEntry records.
+ * FileEntry is a flat list of Cherry-managed files (no tree structure).
+ *
+ * `FileEntry` is a **discriminated union on `origin`**: each variant declares
+ * only the fields it owns, so consumers narrow naturally on `origin` instead
+ * of dancing around nullable columns. The DB row layer keeps every column
+ * physically (see "DB row vs Business Object" below).
+ *
+ * - `internal`: Cherry owns the content, stored at `{userData}/Data/Files/{id}.{ext}`.
+ *   `name` / `ext` / `size` are authoritative truth (kept in sync by atomic writes).
+ * - `external`: Cherry only references a user-provided path (`externalPath`).
+ *   `name` / `ext` are pure projections of `externalPath` (basename / extname) —
+ *   stable as long as the reference itself is stable. The BO has **no `size`
+ *   field** for external entries (consumers needing a live value call File IPC
+ *   `getMetadata(id)`, which runs `fs.stat` on demand; see rationale below).
+ *
+ * Timestamps are numbers (ms epoch) matching DB integer storage.
+ * For file reference types, see `./fileRef.ts`.
+ *
+ * ## Field presence per variant
+ *
+ * | Field         | origin='internal'                  | origin='external'                              |
+ * |---------------|------------------------------------|------------------------------------------------|
+ * | `name`        | SoT (user renamable)               | derived from `externalPath` basename (stable)  |
+ * | `ext`         | SoT                                | derived from `externalPath` extname (stable)   |
+ * | `size`        | SoT (bytes, ≥ 0)                   | **absent** — live value via `getMetadata`      |
+ * | `contentHash` | nullable tagged content hash      | **absent**                                     |
+ * | `externalPath`| **absent**                         | non-null absolute path (canonical)             |
+ * | `deletedAt`   | optional (present iff trashed)     | **absent** (external cannot be trashed)        |
+ *
+ * "Absent" means the field is not declared on that variant's schema at all —
+ * `entry.size` is a type error on the external arm, not `null` you have to
+ * defend against. The DB still carries every column (see "DB row vs Business
+ * Object"), but those `null`s are stripped at the BO boundary.
+ *
+ * ## Why external has no `size`
+ *
+ * External files can change outside Cherry at any time (user edits, another app
+ * overwrites, the file gets moved). Storing a snapshot here would create two
+ * classes of bugs: (a) callers silently consuming stale values, (b) "refresh"
+ * operations that merely move the staleness window. Dropping `size` from the
+ * external BO forces consumers to make the freshness tradeoff explicit — either
+ * they don't need it, or they call `getMetadata` for a live `fs.stat`. `name` /
+ * `ext` stay on the variant because they are pure projections of `externalPath`
+ * (which is the SoT) and therefore cannot drift while the entry exists; the
+ * cost of recomputing `path.basename` on every row is not worth the
+ * denormalization saving.
+ *
+ * ## Type safety: Zod brand on FileEntry
+ *
+ * `FileEntrySchema` is branded so arbitrary object literals cannot satisfy
+ * the `FileEntry` type. Only values that have passed `FileEntrySchema.parse()`
+ * (or `.safeParse()` with success) carry the brand. This forces entry
+ * production through sanctioned paths (FileManager `createInternalEntry` /
+ * `ensureExternalEntry` IPC, DataApi handler row→DTO conversion, FileMigrator
+ * insert) which own the derivation of `name`/`ext`/`size`/etc.
+ *
+ * ## Lifecycle
+ *
+ * Internal entries:
+ *
+ * ```
+ *                  ┌──────────┐
+ *        ┌────────│  Active   │←───────┐
+ *        │        └────┬─────┘        │
+ *        │             │ trash()      │ restore()
+ *        │             ▼              │
+ *        │        ┌──────────┐        │
+ *        │        │ Trashed  │────────┘
+ *        │        └────┬─────┘
+ *        │             │ permanentDelete()
+ *        │             ▼
+ *        │        ┌──────────┐
+ *        └───────→│ Deleted  │
+ *  permanentDelete└──────────┘
+ * ```
+ *
+ * External entries are monotonic — no Trashed state:
+ *
+ * ```
+ *   ensureExternalEntry   ┌──────────┐   permanentDelete   ┌──────────┐
+ *   ────────────────────→│  Active   │───────────────────→│ Deleted  │
+ *                         └──────────┘                     └──────────┘
+ *                         (update in place via rename / write)
+ * ```
+ *
+ * - Active:   `deletedAt` is absent — on `InternalEntrySchema` it's `optional`
+ *             so omitted means live; `ExternalEntrySchema` doesn't declare the
+ *             field at all and the DB `fe_external_no_delete` CHECK enforces it
+ *             at the row layer
+ * - Trashed:  `deletedAt = <ms epoch>` (internal-only)
+ * - permanentDelete on internal: unlink FS file + delete DB row
+ * - permanentDelete on external: **DB row only** — the physical file is left
+ *   untouched. Entry-level deletion is decoupled from physical deletion;
+ *   callers wanting to delete the file on disk should invoke the path-level
+ *   unmanaged `@main/utils/file/fs.remove(path)` separately.
+ */
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { CanonicalFilePathSchema } from '@shared/utils/file'
+import * as z from 'zod'
+
+import { MessageIdSchema } from './message'
+
+// ─── Shared building blocks (timestamp + safe name) ───
+
+/** Millisecond epoch timestamp (non-negative integer) */
+export const TimestampSchema = z.int().nonnegative()
+
+/** Canonical lowercase `{algorithm}:{hex}` shape for content-hash values. */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
+export const ContentHashSchema = z
+  .string()
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algorithm}:{lowercase hex}`')
+  .brand<'ContentHash'>()
+
+/** Algorithm-tagged content hash validated by {@link ContentHashSchema}. */
+export type ContentHash = z.infer<typeof ContentHashSchema>
+
+/**
+ * Name schema with security validations.
+ *
+ * Threat model: names flow from user input or external snapshots into FS path
+ * composition (`{dir}/{name}.{ext}`) and can be passed to `fs.*` syscalls.
+ * Without sanitization, a caller-controlled name could:
+ *   - `..` / `../...` → traverse out of the intended directory
+ *   - `a/b` / `a\\b`  → redirect writes to an unintended subdirectory
+ *   - `\0`            → truncate C-string APIs mid-path (classic null-byte bypass)
+ *   - `'   '`         → produce empty-looking files that break UX and tooling
+ *
+ * This schema rejects all of the above. The ≤255-byte cap matches the strictest
+ * common FS limit (ext4/HFS+/NTFS path segments).
+ */
+export const SafeNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((s) => !s.includes('\0'), 'Name must not contain null bytes')
+  .refine((s) => !/[/\\]/.test(s), 'Name must not contain path separators')
+  .refine((s) => !/^\.\.?$/.test(s), 'Name must not be . or ..')
+  .refine((s) => s.trim().length > 0, 'Name must not be all whitespace')
+
+// ─── Entry ID ───
+
+/**
+ * File entry ID: UUID. New entries created in v2 are v7 (auto-generated by
+ * `uuidPrimaryKeyOrdered()` / `FileEntryService.create`); entries originating
+ * from a legacy data path may be v4. The schema accepts any UUID version so
+ * cross-table references can keep their original ids without a global remap.
+ *
+ * Note: `FileEntryId` is inferred as `string` at the type level — it does NOT
+ * carry runtime validation. API handlers MUST validate incoming IDs with
+ * `FileEntryIdSchema.parse()` to reject random / non-UUID strings.
+ */
+export const FileEntryIdSchema = z.uuid()
+export type FileEntryId = z.infer<typeof FileEntryIdSchema>
+
+// ─── Origin Enum ───
+
+export const FileEntryOriginSchema = z.enum(['internal', 'external'])
+export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
+
+// ─── Cleanup Policy Enum ───
+
+/**
+ * Cleanup intent stored as data — docs/references/file/file-entry-cleanup.md.
+ * 'manual' entries are preserved at zero refs; 'delete_when_unreferenced'
+ * entries may be reclaimed by FileManager's cleanup pass.
+ */
+export const CleanupPolicySchema = z.enum(['manual', 'delete_when_unreferenced'])
+export type CleanupPolicy = z.infer<typeof CleanupPolicySchema>
+
+// ─── FileEntry Schema (discriminated union on origin, branded) ───
+//
+// ## DB row vs Business Object
+//
+// The `file_entry` SQLite table is a flat row with all columns physically
+// present (size / externalPath / deletedAt are all nullable on the column
+// level), guarded by three CHECK constraints (`fe_origin_consistency`,
+// `fe_size_internal_only`, `fe_external_no_delete`) so a row can never
+// represent an impossible combination. That is the **DB-row** layer.
+//
+// `FileEntry` is the **business object** consumers actually work with.
+// Discrimination on `origin` means an internal entry doesn't *have* an
+// `externalPath`, and an external entry doesn't *have* a `size` /
+// `deletedAt` — these fields are simply absent on the BO shape, not `null`.
+// Narrowing on `origin` gives TS the right keys at the right callsite,
+// so renderer code never has to `if (entry.origin === 'internal') ...`
+// just to access `entry.size`, and never has to `as` a `null` check away.
+//
+// `rowToFileEntry` is the translation layer: take a DB row, switch on
+// `origin`, build the variant-specific plain object (dropping the null
+// columns that don't belong on that variant), then run
+// `FileEntrySchema.parse` to get the brand back. The DB CHECK constraints
+// and the BO schema express the same invariants from two layers.
+
+const CommonEntryFields = {
+  /** Entry ID (UUID v7) */
+  id: FileEntryIdSchema,
+  /** User-visible name (without extension) */
+  name: SafeNameSchema,
+  /**
+   * File extension without leading dot (e.g. `'pdf'`, `'md'`). `null` for
+   * extensionless files (e.g. Dockerfile).
+   *
+   * Runtime validation is centralized in `SafeExtSchema`: no dots, no
+   * whitespace, no path separators, and no null bytes. The TS type
+   * stays plain `string | null` (no brand); correctness is enforced at system
+   * boundaries (IPC parse, DB row parse, factory `splitName`) rather than at
+   * every assignment site. `FileEntrySchema.parse` is the authoritative check.
+   */
+  ext: SafeExtSchema.nullable(),
+  /** Cleanup intent — see CleanupPolicySchema. */
+  cleanupPolicy: CleanupPolicySchema,
+  /** Creation timestamp (ms epoch) */
+  createdAt: TimestampSchema,
+  /** Last update timestamp (ms epoch) */
+  updatedAt: TimestampSchema
+} as const
+
+/**
+ * Internal entry — Cherry owns the content at `{userData}/Data/Files/{id}.{ext}`.
+ *
+ * Variant-only fields: `size` (authoritative byte count), `deletedAt`
+ * (optional, present and non-null when entry is trashed), and `contentHash`
+ * (nullable while metadata is unknown, a content commit is in-flight, or a
+ * repair is pending). `externalPath` is absent on this variant — there is no
+ * user-provided path. The DB row carries
+ * `externalPath: null` to satisfy the table schema; the BO dispatcher drops it.
+ */
+export const InternalEntrySchema = z.strictObject({
+  ...CommonEntryFields,
+  origin: z.literal('internal'),
+  /**
+   * File size in bytes. Internal files are written atomically by Cherry, so
+   * this value is authoritative and kept in sync with the backing file on disk.
+   */
+  size: z.int().nonnegative(),
+  /** Algorithm-tagged content hash. Null means unknown, in-flight, or awaiting repair. */
+  contentHash: ContentHashSchema.nullable(),
+  /**
+   * Trash timestamp (ms epoch). Optional — present and non-null when the
+   * entry is in the trash, absent when it is live. Internal entries are the
+   * only ones that can be trashed (`fe_external_no_delete` CHECK).
+   */
+  deletedAt: TimestampSchema.optional()
+})
+
+/**
+ * External entry — Cherry references a user-provided path.
+ *
+ * Variant-only field: `externalPath` (absolute, canonical). `size` and
+ * `deletedAt` are absent on this variant — external files may change
+ * outside Cherry at any time so no DB size snapshot is kept (live values
+ * come from File IPC `getMetadata`), and external entries cannot be
+ * trashed (`fe_external_no_delete` CHECK). The DB row carries `size: null`
+ * and `deletedAt: null` to satisfy the table schema; the BO dispatcher
+ * drops them.
+ */
+export const ExternalEntrySchema = z.strictObject({
+  ...CommonEntryFields,
+  origin: z.literal('external'),
+  /**
+   * Absolute filesystem path to the user-provided file, as a
+   * `CanonicalFilePath` — the byte-faithful lexical form produced by
+   * `canonicalizeFilePath` (segment-resolve + trailing-strip + drive-upcase,
+   * NOT Unicode-normalized). Validated by `CanonicalFilePathSchema`, which is
+   * assert-only: this byte-faithful form is guaranteed at WRITE time
+   * (external-entry insert / rename), and on READ a stored value not already in
+   * that lexical form (a raw `./` / `..` / trailing-slash path) is REJECTED
+   * (surfaced via `rowToFileEntrySafe`'s warn-skip), never silently repaired —
+   * a byte-faithful path, including one carrying NFD Unicode, is accepted
+   * as-is. Rejecting rather than repairing keeps the lookup/dedup key stable,
+   * so a re-canonicalization migration is the only sanctioned way to fix
+   * historically non-canonical rows.
+   */
+  externalPath: CanonicalFilePathSchema
+})
+
+/**
+ * FileEntry schema (discriminated on `origin`, branded).
+ *
+ * Branding: only values produced by `FileEntrySchema.parse(raw)` satisfy the
+ * `FileEntry` type. This prevents duck-typed object literals from being
+ * assigned to `FileEntry`, forcing all entry production through sanctioned
+ * code paths (see file-level docstring).
+ */
+export const FileEntrySchema = z
+  .discriminatedUnion('origin', [InternalEntrySchema, ExternalEntrySchema])
+  .brand<'FileEntry'>()
+
+export type FileEntry = z.infer<typeof FileEntrySchema>
+export type InternalFileEntry = z.infer<typeof InternalEntrySchema>
+export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
+
+// ─── Dangling State (presence of the backing file) ───
+
+/**
+ * External entry presence state, tracked by file_module's DanglingCache.
+ *
+ * - `'present'`: recently observed to exist (watcher event / successful stat / ops observation)
+ * - `'missing'`: recently observed to be absent (watcher unlink / stat ENOENT)
+ * - `'unknown'`: no watcher coverage and no recent stat — cache miss
+ *
+ * Internal entries are always `'present'`.
+ *
+ * Not persisted in DB. Queried at runtime via File IPC
+ * `getDanglingState` / `batchGetDanglingStates` — DataApi never exposes dangling
+ * because it requires FS IO (cold-path `fs.stat`) which violates the DataApi
+ * SQL-only boundary. See [file-manager-architecture.md §11](../../../../docs/references/file/file-manager-architecture.md).
+ */
+export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
+export type DanglingState = z.infer<typeof DanglingStateSchema>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FileHandle — call-site reference to a file (by entry-id or raw path)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * FileHandle — unified reference to any file accessible by Cherry.
+ *
+ * A handle is a **call-site choice of reference form**, not a statement about
+ * the file's ownership or registration status:
+ * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the entry
+ *   system (FileManager, versionCache, DanglingCache, …).
+ * - `FilePathHandle` carries an absolute `AbsoluteFilePath` — the call bypasses the
+ *   entry system and hits `@main/utils/file/*` directly.
+ *
+ * The same physical file can be referenced by either form (with different
+ * side-effect semantics). Distinct from `FileRef` below (the association shape).
+ *
+ * The runtime factories and type guards (`createFilePathHandle`,
+ * `isFilePathHandle`, …) live in `@shared/utils/file` — this section owns only
+ * the handle shapes and their IPC-boundary schemas.
+ */
+
+export type FileEntryHandle = {
+  readonly kind: 'entry'
+  readonly entryId: FileEntryId
+}
+
+export type FilePathHandle = {
+  readonly kind: 'path'
+  readonly path: AbsoluteFilePath
+}
+
+export type FileHandle = FileEntryHandle | FilePathHandle
+
+/**
+ * Zod schemas for `FileHandle`, used to validate IPC payloads at the main-process
+ * boundary. The runtime factories `createFileEntryHandle` / `createFilePathHandle`
+ * (in `@shared/utils/file`) are for in-process construction; these schemas are
+ * the gate for untrusted input crossing the IPC seam.
+ */
+export const FileEntryHandleSchema = z.strictObject({
+  kind: z.literal('entry'),
+  entryId: FileEntryIdSchema
+})
+
+export const FilePathHandleSchema = z.strictObject({
+  kind: z.literal('path'),
+  path: AbsoluteFilePathSchema
+})
+
+export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
+// TODO: 1. Wire schema and types, so no as cast needed
+// TODO: 2. Add brand for FileHandle since factory function has been used
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FileRef — association from a business entity (chat message, painting, …) to a
+// FileEntry. Combines every registered business-domain variant into a single
+// discriminated union keyed on `sourceType`.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ## Adding a new persistent business ref
+//
+// 1. Add a variant section below (`{domain}SourceType` / `{domain}Roles` /
+//    `{domain}RefFields` / `{domain}FileRefSchema = createRefSchema(...)`),
+//    following `chatMessage` as a template.
+// 2. Add a dedicated SQLite association table with FKs to `file_entry` and the
+//    owning source table so deleting the source cascades refs at the DB layer.
+// 3. Register the variant in the aggregate: add its source-type literal to
+//    `allSourceTypes` and its schema to the `FileRefSchema` union.
+// 4. Route persistent write/delete through the owning business service;
+//    `FileRefService` only exposes cross-source query/ref-count.
+//
+// Knowledge files are owned by the Knowledge workflow and do not register
+// FileManager refs.
+
+// ─── Common ref infrastructure ───
+
+export const refCommonFields = Object.freeze({
+  /** Reference ID (UUID v4) */
+  id: z.uuidv4(),
+  /** Referenced file entry ID (UUID v7) */
+  fileEntryId: FileEntryIdSchema,
+  /** Creation timestamp (ms epoch) */
+  createdAt: TimestampSchema,
+  /** Last update timestamp (ms epoch) */
+  updatedAt: TimestampSchema
+})
+
+/**
+ * Shape constraint for business-specific ref fields passed to `createRefSchema`.
+ *
+ * `sourceId` uses `z.ZodType<string>` rather than `z.ZodUUID | z.ZodString`
+ * so each variant can pick the strictest subtype (e.g. `z.uuidv7()` for
+ * first-class domain objects, `z.string().min(1)` for opaque session IDs) —
+ * the base shape stays honest about the variance instead of type-eroding
+ * down to `z.ZodString`.
+ */
+export type BusinessRefShape = {
+  /** Which business domain owns this reference (e.g. 'chat', 'knowledge', 'painting') */
+  sourceType: z.ZodLiteral<string>
+  /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */
+  sourceId: z.ZodType<string>
+  /** How the file is used within that domain (e.g. 'attachment', 'source', 'asset') */
+  role: z.ZodEnum
+}
+
+/**
+ * Factory: creates a typed FileRef schema by merging common fields
+ * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
+ * (`sourceType`, `sourceId`, `role`).
+ *
+ * Each sourceType variant should call this once. See the `chatMessage` section
+ * below for a working example.
+ */
+export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
+  z.object({
+    ...refCommonFields,
+    ...shape
+  })
+
+// ─── chat_message variant ───
+//
+// Links a FileEntry to a message row in the v2 chat subsystem. The owning
+// service writes refs when a message is created with file or image blocks. The
+// association table has an FK to `message`, so message deletion cascades its
+// refs at the database layer.
+//
+// `sourceId` uses `MessageIdSchema = z.uuid()` (not `z.uuidv7()`) because v1
+// legacy message IDs are UUIDv4 and are preserved verbatim during migration;
+// both formats are valid UUIDs, so `z.uuid()` accepts both. `role` is
+// `'attachment'` for both image blocks and file blocks — the single meaningful
+// relationship a file can have with a message at this stage.
+
+export const chatMessageSourceType = 'chat_message' as const
+
+export const chatMessageRoles = ['attachment'] as const
+export const chatMessageRoleSchema = z.enum(chatMessageRoles)
+
+export const chatMessageRefFields = {
+  sourceType: z.literal(chatMessageSourceType),
+  sourceId: MessageIdSchema,
+  role: chatMessageRoleSchema
+}
+
+export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
+
+// ─── painting variant ───
+//
+// Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
+// painting association table holds two buckets — generated `output` files and
+// `input` files — which map directly to the two roles below. Painting row
+// deletion is handled by DB-level cascade; explicit cleanup is still used when
+// replacing a painting's file set wholesale.
+//
+// `painting.id` is `uuidPrimaryKey()` — UUID v4 (not v7; paintings have no
+// ordered-id requirement, unlike `knowledge_item`). Extending `paintingRoles`
+// later is additive: rows whose role falls outside the set surface as
+// `ZodError`, the desired clean-up signal.
+
+export const paintingSourceType = 'painting' as const
+
+export const paintingRoles = ['output', 'input'] as const
+export const paintingRoleSchema = z.enum(paintingRoles)
+
+export const paintingRefFields = {
+  sourceType: z.literal(paintingSourceType),
+  sourceId: z.uuidv4(),
+  role: paintingRoleSchema
+}
+
+export const paintingFileRefSchema = createRefSchema(paintingRefFields)
+
+// ─── job variant ───
+//
+// Links a FileEntry to a `job` row (the generic job system). Its sole use today
+// is the async image-generation job (`imageGenerationJobHandler`): input images
+// and the edit mask are persisted as `delete_when_unreferenced` FileEntries at
+// enqueue time and referenced by id inside the job payload.
+//
+// Why a persistent ref (not just the payload id): the payload id lives in
+// `job.input` JSON, which the cleanup anti-join cannot see. Without a real ref
+// row, a job still queued or mid-poll when an interval pass fires could have
+// its inputs reclaimed out from under it once they age past the grace window,
+// breaking `read(inputFileIds)` mid-run. An FK-constrained association table
+// makes the job a first-class holder: the anti-join sees it, and deleting the
+// job row cascades the ref so the inputs become reclaimable exactly when the
+// job record is gone.
+//
+// The window is within one process run: image jobs are `recovery: 'abandon'`,
+// so a non-terminal job is cancelled at startup rather than resumed. A remote
+// poll still easily outlives the 1h grace window and several interval passes,
+// which is what the ref is for.
+//
+// `job.id` is `uuidPrimaryKeyOrdered()` — UUID v7. `z.uuid()` accepts it
+// (version-agnostic), matching the chat_message variant's forgiving stance.
+
+export const jobSourceType = 'job' as const
+
+export const jobRoles = ['input', 'mask'] as const
+export const jobRoleSchema = z.enum(jobRoles)
+
+export const jobRefFields = {
+  sourceType: z.literal(jobSourceType),
+  sourceId: z.uuid(),
+  role: jobRoleSchema
+}
+
+export const jobFileRefSchema = createRefSchema(jobRefFields)
+
+// ─── Single-file entity-image variants (provider logo / mini-app logo) ───
+//
+// Unlike the collection refs above (`chat_message`, `painting`), these model a
+// single-file **slot**: one owner holds at most ONE file, set-replaces the
+// previous one, and owns it exclusively. They are **roleless** (an owner has one
+// implicit purpose, so a `role` column would be a constant nothing reads) and
+// use a free-string `sourceId` (opaque provider / app ids). The user avatar has
+// NO ref variant — it is persisted only as a tagged `file:<id>` value in the
+// `app.user.avatar` preference (see `profile.set_avatar`).
+
+/**
+ * Define a roleless single-file `file_ref` variant for `sourceType`. Builds the
+ * member schema from `refCommonFields` directly (not `createRefSchema`, which
+ * requires a `role`). Returns the source-type literal, ref fields, and schema.
+ */
+function defineSingleFileRef<const T extends string>(sourceType: T) {
+  const refFields = {
+    sourceType: z.literal(sourceType),
+    sourceId: z.string().min(1)
+  }
+  return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
+}
+
+export const providerLogoRef = defineSingleFileRef('provider_logo')
+export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
+
+/**
+ * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
+ * `file:0190f3c4-…`. The preference is the avatar's only persisted copy (no
+ * DTO), so `useAvatar` resolves the tagged id to a `file://` URL through the
+ * file IPC; every other form (emoji / default `''`) passes through. Distinct
+ * from an already-resolved `file://…` URL.
+ *
+ * Provider / mini-app uploaded logos do NOT use this tag — their file id lives
+ * in the logo `file_ref` table and resolves main-side onto the DTO's `logoSrc`.
+ */
+export const STORED_FILE_REF_PREFIX = 'file:'
+
+/** Tag a file-entry id as a stored-image reference for an owner's display value. */
+export function tagStoredFileRef(id: string): string {
+  return `${STORED_FILE_REF_PREFIX}${id}`
+}
+
+// ─── SourceType type (load-bearing — keys DataApi/query validation) ───
+
+/**
+ * All currently-registered FileRef source types — the complete type union.
+ *
+ * The tuple form is required so `FileRefSourceType` infers as a union of
+ * string literals rather than `string`. DataApi handlers and query facades use
+ * the same tuple for runtime validation and discriminated-union narrowing.
+ *
+ * Other business domains (note) deliberately do NOT appear here. They will be
+ * added when their owning DB tables migrate to v2 — at which point each variant
+ * gains its tuple entry, its `createRefSchema` variant, and its FK-constrained
+ * association table in one PR. Keeping those surfaces in lockstep prevents the
+ * "type declared but schema unaware" gap.
+ */
+export const allSourceTypes = [
+  chatMessageSourceType,
+  paintingSourceType,
+  jobSourceType,
+  providerLogoRef.sourceType,
+  miniAppLogoRef.sourceType
+] as const satisfies readonly string[]
+export type FileRefSourceType = (typeof allSourceTypes)[number]
+
+/**
+ * Runtime validator for `FileRefSourceType` — used by DataApi handlers to
+ * guard `sourceType` query parameters before reaching the service. Stays in
+ * lockstep with `allSourceTypes` because it derives from the same tuple.
+ */
+export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
+
+// ─── Discriminated Union ───
+
+/**
+ * Runtime-validated FileRef schema covering every variant in `allSourceTypes`.
+ * `FileRefSchema.parse` accepts any registered variant and rejects rows whose
+ * `sourceType` is not in this union — the desired behavior, because a row with
+ * an unregistered sourceType implies either a stale artefact or a bug that
+ * bypassed the variant-registration discipline.
+ */
+export const FileRefSchema = z.discriminatedUnion('sourceType', [
+  chatMessageFileRefSchema,
+  paintingFileRefSchema,
+  jobFileRefSchema,
+  providerLogoRef.schema,
+  miniAppLogoRef.schema
+])
+export type FileRef = z.infer<typeof FileRefSchema>

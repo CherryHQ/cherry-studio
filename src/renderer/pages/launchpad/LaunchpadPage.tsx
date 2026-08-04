@@ -1,232 +1,280 @@
-import { OpenClawIcon } from '@renderer/components/Icons/SvgIcon'
+import { Sortable } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { arrayMove } from '@dnd-kit/sortable'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { toast } from '@renderer/services/toast'
+import type { SidebarAppId } from '@renderer/utils/sidebar'
+import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, Library, NotepadText, Palette } from 'lucide-react'
-import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-const LaunchpadPage: FC = () => {
-  const navigate = useNavigate()
+const BASE_URL = 'https://www.cherry-ai.com/'
+
+const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
+const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
+const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
+const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
+
+const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
+  assistants: 'linear-gradient(135deg, #1F2937, #374151)',
+  agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
+  paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
+  translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
+  mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
+  knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
+  files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+  code_tools: 'linear-gradient(135deg, #4B5563, #6B7280)',
+  notes: 'linear-gradient(135deg, #F97316, #FB923C)'
+}
+
+export default function LaunchpadPage() {
   const { t } = useTranslation()
-  const { pinned, openedKeepAliveMiniApps } = useMiniApps()
+  const navigate = useNavigate()
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
+  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
+  const suppressClickUntilRef = useRef(0)
+  const draggedItemIdRef = useRef<string | null>(null)
 
-  const appMenuItems = [
-    {
-      icon: <LayoutGrid size={32} className="icon" />,
-      text: t('title.apps'),
-      path: '/app/mini-app',
-      bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
-    },
-    {
-      icon: <FileSearch size={32} className="icon" />,
-      text: t('title.knowledge'),
-      path: '/app/knowledge',
-      bgColor: 'linear-gradient(135deg, #10B981, #34D399)' // 知识库：翠绿色，代表生长和知识
-    },
-    {
-      icon: <Palette size={32} className="icon" />,
-      text: t('title.paintings'),
-      path: '/app/paintings',
-      bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
-    },
-    {
-      icon: <Languages size={32} className="icon" />,
-      text: t('title.translate'),
-      path: '/app/translate',
-      bgColor: 'linear-gradient(135deg, #06B6D4, #0EA5E9)' // 翻译：明亮的青蓝色，代表沟通和流畅
-    },
-    {
-      icon: <Folder size={32} className="icon" />,
-      text: t('title.files'),
-      path: '/app/files',
-      bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
-    },
-    {
-      icon: <Code size={32} className="icon" />,
-      text: t('title.code'),
-      path: '/app/code',
-      bgColor: 'linear-gradient(135deg, #1F2937, #374151)' // Code CLI：高级暗黑色，代表专业和技术
-    },
-    {
-      icon: <OpenClawIcon className="icon" />,
-      text: t('title.openclaw'),
-      path: '/app/openclaw',
-      bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
-    },
-    {
-      icon: <NotepadText size={32} className="icon" />,
-      text: t('title.notes'),
-      path: '/app/notes',
-      bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
-    },
-    {
-      icon: <Library size={32} className="icon" />,
-      text: t('library.title'),
-      path: '/app/library',
-      bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
-    }
-  ]
+  const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
 
-  // 合并并排序小程序列表
-  const sortedMiniApps = useMemo(() => {
-    // 先添加固定的小程序，保持原有顺序
-    const result = [...pinned]
+  const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
+    draggedItemIdRef.current = String(event.active.id)
+    suppressClickUntilRef.current = Date.now() + 500
+  }, [])
 
-    // 再添加其他已打开但未固定的小程序
-    openedKeepAliveMiniApps.forEach((app) => {
-      if (!result.some((pinnedApp) => pinnedApp.appId === app.appId)) {
-        result.push(app)
+  // The pointer sensor fires a synthetic click on the dragged element after drop;
+  // refresh the window on settle so the click is still suppressed after long drags.
+  const handleSortableDragSettled = useCallback(() => {
+    suppressClickUntilRef.current = Date.now() + 500
+  }, [])
+
+  // Only swallow the post-drag click on the item that was actually dragged.
+  const shouldSuppressLaunchClick = useCallback(
+    (id: string) => id === draggedItemIdRef.current && Date.now() < suppressClickUntilRef.current,
+    []
+  )
+
+  const navigateToUrl = useCallback(
+    (url: string) => {
+      const parsedUrl = new URL(url, BASE_URL)
+      if (parsedUrl.search) {
+        return navigate({
+          to: parsedUrl.pathname,
+          search: Object.fromEntries(parsedUrl.searchParams.entries())
+        })
       }
-    })
 
-    return result
-  }, [openedKeepAliveMiniApps, pinned])
+      return navigate({ to: parsedUrl.pathname })
+    },
+    [navigate]
+  )
+
+  const openLaunchpadItem = (favorite: SidebarAppId) => {
+    if (shouldSuppressLaunchClick(favorite)) return
+
+    // Launchpad opens each app at its base entry (chat -> new conversation,
+    // agents -> new session). Resuming the last-used instance is the sidebar's
+    // job, not the launcher's.
+    const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
+    if (!path) return
+    void navigateToUrl(path)
+  }
+
+  const openMiniApp = (app: MiniAppType) => {
+    if (shouldSuppressLaunchClick(app.appId)) return
+
+    void navigateToUrl(`/app/mini-app/${app.appId}`)
+  }
+
+  const pinToSidebar = useCallback(
+    (favorite: SidebarAppId) => {
+      if (visibleSidebarFavoriteSet.has(favorite)) return
+      setAppPinned(favorite, true)
+    },
+    [setAppPinned, visibleSidebarFavoriteSet]
+  )
+
+  const unpinFromSidebar = useCallback(
+    (favorite: SidebarAppId) => {
+      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+      setAppPinned(favorite, false)
+    },
+    [setAppPinned, visibleSidebarFavoriteSet]
+  )
+
+  const getAppContextMenuItems = useCallback(
+    (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
+      const isPinned = visibleSidebarFavoriteSet.has(favorite)
+
+      return [
+        {
+          type: 'item',
+          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
+          label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
+          onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
+        }
+      ]
+    },
+    [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
+  )
+
+  // Built-in app tiles are ordered by the launchpad's own preference
+  // (`ui.launchpad.app_order`), independent of the sidebar favorites order.
+  // Every renderable app is drag-sortable in one grid.
+  const appMenuItems = useMemo(
+    () =>
+      orderedAppIds.flatMap((favorite) => {
+        const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
+        if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
+
+        return [
+          {
+            id: favorite,
+            icon: <Icon size={32} />,
+            text: t(getSidebarIconLabelKey(favorite)),
+            bgColor: APP_ICON_BACKGROUNDS[favorite],
+            menuItems: getAppContextMenuItems(favorite)
+          }
+        ]
+      }),
+    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
+  )
+
+  // Mini app tiles are ordered by their global `orderKey` (shared with the mini
+  // app settings page), independent of the sidebar favorites. Every pinned mini
+  // app is drag-sortable in one grid; reordering persists purely to `orderKey`.
+  const sortedMiniApps = useMemo(
+    () => [...pinned].sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0)),
+    [pinned]
+  )
+
+  // Hold the drop result in local optimistic state so the Sortable keeps the tile
+  // at its dropped slot while the async order-key write settles. Without this the
+  // tile snaps back to its old position for one render — before the reordered
+  // `/mini-apps` cache lands — and then jumps forward, a visible flashback. The
+  // resync preserves the reference only when the refreshed list contains the same
+  // objects in the same order; a rename/logo refresh with the same ids still adopts
+  // the fresh objects.
+  const [orderedMiniApps, setOrderedMiniApps] = useState(sortedMiniApps)
+  useEffect(() => {
+    setOrderedMiniApps((prev) => (sameMiniAppItems(prev, sortedMiniApps) ? prev : sortedMiniApps))
+  }, [sortedMiniApps])
+
+  const launchpadMiniAppsVisible = orderedMiniApps.length > 0
+
+  const handleAppsSortEnd = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      const nextItems = arrayMove(appMenuItems, oldIndex, newIndex)
+      reorderApps(nextItems.map((item) => item.id))
+    },
+    [appMenuItems, reorderApps]
+  )
+
+  const handleMiniAppsSortEnd = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      const nextItems = arrayMove(orderedMiniApps, oldIndex, newIndex)
+      setOrderedMiniApps(nextItems)
+      reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
+        toast.error(t('miniApp.reorder_failed'))
+      })
+    },
+    [orderedMiniApps, reorderMiniAppsByStatus, t]
+  )
+
+  const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (
+    <CommandContextMenu key={item.id} location="webcontents.context" extraItems={item.menuItems}>
+      <button
+        type="button"
+        onClick={() => openLaunchpadItem(item.id)}
+        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+        <span className="relative flex size-14 items-center justify-center">
+          <span
+            className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
+            style={{ background: item.bgColor }}>
+            {item.icon}
+          </span>
+        </span>
+        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+          {item.text}
+        </span>
+      </button>
+    </CommandContextMenu>
+  )
+
+  const renderMiniAppItem = (app: MiniAppType) => (
+    <div
+      key={app.appId}
+      className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
+      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+    </div>
+  )
 
   return (
-    <Container>
-      <Content>
-        <Section>
-          <SectionTitle>{t('launchpad.apps')}</SectionTitle>
-          <Grid>
-            {appMenuItems.map((item) => (
-              <AppIcon key={item.path} onClick={() => navigate({ to: item.path })}>
-                <IconContainer>
-                  <IconWrapper bgColor={item.bgColor}>{item.icon}</IconWrapper>
-                </IconContainer>
-                <AppName>{item.text}</AppName>
-              </AppIcon>
-            ))}
-          </Grid>
-        </Section>
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <Scrollbar className="min-h-0 flex-1">
+        <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
+          <section className="flex flex-col gap-2">
+            <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
+              {t('launchpad.apps')}
+            </h2>
+            <div className={LAUNCHPAD_GRID_CLASS}>
+              <Sortable
+                items={appMenuItems}
+                itemKey="id"
+                layout="grid"
+                listStyle={SORTABLE_CONTENTS_STYLE}
+                onDragStart={handleSortableDragStart}
+                onDragEnd={handleSortableDragSettled}
+                onDragCancel={handleSortableDragSettled}
+                onSortEnd={handleAppsSortEnd}
+                renderItem={(item) => renderAppMenuItem(item)}
+              />
+            </div>
+          </section>
 
-        {sortedMiniApps.length > 0 && (
-          <Section>
-            <SectionTitle>{t('launchpad.miniApps')}</SectionTitle>
-            <Grid>
-              {sortedMiniApps.map((app) => (
-                <AppWrapper key={app.appId}>
-                  <App app={app} size={56} />
-                </AppWrapper>
-              ))}
-            </Grid>
-          </Section>
-        )}
-      </Content>
-    </Container>
+          {launchpadMiniAppsVisible && (
+            <section className="flex flex-col gap-2">
+              <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
+                {t('launchpad.miniApps')}
+              </h2>
+              <div className={LAUNCHPAD_GRID_CLASS}>
+                <Sortable
+                  items={orderedMiniApps}
+                  itemKey="appId"
+                  layout="grid"
+                  listStyle={SORTABLE_CONTENTS_STYLE}
+                  onDragStart={handleSortableDragStart}
+                  onDragEnd={handleSortableDragSettled}
+                  onDragCancel={handleSortableDragSettled}
+                  onSortEnd={handleMiniAppsSortEnd}
+                  renderItem={(app) => renderMiniAppItem(app)}
+                />
+              </div>
+            </section>
+          )}
+        </div>
+      </Scrollbar>
+    </div>
   )
 }
 
-const Container = styled.div`
-  width: 100%;
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  background-color: var(--color-background);
-  overflow-y: auto;
-  padding: 50px 0;
-`
-
-const Content = styled.div`
-  max-width: 720px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-`
-
-const Section = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const SectionTitle = styled.h2`
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  opacity: 0.8;
-  margin: 0;
-  padding: 0 36px;
-`
-
-const Grid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-  padding: 0 8px;
-`
-
-const AppIcon = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  cursor: pointer;
-  gap: 4px;
-  padding: 8px 4px;
-  border-radius: 16px;
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: scale(1.05);
+/** Same pinned mini app objects in the same order. */
+function sameMiniAppItems(a: MiniAppType[], b: MiniAppType[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
   }
-
-  &:active {
-    transform: scale(0.95);
-  }
-`
-
-const IconContainer = styled.div`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 56px;
-  height: 56px;
-`
-
-const IconWrapper = styled.div<{ bgColor: string }>`
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: ${(props) => props.bgColor};
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-
-  .icon {
-    color: white;
-    width: 28px;
-    height: 28px;
-  }
-`
-
-const AppName = styled.div`
-  font-size: 12px;
-  color: var(--color-text);
-  text-align: center;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const AppWrapper = styled.div`
-  padding: 8px 4px;
-  border-radius: 8px;
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-`
-
-export default LaunchpadPage
+  return true
+}

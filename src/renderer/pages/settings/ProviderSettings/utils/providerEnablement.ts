@@ -1,30 +1,28 @@
 import { loggerService } from '@logger'
-import type { UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('ProviderSettings:EnableProviderWhenModelsAvailable')
 
-/** Enables a disabled provider once a flow has confirmed it has usable models. */
+/** Enables a disabled provider once a flow has confirmed it has usable models, then moves it to the top. */
 export async function enableProviderWhenModelsAvailable(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
-  updateProvider: (updates: UpdateProviderDto) => Promise<unknown>,
+  enableProvider: () => Promise<unknown>,
   modelCount: number,
   source: string
-): Promise<boolean> {
+): Promise<void> {
   if (!provider || provider.isEnabled || modelCount <= 0) {
-    return false
+    return
   }
 
   try {
-    await updateProvider({ isEnabled: true })
-    return true
+    await enableProvider()
   } catch (error) {
-    logger.error('Failed to enable provider when models are available', {
+    logger.error('Failed to enable provider with pin-to-top when models are available', {
       providerId: provider.id,
       modelCount,
       source,
       error
     })
-    return false
+    throw error
   }
 }

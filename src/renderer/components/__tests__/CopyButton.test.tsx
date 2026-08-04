@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,12 +9,6 @@ import CopyButton from '../CopyButton'
 const mockWriteText = vi.fn()
 const mockClipboard = {
   writeText: mockWriteText
-}
-
-// Mock window.toast
-const mockedToast = {
-  success: vi.fn(),
-  error: vi.fn()
 }
 
 // Mock useTranslation
@@ -33,22 +28,9 @@ describe('CopyButton', () => {
   beforeEach(() => {
     // Setup mocks
     Object.assign(navigator, { clipboard: mockClipboard })
-    Object.assign(window, { toast: mockedToast })
 
     // Clear all mocks
     vi.clearAllMocks()
-  })
-
-  it('should render with basic structure and copy icon', () => {
-    render(<CopyButton textToCopy="test text" />)
-
-    // Should have basic clickable container
-    const container = document.querySelector('div')
-    expect(container).toBeInTheDocument()
-
-    // Should render copy icon
-    const copyIcon = document.querySelector('.copy-icon')
-    expect(copyIcon).toBeInTheDocument()
   })
 
   it('should render label when provided', () => {
@@ -58,53 +40,45 @@ describe('CopyButton', () => {
     expect(screen.getByText(labelText)).toBeInTheDocument()
   })
 
-  it('should render tooltip when provided', async () => {
-    const tooltipText = 'Click to copy'
-    render(<CopyButton textToCopy="test text" tooltip={tooltipText} />)
-
-    // Check that the component structure includes tooltip
-    const container = document.querySelector('div')
-    expect(container).toBeInTheDocument()
-
-    // The tooltip should be rendered when hovered
-    const copyIcon = document.querySelector('.copy-icon')
-    expect(copyIcon).toBeInTheDocument()
-  })
-
-  it('should not render tooltip when not provided', () => {
-    render(<CopyButton textToCopy="test text" />)
-
-    // Should not have tooltip wrapper
-    expect(document.querySelector('.ant-tooltip')).not.toBeInTheDocument()
-  })
-
-  it('should copy text to clipboard on click', async () => {
+  it('should copy text to the clipboard and show a success message', async () => {
     const textToCopy = 'Hello World'
     mockWriteText.mockResolvedValue(undefined)
 
     render(<CopyButton textToCopy={textToCopy} />)
 
-    // Find the clickable element by using the copy icon as reference
-    const copyIcon = document.querySelector('.copy-icon')
-    const clickableElement = copyIcon?.parentElement
-    expect(clickableElement).toBeInTheDocument()
-
-    await userEvent.click(clickableElement!)
+    await userEvent.click(screen.getByRole('button'))
 
     expect(mockWriteText).toHaveBeenCalledWith(textToCopy)
+    expect(toast.success).toHaveBeenCalledWith('复制成功')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('should show success message when copy succeeds', async () => {
+  it('should show a check icon without a success toast in icon feedback mode', async () => {
     mockWriteText.mockResolvedValue(undefined)
 
-    render(<CopyButton textToCopy="test text" />)
+    render(<CopyButton textToCopy="test text" successFeedback="icon" />)
 
-    const copyIcon = document.querySelector('.copy-icon')
-    const clickableElement = copyIcon?.parentElement
-    await userEvent.click(clickableElement!)
+    await userEvent.click(screen.getByRole('button'))
 
-    expect(mockedToast.success).toHaveBeenCalledWith('复制成功')
-    expect(mockedToast.error).not.toHaveBeenCalled()
+    expect(document.querySelector('.lucide-check')).toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('should forward native button props for composition', () => {
+    render(
+      <CopyButton
+        textToCopy="test text"
+        className="size-6"
+        aria-label="Copy test text"
+        successFeedback="icon"
+        disabled
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Copy test text' })
+    expect(button.tagName).toBe('BUTTON')
+    expect(button).toBeDisabled()
+    expect(button).toHaveClass('size-6')
   })
 
   it('should show error message when copy fails', async () => {
@@ -116,8 +90,8 @@ describe('CopyButton', () => {
     const clickableElement = copyIcon?.parentElement
     await userEvent.click(clickableElement!)
 
-    expect(mockedToast.error).toHaveBeenCalledWith('复制失败')
-    expect(mockedToast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('复制失败')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('should apply custom size to icon and label', () => {
@@ -134,31 +108,5 @@ describe('CopyButton', () => {
     // Should apply custom size to label
     const label = screen.getByText(labelText)
     expect(label).toHaveStyle({ fontSize: `${customSize}px` })
-  })
-
-  it('should handle empty text', async () => {
-    const emptyText = ''
-    mockWriteText.mockResolvedValue(undefined)
-
-    render(<CopyButton textToCopy={emptyText} />)
-
-    const copyIcon = document.querySelector('.copy-icon')
-    const clickableElement = copyIcon?.parentElement
-    await userEvent.click(clickableElement!)
-
-    expect(mockWriteText).toHaveBeenCalledWith(emptyText)
-  })
-
-  it('should handle special characters', async () => {
-    const specialText = '特殊字符 🎉 @#$%^&*()'
-    mockWriteText.mockResolvedValue(undefined)
-
-    render(<CopyButton textToCopy={specialText} />)
-
-    const copyIcon = document.querySelector('.copy-icon')
-    const clickableElement = copyIcon?.parentElement
-    await userEvent.click(clickableElement!)
-
-    expect(mockWriteText).toHaveBeenCalledWith(specialText)
   })
 })

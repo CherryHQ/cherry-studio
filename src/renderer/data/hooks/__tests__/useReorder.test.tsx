@@ -1,9 +1,11 @@
-import type * as RendererConstantModule from '@renderer/config/constant'
+import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
-import useSWR, { SWRConfig, unstable_serialize } from 'swr'
+import useSWR, { unstable_serialize } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createSWRTestWrapper } from './testUtils'
 
 // The renderer setup globally replaces `@data/hooks/useDataApi` with a mock;
 // this test exercises the real `useMutation` wiring, so unmock here.
@@ -12,7 +14,7 @@ vi.unmock('@data/hooks/useDataApi')
 // Force `isDev` to false so the dev-only concurrency warning (from template
 // path mutations with different params) does not pollute the test log when
 // multiple `move` calls share the same hook instance.
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof RendererConstantModule>()
   return { ...actual, isDev: false }
 })
@@ -53,22 +55,7 @@ type CollectionValue = { items: Item[] }
 const COLLECTION_CACHE_KEY = unstable_serialize([COLLECTION])
 
 function makeWrapper<T = CollectionValue>(initial?: T) {
-  const cache = new Map<string, { data?: unknown }>()
-  if (initial !== undefined) {
-    cache.set(COLLECTION_CACHE_KEY, { data: initial })
-  }
-
-  // SWR's `Cache` provider contract is `{ get, set, delete, keys }` keyed by
-  // serialized string. A plain Map satisfies it directly.
-  const provider = () => cache
-
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <SWRConfig value={{ provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false }}>
-      {children}
-    </SWRConfig>
-  )
-
-  return { Wrapper, cache }
+  return createSWRTestWrapper(initial === undefined ? undefined : [[[COLLECTION], initial]])
 }
 
 function readCollection(cache: Map<string, { data?: unknown }>): CollectionValue | undefined {
@@ -346,18 +333,6 @@ describe('useReorder - idKey option', () => {
   type AppItem = { appId: string; label?: string }
   type AppCollectionValue = { items: AppItem[] }
 
-  function makeAppWrapper(initial: AppCollectionValue) {
-    const cache = new Map<string, { data?: unknown }>()
-    cache.set(COLLECTION_CACHE_KEY, { data: initial })
-    const provider = () => cache
-    const Wrapper = ({ children }: { children: React.ReactNode }) => (
-      <SWRConfig value={{ provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false }}>
-        {children}
-      </SWRConfig>
-    )
-    return { Wrapper, cache }
-  }
-
   it('uses idKey to identify items during optimistic move', async () => {
     const initial: AppCollectionValue = {
       items: [
@@ -366,7 +341,7 @@ describe('useReorder - idKey option', () => {
         { appId: 'c', label: 'C' }
       ]
     }
-    const { Wrapper, cache } = makeAppWrapper(initial)
+    const { Wrapper, cache } = makeWrapper(initial)
     patchMock.mockResolvedValue({})
 
     // Disable revalidation so the optimistic cache value is not overwritten by
@@ -394,7 +369,7 @@ describe('useReorder - idKey option', () => {
     const initial: AppCollectionValue = {
       items: [{ appId: 'a' }, { appId: 'b' }, { appId: 'c' }]
     }
-    const { Wrapper } = makeAppWrapper(initial)
+    const { Wrapper } = makeWrapper(initial)
     patchMock.mockResolvedValue({})
 
     const { result } = renderReorder(COLLECTION, Wrapper, { idKey: 'appId', revalidateOnSuccess: false })

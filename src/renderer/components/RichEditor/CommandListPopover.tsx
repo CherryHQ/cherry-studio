@@ -1,12 +1,15 @@
 import './CommandListPopover.css'
 
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { SuggestionProps } from '@tiptap/suggestion'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
+
+const COMMAND_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const COMMAND_EMPTY_COLOR = '#999'
 
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
@@ -126,9 +129,9 @@ const CommandListPopover = ({
   const colors = useMemo(() => {
     const isDark = theme === 'dark'
     return {
-      background: 'var(--color-popover)',
-      border: isDark ? 'var(--color-border, #ffffff19)' : '#e1e5e9',
-      selectedBackground: isDark ? 'var(--color-accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
+      background: 'var(--popover)',
+      border: 'var(--border)',
+      selectedBackground: 'var(--accent)',
       boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)'
     }
   }, [theme])
@@ -180,7 +183,7 @@ const CommandListPopover = ({
               </span>
               <span
                 style={{
-                  color: 'var(--color-foreground-secondary)',
+                  color: COMMAND_DESCRIPTION_COLOR,
                   display: 'block',
                   fontSize: '12px',
                   lineHeight: '16px'
@@ -209,7 +212,7 @@ const CommandListPopover = ({
   return (
     <div ref={listRef} style={style} className="command-list-popover">
       {items.length === 0 ? (
-        <div style={{ padding: '12px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
+        <div style={{ padding: '12px', color: COMMAND_EMPTY_COLOR, textAlign: 'center', fontSize: '14px' }}>
           {t('richEditor.commands.noCommandsFound')}
         </div>
       ) : (

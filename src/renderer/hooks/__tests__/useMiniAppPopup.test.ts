@@ -1,4 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -7,13 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock side-effect dependencies BEFORE importing the hook
 vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: vi.fn()
+  clearWebviewState: vi.fn(),
+  setWebviewLoaded: vi.fn()
 }))
 
-const mockWindowApi = vi.hoisted(() => ({
-  openWebsite: vi.fn(),
-  openPath: vi.fn()
-}))
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
 // pinned miniapp route tabs that are exempt from keep-alive eviction. The test
@@ -21,10 +21,20 @@ const mockWindowApi = vi.hoisted(() => ({
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>,
   hasContext: true,
-  openTab: vi.fn()
+  closeTab: vi.fn(),
+  openTab: vi.fn(),
+  updateTab: vi.fn()
 }))
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => (mockTabs.hasContext ? { tabs: mockTabs.tabs, openTab: mockTabs.openTab } : null)
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () =>
+    mockTabs.hasContext
+      ? {
+          tabs: mockTabs.tabs,
+          closeTab: mockTabs.closeTab,
+          openTab: mockTabs.openTab,
+          updateTab: mockTabs.updateTab
+        }
+      : null
 }))
 
 // Import mocked modules
@@ -65,46 +75,23 @@ const useTestMiniAppPopup = () => {
 describe('useMiniAppPopup', () => {
   beforeEach(async () => {
     MockUseCacheUtils.resetMocks()
+    MockCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
     mockTabs.tabs = []
     mockTabs.hasContext = true
+    mockTabs.closeTab.mockClear()
     mockTabs.openTab.mockClear()
-    mockWindowApi.openWebsite.mockReset()
-    mockWindowApi.openPath.mockReset()
-    mockWindowApi.openWebsite.mockResolvedValue(undefined)
-    mockWindowApi.openPath.mockResolvedValue(undefined)
+    mockTabs.updateTab.mockClear()
+    mocks.request.mockReset()
+    mocks.request.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ...window.api,
-        openWebsite: mockWindowApi.openWebsite,
-        openPath: mockWindowApi.openPath
+        ...window.api
       }
-    })
-  })
-
-  // === Basic Return Values ===
-
-  describe('basic return values', () => {
-    it('should return all expected functions', () => {
-      const { result } = renderHook(() => useMiniAppPopup())
-      expect(typeof result.current.openMiniApp).toBe('function')
-      expect(typeof result.current.openMiniAppKeepAlive).toBe('function')
-      expect(typeof result.current.openMiniAppById).toBe('function')
-      expect(typeof result.current.closeMiniApp).toBe('function')
-      expect(typeof result.current.hideMiniAppPopup).toBe('function')
-      expect(typeof result.current.closeAllMiniApps).toBe('function')
-      expect(typeof result.current.openSmartMiniApp).toBe('function')
-    })
-
-    it('should work without TabsProvider', () => {
-      mockTabs.hasContext = false
-      const { result } = renderHook(() => useMiniAppPopup())
-
-      expect(typeof result.current.openSmartMiniApp).toBe('function')
     })
   })
 
@@ -216,24 +203,6 @@ describe('useMiniAppPopup', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
-    })
-  })
-
-  // === openMiniAppKeepAlive ===
-
-  describe('openMiniAppKeepAlive', () => {
-    it('should be a wrapper for openMiniApp(app, true)', async () => {
-      const app = createMiniApp('wrapper-test')
-      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
-      MockUseCacheUtils.setCacheValue('mini_app.show', false)
-      const { result } = renderHook(() => useTestMiniAppPopup())
-
-      await act(async () => {
-        result.current.openMiniAppKeepAlive(app)
-      })
-
-      expect(isInKeepAlive('wrapper-test')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
     })
   })
 
@@ -425,6 +394,50 @@ describe('useMiniAppPopup', () => {
       })
     })
 
+    // A transient app has no database row, so the shared registry is the only thing that
+    // lets another window — or this one after the keep-alive LRU evicted the entry —
+    // resolve `/app/mini-app/<id>`.
+    it('publishes the descriptor to the cross-window registry', async () => {
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790#token=secret',
+          logo: 'openclaw'
+        })
+      })
+
+      expect(mockCacheService.getShared('mini_app.transient_descriptor.openclaw-dashboard')).toEqual({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=secret',
+        logo: 'openclaw'
+      })
+    })
+
+    it('refreshes the published descriptor when a cached app is reopened on a new URL', async () => {
+      // The OpenClaw dashboard mints a fresh gateway token per launch, so a stale
+      // descriptor would hand a detached window a URL that no longer authenticates.
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [createMiniApp('openclaw-dashboard')])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790#token=fresh',
+          logo: 'openclaw'
+        })
+      })
+
+      expect(mockCacheService.getShared('mini_app.transient_descriptor.openclaw-dashboard')).toMatchObject({
+        url: 'http://127.0.0.1:18790#token=fresh'
+      })
+    })
+
     it('should still activate the app tab when the keep-alive entry already exists', async () => {
       // `MiniAppTabsPool.shouldShow` keys off the active tab URL, not pool
       // membership. Every caller of `openSmartMiniApp` (AboutSettings, S3,
@@ -468,8 +481,8 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openWebsite).toHaveBeenCalledWith('https://example.com/help')
-      expect(mockWindowApi.openPath).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://example.com/help')
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_path', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })
@@ -488,8 +501,11 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openPath).toHaveBeenCalledWith('/Applications/Cherry Studio/resources/releases.html')
-      expect(mockWindowApi.openWebsite).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith(
+        'system.shell.open_path',
+        '/Applications/Cherry Studio/resources/releases.html'
+      )
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })

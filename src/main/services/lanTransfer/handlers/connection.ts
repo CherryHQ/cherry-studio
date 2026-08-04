@@ -2,7 +2,7 @@ import { isIP, type Socket } from 'node:net'
 import { platform } from 'node:os'
 
 import { loggerService } from '@logger'
-import type { LanHandshakeRequestMessage, LanTransferPeer } from '@shared/config/types'
+import type { LanHandshakeRequestMessage, LanTransferPeer } from '@shared/types/lanTransfer'
 import { app } from 'electron'
 
 import type { ConnectionContext } from '../types'

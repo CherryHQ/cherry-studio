@@ -75,7 +75,7 @@ const KnowledgeEntityNameDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm">
+      <DialogContent closeOnOverlayClick={false} size="sm">
         <KnowledgeDialogHeader>{title}</KnowledgeDialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

@@ -19,11 +19,21 @@ vi.mock('@renderer/hooks/useDrag', () => ({
   })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
+    <div ref={ref} {...props}>
+      {children}
+    </div>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -36,7 +46,9 @@ const baseProps = () => ({
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
   onCopy: vi.fn(),
+  onCancelOcr: vi.fn(),
   disabled: false,
+  ocrProcessing: false,
   selecting: false
 })
 
@@ -55,19 +67,14 @@ describe('TranslateInputPane', () => {
     expect(props.onSelectFile).not.toHaveBeenCalled()
   })
 
-  it('hides the upload area once input has text', () => {
+  it('shows the input value and hides the upload area once input has text', () => {
     const props = baseProps()
     props.text = 'hello'
 
     render(<TranslateInputPane {...props} />)
 
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
-  })
-
-  it('uses a subtle hover background on the upload area', () => {
-    render(<TranslateInputPane {...baseProps()} />)
-
-    expect(screen.getByRole('button', { name: 'translate.files.upload' }).className).toContain('hover:bg-muted/30')
+    expect(screen.getByRole('textbox')).toHaveValue('hello')
   })
 
   it('clears the input when the clear button is clicked', () => {
@@ -93,5 +100,24 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.getByText('translate.files.drag_text')).toBeInTheDocument()
+  })
+
+  it('does not show the OCR processing overlay by default', () => {
+    render(<TranslateInputPane {...baseProps()} />)
+
+    expect(screen.queryByText('ocr.processing')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('shows the OCR processing overlay and supports cancellation', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('ocr.processing')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(props.onCancelOcr).toHaveBeenCalledTimes(1)
   })
 })

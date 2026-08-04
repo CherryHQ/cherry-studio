@@ -7,25 +7,36 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { OffsetPaginationResponse } from '@shared/data/api'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
   type KnowledgeItemData,
   KnowledgeItemSchema,
-  type KnowledgeItemStatus
+  type KnowledgeItemStatus,
+  type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
+/**
+ * Item statuses that mean "indexing is in progress" — the item is being driven
+ * by a job and is neither finished (completed/failed) nor being deleted. Used to
+ * find items stranded by an interrupted job on boot.
+ */
+const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
+  'preparing',
+  'processing',
+  'reading',
+  'embedding'
+] as const satisfies readonly KnowledgeItemStatus[]
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
@@ -34,6 +45,12 @@ type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
 
 type FailedKnowledgeItemStatusUpdate = {
   error: string
+}
+
+type KnowledgeItemListCursor = {
+  directoryRank: number
+  createdAt: number
+  id: string
 }
 
 type KnowledgeItemsByBaseOptions = {
@@ -66,46 +83,101 @@ function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   })
 }
 
+function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
+}
+
+function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemListCursor | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<KnowledgeItemListCursor>
+    if (
+      (value.directoryRank !== 0 && value.directoryRank !== 1) ||
+      !Number.isFinite(value.createdAt) ||
+      typeof value.id !== 'string' ||
+      value.id.length === 0
+    ) {
+      throw new Error('Invalid knowledge item cursor fields')
+    }
+    return value as KnowledgeItemListCursor
+  } catch {
+    logger.warn('Knowledge item cursor is unparseable; falling back to the first page', { cursor: raw })
+    return null
+  }
+}
+
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
     return dbService.getDb()
   }
 
-  async list(baseId: string, query: ListKnowledgeItemsQuery): Promise<OffsetPaginationResponse<KnowledgeItem>> {
-    await knowledgeBaseService.getById(baseId)
-    const { page, limit, type, groupId } = query
-    const offset = (page - 1) * limit
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+  list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
+    knowledgeBaseService.getById(baseId)
+    const { limit, type, groupId } = query
+
+    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
     if (type !== undefined) {
-      conditions.push(eq(knowledgeItemTable.type, type))
+      filterConditions.push(eq(knowledgeItemTable.type, type))
     }
     if (groupId !== undefined) {
-      conditions.push(groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId))
+      filterConditions.push(
+        groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
+      )
     }
 
-    const where = and(...conditions)
-    const [rows, [{ count }]] = await Promise.all([
-      this.db
-        .select()
-        .from(knowledgeItemTable)
-        .where(where)
-        .orderBy(desc(knowledgeItemTable.createdAt), desc(knowledgeItemTable.id))
-        .limit(limit)
-        .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).where(where)
-    ])
+    // Keep directory rows in one leading band, then preserve the existing newest-first order
+    // within directories and non-directories. The cursor carries all three sort components so
+    // pagination cannot surface a later-page directory after an earlier-page file.
+    const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
+    const conditions = [...filterConditions]
+    const cursor = decodeKnowledgeItemListCursor(query.cursor)
+    if (cursor) {
+      conditions.push(
+        or(
+          gt(directoryRank, cursor.directoryRank),
+          and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
+          and(
+            eq(directoryRank, cursor.directoryRank),
+            eq(knowledgeItemTable.createdAt, cursor.createdAt),
+            gt(knowledgeItemTable.id, cursor.id)
+          )
+        )!
+      )
+    }
+
+    const rows = this.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(and(...conditions))
+      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeItemTable)
+      .where(and(...filterConditions))
+      .all()
+
+    const pageRows = rows.slice(0, limit)
 
     return {
-      items: rows.map((row) => rowToKnowledgeItem(row)),
+      items: pageRows.map((row) => rowToKnowledgeItem(row)),
       total: count,
-      page: query.page
+      nextCursor:
+        rows.length > limit
+          ? encodeKnowledgeItemListCursor({
+              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
+              createdAt: pageRows[pageRows.length - 1].createdAt,
+              id: pageRows[pageRows.length - 1].id
+            })
+          : undefined
     }
   }
 
-  async getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): Promise<KnowledgeItem[]> {
-    await knowledgeBaseService.getById(baseId)
+  getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): KnowledgeItem[] {
+    knowledgeBaseService.getById(baseId)
 
     const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
@@ -116,23 +188,24 @@ export class KnowledgeItemService {
     }
 
     const where = and(...conditions)
-    const rows = await this.db
+    const rows = this.db
       .select()
       .from(knowledgeItemTable)
       .where(where)
       .orderBy(knowledgeItemTable.createdAt, knowledgeItemTable.id)
+      .all()
 
     return rows.map((row) => rowToKnowledgeItem(row))
   }
 
-  async getRootItemsByBaseId(baseId: string): Promise<KnowledgeItem[]> {
-    return await this.getItemsByBaseId(baseId, { groupId: null })
+  getRootItemsByBaseId(baseId: string): KnowledgeItem[] {
+    return this.getItemsByBaseId(baseId, { groupId: null })
   }
 
-  async getOutermostSelectedItemIds(baseId: string, itemIds: string[]): Promise<string[]> {
+  getOutermostSelectedItemIds(baseId: string, itemIds: string[]): string[] {
     const selectedIds = [...new Set(itemIds)]
     const selectedIdSet = new Set(selectedIds)
-    const selectedItems = await Promise.all(selectedIds.map((itemId) => this.getById(itemId)))
+    const selectedItems = selectedIds.map((itemId) => this.getById(itemId))
     const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
 
     if (invalidItem) {
@@ -141,7 +214,7 @@ export class KnowledgeItemService {
 
     const descendantSelectedIds = new Set<string>()
     for (const itemId of selectedIds) {
-      const descendants = await this.getSubtreeItems(baseId, [itemId])
+      const descendants = this.getSubtreeItems(baseId, [itemId])
       for (const descendant of descendants) {
         if (selectedIdSet.has(descendant.id)) {
           descendantSelectedIds.add(descendant.id)
@@ -152,8 +225,8 @@ export class KnowledgeItemService {
     return selectedIds.filter((itemId) => !descendantSelectedIds.has(itemId))
   }
 
-  async getDeletingRootGroups(): Promise<DeletingKnowledgeItemRootGroup[]> {
-    const rows = await this.db.all<{ baseId: string; id: string }>(sql`
+  getDeletingRootGroups(): DeletingKnowledgeItemRootGroup[] {
+    const rows = this.db.all<{ baseId: string; id: string }>(sql`
       SELECT child.base_id AS "baseId", child.id AS id
       FROM knowledge_item child
       LEFT JOIN knowledge_item parent
@@ -178,24 +251,64 @@ export class KnowledgeItemService {
     return [...rootIdsByBase.entries()].map(([baseId, rootItemIds]) => ({ baseId, rootItemIds }))
   }
 
-  async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      await this.validateGroupOwnerTx(tx, baseId, item.groupId)
+  /**
+   * Mark every item stranded in an in-flight status as `failed`. Called once on
+   * boot: an indexing job abandoned by an app quit / restart leaves its item in
+   * `preparing`/`processing`/`reading`/`embedding` with nothing left to drive
+   * it, so without this the item would spin forever and could not be reindexed
+   * (reindex only accepts completed/failed).
+   *
+   * A single UPDATE covers leaves and their ancestor containers together: a
+   * container with an in-flight descendant is itself in-flight
+   * (`reconcileContainers` keeps it `processing` while any child is active), so
+   * failing every in-flight row leaves no completed container pointing at a
+   * failed child — the rollup invariant holds without a separate reconcile pass.
+   *
+   * @returns the number of items marked failed.
+   */
+  failInterruptedItems(error: string): number {
+    const reason = error.trim()
+    if (!reason) {
+      throw DataApiErrorFactory.validation({
+        error: ['Interrupted-item failure reason must be non-empty']
+      })
+    }
 
-      const [insertedRow] = await withSqliteErrors(
-        async () =>
-          await tx
+    const db = application.get('DbService').getDb()
+    const updatedRows = db
+      .update(knowledgeItemTable)
+      .set({ status: 'failed', error: reason })
+      .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
+      .returning({ id: knowledgeItemTable.id })
+      .all()
+
+    if (updatedRows.length > 0) {
+      logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
+    }
+    return updatedRows.length
+  }
+
+  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
+  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
+    const dbService = application.get('DbService')
+    const row = dbService.withWriteTx((tx) => {
+      this.validateGroupOwnerTx(tx, baseId, item.groupId)
+
+      const [insertedRow] = withSqliteErrors(
+        () =>
+          tx
             .insert(knowledgeItemTable)
             .values({
               baseId,
               groupId: item.groupId ?? null,
               type: item.type,
               data: item.data,
-              status: 'idle',
+              status,
               error: null
             })
-            .returning(),
+            .returning()
+            .all(),
         {
           foreignKey: () =>
             item.groupId
@@ -218,18 +331,22 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
       }
 
+      // Roll the new child up into its ancestor containers in the SAME transaction
+      // as the INSERT: an add into an already-completed directory must atomically
+      // pull it back to an active status. Splitting these into two transactions
+      // could leave a committed active child the caller never observed — its
+      // rollback would miss the row while still deleting the source file it just
+      // copied, stranding a DB record that points at a nonexistent file.
+      this.reconcileContainersTx(tx, baseId, [insertedRow.id, insertedRow.groupId])
+
       return insertedRow
     })
 
-    logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
+    logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
     return rowToKnowledgeItem(row)
   }
 
-  private async validateGroupOwnerTx(
-    db: Pick<DbType, 'select'>,
-    baseId: string,
-    groupId: string | null | undefined
-  ): Promise<void> {
+  private validateGroupOwnerTx(db: Pick<DbType, 'select'>, baseId: string, groupId: string | null | undefined): void {
     if (groupId == null) {
       return
     }
@@ -240,7 +357,7 @@ export class KnowledgeItemService {
       })
     }
 
-    const [owner] = await db
+    const [owner] = db
       .select({
         type: knowledgeItemTable.type,
         status: knowledgeItemTable.status
@@ -248,6 +365,7 @@ export class KnowledgeItemService {
       .from(knowledgeItemTable)
       .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, groupId)))
       .limit(1)
+      .all()
 
     if (!owner) {
       throw DataApiErrorFactory.validation({
@@ -268,8 +386,8 @@ export class KnowledgeItemService {
     }
   }
 
-  async getById(id: string): Promise<KnowledgeItem> {
-    const [row] = await this.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+  getById(id: string): KnowledgeItem {
+    const [row] = this.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -278,19 +396,36 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  async setSubtreeStatus(baseId: string, rootIds: string[], status: 'deleting', update?: never): Promise<string[]>
-  async setSubtreeStatus(
+  setSubtreeStatus(baseId: string, rootIds: string[], status: 'deleting', update?: never): string[]
+  setSubtreeStatus(
     baseId: string,
     rootIds: string[],
     status: 'failed',
     update: FailedKnowledgeItemStatusUpdate
-  ): Promise<string[]>
-  async setSubtreeStatus(
+  ): string[]
+  setSubtreeStatus(
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
-  ): Promise<string[]> {
+  ): string[] {
+    if (status === 'failed') {
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+    }
+    return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+  }
+
+  setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
+    return this.applySubtreeStatusTx(tx, baseId, rootIds, status)
+  }
+
+  private applySubtreeStatusTx(
+    tx: DbOrTx,
+    baseId: string,
+    rootIds: string[],
+    status: 'deleting' | 'failed',
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+  ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
     if (status === 'failed' && !error) {
@@ -304,9 +439,7 @@ export class KnowledgeItemService {
       return []
     }
 
-    const dbService = application.get('DbService')
-    const updatedRows = await dbService.withWriteTx(async (db) => {
-      return await db.all<{ id: string; groupId: string | null }>(sql`
+    const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
@@ -331,13 +464,12 @@ export class KnowledgeItemService {
           ${status === 'failed' ? sql`AND status != 'deleting'` : sql``}
         RETURNING id, group_id AS "groupId"
       `)
-    })
 
     const updatedIdSet = new Set(updatedRows.map((row) => row.id))
     const updatedIds = updatedRows.map((row) => row.id)
 
     if (status === 'failed') {
-      await this.reconcileContainers(
+      this.reconcileContainers(
         baseId,
         updatedRows.map((row) => row.groupId).filter((groupId) => !updatedIdSet.has(groupId ?? ''))
       )
@@ -347,37 +479,34 @@ export class KnowledgeItemService {
     return updatedIds
   }
 
-  async deleteItemsByIds(baseId: string, itemIds: string[]): Promise<void> {
+  deleteItemsByIds(baseId: string, itemIds: string[]): void {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) {
       return
     }
 
     const dbService = application.get('DbService')
-    const deleted = await dbService.withWriteTx(async (tx) => {
-      const targetRows = await tx
+    const deleted = dbService.withWriteTx((tx) => {
+      const targetRows = tx
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      await tx
-        .delete(knowledgeItemTable)
+        .all()
+      tx.delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
+        .run()
       return {
         rowsAffected: targetRows.length,
         groupIds: targetRows.map((row) => row.groupId)
       }
     })
 
-    await this.reconcileContainers(baseId, deleted.groupIds)
+    this.reconcileContainers(baseId, deleted.groupIds)
 
     logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
   }
 
-  async getSubtreeItems(
-    baseId: string,
-    rootIds: string[],
-    options: GetSubtreeItemsOptions = {}
-  ): Promise<KnowledgeItem[]> {
+  getSubtreeItems(baseId: string, rootIds: string[], options: GetSubtreeItemsOptions = {}): KnowledgeItem[] {
     const uniqueRootIds = [...new Set(rootIds)]
     if (uniqueRootIds.length === 0) {
       return []
@@ -392,7 +521,7 @@ export class KnowledgeItemService {
             sql`, `
           )})`
 
-    const rows = await this.db.all<KnowledgeItemRowLike>(sql`
+    const rows = this.db.all<KnowledgeItemRowLike>(sql`
       WITH RECURSIVE subtree AS (
         SELECT id, type
         FROM knowledge_item
@@ -431,13 +560,13 @@ export class KnowledgeItemService {
     return rows.map((row) => rowToKnowledgeItem(row))
   }
 
-  async updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): Promise<KnowledgeItem>
-  async updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): Promise<KnowledgeItem>
-  async updateStatus(
+  updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): KnowledgeItem
+  updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): KnowledgeItem
+  updateStatus(
     id: string,
     status: KnowledgeItemStatus,
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
-  ): Promise<KnowledgeItem> {
+  ): KnowledgeItem {
     // Per-type status legality is enforced by the DB CHECK constraint.
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -448,8 +577,8 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const { item, startContainerIds } = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+    const { item, startContainerIds, blocked } = dbService.withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -458,15 +587,17 @@ export class KnowledgeItemService {
       if (existingRow.status === 'deleting' && status !== 'deleting') {
         return {
           item: rowToKnowledgeItem(existingRow),
-          startContainerIds: []
+          startContainerIds: [],
+          blocked: true
         }
       }
 
-      const [updatedRow] = await tx
+      const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({ status, error })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
+        .all()
 
       if (!updatedRow) {
         throw DataApiErrorFactory.dataInconsistent(
@@ -480,54 +611,79 @@ export class KnowledgeItemService {
         startContainerIds:
           status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
-            : [updatedRow.id, existingRow.groupId]
+            : [updatedRow.id, existingRow.groupId],
+        blocked: false
       }
     })
 
-    await this.reconcileContainers(item.baseId, startContainerIds)
-    logger.info('Updated knowledge item status', { id, status })
+    if (blocked) {
+      logger.warn('Skipped status update for deleting item', { id, attemptedStatus: status })
+    } else {
+      this.reconcileContainers(item.baseId, startContainerIds)
+      logger.info('Updated knowledge item status', { id, status })
+    }
     return item
   }
 
-  async updateIndexedRelativePath(id: string, indexedRelativePath: string): Promise<KnowledgeItem> {
+  /**
+   * Merge a partial `data` patch onto a knowledge item, guarding the item type so
+   * a path is never written onto the wrong kind. Shared by the relative-path
+   * setters below; `label` names the patched field for the validation / log
+   * messages. Runs in a single write transaction.
+   *
+   * `patch` is a concrete key union, not `Partial<KnowledgeItemData>`: the latter
+   * keeps only keys common to every item type and would drop the file-only
+   * `indexedRelativePath`. The merged `data` is cast to `KnowledgeItemData`, which
+   * cannot statically prove the patched key belongs to the resolved item type —
+   * `allowedTypes` is the runtime guard that makes the cast sound, so the two are
+   * load-bearing together and must be kept in sync.
+   */
+  private patchItemData(
+    id: string,
+    allowedTypes: KnowledgeItemType[],
+    patch: { indexedRelativePath: string } | { relativePath: string },
+    label: string
+  ): KnowledgeItem {
     const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+    const row = dbService.withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
       const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== 'file') {
+      if (!allowedTypes.includes(existingItem.type)) {
         throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a file to store indexed relative path: ${id}`]
+          type: [`Knowledge item ${id} must be of type ${allowedTypes.join(' or ')} to store its ${label}`]
         })
       }
 
-      const [updatedRow] = await tx
+      const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
-          data: {
-            ...existingItem.data,
-            indexedRelativePath
-          }
+          data: { ...existingItem.data, ...patch } as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
+        .all()
 
       if (!updatedRow) {
         throw DataApiErrorFactory.dataInconsistent(
           'KnowledgeItem',
-          `Knowledge item indexed path update result missing for id '${id}'`
+          `Knowledge item ${label} update result missing for id '${id}'`
         )
       }
 
       return updatedRow
     })
 
-    logger.info('Updated knowledge item indexed relative path', { id, indexedRelativePath })
+    logger.info(`Updated knowledge item ${label}`, { id, ...patch })
     return rowToKnowledgeItem(row)
+  }
+
+  updateIndexedRelativePath(id: string, indexedRelativePath: string): KnowledgeItem {
+    return this.patchItemData(id, ['file'], { indexedRelativePath }, 'indexed relative path')
   }
 
   /**
@@ -535,126 +691,111 @@ export class KnowledgeItemService {
    * url and note store the snapshot identically — the `type` guards the call site
    * against writing the path onto the wrong item kind.
    */
-  async updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): Promise<KnowledgeItem> {
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
-      }
-
-      const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== type) {
-        throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a ${type} to store a snapshot relative path: ${id}`]
-        })
-      }
-
-      const [updatedRow] = await tx
-        .update(knowledgeItemTable)
-        .set({
-          data: { ...existingItem.data, relativePath } as KnowledgeItemData
-        })
-        .where(eq(knowledgeItemTable.id, id))
-        .returning()
-
-      if (!updatedRow) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item ${type} snapshot path update result missing for id '${id}'`
-        )
-      }
-
-      return updatedRow
-    })
-
-    logger.info(`Updated knowledge ${type} snapshot relative path`, { id, relativePath })
-    return rowToKnowledgeItem(row)
+  updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): KnowledgeItem {
+    return this.patchItemData(id, [type], { relativePath }, `${type} snapshot relative path`)
   }
 
-  private async reconcileContainers(
-    baseId: string,
-    startContainerIds: Array<string | null | undefined>
-  ): Promise<void> {
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
-      const visited = new Set<string>()
+  /**
+   * Pin the deduped `raw/` directory prefix chosen during expansion onto a directory
+   * container's `data.relativePath` (e.g. `docs` or `docs_2`). The original folder stays
+   * in `data.source`; this prefix is what the UI shows and what delete removes the shell by.
+   */
+  updateDirectoryRelativePath(id: string, relativePath: string): KnowledgeItem {
+    return this.patchItemData(id, ['directory'], { relativePath }, 'directory relative path')
+  }
 
-      while (queue.length > 0) {
-        const containerId = queue.shift()
-        if (!containerId || visited.has(containerId)) {
-          continue
+  private reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): void {
+    application.get('DbService').withWriteTx((tx) => this.reconcileContainersTx(tx, baseId, startContainerIds))
+  }
+
+  /**
+   * Ancestor container rollup on a caller-supplied transaction, so it can commit
+   * atomically with the write that changed a child's status (see `createActive`).
+   * Walks up from each start container, recomputing its status from its immediate
+   * children.
+   */
+  private reconcileContainersTx(tx: DbOrTx, baseId: string, startContainerIds: Array<string | null | undefined>): void {
+    const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
+    const visited = new Set<string>()
+
+    while (queue.length > 0) {
+      const containerId = queue.shift()
+      if (!containerId || visited.has(containerId)) {
+        continue
+      }
+      visited.add(containerId)
+
+      const [containerRow] = tx
+        .select()
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .limit(1)
+        .all()
+
+      if (!containerRow || containerRow.type !== 'directory') {
+        continue
+      }
+
+      if (containerRow.status === 'deleting') {
+        continue
+      }
+
+      if (containerRow.status === 'preparing') {
+        if (containerRow.groupId) {
+          queue.push(containerRow.groupId)
         }
-        visited.add(containerId)
+        continue
+      }
 
-        const [containerRow] = await tx
-          .select()
-          .from(knowledgeItemTable)
+      const [stats] = tx
+        .select({
+          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+        })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
+        .all()
+
+      if (Number(stats?.activeCount ?? 0) > 0) {
+        tx.update(knowledgeItemTable)
+          .set({ status: 'processing', error: null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-          .limit(1)
-
-        if (!containerRow || containerRow.type !== 'directory') {
-          continue
-        }
-
-        if (containerRow.status === 'deleting') {
-          continue
-        }
-
-        if (containerRow.status === 'preparing') {
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const [stats] = await tx
-          .select({
-            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
-            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
-          })
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
-
-        if (Number(stats?.activeCount ?? 0) > 0) {
-          await tx
-            .update(knowledgeItemTable)
-            .set({ status: 'processing', error: null })
-            .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
-        await tx
-          .update(knowledgeItemTable)
-          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+          .run()
 
         if (containerRow.groupId) {
           queue.push(containerRow.groupId)
         }
+        continue
       }
-    })
+
+      const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+      tx.update(knowledgeItemTable)
+        .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .run()
+
+      if (containerRow.groupId) {
+        queue.push(containerRow.groupId)
+      }
+    }
   }
 
-  async delete(id: string): Promise<void> {
+  delete(id: string): void {
     const dbService = application.get('DbService')
-    const deleted = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+    const deleted = dbService.withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
-      const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
-        id: knowledgeItemTable.id
-      })
+      const [row] = tx
+        .delete(knowledgeItemTable)
+        .where(eq(knowledgeItemTable.id, id))
+        .returning({
+          id: knowledgeItemTable.id
+        })
+        .all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -663,7 +804,7 @@ export class KnowledgeItemService {
       return { baseId: existingRow.baseId, groupId: existingRow.groupId }
     })
 
-    await this.reconcileContainers(deleted.baseId, [deleted.groupId])
+    this.reconcileContainers(deleted.baseId, [deleted.groupId])
     logger.info('Deleted knowledge item', { id })
   }
 }

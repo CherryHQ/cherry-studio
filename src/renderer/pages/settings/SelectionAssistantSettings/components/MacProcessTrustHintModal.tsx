@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -16,7 +17,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
   }
 
   const handleConfirm = async () => {
-    void window.api.mac.requestProcessTrust()
+    void ipcApi.request('system.mac.request_process_trust')
     onClose()
   }
 
@@ -38,7 +39,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
           </p>
         </div>
         <div className="flex w-full items-center justify-between">
-          <Button variant="ghost" className="text-foreground-muted text-xs" onClick={handleOpenAccessibility}>
+          <Button variant="ghost" className="text-muted-foreground text-xs" onClick={handleOpenAccessibility}>
             {t('selection.settings.enable.mac_process_trust_hint.button.open_accessibility_settings')}
           </Button>
           <Button onClick={handleConfirm}>

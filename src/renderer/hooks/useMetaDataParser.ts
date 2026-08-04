@@ -35,14 +35,56 @@ export function useMetaDataParser<T extends string>(
 
       const htmlContent = response.data
       const parsedMetadata = {} as Record<T, string>
+      let isReadingTitle = false
+      let titleText = ''
+
+      const resolveUrl = (value: string) => {
+        try {
+          return new URL(value, link).href
+        } catch {
+          return value
+        }
+      }
+
+      const setMetadataValue = (key: string, value: string | undefined) => {
+        const trimmed = value?.trim()
+        if (!trimmed || !properties.includes(key as T) || parsedMetadata[key as T]) return
+        const shouldResolveUrl = key === 'image' || key === 'og:image'
+        parsedMetadata[key as T] = shouldResolveUrl ? resolveUrl(trimmed) : trimmed
+      }
 
       const parser = new htmlparser2.Parser({
         onopentag(tagName, attributes) {
+          if (tagName === 'title') {
+            isReadingTitle = true
+            titleText = ''
+            return
+          }
+
           if (tagName === 'meta') {
             const { name: metaName, property: metaProperty, content } = attributes
             const metaKey = metaName || metaProperty
-            if (!metaKey || !properties.includes(metaKey as T)) return
-            parsedMetadata[metaKey as T] = content
+            setMetadataValue(metaKey, content)
+            return
+          }
+
+          if (tagName === 'link') {
+            const rel = attributes.rel?.toLowerCase().split(/\s+/) ?? []
+            if (rel.includes('preload') && attributes.as?.toLowerCase() === 'image') {
+              setMetadataValue('image', attributes.href)
+            }
+          }
+        },
+        ontext(text) {
+          if (isReadingTitle) {
+            titleText += text
+          }
+        },
+        onclosetag(tagName) {
+          if (tagName === 'title') {
+            setMetadataValue('title', titleText)
+            isReadingTitle = false
+            titleText = ''
           }
         }
       })

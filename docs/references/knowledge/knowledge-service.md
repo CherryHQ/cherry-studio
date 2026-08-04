@@ -2,7 +2,7 @@
 
 This document records the current v2 knowledge backend shape in the main process.
 
-It covers the `src/main/services/knowledge` workflow path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
+It covers the `src/main/features/knowledge` workflow path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
 
 For workflow guard details, see [Knowledge Operation Guards](./operation-guards.md). For the workflow architecture overview, see [Knowledge Workflow Architecture](./workflow-architecture.md).
 
@@ -13,7 +13,7 @@ The current implementation is split into four responsibility areas:
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
-   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
+   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is `null` for BM25-only completed bases (no embedding model) and for failed bases whose embedding contract is unknown.
    - Validate item `type` / `data` consistency.
    - Persist `knowledge_item.status` and `error`.
    - Reconcile container item status from child item state.
@@ -21,15 +21,14 @@ The current implementation is split into four responsibility areas:
    - Expose database-backed list/get operations and base metadata/config patch.
    - Do not perform vector-store mutations.
 3. `KnowledgeService`
-   - Owns caller-facing runtime IPC workflow.
-   - Creates/deletes/restores bases through data services and vector store services.
-   - Registers Knowledge JobManager handlers.
-   - Holds the `KnowledgeWorkflowService` and `KnowledgeLockManager`.
-   - Collapses delete/reindex item inputs to top-level roots and enforces runtime guards.
+   - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
+   - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, and the job handlers.
+   - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
+   - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves search and the Concept ID tool surface.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
-   - Use `KnowledgeWorkflowService` for next-step scheduling.
-   - Use `KnowledgeLockManager` for same-base mutations and vector cleanup.
+   - Use `KnowledgeIngestionService` for next-step scheduling.
+   - Use the per-base mutation lock (`KeyedMutex.runExclusive`) for same-base mutations and vector cleanup.
 
 ```text
 caller
@@ -39,13 +38,13 @@ caller
 caller
   -> preload knowledge IPC
      -> KnowledgeService
-        -> KnowledgeWorkflowService
+        -> KnowledgeIngestionService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.delete-subtree / knowledge.reindex-subtree
-              -> KnowledgeLockManager
+              -> KeyedMutex.runExclusive
                  -> KnowledgeBaseService / KnowledgeItemService
-                 -> KnowledgeVectorStoreService / FileManager
+                 -> KnowledgeVectorStoreService
 ```
 
 There is no current `KnowledgeRuntimeService` and no in-memory Knowledge queue. Durable work is owned by `JobManager`.
@@ -104,20 +103,18 @@ reindex-items(baseId, itemIds)
 
 ## IPC Surface
 
-`KnowledgeService` currently owns these public IPC entrypoints:
+`KnowledgeService` currently owns these public IpcApi routes, defined in `src/shared/ipc/schemas/knowledge.ts` and handled in `src/main/ipc/handlers/knowledge.ts`:
 
-- `knowledge:create-base`
-- `knowledge:restore-base`
-- `knowledge:delete-base`
-- `knowledge:add-items`
-- `knowledge:delete-items`
-- `knowledge:reindex-items`
-- `knowledge:search`
-- `knowledge:list-item-chunks`
+- `knowledge.create_base`
+- `knowledge.restore_base`
+- `knowledge.delete_base`
+- `knowledge.add_items`
+- `knowledge.delete_items`
+- `knowledge.reindex_items`
+- `knowledge.search`
+- `knowledge.list_item_chunks`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. (The former `knowledge:delete-item-chunk` entrypoint was removed with the per-base index store cutover — chunks are derived index rows, replaced wholesale by reindexing.)
-
-`KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
 
 The chunk IPC entrypoint is a runtime inspection helper:
 
@@ -134,7 +131,7 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
 
-Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses `KnowledgeLockManager` to serialize same-base vector and item mutations inside the current process.
+Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses the per-base mutation lock (`KeyedMutex.runExclusive`) to serialize same-base vector and item mutations inside the current process.
 
 Current item statuses are:
 
@@ -164,7 +161,8 @@ Current status writes are:
 Current persisted `knowledge_base` columns include:
 
 - `groupId`: nullable group assignment; `null` means ungrouped.
-- `dimensions`: positive embedding vector width for completed bases; nullable for failed migrated bases with unknown dimensions.
+- `embeddingModelId`: the embedding model; `null` for BM25-only bases.
+- `dimensions`: positive embedding vector width for vector-capable bases; `null` for BM25-only completed bases (no embedding model) and for failed migrated bases with unknown dimensions. On a completed base it is paired with `embeddingModelId` — both set, or both `null` for BM25-only retrieval (enforced by the DB CHECK and the entity schema).
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
 - `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
 
@@ -173,14 +171,13 @@ Current persisted `knowledge_base` columns include:
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
-3. Workflow service enqueues `knowledge.delete-subtree`.
-4. The delete job cancels active jobs touching the subtree.
-5. Under the base mutation lock, the delete job deletes leaf vectors, clears Knowledge file refs, and hard-deletes item rows.
+2. Under the base mutation lock, one DB transaction marks selected root subtrees `deleting` and enqueues `knowledge.delete-subtree`.
+3. The delete job cancels active jobs touching the subtree.
+4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
 
-The item row delete path clears Knowledge `file_ref` rows for the full deletion subtree before deleting rows. This is required because `file_ref.sourceId` is polymorphic and cannot cascade from `knowledge_item`.
+Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`, rows remain `deleting`. Startup recovery scans deleting roots and re-enqueues cleanup jobs best-effort.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery still scans committed `deleting` roots and re-enqueues cleanup jobs best-effort when already-durable cleanup was interrupted or failed.
 
 `reindex-items` currently runs:
 
@@ -204,7 +201,7 @@ delete-base(baseId)
 
 If vector artifact deletion fails, the SQLite base row is preserved so the user can retry deletion. If SQLite deletion fails after vector artifacts were deleted, orchestration throws an `invalidOperation` because the cross-store cleanup cannot be rolled back.
 
-Knowledge delete/reindex workflows detach Knowledge-owned `FileRef` rows but do not actively remove detached `FileEntry` rows. Unreferenced file entries are left to the file module's orphan handling policy.
+Knowledge files are owned by the Knowledge workflow under its raw/vector storage and are not registered as FileManager `FileRef` rows. Delete/reindex cleanup stays within Knowledge-owned storage and metadata.
 
 ## Base Restore
 
@@ -259,11 +256,12 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 
 1. Reject failed bases.
 2. Reject queries without searchable tokens.
-3. Resolve the base's `searchMode` (`vector` / `bm25` / `hybrid`) and embed the query — skipped for `bm25`, which is lexical only.
-4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens), the brute-force vector lane, or fuses both with RRF (`hybridAlpha`).
+3. Derive the retrieval mode from the base config and embed the query only for embedding-backed bases. Bases without an embedding model search BM25 only; embedding-backed bases use hybrid retrieval.
+4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens) or fuses BM25 and brute-force vector results with RRF.
 5. Filter results whose source items are missing, outside the base, or `deleting`, then trim to `documentCount ?? 10`.
 6. Rerank when `base.rerankModelId` is configured.
-7. Apply relevance threshold (a no-op for `ranking`-kind scores) and assign ranks.
+7. Apply `threshold` only to results whose `scoreKind` is `relevance`; BM25/hybrid `ranking` scores pass through.
+8. Assign ranks.
 
 Current `KnowledgeSearchResult` includes:
 
@@ -279,8 +277,8 @@ Current `KnowledgeSearchResult` includes:
 
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a vector index and does not use `vector_top_k`.
-Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vector_distance_cos` on libsql).
+The current v2 implementation intentionally does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
+Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vec_distance_cosine` on sqlite-vec, with the query vector bound as a raw little-endian float32 BLOB).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.

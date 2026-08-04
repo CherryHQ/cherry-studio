@@ -36,6 +36,7 @@ vi.mock('node:fs/promises', async () => {
 
 import {
   buildMessageTree,
+  estimateLegacyRequestCount,
   extractCitationReferences,
   mergeStats,
   normalizeStatus,
@@ -286,7 +287,9 @@ describe('transformBlocksToParts', () => {
     expect(part.input).toEqual({ query: 'test' })
     // output comes from rawMcpToolResponse.response
     expect(part.output).toEqual({ content: [{ type: 'text', text: 'result' }] })
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'mcp', serverId: 's1', serverName: 'search' }
+    })
     expect(readCherryMeta(part)?.tool).toMatchObject({
       type: 'mcp',
       serverId: 's1',
@@ -348,7 +351,9 @@ describe('transformBlocksToParts', () => {
     ])
 
     const part = parts[0] as DynamicToolUIPart
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'builtin' }
+    })
     expect(readCherryMeta(part)?.tool).toEqual({ type: 'builtin' })
   })
 
@@ -457,7 +462,9 @@ describe('transformBlocksToParts', () => {
     expect(part.toolName).toBe('WebSearch')
     expect(part.toolCallId).toBe('raw-tool-call-id')
     expect(part.input).toEqual({ query: 'desktop clients' })
-    expect(part.callProviderMetadata).toBeUndefined()
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'provider' }
+    })
     expect(readCherryMeta(part)?.tool).toMatchObject({ type: 'provider' })
   })
 
@@ -590,6 +597,27 @@ describe('transformBlocksToParts', () => {
         expect(row.origin).toBe('internal')
         expect(row.ext).toBe('png')
       }
+    })
+
+    it('deduplicates legacy base64 image mirrored in url and generateImageResponse metadata', async () => {
+      const image = 'data:image/png;base64,AAA='
+      const { parts } = await transformBlocksToParts(
+        [
+          block('image', {
+            url: image,
+            metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
+          })
+        ],
+        { db: dbh.db, filesDataDir: MIGRATION_FILES_DIR }
+      )
+
+      expect(parts).toHaveLength(1)
+      const fileEntryId = readCherryMeta(parts[0] as FileUIPart)?.fileEntryId
+      expect(fileEntryId).toBeTruthy()
+
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).toBe(fileEntryId)
     })
 
     it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
@@ -805,26 +833,47 @@ describe('transformMessage', () => {
     expect(result.modelId).toBeNull()
   })
 
-  it('builds modelSnapshot from model object', async () => {
+  it('builds the assistant snapshot with the model nested', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
 
-    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1')
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
 
-    expect(result.modelSnapshot).toEqual({
-      id: 'gpt-4',
-      name: 'GPT-4',
-      provider: 'openai',
-      group: 'chatgpt'
+    expect(result.messageSnapshot).toEqual({
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐',
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     })
   })
 
-  it('returns null modelSnapshot when model is missing', async () => {
-    const result = await transformMessage(msg('m1', 'assistant'), null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
-    expect(result.modelSnapshot).toBeNull()
+  it('returns null snapshot when the assistant is missing (author owns the model)', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
+    expect(result.messageSnapshot).toBeNull()
+  })
+
+  it('omits the snapshot from user-role messages even when an assistant is resolved', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'user'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
+    expect(result.messageSnapshot).toBeNull()
   })
 
   it('drops legacy traceId because span history is not migrated', async () => {
@@ -896,15 +945,76 @@ describe('normalizeStatus', () => {
 // mergeStats
 // ============================================================================
 
+describe('estimateLegacyRequestCount', () => {
+  const block = (type: string): OldBlock =>
+    ({
+      id: `block-${type}`,
+      messageId: 'message-1',
+      type,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      status: 'success',
+      ...(type === 'tool' ? { toolId: `tool-${type}` } : {}),
+      ...(type === 'main_text' || type === 'thinking' ? { content: 'output' } : {})
+    }) as OldBlock
+
+  it('uses one baseline request for text-only and empty historical messages', () => {
+    expect(estimateLegacyRequestCount([])).toBe(1)
+    expect(estimateLegacyRequestCount([block('main_text')])).toBe(1)
+  })
+
+  it('counts parallel tool groups only when followed by more model output', () => {
+    expect(
+      estimateLegacyRequestCount([
+        block('tool'),
+        block('tool'),
+        block('citation'),
+        block('file'),
+        block('source'),
+        block('main_text'),
+        block('tool')
+      ])
+    ).toBe(2)
+  })
+
+  it('does not infer another request from a terminal tool group', () => {
+    expect(estimateLegacyRequestCount([block('main_text'), block('tool'), block('citation')])).toBe(1)
+  })
+})
+
 describe('mergeStats', () => {
   it('returns null when both usage and metrics are missing', async () => {
     expect(mergeStats()).toBeNull()
     expect(mergeStats(undefined, undefined)).toBeNull()
   })
 
-  it('merges usage tokens', async () => {
-    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
-    expect(stats).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 })
+  it('merges usage tokens (AI SDK v6 names)', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, thoughts_tokens: 4 })
+    expect(stats).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      outputTokenDetails: { reasoningTokens: 4 },
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1
+    })
+  })
+
+  it('maps v1 cost to a provider-reported USD cost', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, cost: 0.0042 })
+    expect(stats).toMatchObject({
+      costs: [
+        {
+          currency: 'USD',
+          amount: 0.0042,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ],
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 0
+    })
   })
 
   it('merges metrics timing', async () => {
@@ -914,7 +1024,13 @@ describe('mergeStats', () => {
 
   it('merges both usage and metrics', async () => {
     const stats = mergeStats({ prompt_tokens: 5 }, { time_thinking_millsec: 200 })
-    expect(stats).toEqual({ promptTokens: 5, timeThinkingMs: 200 })
+    expect(stats).toEqual({
+      inputTokens: 5,
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1,
+      timeThinkingMs: 200
+    })
   })
 })
 

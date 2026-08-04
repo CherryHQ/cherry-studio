@@ -1,21 +1,37 @@
+/**
+ * @deprecated v2 replacement pending. Like BackupService, this currently uses the retained v1
+ * compatibility engine for real archives. Transient sync status remains in the session-local,
+ * non-reactive `nutstoreSyncState` below until the native v2 service replaces it.
+ */
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
-import store from '@renderer/store'
-import { setNutstoreSyncState } from '@renderer/store/nutstore'
-import type { WebDavConfig } from '@renderer/types'
-import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { WebDavConfig } from '@shared/types/backup'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { type CreateDirectoryOptions } from 'webdav'
 
-import { handleData } from './BackupService'
+import type { RemoteSyncState } from './BackupService'
 
 const logger = loggerService.withContext('NutstoreService')
 
-function getNutstoreToken() {
-  const nutstoreToken = store.getState().nutstore.nutstoreToken
+// Session-local, non-reactive sync status (mirrors BackupService; see the note there).
+const nutstoreSyncState: RemoteSyncState = { lastSyncTime: null, syncing: false, lastSyncError: null }
+
+export const getNutstoreSyncState = () => nutstoreSyncState
+
+const setNutstoreSyncState = (patch: Partial<RemoteSyncState>) => {
+  Object.assign(nutstoreSyncState, patch)
+}
+
+async function getNutstoreToken() {
+  const nutstoreToken = await preferenceService.get('data.backup.nutstore.token')
 
   if (!nutstoreToken) {
-    window.toast.error(i18n.t('message.error.invalid.nutstore_token'))
+    toast.error(i18n.t('message.error.invalid.nutstore_token'))
     return null
   }
   return nutstoreToken
@@ -28,7 +44,7 @@ async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig
     return null
   }
 
-  const nutstorePath = store.getState().nutstore.nutstorePath
+  const nutstorePath = await preferenceService.get('data.backup.nutstore.path')
 
   const { username, access_token } = result
   return {
@@ -40,7 +56,7 @@ async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig
 }
 
 export async function checkConnection() {
-  const nutstoreToken = getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
     return false
   }
@@ -114,7 +130,7 @@ export async function backupToNutstore({
   showMessage?: boolean
   customFileName?: string
 } = {}) {
-  const nutstoreToken = getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
     return
   }
@@ -131,7 +147,7 @@ export async function backupToNutstore({
 
   let deviceType = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
   } catch (error) {
     logger.error('[backupToNutstore] Failed to get device type:', error as Error)
   }
@@ -141,10 +157,10 @@ export async function backupToNutstore({
 
   isManualBackupRunning = true
 
-  store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
+  setNutstoreSyncState({ syncing: true, lastSyncError: null })
 
-  const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
-  const maxBackups = store.getState().nutstore.nutstoreMaxBackups
+  const skipBackupFile = await preferenceService.get('data.backup.nutstore.skip_backup_file')
+  const maxBackups = await preferenceService.get('data.backup.nutstore.max_backups')
 
   try {
     // 先清理旧备份
@@ -153,28 +169,28 @@ export async function backupToNutstore({
     const isSuccess = await window.api.backup.backupToWebdav({
       ...config,
       fileName: finalFileName,
-      skipBackupFile: skipBackupFile
+      skipBackupFile
     })
 
     if (isSuccess) {
-      store.dispatch(setNutstoreSyncState({ lastSyncError: null }))
-      showMessage && window.toast.success(i18n.t('message.backup.success'))
+      setNutstoreSyncState({ lastSyncError: null })
+      showMessage && toast.success(i18n.t('message.backup.success'))
     } else {
-      store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
-      window.toast.error(i18n.t('message.backup.failed'))
+      setNutstoreSyncState({ lastSyncError: 'Backup failed' })
+      toast.error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
-    store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
+    setNutstoreSyncState({ lastSyncError: 'Backup failed' })
     logger.error('[Nutstore] Backup failed:', error as Error)
-    window.toast.error(i18n.t('message.backup.failed'))
+    toast.error(i18n.t('message.backup.failed'))
   } finally {
-    store.dispatch(setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false }))
+    setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
   }
 }
 
 export async function restoreFromNutstore(fileName?: string) {
-  const nutstoreToken = getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
     return
   }
@@ -184,23 +200,15 @@ export async function restoreFromNutstore(fileName?: string) {
     return
   }
 
-  let data = ''
-
   try {
-    data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
+    await window.api.backup.restoreFromWebdav({ ...config, fileName })
+    logger.info('[Nutstore] Backup restore staged, app will restart')
   } catch (error: any) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    window.modal.error({
+    void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
-  }
-
-  try {
-    await handleData(JSON.parse(data))
-  } catch (error) {
-    logger.error('[backup] Error downloading file from WebDAV:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
   }
 }
 
@@ -209,7 +217,7 @@ export async function startNutstoreAutoSync() {
     return
   }
 
-  const nutstoreToken = getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken()
 
   if (!nutstoreToken) {
     logger.warn('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
@@ -220,15 +228,15 @@ export async function startNutstoreAutoSync() {
 
   stopNutstoreAutoSync()
 
-  scheduleNextBackup()
+  await scheduleNextBackup()
 
-  function scheduleNextBackup() {
+  async function scheduleNextBackup() {
     if (syncTimeout) {
       clearTimeout(syncTimeout)
       syncTimeout = null
     }
 
-    const { nutstoreSyncInterval, nutstoreSyncState } = store.getState().nutstore
+    const nutstoreSyncInterval = await preferenceService.get('data.backup.nutstore.sync_interval')
 
     if (nutstoreSyncInterval <= 0) {
       logger.warn('[Nutstore AutoSync] Invalid sync interval, nutstore auto sync disabled')
@@ -240,7 +248,7 @@ export async function startNutstoreAutoSync() {
     const requiredInterval = nutstoreSyncInterval * 60 * 1000
 
     // 如果存在最后一次同步WebDAV的时间，以它为参考计算下一次同步的时间
-    const timeUntilNextSync = nutstoreSyncState?.lastSyncTime
+    const timeUntilNextSync = nutstoreSyncState.lastSyncTime
       ? Math.max(1000, nutstoreSyncState.lastSyncTime + requiredInterval - Date.now())
       : requiredInterval
 
@@ -256,7 +264,7 @@ export async function startNutstoreAutoSync() {
   async function performAutoBackup() {
     if (isAutoBackupRunning || isManualBackupRunning) {
       logger.verbose('[Nutstore AutoSync] Backup already in progress, rescheduling')
-      scheduleNextBackup()
+      await scheduleNextBackup()
       return
     }
 
@@ -268,7 +276,7 @@ export async function startNutstoreAutoSync() {
       logger.error('[Nutstore AutoSync] Auto backup failed:', error as Error)
     } finally {
       isAutoBackupRunning = false
-      scheduleNextBackup()
+      await scheduleNextBackup()
     }
   }
 }
@@ -284,7 +292,7 @@ export function stopNutstoreAutoSync() {
 }
 
 export async function createDirectory(path: string, options?: CreateDirectoryOptions) {
-  const nutstoreToken = getNutstoreToken()
+  const nutstoreToken = await getNutstoreToken()
   if (!nutstoreToken) {
     return
   }

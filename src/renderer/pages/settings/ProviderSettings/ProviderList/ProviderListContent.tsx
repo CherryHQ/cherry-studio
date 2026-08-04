@@ -119,7 +119,7 @@ export default function ProviderListContent({
       onReorder={onReorder}
       onReorderError={onReorderError}
       className="w-full"
-      gap="var(--provider-list-row-gap)"
+      gap="0.5rem"
       restrictions={{ scrollableAncestor: true }}
       renderItem={renderItem}
     />
@@ -187,7 +187,7 @@ export default function ProviderListContent({
         // the source rect — otherwise dnd-kit stretches the compact header.
         adjustScale={false}
         className="w-full"
-        gap="var(--provider-list-row-gap)"
+        gap="0.5rem"
         restrictions={{ scrollableAncestor: true }}
         renderItem={(item, state) => {
           if (item.kind === 'single') {
@@ -226,13 +226,13 @@ export default function ProviderListContent({
 
   return (
     <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
-      {hasResults ? (
-        <div className={providerListClasses.sectionStack}>
+      <div className={providerListClasses.sectionStack}>
+        {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
-        </div>
-      ) : (
-        <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
-      )}
+        ) : (
+          <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
+        )}
+      </div>
     </Scrollbar>
   )
 }

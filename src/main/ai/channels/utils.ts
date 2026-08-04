@@ -1,3 +1,5 @@
+import { clampSurrogateBoundary } from '@shared/utils/text'
+
 /**
  * Split a long message into chunks that respect paragraph/line boundaries.
  * Used by all channel adapters — each passes its own platform max length.
@@ -17,7 +19,9 @@ export function splitMessage(text: string, maxLength: number): string[] {
     let splitIndex = remaining.lastIndexOf('\n\n', maxLength)
     if (splitIndex <= 0) splitIndex = remaining.lastIndexOf('\n', maxLength)
     if (splitIndex <= 0) splitIndex = remaining.lastIndexOf(' ', maxLength)
-    if (splitIndex <= 0) splitIndex = maxLength
+    // No whitespace boundary within maxLength (e.g. CJK text, which has no
+    // spaces): fall back to a hard cut, but never split a surrogate pair.
+    if (splitIndex <= 0) splitIndex = clampSurrogateBoundary(remaining, maxLength)
 
     chunks.push(remaining.slice(0, splitIndex))
     remaining = remaining.slice(splitIndex).replace(/^\n+/, '').trimStart()
@@ -38,5 +42,10 @@ export const FILE_EXTENSION_MIME_MAP: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   md: 'text/markdown',
-  zip: 'application/zip'
+  zip: 'application/zip',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp'
 }

@@ -1,8 +1,7 @@
-import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
-import type { AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeToolApprovalRequest, AgentRuntimeUserInput } from '../types'
 
 export type McpToolDisplayMetadata = {
   type: 'mcp'
@@ -32,6 +31,8 @@ export type {
  * are managed by the language model internally.
  */
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
+  /** Skill names enabled for this session; SDK Options.skills is not a path list. */
+  skills?: string[]
   /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live
@@ -64,8 +65,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
 }
 
 export type ToolApprovalEmitterHolder = {
-  /** Set at stream start (bound to controller `enqueue`); cleared in `finally`. */
-  emit?: (event: LanguageModelV3ToolApprovalRequest) => void
+  /** Bound for the connection lifetime; the host decides whether to stream or persist the request. */
+  emit?: (request: AgentRuntimeToolApprovalRequest) => void
   /** Session-scoped cleanup (e.g. `toolApprovalRegistry.abort(sessionId)`). */
   dispose?: () => void
 }

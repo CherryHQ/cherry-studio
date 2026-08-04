@@ -2,7 +2,6 @@
 
 import { Label } from '@cherrystudio/ui/components/primitives/label'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type * as LabelPrimitive from '@radix-ui/react-label'
 import { Slot } from '@radix-ui/react-slot'
 import * as React from 'react'
 import {
@@ -82,7 +81,7 @@ function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function FormLabel({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
+function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
   const { error, formItemId } = useFormField()
 
   return (

@@ -1,22 +1,8 @@
-import { parsePersistedLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LanguagePicker from '../LanguagePicker'
-
-const createLanguage = (langCode: string, value: string, emoji: string): TranslateLanguage => ({
-  value,
-  langCode: parsePersistedLangCode(langCode),
-  emoji,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-})
-
-const english = createLanguage('en-us', 'English', '🇬🇧')
-const chinese = createLanguage('zh-cn', 'Chinese', '🇨🇳')
-const japanese = createLanguage('ja-jp', 'Japanese', '🇯🇵')
-const allLanguages: TranslateLanguage[] = [english, chinese, japanese]
+import { createLanguagesHookResult } from './testUtils'
 
 const mockUseLanguages = vi.fn()
 
@@ -28,7 +14,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   const { createContext, use, cloneElement, isValidElement } = await import('react')
   type Ctx = { open: boolean; onOpenChange: (next: boolean) => void }
-  const PopoverCtx = createContext<Ctx>({ open: false, onOpenChange: () => {} })
+  const PopoverContext = createContext<Ctx>({ open: false, onOpenChange: () => {} })
 
   const Popover = ({
     children,
@@ -38,13 +24,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     children?: React.ReactNode
     open?: boolean
     onOpenChange?: (next: boolean) => void
-  }) => <PopoverCtx value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>{children}</PopoverCtx>
+  }) => (
+    <PopoverContext value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>
+      {children}
+    </PopoverContext>
+  )
 
   const PopoverTrigger = ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => {
-    const { open, onOpenChange } = use(PopoverCtx)
+    const { open, onOpenChange } = use(PopoverContext)
     const toggle = () => onOpenChange(!open)
     if (asChild && isValidElement(children)) {
       const child = children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
       return cloneElement(child, {
         onClick: (e: React.MouseEvent) => {
           child.props.onClick?.(e)
@@ -60,7 +51,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 
   const PopoverContent = ({ children }: { children?: React.ReactNode }) => {
-    const { open } = use(PopoverCtx)
+    const { open } = use(PopoverContext)
     return open ? <div data-testid="popover-content">{children}</div> : null
   }
 
@@ -70,15 +61,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 describe('LanguagePicker', () => {
   beforeEach(() => {
     mockUseLanguages.mockReset()
-    mockUseLanguages.mockReturnValue({
-      languages: allLanguages,
-      getLanguage: (code: string) => allLanguages.find((l) => l.langCode === code),
-      getLabel: (language: TranslateLanguage | TranslateLangCode | null, withEmoji = true) => {
-        if (typeof language === 'string') return language === 'unknown' ? 'Unknown' : language
-        if (!language) return 'Unknown'
-        return withEmoji ? `${language.emoji} ${language.value}` : language.value
-      }
-    })
+    mockUseLanguages.mockReturnValue(createLanguagesHookResult())
   })
 
   it('renders selected language emoji and label in trigger', () => {

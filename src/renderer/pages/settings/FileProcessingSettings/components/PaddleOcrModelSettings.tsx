@@ -1,7 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useTranslation } from 'react-i18next'
-
-import { SettingRow, SettingRowTitle } from '../..'
 
 const PADDLEOCR_OCR_MODEL_OPTIONS = ['PP-OCRv6', 'PP-OCRv5'] as const
 const PADDLEOCR_DOCUMENT_MODEL_OPTIONS = [
@@ -25,7 +24,7 @@ export function PaddleOcrModelSettings({ feature, value, onChange }: PaddleOcrMo
   const selectedValue = trimmedValue || modelOptions[0]
 
   return (
-    <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+    <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
       <SettingRow className="items-center gap-4 py-0">
         <SettingRowTitle className="w-24 shrink-0">
           {t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}

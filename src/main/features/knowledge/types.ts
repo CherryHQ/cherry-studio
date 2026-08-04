@@ -1,6 +1,6 @@
 import type { JobType } from '@main/core/job/jobRegistry'
 
-export type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
+type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.prepare-root',
   'knowledge.index-documents',
@@ -8,6 +8,7 @@ export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.delete-subtree',
   'knowledge.reindex-subtree'
 ] as const satisfies readonly KnowledgeWorkflowJobType[]
+
 declare const knowledgeBaseIdBrand: unique symbol
 declare const knowledgeItemIdBrand: unique symbol
 
@@ -21,12 +22,21 @@ export type KnowledgeProgressDetail =
       totalFiles: number
     }
   | {
+      stage: 'copying'
+    }
+  | {
       stage: 'scanning'
     }
   | {
       stage: 'deleting' | 'done' | 'item-gone'
       currentFile?: number
       totalFiles?: number
+      // Count of reindex roots skipped because their source could not be read — missing OR
+      // unverifiable — at mutation-lock time (a TOCTOU between admission and the lock); their
+      // existing vectors are kept untouched. Recorded on the job's completion snapshot (and
+      // warn-logged) so the partial no-op is observable rather than silently rolled into a plain
+      // "done"; it is not (yet) surfaced in the renderer. Present only when non-zero.
+      skippedMissingSource?: number
     }
   | {
       stage: 'waiting'
@@ -38,7 +48,6 @@ export type KnowledgeProgressDetail =
       stage: 'failed'
     }
 
-export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {

@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { IpcChannel } from '@shared/IpcChannel'
-import { parseDataUrl } from '@shared/utils'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -49,7 +48,15 @@ class WeChatAdapter extends ChannelAdapter {
     // Abort guard — if disconnect() was called before login completes
     if (signal.aborted) return
 
-    const credentials = await bot.login({ signal })
+    const credentials = await bot.login({ signal }).catch((error) => {
+      if (!signal.aborted) {
+        const isExpired =
+          error instanceof Error &&
+          error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
+        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+      }
+      throw error
+    })
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
@@ -95,6 +102,19 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+    // The reverse-engineered WeChat protocol only supports outbound images today
+    // (WeixinBot.sendImage). Document upload would need protocol-level CDN work.
+    if (!file.media_type.startsWith('image/')) {
+      throw new Error(`WeChat can only forward image files, not "${file.media_type}" (${file.filename})`)
+    }
+    await this.bot.sendImage(chatId, Buffer.from(file.data, 'base64'))
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')
@@ -110,10 +130,10 @@ class WeChatAdapter extends ChannelAdapter {
 
   private sendQrToRenderer(
     url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
     userId?: string
   ): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.WeChat_QrLogin, {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
       channelId: this.channelId,
       url,
       status,

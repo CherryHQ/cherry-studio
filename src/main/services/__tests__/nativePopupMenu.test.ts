@@ -29,7 +29,7 @@ vi.mock('electron', () => ({
   Menu: menuMock
 }))
 
-import type { NativePopupMenuModel } from '@shared/command'
+import type { NativePopupMenuModel } from '@shared/types/command'
 import type { IpcMainInvokeEvent } from 'electron'
 
 import { type ExecuteCommand, showNativePopupMenu } from '../nativePopupMenu'

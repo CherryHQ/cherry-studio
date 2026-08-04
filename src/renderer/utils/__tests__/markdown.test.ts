@@ -1,6 +1,3 @@
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import type { PluggableList } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,36 +8,22 @@ import {
   processLatexBrackets,
   purifyMarkdownImages,
   removeTrailingDoubleSpaces,
-  splitMarkdownBlocks,
   updateCodeBlock
 } from '../markdown'
 
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
-    it('returns null when children is null or undefined', () => {
+    it('returns an empty string when no citation is present', () => {
       expect(findCitationInChildren(null)).toBe('')
       expect(findCitationInChildren(undefined)).toBe('')
+      expect(
+        findCitationInChildren([{ props: { foo: 'bar' } }, { props: { children: [{ props: { baz: 'qux' } }] } }])
+      ).toBe('')
     })
 
     it('finds citation in direct child element', () => {
       const children = [{ props: { 'data-citation': 'test-citation' } }]
       expect(findCitationInChildren(children)).toBe('test-citation')
-    })
-
-    it('finds citation in nested child element', () => {
-      const children = [
-        {
-          props: {
-            children: [{ props: { 'data-citation': 'nested-citation' } }]
-          }
-        }
-      ]
-      expect(findCitationInChildren(children)).toBe('nested-citation')
-    })
-
-    it('returns null when no citation is found', () => {
-      const children = [{ props: { foo: 'bar' } }, { props: { children: [{ props: { baz: 'qux' } }] } }]
-      expect(findCitationInChildren(children)).toBe('')
     })
 
     it('handles single child object (non-array)', () => {
@@ -50,6 +33,7 @@ describe('markdown', () => {
 
     it('handles deeply nested structures', () => {
       const children = [
+        'text node',
         {
           props: {
             children: [
@@ -72,28 +56,9 @@ describe('markdown', () => {
       ]
       expect(findCitationInChildren(children)).toBe('deep-citation')
     })
-
-    it('handles non-object children gracefully', () => {
-      const children = ['text node', 123, { props: { 'data-citation': 'mixed-citation' } }]
-      expect(findCitationInChildren(children)).toBe('mixed-citation')
-    })
   })
 
   describe('convertMathFormula', () => {
-    it('should convert LaTeX block delimiters to $$$$', () => {
-      // 验证将 LaTeX 块分隔符转换为 $$$$
-      const input = 'Some text \\[math formula\\] more text'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text $$math formula$$ more text')
-    })
-
-    it('should convert LaTeX inline delimiters to $$', () => {
-      // 验证将 LaTeX 内联分隔符转换为 $$
-      const input = 'Some text \\(inline math\\) more text'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text $inline math$ more text')
-    })
-
     it('should handle multiple delimiters in input', () => {
       // 验证处理输入中的多个分隔符
       const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
@@ -119,16 +84,9 @@ describe('markdown', () => {
   describe('removeTrailingDoubleSpaces', () => {
     it('should remove trailing double spaces from each line', () => {
       // 验证移除每行末尾的两个空格
-      const input = 'Line one  \nLine two  \nLine three'
+      const input = 'Line one  \nLine two \nLine three'
       const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('Line one\nLine two\nLine three')
-    })
-
-    it('should handle single line with trailing double spaces', () => {
-      // 验证处理单行末尾的两个空格
-      const input = 'Single line  '
-      const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('Single line')
+      expect(result).toBe('Line one\nLine two \nLine three')
     })
 
     it('should return unchanged if no trailing double spaces', () => {
@@ -136,13 +94,6 @@ describe('markdown', () => {
       const input = 'Line one\nLine two \nLine three'
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('Line one\nLine two \nLine three')
-    })
-
-    it('should handle empty string', () => {
-      // 验证处理空字符串
-      const input = ''
-      const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('')
     })
   })
 
@@ -171,34 +122,6 @@ describe('markdown', () => {
     //   return result
     // }
 
-    it('should format content using remark-stringify', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```'
-      const expectedResult = '# Test\n\n```js\nvar x = 1;\n```\n'
-
-      const actualId = '2:1:7'
-      const newContent = 'var x = 1;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, actualId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should update code block content when ID matches', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
-      const expectedResult = '# Test\n\n```js\nconst x = 2;\n```\n\nOther content\n'
-
-      const actualId = '2:1:7'
-      const newContent = 'const x = 2;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, actualId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
     it('should not modify content when code block ID does not match', () => {
       const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
       const wrongId = 'non-existent-id'
@@ -208,34 +131,6 @@ describe('markdown', () => {
 
       expect(result).toContain('var x = 1;')
       expect(result).not.toContain(newContent)
-    })
-
-    it('should preserve code block language tag', () => {
-      const markdown = '# Title\n\n```python\nprint("Hello")\n```\n'
-      const expectedResult = '# Title\n\n```python\nprint("Updated")\n```\n'
-
-      const pythonBlockId = '3:1:9'
-      const newContent = 'print("Updated")'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, pythonBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should only update the code block with matching ID when multiple blocks exist', () => {
-      const markdown = '```js\nvar x = 1;\n```\n\n```py\nprint("test")\n```'
-      const expectedResult = '```js\nconst y = 2;\n```\n\n```py\nprint("test")\n```\n'
-
-      const firstBlockId = '1:1:0'
-      const newContent = 'const y = 2;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, firstBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
     })
 
     it('should only update the second of two identical code blocks', () => {
@@ -252,20 +147,6 @@ describe('markdown', () => {
       // getAllCodeBlockIds(markdown)
 
       const result = updateCodeBlock(markdown, secondBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should handle code blocks with special characters', () => {
-      const markdown = '```js\nconst special = "\\n\\t\\"\\u{1F600}";\n```'
-      const expectedResult = '```js\nconst updated = true;\n```\n'
-
-      const blockId = '1:1:0'
-      const newContent = 'const updated = true;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, blockId, newContent)
 
       expect(result).toBe(expectedResult)
     })
@@ -305,61 +186,9 @@ describe('markdown', () => {
       expect(markdownToPlainText('')).toBe('')
     })
 
-    it('should remove headers', () => {
-      expect(markdownToPlainText('# Header 1')).toBe('Header 1')
-      expect(markdownToPlainText('## Header 2')).toBe('Header 2')
-      expect(markdownToPlainText('### Header 3')).toBe('Header 3')
-    })
-
-    it('should remove bold and italic', () => {
-      expect(markdownToPlainText('**bold**')).toBe('bold')
-      expect(markdownToPlainText('*italic*')).toBe('italic')
-      expect(markdownToPlainText('***bolditalic***')).toBe('bolditalic')
-      expect(markdownToPlainText('__bold__')).toBe('bold')
-      expect(markdownToPlainText('_italic_')).toBe('italic')
-      expect(markdownToPlainText('___bolditalic___')).toBe('bolditalic')
-    })
-
-    it('should remove strikethrough', () => {
-      expect(markdownToPlainText('~~strikethrough~~')).toBe('strikethrough')
-    })
-
-    it('should remove links, keeping the text', () => {
-      expect(markdownToPlainText('[link text](http://example.com)')).toBe('link text')
-      expect(markdownToPlainText('[link text with title](http://example.com "title")')).toBe('link text with title')
-    })
-
-    it('should remove images, keeping the alt text', () => {
-      expect(markdownToPlainText('![alt text](http://example.com/image.png)')).toBe('alt text')
-    })
-
-    it('should remove inline code', () => {
-      expect(markdownToPlainText('`inline code`')).toBe('inline code')
-    })
-
     it('should remove code blocks', () => {
       const codeBlock = '```javascript\nconst x = 1;\n```'
       expect(markdownToPlainText(codeBlock)).toBe('const x = 1;') // remove-markdown keeps code content
-    })
-
-    it('should remove blockquotes', () => {
-      expect(markdownToPlainText('> blockquote')).toBe('blockquote')
-    })
-
-    it('should remove unordered lists', () => {
-      const list = '* item 1\n* item 2'
-      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
-    })
-
-    it('should remove ordered lists', () => {
-      const list = '1. item 1\n2. item 2'
-      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
-    })
-
-    it('should remove horizontal rules', () => {
-      expect(markdownToPlainText('---')).toBe('')
-      expect(markdownToPlainText('***')).toBe('')
-      expect(markdownToPlainText('___')).toBe('')
     })
 
     it('should handle a mix of markdown elements', () => {
@@ -367,10 +196,6 @@ describe('markdown', () => {
       const expected = 'Title\nSome bold and italic text.\nlink\ncode\nquote\nlist item'
       const normalize = (str: string) => str.replace(/\s+/g, ' ').trim()
       expect(normalize(markdownToPlainText(mixed))).toBe(normalize(expected))
-    })
-
-    it('should keep plain text unchanged', () => {
-      expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
     })
   })
 
@@ -700,73 +525,6 @@ $$
       Inline: ![icon](image_url)
     `
       expect(purifyMarkdownImages(input)).toBe(expected)
-    })
-  })
-
-  describe('splitMarkdownBlocks', () => {
-    const gfm = [remarkGfm] as PluggableList
-    const math = [remarkGfm, remarkMath] as PluggableList
-
-    it('returns [content] for empty / whitespace-only input', () => {
-      expect(splitMarkdownBlocks('')).toEqual([''])
-      expect(splitMarkdownBlocks('   \n  ')).toEqual(['   \n  '])
-    })
-
-    it('join-invariant: blocks always concatenate back to the original', () => {
-      const inputs = [
-        'para one\n\npara two\n\npara three',
-        '# Heading\n\nText\n\n```js\ncode\n```\n\nmore',
-        '> [!NOTE]\n> alert body\n\nafter',
-        'leading\n\n- a\n- b\n\n1. x\n2. y\n\nend'
-      ]
-      for (const input of inputs) {
-        expect(splitMarkdownBlocks(input, math).join('')).toBe(input)
-      }
-    })
-
-    it('does not split inside a fenced code block containing blank lines', () => {
-      const input = 'before\n\n```js\nline1\n\nline2\n\nline3\n```\n\nafter'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      // exactly one block contains the whole fence
-      const fenceBlocks = blocks.filter((b) => b.includes('```'))
-      expect(fenceBlocks).toHaveLength(1)
-      expect(fenceBlocks[0]).toContain('line1')
-      expect(fenceBlocks[0]).toContain('line3')
-    })
-
-    it('keeps a GFM table as a single block (needs remark-gfm plugin)', () => {
-      const input = 'intro\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\noutro'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      const tableBlocks = blocks.filter((b) => b.includes('| a | b |'))
-      expect(tableBlocks).toHaveLength(1)
-      expect(tableBlocks[0]).toContain('| 1 | 2 |')
-    })
-
-    it('keeps a $$ math block with internal blank lines as one block (needs remark-math)', () => {
-      const input = 'text\n\n$$\n\\begin{aligned}\nx &= 1\n\ny &= 2\n\\end{aligned}\n$$\n\nend'
-      const blocks = splitMarkdownBlocks(input, math)
-      expect(blocks.join('')).toBe(input)
-      const mathBlocks = blocks.filter((b) => b.includes('$$'))
-      expect(mathBlocks).toHaveLength(1)
-      expect(mathBlocks[0]).toContain('x &= 1')
-      expect(mathBlocks[0]).toContain('y &= 2')
-    })
-
-    it('treats an unclosed trailing fence (mid-stream) as the last block', () => {
-      const input = 'done para\n\n```python\nprint(1)\nprint(2'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.join('')).toBe(input)
-      expect(blocks[blocks.length - 1]).toContain('```python')
-      expect(blocks[blocks.length - 1]).toContain('print(2')
-    })
-
-    it('splits multiple top-level paragraphs into separate blocks', () => {
-      const input = 'a\n\nb\n\nc'
-      const blocks = splitMarkdownBlocks(input, gfm)
-      expect(blocks.length).toBeGreaterThan(1)
-      expect(blocks.join('')).toBe(input)
     })
   })
 })

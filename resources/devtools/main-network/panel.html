@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Main Network</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <input id="filter" type="search" placeholder="Filter method, url, status, error" />
+      <button id="clear" type="button">Clear</button>
+      <span id="status" class="status">Discovering monitor...</span>
+      <span id="count" class="count">0 requests</span>
+    </header>
+    <main class="layout">
+      <section class="list">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>State</th>
+              <th>Source</th>
+              <th>Method</th>
+              <th>URL</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </section>
+      <aside class="details">
+        <div id="details" class="details-content">Select a main-process network request.</div>
+      </aside>
+    </main>
+    <script src="panel.js"></script>
+  </body>
+</html>

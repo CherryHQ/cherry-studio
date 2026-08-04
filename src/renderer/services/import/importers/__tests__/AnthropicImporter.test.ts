@@ -11,13 +11,13 @@ import { AnthropicImporter } from '../AnthropicImporter'
 
 // i18n is not globally mocked for renderer tests — stub it to echo keys so
 // titles/error messages are deterministic.
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key }
 }))
 
 // Provide a deterministic, collision-free uuid without loading the heavy
 // @renderer/utils barrel.
-vi.mock('@renderer/utils', () => {
+vi.mock('@renderer/utils/uuid', () => {
   let counter = 0
   return { uuid: () => `uuid-${++counter}` }
 })
@@ -202,7 +202,7 @@ describe('AnthropicImporter', () => {
       expect(assistantMsg.blocks).toEqual(assistantBlocks.map((b) => b.id))
     })
 
-    it('marks tool blocks as errored when the tool_result has is_error', async () => {
+    it('pairs anonymous tool calls with their results and preserves errors', async () => {
       const assistant = {
         uuid: 'a1',
         text: '',
@@ -210,13 +210,15 @@ describe('AnthropicImporter', () => {
         created_at: '2026-01-01T00:00:00.000Z',
         updated_at: '2026-01-01T00:00:00.000Z',
         content: [
-          { type: 'tool_use', id: 'tool-err', name: 'broken', input: {} },
-          { type: 'tool_result', tool_use_id: 'tool-err', is_error: true, content: [{ type: 'text', text: 'boom' }] }
+          { type: 'tool_use', id: null, name: 'broken', input: {} },
+          { type: 'tool_result', tool_use_id: null, is_error: true, content: [{ type: 'text', text: 'boom' }] }
         ]
       }
       const conv = conversation({ chat_messages: [textMessage('human', 'Q'), assistant] })
       const result = await importer.parse(JSON.stringify([conv]), ASSISTANT_ID)
       const tool = result.blocks.find((b) => b.type === MessageBlockType.TOOL) as ToolMessageBlock
+      expect(tool.toolId).toBe('a1-tool-0')
+      expect(tool.content).toBe('boom')
       expect(tool.status).toBe(MessageBlockStatus.ERROR)
     })
 

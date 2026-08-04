@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,6 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { hash, hashByPath } = await import('../hash')
 
 import type { FileManagerDeps } from '../../deps'
@@ -36,7 +35,7 @@ describe('internal/content/hash', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        onFsEvent: vi.fn((p: FilePath, state: 'present' | 'missing') => {
+        onFsEvent: vi.fn((p: AbsoluteFilePath, state: 'present' | 'missing') => {
           onFsEventCalls.push({ path: p, state })
         }),
         addEntry: vi.fn(),
@@ -52,7 +51,7 @@ describe('internal/content/hash', () => {
         invalidate: vi.fn(),
         clear: vi.fn()
       },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 
@@ -80,7 +79,7 @@ describe('internal/content/hash', () => {
     const h1 = await hash(deps, id)
     const h2 = await hash(deps, id)
     expect(h1).toBe(h2)
-    expect(h1).toMatch(/^[0-9a-f]+$/)
+    expect(h1).toBe('xxh3-64:9555e8555c62dcfd')
   })
 
   it('returns different hashes for different content', async () => {
@@ -140,9 +139,9 @@ describe('internal/content/hash', () => {
   })
 
   it('hashByPath bypasses entry resolution', async () => {
-    const file = path.join(tmp, 'direct.txt') as FilePath
+    const file = path.join(tmp, 'direct.txt') as AbsoluteFilePath
     await writeFile(file, 'direct')
     const result = await hashByPath(deps, file)
-    expect(result).toMatch(/^[0-9a-f]+$/)
+    expect(result).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 })

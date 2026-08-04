@@ -1,7 +1,5 @@
-import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { AgentServerError } from '@renderer/types'
-import { AgentServerErrorSchema } from '@renderer/types'
+import { type AgentServerError, AgentServerErrorSchema } from '@renderer/types/agent'
 import type {
   AiSdkErrorUnion,
   SerializedAiSdkError,
@@ -9,7 +7,8 @@ import type {
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
+import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
@@ -19,36 +18,10 @@ import { t } from 'i18next'
 import type * as z from 'zod'
 import { ZodError } from 'zod'
 
+import { formatErrorDetails } from './errorDetails'
 import { parseJSON } from './json'
 
-const logger = loggerService.withContext('Utils:error')
-
-export function getErrorDetails(err: any, seen = new WeakSet()): any {
-  // Handle circular references
-  if (err === null || typeof err !== 'object' || seen.has(err)) {
-    return err
-  }
-
-  seen.add(err)
-  const result: any = {}
-
-  // Get all enumerable properties, including those from the prototype chain
-  const allProps = new Set([...Object.getOwnPropertyNames(err), ...Object.keys(err)])
-
-  for (const prop of allProps) {
-    try {
-      const value = err[prop]
-      // Skip function properties
-      if (typeof value === 'function') continue
-      // Recursively process nested objects
-      result[prop] = getErrorDetails(value, seen)
-    } catch (e) {
-      result[prop] = '<Unable to access property>'
-    }
-  }
-
-  return result
-}
+export { getErrorDetails } from './errorDetails'
 
 export function formatErrorMessage(error: unknown): string {
   if (error instanceof ZodError) {
@@ -61,21 +34,7 @@ export function formatErrorMessage(error: unknown): string {
   if (parseResult.success) {
     return formatAgentServerError(parseResult.data)
   }
-  const detailedError = getErrorDetails(error)
-  delete detailedError?.headers
-  delete detailedError?.stack
-  delete detailedError?.request_id
-
-  if (detailedError) {
-    const formattedJson = JSON.stringify(detailedError, null, 2)
-      .split('\n')
-      .map((line) => `  ${line}`)
-      .join('\n')
-    return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
-  } else {
-    logger.warn('Get detailed error failed.')
-    return ''
-  }
+  return formatErrorDetails(error)
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -319,7 +278,7 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   if (error.cause) {
     text += `${t('error.cause')}: ${error.cause}\n`
   }
-  if (isSerializedAiSdkAPICallError(error)) {
+  if (isSerializedAiSdkApiCallError(error)) {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }
@@ -357,6 +316,15 @@ export const formatAxiosError = (error: AxiosError) => {
  * Used specifically for health check error handling.
  */
 export function serializeHealthCheckError(error: unknown): SerializedError {
+  // The `ai.*` IpcApi routes wrap a provider failure as an IpcError carrying the
+  // full SerializedError (statusCode, responseBody, AI SDK subtype) in `data` — main
+  // already ran serializeError, and the AISDKError instance is gone across IPC. Prefer
+  // it so the connection-check popup shows real provider detail, not just `message`.
+  const aiDetail = aiErrorDetail(error)
+  if (aiDetail) {
+    return aiDetail
+  }
+
   if (AISDKError.isInstance(error)) {
     return serializeError(error)
   }

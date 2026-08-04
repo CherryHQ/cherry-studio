@@ -8,18 +8,21 @@ import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { defaultAppHeaders } from '@main/utils/http'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions
+  type StreamableHTTPClientTransportOptions,
+  StreamableHTTPError
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
@@ -33,26 +36,17 @@ import {
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
-import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { McpProgressEvent } from '@shared/config/types'
-import type { McpServerLogEntry } from '@shared/config/types'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { defaultAppHeaders } from '@shared/utils'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
-import {
-  BuiltinMcpServerNames,
-  type GetResourceResponse,
-  isBuiltinMcpServer,
-  type McpCallToolResponse,
-  type McpPrompt,
-  type McpResource,
-  type McpServer
-} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
+import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
@@ -60,6 +54,7 @@ import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
+import type { GetResourceResponse, McpCallToolResponse } from './types'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -78,11 +73,6 @@ export const McpCallToolPayloadSchema = z.object({
   args: z.unknown().optional(),
   callId: z.string().optional()
 })
-export const McpGetPromptPayloadSchema = z.object({
-  serverId: z.string().min(1),
-  name: z.string().min(1),
-  args: z.record(z.string(), z.unknown()).optional()
-})
 export const McpGetResourcePayloadSchema = z.object({
   serverId: z.string().min(1),
   uri: z.string().min(1)
@@ -100,6 +90,31 @@ export interface McpToolListChangedEvent {
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
+
+// Order in which to attempt the URL-based transports for a given server. We try the
+// user-configured type first (no behavior change for correctly configured servers) and,
+// if that fails with a transport-level protocol error, retry with the other transport.
+// This bridges legacy SSE servers and modern Streamable HTTP servers (which reject the
+// SSE GET handshake with 405) without the user having to know the difference.
+function getTransportCandidates(server: McpServer): McpServerType[] | null {
+  if (!server.baseUrl) return null
+  if (server.type === 'sse') return ['sse', 'streamableHttp']
+  if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
+  return null
+}
+
+// A transport-level protocol error that indicates a *transport/protocol mismatch* (not an
+// auth, permission, or generic server error) and is worth retrying against the alternative
+// transport. The issue's 405 is the canonical signal: the SSE GET handshake is rejected
+// (server is actually Streamable HTTP) or the Streamable HTTP POST is rejected. A 404 on the
+// Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
+// streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
+// instead of being masked by a confusing fallback failure.
+function isTransportFallbackError(error: unknown): boolean {
+  if (error instanceof SseError) return error.code === 405
+  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
+  return false
+}
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 export function redactSensitive(input: any): any {
@@ -199,7 +214,6 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
-    this.registerIpcHandlers()
   }
 
   protected async onStop(): Promise<void> {
@@ -212,37 +226,8 @@ export class McpRuntimeService extends BaseService {
     this.serverLogs.clear()
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, serverId: string) => this.removeServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, serverId: string) => this.restartServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, serverId: string) => this.stopServer(serverId))
-    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
-      await application.get('McpCatalogService').refreshTools(serverId)
-    })
-    this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) =>
-      this.callTool(McpCallToolPayloadSchema.parse(args) as CallToolArgs)
-    )
-    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId) => this.listPrompts(NonEmptyStringSchema.parse(serverId)))
-    this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(McpGetPromptPayloadSchema.parse(args)))
-    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId) =>
-      this.listResources(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(McpGetResourcePayloadSchema.parse(args)))
-    this.ipcHandle(IpcChannel.Mcp_GetInstallInfo, () => this.getInstallInfo())
-    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId) =>
-      this.checkMcpConnectivity(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(NonEmptyStringSchema.parse(callId)))
-    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId) =>
-      this.getServerVersion(NonEmptyStringSchema.parse(serverId))
-    )
-    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId) =>
-      this.getServerLogs(NonEmptyStringSchema.parse(serverId))
-    )
-  }
-
-  private async getServerById(serverId: string): Promise<McpServer> {
-    return await mcpServerService.getById(serverId)
+  private getServerById(serverId: string): McpServer {
+    return mcpServerService.getById(serverId)
   }
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
@@ -281,7 +266,7 @@ export class McpRuntimeService extends BaseService {
     const serverId = parts[0]
     const toolName = parts.slice(1).join('__')
 
-    const server = await mcpServerService.getById(serverId)
+    const server = mcpServerService.getById(serverId)
 
     logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
 
@@ -317,12 +302,12 @@ export class McpRuntimeService extends BaseService {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
     application
-      .get('WindowManager')
-      .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
+      .get('IpcApiService')
+      .broadcastToType(WindowType.Main, 'mcp.server.log', { ...entry, serverId: server.id })
   }
 
   public async getServerLogs(serverId: string): Promise<McpServerLogEntry[]> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     return this.serverLogs.get(this.getServerKey(server))
   }
 
@@ -330,7 +315,7 @@ export class McpRuntimeService extends BaseService {
     serverId: string,
     operation: (client: Client, server: McpServer) => Promise<T>
   ): Promise<T> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     const client = await this.getOrCreateClient(server)
     return operation(client, server)
   }
@@ -404,14 +389,14 @@ export class McpRuntimeService extends BaseService {
             .digest('hex')
         })
 
-        const initTransport = async (): Promise<
-          StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-        > => {
+        const initTransport = async (
+          typeOverride?: McpServerType
+        ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
           // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
           if (
-            isBuiltinMcpServer(server) &&
+            isInMemoryBuiltinMcpServer(server) &&
             (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
           ) {
             const httpUrlMap: Record<string, string> = {
@@ -435,7 +420,7 @@ export class McpRuntimeService extends BaseService {
             return new StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
-          if (isBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
+          if (isInMemoryBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
@@ -450,7 +435,8 @@ export class McpRuntimeService extends BaseService {
             // set the client transport to the client
             return clientTransport
           } else if (server.baseUrl) {
-            if (server.type === 'streamableHttp') {
+            const urlBasedType: McpServerType = typeOverride ?? server.type ?? 'sse'
+            if (urlBasedType === 'streamableHttp') {
               const options: StreamableHTTPClientTransportOptions = {
                 fetch: async (url, init) => {
                   return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -465,7 +451,7 @@ export class McpRuntimeService extends BaseService {
                 options: redactSensitive(options)
               })
               return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
-            } else if (server.type === 'sse') {
+            } else if (urlBasedType === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
                   fetch: async (url, init) => {
@@ -493,8 +479,8 @@ export class McpRuntimeService extends BaseService {
             const connectEnv: Record<string, string> = { ...server.env }
 
             // Get login shell environment first - needed for command detection and server execution
-            // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
-            const loginShellEnv = await getLoginShellEnvironment()
+            // Note: getShellEnv() is memoized, so subsequent calls are fast
+            const loginShellEnv = await getShellEnv()
 
             // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
@@ -560,7 +546,7 @@ export class McpRuntimeService extends BaseService {
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
                   const binPath = await getBinaryPath()
-                  makeSureDirExists(binPath)
+                  await fs.mkdir(binPath, { recursive: true })
                   connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
@@ -644,7 +630,11 @@ export class McpRuntimeService extends BaseService {
           }
         }
 
-        const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+        const handleAuth = async (
+          client: Client,
+          transport: SSEClientTransport | StreamableHTTPClientTransport,
+          typeOverride?: McpServerType
+        ) => {
           getServerLogger(server).debug(`Starting OAuth flow`)
           // Create an event emitter for the OAuth callback
           const events = new EventEmitter()
@@ -672,7 +662,7 @@ export class McpRuntimeService extends BaseService {
 
             getServerLogger(server).debug(`OAuth flow completed`)
 
-            const newTransport = await initTransport()
+            const newTransport = await initTransport(typeOverride)
             // Try to connect again
             await client.connect(newTransport)
 
@@ -690,7 +680,6 @@ export class McpRuntimeService extends BaseService {
         }
 
         try {
-          const transport = await initTransport()
           // Bound the MCP `initialize` request so a non-responsive server fails fast via the
           // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
           // generous headroom is cheap) while still honoring larger `server.timeout` values
@@ -699,18 +688,57 @@ export class McpRuntimeService extends BaseService {
           const connectOptions: RequestOptions = {
             timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
           }
-          try {
-            await client.connect(transport, connectOptions)
-          } catch (error: any) {
-            if (
-              error instanceof Error &&
-              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-            ) {
-              logger.debug(`Authentication required for server: ${server.name}`)
-              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-            } else {
-              throw error
+
+          const candidates = getTransportCandidates(server)
+          // When no fallback candidates exist (stdio / in-memory / built-in), connect with the
+          // configured transport exactly once. Otherwise iterate the candidate transports,
+          // retrying with the alternative transport on a transport-level protocol error.
+          const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
+          let connected = false
+          let lastError: unknown
+
+          for (let i = 0; i < transportTypes.length; i++) {
+            const candidateType = transportTypes[i]
+            const transport = await initTransport(candidateType)
+            try {
+              await client.connect(transport, connectOptions)
+              connected = true
+              break
+            } catch (error: any) {
+              if (
+                error instanceof Error &&
+                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+              ) {
+                logger.debug(`Authentication required for server: ${server.name}`)
+                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
+                connected = true
+                break
+              }
+              lastError = error
+              // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+              // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+              if (!candidates || !isTransportFallbackError(error)) {
+                break
+              }
+              // No alternative transport left to try.
+              if (i === candidates.length - 1) {
+                break
+              }
+              const fallbackType = candidates[i + 1]
+              getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
+                error: redactSensitive(error)
+              })
+              // Close the whole client (not just the transport) so the SDK resets its internal
+              // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+              // re-auth path, which relies on client.close() clearing _transport first.
+              await client.close().catch(() => undefined)
             }
+          }
+
+          if (!connected) {
+            // Release the last (failed) transport/connection so it isn't leaked until GC.
+            await client.close().catch(() => undefined)
+            throw lastError ?? new Error('Failed to connect to MCP server')
           }
 
           this.emitServerLog(server, {
@@ -849,9 +877,9 @@ export class McpRuntimeService extends BaseService {
     logger.debug(`Cleared all caches for server`, { serverKey })
   }
 
-  private async getLatestSourcePolicy(server: McpServer): Promise<McpServer> {
+  private getLatestSourcePolicy(server: McpServer): McpServer {
     try {
-      return await mcpServerService.getById(server.id)
+      return mcpServerService.getById(server.id)
     } catch {
       return server
     }
@@ -910,7 +938,7 @@ export class McpRuntimeService extends BaseService {
   }
 
   async stopServer(serverId: string) {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -927,7 +955,7 @@ export class McpRuntimeService extends BaseService {
   }
 
   async removeServer(serverId: string) {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     try {
       await this.closeClientsForServer(server.id)
     } finally {
@@ -940,7 +968,7 @@ export class McpRuntimeService extends BaseService {
     // md5(baseUrl), so unlinking prematurely would break the remaining entry).
     if (server.baseUrl) {
       try {
-        const { items: remainingServers } = await mcpServerService.list({})
+        const { items: remainingServers } = mcpServerService.list({})
         const baseUrlStillInUse = remainingServers.some((s) => s.id !== server.id && s.baseUrl === server.baseUrl)
         if (!baseUrlStillInUse) {
           const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
@@ -972,7 +1000,7 @@ export class McpRuntimeService extends BaseService {
   }
 
   async restartServer(serverId: string) {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -981,8 +1009,12 @@ export class McpRuntimeService extends BaseService {
       source: 'client'
     })
     await this.closeClientsForServer(server.id)
-    // Clear cache before restarting to ensure fresh data
+    // Clear caches before restarting to ensure fresh data. Drop the shared
+    // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
+    // restart that fails (e.g. a bad new config) must not leave the old config's tools
+    // visible to agents/chat. `refreshTools` repopulates it on success. (issue #16242)
     this.clearServerCache(server)
+    application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateClient(server)
       await application.get('McpCatalogService').refreshTools(server.id)
@@ -996,7 +1028,7 @@ export class McpRuntimeService extends BaseService {
    * Check connectivity for an MCP server
    */
   public async checkMcpConnectivity(serverId: string): Promise<boolean> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Checking connectivity`)
     try {
       const client = await this.getOrCreateClient(server)
@@ -1033,7 +1065,7 @@ export class McpRuntimeService extends BaseService {
    * Call a tool on an MCP server
    */
   public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     return this.callToolByServer({ server, name, args, callId })
   }
 
@@ -1060,7 +1092,7 @@ export class McpRuntimeService extends BaseService {
             }
           }
         }
-        const sourcePolicy = await this.getLatestSourcePolicy(server)
+        const sourcePolicy = this.getLatestSourcePolicy(server)
         if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
@@ -1070,10 +1102,10 @@ export class McpRuntimeService extends BaseService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_Progress, {
+            application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
-            } as McpProgressEvent)
+            })
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
@@ -1103,15 +1135,6 @@ export class McpRuntimeService extends BaseService {
       (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
       [tracedInput]
     )
-  }
-
-  public async getInstallInfo() {
-    const dir = await getBinaryPath()
-    const uvName = await getBinaryName('uv')
-    const bunName = await getBinaryName('bun')
-    const uvPath = path.join(dir, uvName)
-    const bunPath = path.join(dir, bunName)
-    return { dir, uvPath, bunPath }
   }
 
   /**
@@ -1144,7 +1167,7 @@ export class McpRuntimeService extends BaseService {
    * List prompts available on an MCP server with caching
    */
   public async listPrompts(serverId: string): Promise<McpPrompt[]> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     const cachedListPrompts = withCache<[McpServer], McpPrompt[]>(
       this.listPromptsImpl.bind(this),
       (server) => {
@@ -1184,7 +1207,7 @@ export class McpRuntimeService extends BaseService {
     name: string
     args?: Record<string, any>
   }): Promise<GetPromptResult> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     const cachedGetPrompt = withCache<[McpServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
@@ -1226,7 +1249,7 @@ export class McpRuntimeService extends BaseService {
    * List resources available on an MCP server with caching
    */
   public async listResources(serverId: string): Promise<McpResource[]> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     const cachedListResources = withCache<[McpServer], McpResource[]>(
       this.listResourcesImpl.bind(this),
       (server) => {
@@ -1276,7 +1299,7 @@ export class McpRuntimeService extends BaseService {
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
   public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
       this.getResourceImpl.bind(this),
       (server, uri) => {
@@ -1307,7 +1330,7 @@ export class McpRuntimeService extends BaseService {
    * Get the server version information
    */
   public async getServerVersion(serverId: string): Promise<string | null> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     try {
       getServerLogger(server).debug(`Getting server version`)
       const client = await this.getOrCreateClient(server)

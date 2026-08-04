@@ -1,18 +1,20 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n/resolver'
 import { isSystemProviderId } from '@renderer/types/provider'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { isUndefined, omitBy } from 'lodash'
+import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
 
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
@@ -35,9 +37,20 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery) {
+export function useProviders(
+  query?: ListProvidersQuery,
+  options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
-  const queryOptions = filtered && Object.keys(filtered).length > 0 ? { query: filtered } : undefined
+  const hasQuery = filtered && Object.keys(filtered).length > 0
+  const queryOptions =
+    hasQuery || options?.enabled === false || options?.swrOptions
+      ? {
+          ...(hasQuery && { query: filtered }),
+          ...(options?.enabled === false && { enabled: false }),
+          ...(options?.swrOptions && { swrOptions: options.swrOptions })
+        }
+      : undefined
 
   const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
 
@@ -74,14 +87,16 @@ export function useProviders(query?: ListProvidersQuery) {
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
-export function useProvider(providerId: string) {
+export function useProvider(providerId: string | null | undefined) {
+  const resolvedProviderId = providerId ?? ''
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
-    params: { providerId },
+    params: { providerId: resolvedProviderId },
+    enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
   const provider = data
 
-  const mutations = useProviderMutations(providerId)
+  const mutations = useProviderMutations(resolvedProviderId)
 
   return { provider, isLoading, error, refetch, ...mutations }
 }
@@ -144,6 +159,8 @@ export function useProviderMutations(providerId: string) {
       throw error
     }
   }, [deleteTrigger, providerId])
+
+  const enableProvider = useCallback(() => updateProvider({ isEnabled: true }), [updateProvider])
 
   const updateAuthConfig = useCallback(
     async (authConfig: AuthConfig) => {
@@ -212,6 +229,7 @@ export function useProviderMutations(providerId: string) {
     deleteProvider,
     isDeleting,
     deleteError,
+    enableProvider,
     updateAuthConfig,
     addApiKey,
     isAddingApiKey,
@@ -228,13 +246,25 @@ export function useProviderMutations(providerId: string) {
 
 // ─── Typed query helpers ─────────────────────────────────────────────
 export function useProviderAuthConfig(providerId: string) {
-  const result = useQuery('/providers/:providerId/auth-config', { params: { providerId } })
+  const result = useQuery('/providers/:providerId/auth-config', {
+    params: { providerId },
+    enabled: !!providerId
+  })
   // Schema: GET /providers/:id/auth-config -> AuthConfig | null
   return { ...result, data: result.data }
 }
 
 export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+}
+
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  return useQuery('/providers/:providerId/preset', {
+    params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
+    enabled: !!providerId
+  })
 }
 
 /**

@@ -1,4 +1,4 @@
-appId: com.cherryai.cherrystudio
+appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
@@ -67,21 +66,31 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
+  - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
+  - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
+  - "!resources/devtools/**" # dev-only extensions are loaded from source in development
 asarUnpack:
   - resources/**
+  - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: CherryStudio
+  executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -146,40 +155,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.7 - Model Support & Bug Fixes
+    Cherry Studio 2.0.0-rc.4 - Providers, Files & Polish
 
     ✨ New Features
-    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
-    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
-    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
+    - [Files] Files exclusively owned by deleted chats, topics, or paintings are now cleaned up automatically after a grace period instead of accumulating forever. Files you upload from the Files page are kept permanently; v1-migrated files are preserved unless they belonged to migrated chats or paintings.
+    - [Providers] Add AMD GPU Cloud as a built-in model provider and mini app, including Token Factory API key setup and source attribution.
+    - [Providers] Add official DeepSeek V4 Flash Responses API support while retaining Chat Completions fallback.
+    - [Providers] Provider request settings now allow changing the default chat endpoint.
+    - [Knowledge] Show live copy progress for folder imports and list folders before files in knowledge bases.
 
     🐛 Bug Fixes
-    - [Web Search] Fixed ExaMCP web search not returning result content correctly
-    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
-    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
-    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
-    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
-    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
-    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
-    - [Models] Fixed Qwen max series models incorrectly showing vision capability
-    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
+    - [Chat] Fixed multi-model context selection so the indicator matches the branch used for subsequent messages, and selecting context no longer jumps the conversation to the latest message.
+    - [Paintings] Fixed the Paintings page opening the latest generated image instead of a fresh empty draft.
+    - [Agent] Claude Code Agent sessions no longer fail when SDK usage messages omit a model identifier.
+    - [Agent] Fixed the agent permission-mode switcher in the composer, where the "Approve for Me" and "Full Access" model-support warnings overflowed their rows and overlapped neighbouring options. The same warning no longer pushes the channel permission-mode selector onto two lines.
+    - [Agent] New agents now start in the "Ask Before Acting" permission mode instead of "Approve for Me". "Approve for Me" relies on model-side classification that not every model supports, so it is now an explicit choice and warns about model support when selected. Existing agents keep their current mode.
+    - [Agent] Fixed Agent v2 migration retries failing on stale Agent, workspace, or Claude Session cache targets.
+    - [Migration] Fixed model metadata (capabilities, context window, token limits) not being resolved from the provider registry after migrating from Cherry Studio v1 for models under user-defined custom providers.
+    - [Onboarding] Fixed onboarding blocking migrated users whose current privacy agreement was already saved.
+    - [Providers] Prevented API keys with non-ByteString characters from causing request encoding failures. Action required: replace any existing affected API key in provider settings.
+    - [Files] Agent file outputs now open in the appropriate Files pane view, with consistent previews and interactive HTML artifact support.
+    - [Mini Apps] Use a distinct grid icon for the mini-app launchpad action so it is easier to distinguish from the detached window always-on-top control.
+
+    💄 Improvements
+    - [UI] Improved visual consistency and usability across settings, chat, Markdown, resource dialogs, and related navigation surfaces.
+    - [UI] Improved focus feedback so controls no longer draw an extra outer frame or change selector borders on pointer open.
+    - [Themes] Improved the consistency and readability of secondary text, links, focus outlines, selected borders, and feedback surfaces across light and dark themes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.7 - 模型支持与错误修复
+    Cherry Studio 2.0.0-rc.4 - 服务商、文件与界面打磨
 
     ✨ 新功能
-    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
-    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
-    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
+    - [文件] 已删除对话、话题或绘画面板专属的文件现会在宽限期后自动清理，而非永久堆积。从”文件”页上传的文件将永久保留；从 v1 迁移过来的文件除非属于已迁移的对话或绘画面板，否则也会保留。
+    - [服务商] 新增 AMD GPU Cloud 作为内置模型服务商与小程序，包含 Token Factory API 密钥设置与来源标注。
+    - [服务商] 新增 DeepSeek V4 Flash Responses API 官方支持，并保留 Chat Completions 作为回退。
+    - [服务商] 服务商请求设置现允许更改默认聊天端点。
+    - [知识库] 文件夹导入现显示实时复制进度，并在知识库中将文件夹排在文件之前。
 
     🐛 问题修复
-    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
-    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
-    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
-    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
-    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
-    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
-    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
-    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
-    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
+    - [聊天] 修复多模型上下文选择：指示器现与后续消息所用分支一致，选择上下文不再让对话跳转到最新消息。
+    - [绘画面板] 修复绘画面板打开时显示最近生成图片而非空白草稿的问题。
+    - [智能体] Claude Code 智能体会话在 SDK 用量消息缺少模型标识时不再失败。
+    - [智能体] 修复输入框中智能体权限模式切换器的”为我审批”与”完全访问”模型支持警告溢出行、与相邻选项重叠的问题；该警告也不再使频道权限模式选择器折成两行。
+    - [智能体] 新建智能体现以”操作前询问”权限模式启动，而非”为我审批”。”为我审批”依赖并非所有模型都支持的模型端分类，因此现为显式选择，并在选中时提示模型支持情况。已有智能体保持当前模式不变。
+    - [智能体] 修复智能体 v2 迁移在遇到陈旧的智能体、工作区或 Claude Session 缓存目标时重试失败的问题。
+    - [迁移] 修复从 Cherry Studio v1 迁移后，用户自定义服务商下模型的元数据（能力、上下文窗口、token 上限）无法从服务商注册表解析的问题。
+    - [引导] 修复引导流程卡住已保存过隐私协议的迁移用户的问题。
+    - [服务商] 阻止包含非 ByteString 字符的 API 密钥导致请求编码失败。需要操作：在服务商设置中替换任何已存在的受影响 API 密钥。
+    - [文件] 智能体文件输出现可在相应的”文件”窗格视图中打开，预览一致并支持交互式 HTML 工件。
+    - [小程序] 为小程序启动台操作使用独立的网格图标，使其更易与分离窗口的置顶控件区分。
+
+    💄 改进
+    - [界面] 改进设置、聊天、Markdown、资源对话框及相关导航界面的视觉一致性与可用性。
+    - [界面] 改进焦点反馈，控件不再在指针打开时绘制多余外框或更改选择器边框。
+    - [主题] 改进亮色与暗色主题下辅助文本、链接、焦点轮廓、选中边框与反馈界面的一致性与可读性。
     <!--LANG:END-->

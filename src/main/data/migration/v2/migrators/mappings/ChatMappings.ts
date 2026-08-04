@@ -45,6 +45,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -54,17 +55,16 @@ import type {
   DynamicToolUIPart,
   FileUIPart,
   MessageData,
+  MessageSnapshot,
   MessageStats,
-  ModelSnapshot,
   ReasoningUIPart,
   ReferenceCategory,
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
-import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/file/types/common'
-import type { FileMetadata } from '@types'
+import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -410,7 +410,6 @@ export interface NewTopic {
   isNameManuallyEdited: boolean
   assistantId: string | null
   activeNodeId: string | null
-  groupId: string | null
   orderKey: string
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -430,7 +429,7 @@ export interface NewMessage {
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
-  modelSnapshot: ModelSnapshot | null
+  messageSnapshot: MessageSnapshot | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -455,8 +454,7 @@ export interface NewMessage {
  * | isNameManuallyEdited | isNameManuallyEdited | Direct copy |
  * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
- * | (none) | groupId | null (new field) |
- * | (none) | orderKey | placeholder; stamped post-stream by the migrator |
+ * | (none) | orderKey | placeholder; stamped globally post-stream by the migrator |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
@@ -473,7 +471,6 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
-    groupId: null, // New field, no migration source
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
     createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)
@@ -518,8 +515,11 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
+ * ## Message Type:
+ * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
+ * message type values are dropped.
+ *
  * ## Dropped Fields:
- * - type ('clear' | 'text' | '@')
  * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
@@ -535,7 +535,9 @@ export async function transformMessage(
   siblingsGroupId: number,
   blocks: OldBlock[],
   correctTopicId: string,
-  deps?: ChatMappingDeps
+  deps?: ChatMappingDeps,
+  /** The topic's assistant (v1 couples topic→assistant); attached to assistant-role rows. */
+  assistantSnapshot?: { id: string; name: string; emoji: string }
 ): Promise<NewMessage> {
   // Transform blocks to AI SDK UIMessage.parts format
   const { parts, citationReferences, searchableText } = await transformBlocksToParts(blocks, deps)
@@ -559,32 +561,58 @@ export async function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { parts },
+    data: {
+      parts: oldMessage.type === 'clear' ? [...parts, createClearContextPart()] : parts
+    },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
-    // Snapshot of model at message creation time for historical display
-    modelSnapshot: buildModelSnapshot(oldMessage.model),
-    stats: mergeStats(oldMessage.usage, oldMessage.metrics),
+    // Author snapshot (model nested) for historical display. The assistant is attached only to
+    // assistant-role rows; the header shows it first, the model second.
+    messageSnapshot: buildMessageSnapshot(
+      oldMessage.model,
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+    ),
+    stats: mergeStats(
+      oldMessage.usage,
+      oldMessage.metrics,
+      oldMessage.role === 'assistant' ? estimateLegacyRequestCount(blocks) : undefined
+    ),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   }
 }
 
 /**
- * Build a ModelSnapshot from a legacy model object.
- * Returns null if model is missing required fields (id + provider).
+ * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
+ * the model nested inside. Returns null unless both the assistant and a valid model are present
+ * (the author owns the model — no author, no snapshot).
  */
-function buildModelSnapshot(model: OldMessage['model']): ModelSnapshot | null {
+function buildMessageSnapshot(
+  model: OldMessage['model'],
+  assistant: { id: string; name: string; emoji: string } | undefined
+): MessageSnapshot | null {
+  if (!assistant) return null
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
   return {
-    id: model.id,
-    name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-    provider: model.provider,
-    group: typeof model.group === 'string' ? model.group : undefined
+    ...assistant,
+    model: {
+      id: model.id,
+      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      provider: model.provider,
+      group: typeof model.group === 'string' ? model.group : undefined
+    }
   }
+}
+
+/** Build the assistant identity (v2 id + name/emoji) from a resolved v1 assistant row. */
+export function buildAssistantSnapshot(
+  id: string,
+  assistant: OldAssistant
+): { id: string; name: string; emoji: string } {
+  return { id, name: assistant.name, emoji: assistant.emoji ?? '' }
 }
 
 /**
@@ -633,27 +661,44 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * ## Field Mapping:
  * | Source | Target |
  * |--------|--------|
- * | usage.prompt_tokens | promptTokens |
- * | usage.completion_tokens | completionTokens |
+ * | usage.prompt_tokens | inputTokens |
+ * | usage.completion_tokens | outputTokens |
  * | usage.total_tokens | totalTokens |
- * | usage.thoughts_tokens | thoughtsTokens |
- * | usage.cost | cost |
+ * | usage.thoughts_tokens | outputTokenDetails.reasoningTokens |
+ * | usage.cost | costs[USD] (provider-reported) |
  * | metrics.time_first_token_millsec | timeFirstTokenMs |
  * | metrics.time_completion_millsec | timeCompletionMs |
  * | metrics.time_thinking_millsec | timeThinkingMs |
+ *
+ * v1 carries no cache-token breakdown. Its optional thoughts count becomes
+ * `outputTokenDetails.reasoningTokens`.
  */
-export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats | null {
+export function mergeStats(usage?: OldUsage, metrics?: OldMetrics, requestCount?: number): MessageStats | null {
   if (!usage && !metrics) return null
 
   const stats: MessageStats = {}
 
-  // Token usage
+  // Token usage (AI SDK v6 names)
   if (usage) {
-    if (usage.prompt_tokens !== undefined) stats.promptTokens = usage.prompt_tokens
-    if (usage.completion_tokens !== undefined) stats.completionTokens = usage.completion_tokens
+    if (usage.prompt_tokens !== undefined) stats.inputTokens = usage.prompt_tokens
+    if (usage.completion_tokens !== undefined) stats.outputTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
-    if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
-    if (usage.cost !== undefined) stats.cost = usage.cost
+    if (usage.thoughts_tokens !== undefined) stats.outputTokenDetails = { reasoningTokens: usage.thoughts_tokens }
+    // v1 `Usage.cost` was only written by OpenRouter (provider-reported actual
+    // spend); treat it as authoritative provider cost in USD.
+    if (usage.cost !== undefined) {
+      stats.costs = [
+        {
+          currency: 'USD',
+          amount: usage.cost,
+          providerReportedRequestCount: requestCount ?? 1,
+          computedRequestCount: 0
+        }
+      ]
+    }
+    stats.requestCount = requestCount ?? 1
+    stats.estimatedRequestCount = requestCount ?? 1
+    stats.unpricedRequestCount = usage.cost === undefined ? (requestCount ?? 1) : 0
   }
 
   // Performance metrics
@@ -665,6 +710,45 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
 
   // Return null if no data was actually added
   return Object.keys(stats).length > 0 ? stats : null
+}
+
+/**
+ * v1 stored one aggregate usage object per assistant message. Estimate how
+ * many provider calls contributed to it from the raw block sequence: the
+ * initial call is one, and each tool group followed by more model output
+ * implies one continuation call. Parallel tools remain one group; reference
+ * and attachment blocks do not split it.
+ */
+export function estimateLegacyRequestCount(blocks: readonly OldBlock[]): number {
+  let requestCount = 1
+  let toolGroupOpen = false
+  for (const block of blocks) {
+    if (block.type === 'tool') {
+      toolGroupOpen = true
+      continue
+    }
+    if (
+      block.type === 'citation' ||
+      block.type === 'file' ||
+      block.type === 'source' ||
+      block.type === 'image' ||
+      block.type === 'video'
+    ) {
+      continue
+    }
+    if (
+      toolGroupOpen &&
+      (block.type === 'main_text' ||
+        block.type === 'thinking' ||
+        block.type === 'code' ||
+        block.type === 'translation' ||
+        block.type === 'compact')
+    ) {
+      requestCount += 1
+      toolGroupOpen = false
+    }
+  }
+  return requestCount
 }
 
 // ============================================================================
@@ -788,12 +872,26 @@ async function transformSingleBlockToPart(
             ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
           }
         : undefined
+      const callProviderMetadata = raw?.tool
+        ? {
+            cherry: {
+              tool: {
+                ...(toolType ? { type: toolType } : {}),
+                ...(raw.tool.name ? { name: raw.tool.name } : {}),
+                ...(raw.tool.description ? { description: raw.tool.description } : {}),
+                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
+              }
+            }
+          }
+        : undefined
 
       const base = {
         type: 'dynamic-tool' as const,
         toolName,
         toolCallId,
-        input
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
       }
 
       const partWithoutMeta: DynamicToolUIPart = isError
@@ -926,6 +1024,11 @@ function mediaTypeFromDataUrl(dataUrl: Base64String): string {
   return match?.[1] ?? 'image/png'
 }
 
+function base64PayloadKey(raw: string): string {
+  const match = BASE64_DATA_URL_RE.exec(raw)
+  return match?.[2] ?? raw
+}
+
 async function promoteBase64ToFileEntry(
   db: DbType,
   filesDataDir: string,
@@ -939,14 +1042,14 @@ async function promoteBase64ToFileEntry(
   const ext = mime.getExtension(mimeType)
   const id = uuidv7()
   const filename = ext ? `${id}.${ext}` : id
-  const physicalPath = path.join(filesDataDir, filename) as FilePath
+  const physicalPath = AbsoluteFilePathSchema.parse(path.join(filesDataDir, filename))
   const bytes = Buffer.from(payload, 'base64')
   let physicalWritten = false
 
   try {
     // Write physical file first. If we crash before the DB insert lands,
-    // the orphan checker won't sweep this file (no file_entry row means
-    // no DB linkage to look up). Same risk model as the rest of
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
     // FileMigrator's transform path; acceptable for a migration step.
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, bytes)
@@ -1009,6 +1112,7 @@ async function promoteBase64ToFileEntry(
  */
 async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDeps): Promise<FileUIPart[]> {
   const parts: FileUIPart[] = []
+  const promotedPayloads = new Set<string>()
 
   // (1) Disk-backed file (canonical for modern v1) — never has inline base64.
   if (block.file) {
@@ -1023,6 +1127,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     // (2)+(3) URL-only image (no disk file).
     if (isBase64DataUrl(block.url)) {
       // `block.url` is now narrowed to `Base64String`; no `as` cast.
+      promotedPayloads.add(base64PayloadKey(block.url))
       if (deps?.db) {
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, block.url, block.id)
         if (promoted) parts.push(promoted)
@@ -1044,6 +1149,9 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
   if (isBase64Mode && rawImages.length > 0) {
     if (deps?.db) {
       for (const raw of rawImages) {
+        const payloadKey = base64PayloadKey(raw)
+        if (promotedPayloads.has(payloadKey)) continue
+        promotedPayloads.add(payloadKey)
         const dataUrl = toBase64DataUrl(raw, 'image/png')
         const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, dataUrl, block.id)
         if (promoted) parts.push(promoted)

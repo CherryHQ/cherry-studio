@@ -1,5 +1,5 @@
+import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -15,7 +15,7 @@ const BochaSearchParamsSchema = z.object({
 
 const BochaSearchResponseSchema = z.object({
   code: z.number(),
-  msg: z.string(),
+  msg: z.string().nullable(),
   data: z.object({
     queryContext: z.object({
       originalQuery: z.string()
@@ -24,8 +24,8 @@ const BochaSearchResponseSchema = z.object({
       value: z.array(
         z.object({
           name: z.string(),
-          summary: z.string().optional(),
-          snippet: z.string().optional(),
+          summary: z.string().nullable().optional(),
+          snippet: z.string().nullable().optional(),
           url: z.string()
         })
       )

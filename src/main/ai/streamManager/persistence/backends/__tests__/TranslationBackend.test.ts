@@ -31,10 +31,10 @@ describe('TranslationBackend.persistAssistant', () => {
       { type: 'text', text: 'hello world' } as CherryMessagePart,
       { type: 'data-translation', data: { content: '旧译文', targetLanguage: 'zh-cn' } } as CherryMessagePart
     ]
-    getByIdMock.mockResolvedValue({ id: MESSAGE_ID, data: { parts: existingParts } })
+    getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('你好世界') })
+    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('你好世界') })
 
     expect(updateMock).toHaveBeenCalledTimes(1)
     const [, dto] = updateMock.mock.calls[0]
@@ -45,14 +45,14 @@ describe('TranslationBackend.persistAssistant', () => {
   })
 
   it('includes sourceLanguage on the new part when supplied', async () => {
-    getByIdMock.mockResolvedValue({ id: MESSAGE_ID, data: { parts: [] } })
+    getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: [] } })
 
     const backend = new TranslationBackend({
       messageId: MESSAGE_ID,
       targetLanguage: TARGET,
       sourceLanguage: 'en-us'
     })
-    await backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('hi') })
+    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('hi') })
 
     const [, dto] = updateMock.mock.calls[0]
     expect(dto.data.parts).toEqual([
@@ -62,7 +62,7 @@ describe('TranslationBackend.persistAssistant', () => {
 
   it('no-ops on paused status (translation is discard-on-cancel)', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({ status: 'paused', finalMessage: makeFinalMessage('partial') })
+    backend.persistAssistant({ status: 'paused', finalMessage: makeFinalMessage('partial') })
 
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
@@ -70,14 +70,14 @@ describe('TranslationBackend.persistAssistant', () => {
 
   it('no-ops on error status', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({ status: 'error', finalMessage: makeFinalMessage('partial') })
+    backend.persistAssistant({ status: 'error', finalMessage: makeFinalMessage('partial') })
 
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('no-ops when finalMessage has no text content', async () => {
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({
+    backend.persistAssistant({
       status: 'success',
       finalMessage: { id: 'final', role: 'assistant', parts: [] } as CherryUIMessage
     })
@@ -86,10 +86,10 @@ describe('TranslationBackend.persistAssistant', () => {
   })
 
   it('concatenates multiple text parts in order', async () => {
-    getByIdMock.mockResolvedValue({ id: MESSAGE_ID, data: { parts: [] } })
+    getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: [] } })
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({
+    backend.persistAssistant({
       status: 'success',
       finalMessage: {
         id: 'final',
@@ -110,10 +110,10 @@ describe('TranslationBackend.persistAssistant', () => {
       { type: 'text', text: 'original assistant reply' } as CherryMessagePart,
       { type: 'reasoning', text: 'inner thought' } as CherryMessagePart
     ]
-    getByIdMock.mockResolvedValue({ id: MESSAGE_ID, data: { parts: existingParts } })
+    getByIdMock.mockReturnValue({ id: MESSAGE_ID, data: { parts: existingParts } })
 
     const backend = new TranslationBackend({ messageId: MESSAGE_ID, targetLanguage: TARGET })
-    await backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('翻译') })
+    backend.persistAssistant({ status: 'success', finalMessage: makeFinalMessage('翻译') })
 
     const [, dto] = updateMock.mock.calls[0]
     expect(dto.data.parts).toEqual([

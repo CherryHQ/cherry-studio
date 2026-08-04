@@ -1,12 +1,12 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
-import { withoutTrailingSlash } from '@shared/utils/api/utils'
+import { withoutTrailingSlash } from '@shared/utils/api'
 
 import { getBaseUrl } from '../../utils/provider'
-import { normalizeVertexCredentials } from '../config'
+import { normalizeVertexCredentials } from '../vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -69,7 +69,7 @@ export async function createVertexModelListRequest(
     return undefined
   }
 
-  const authConfig = await providerService.getAuthConfig(provider.id)
+  const authConfig = providerService.getAuthConfig(provider.id)
   if (authConfig?.type !== 'iam-gcp') {
     return failOrSkip('provider is not configured with iam-gcp auth', {
       providerId: provider.id,
@@ -144,7 +144,9 @@ export function getVertexModelPublisher(name: string): string {
 }
 
 export function isSupportedVertexPublisherModel(modelId: string): boolean {
-  const normalizedModelId = modelId.trim().toLowerCase()
+  // MaaS ids arrive publisher-prefixed (`meta/llama-4-…-maas`); the support patterns are
+  // anchored to the bare model name, so match against the segment after the publisher.
+  const normalizedModelId = (modelId.split('/').pop() ?? modelId).trim().toLowerCase()
 
   if (EXCLUDED_VERTEX_PUBLISHER_MODEL_KEYWORDS.some((keyword) => normalizedModelId.includes(keyword))) {
     return false

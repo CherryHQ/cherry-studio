@@ -1,4 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ModelMessage } from 'ai'
 
@@ -18,6 +19,18 @@ export interface RequestContext {
   readonly assistant?: Assistant
 
   readonly abortSignal?: AbortSignal
+
+  /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
+  readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
+
+  /**
+   * Effective knowledge base scope for this request, resolved by `resolveKnowledgeBaseScope`: the
+   * assistant's static `knowledgeBaseIds` binding narrowed by the composer's per-turn `/` picker
+   * selection (the binding is a ceiling the selection can never widen), or that selection alone when
+   * there is no binding. The `kb_*` tools read this instead of `assistant.knowledgeBaseIds` directly.
+   * Defaults to empty.
+   */
+  readonly knowledgeBaseIds?: readonly string[]
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

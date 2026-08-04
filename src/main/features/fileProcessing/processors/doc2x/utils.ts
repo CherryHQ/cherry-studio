@@ -1,7 +1,7 @@
 import fs, { createReadStream } from 'node:fs'
 
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { GB } from '@shared/config/constant'
+import { GB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 import type {

@@ -1,14 +1,18 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { jobScheduleTable } from '@data/db/schemas/job'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { remapAgentPrefixIds } from '../remapAgentPrefixIds'
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: string) {
   await db.insert(agentTable).values({
@@ -46,7 +50,7 @@ describe('remapAgentPrefixIds', () => {
     // remapAgentPrefixIds no longer toggles FK itself — it runs inside the engine's
     // migration-wide FK=OFF window (MigrationDbService). Mirror that here so the id-remap
     // UPDATEs don't trip FK enforcement during the transient parent/child id mismatch.
-    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
   })
 
   it('migrates agent_* prefix IDs to UUIDs and updates FK references', async () => {
@@ -54,7 +58,7 @@ describe('remapAgentPrefixIds', () => {
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, 'session_111_aaa', agentId)
 
-    await remapAgentPrefixIds(dbh.db)
+    remapAgentPrefixIds(dbh.db)
 
     const agents = await dbh.db.select().from(agentTable)
     expect(agents).toHaveLength(1)
@@ -63,6 +67,48 @@ describe('remapAgentPrefixIds', () => {
 
     const sessions = await dbh.db.select().from(agentSessionTable)
     expect(sessions[0].agentId).toBe(agents[0].id)
+  })
+
+  it('rewrites the immutable session-message author snapshot with the remapped agent id', async () => {
+    const agentId = 'agent_snapshot_abc'
+    const sessionId = 'session_snapshot_abc'
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId,
+      status: 'success',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'hello' }] } as never,
+      messageSnapshot: {
+        id: agentId,
+        name: 'Test Agent',
+        model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
+      }
+    })
+
+    const remap = remapAgentPrefixIds(dbh.db)
+
+    const [message] = await dbh.db.select().from(agentSessionMessageTable)
+    expect(message.messageSnapshot).toMatchObject({ id: remap.agentIds.get(agentId), name: 'Test Agent' })
+  })
+
+  it('rewrites agent_mcp_server.agentId when the agent id is remapped', async () => {
+    const agentId = 'agent_mcp01_abc'
+    await insertAgent(dbh.db, agentId)
+    await dbh.db.insert(mcpServerTable).values({ id: 'mcp-server-1', name: 'Test MCP' })
+    await dbh.db.insert(agentMcpServerTable).values({ agentId, mcpServerId: 'mcp-server-1' })
+
+    remapAgentPrefixIds(dbh.db)
+
+    const agents = await dbh.db.select().from(agentTable)
+    const junction = await dbh.db.select().from(agentMcpServerTable)
+    expect(junction).toHaveLength(1)
+    expect(junction[0].agentId).toMatch(UUID_PATTERN)
+    expect(junction[0].agentId).toBe(agents[0].id)
+    expect(junction[0].mcpServerId).toBe('mcp-server-1')
+
+    const violations = dbh.db.all(sql`PRAGMA foreign_key_check`)
+    expect(violations).toHaveLength(0)
   })
 
   it('migrates session_* prefix IDs and updates child FK references', async () => {
@@ -77,7 +123,7 @@ describe('remapAgentPrefixIds', () => {
       data: { parts: [{ type: 'text', text: 'hello' }] } as never
     })
 
-    await remapAgentPrefixIds(dbh.db)
+    remapAgentPrefixIds(dbh.db)
 
     const sessions = await dbh.db.select().from(agentSessionTable)
     const newSession = sessions.find((s) => s.id !== sessionId)!
@@ -95,7 +141,7 @@ describe('remapAgentPrefixIds', () => {
     await insertAgent(dbh.db, 'cherry-claw-default')
     await insertAgent(dbh.db, 'cherry-assistant-default')
 
-    await remapAgentPrefixIds(dbh.db)
+    remapAgentPrefixIds(dbh.db)
 
     const agents = await dbh.db.select().from(agentTable)
     const ids = agents.map((a) => a.id)
@@ -106,16 +152,101 @@ describe('remapAgentPrefixIds', () => {
     }
   })
 
+  it('updates every mapped JSON and foreign-key reference with one temporary mapping set', async () => {
+    const agentIds = ['agent_set_1', 'agent_set_2']
+    const sessionIds = ['session_set_1', 'session_set_2']
+    for (let index = 0; index < agentIds.length; index++) {
+      const agentId = agentIds[index]
+      const sessionId = sessionIds[index]
+      await insertAgent(dbh.db, agentId)
+      await insertSession(dbh.db, sessionId, agentId)
+      await dbh.db.insert(agentSessionMessageTable).values({
+        sessionId,
+        status: 'success',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: `message ${index}` }] } as never,
+        messageSnapshot: {
+          id: agentId,
+          name: `Agent ${index}`,
+          model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
+        }
+      })
+      await dbh.db.insert(agentChannelTable).values({
+        id: `channel-${index}`,
+        type: 'telegram',
+        name: `Channel ${index}`,
+        agentId,
+        sessionId,
+        workspace: { type: 'system' },
+        config: {}
+      })
+      await dbh.db.insert(jobScheduleTable).values({
+        id: `schedule-${index}`,
+        type: 'agent.task',
+        name: `Task ${index}`,
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId, prompt: `Prompt ${index}` },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    }
+
+    const remap = remapAgentPrefixIds(dbh.db)
+
+    const messages = await dbh.db.select().from(agentSessionMessageTable)
+    const channels = await dbh.db.select().from(agentChannelTable)
+    const schedules = await dbh.db.select().from(jobScheduleTable)
+    const messageAgentIds = new Set(messages.map((message) => message.messageSnapshot?.id))
+    const channelsById = new Map(channels.map((channel) => [channel.id, channel]))
+    const schedulesByName = new Map(schedules.map((schedule) => [schedule.name, schedule]))
+    for (let index = 0; index < agentIds.length; index++) {
+      const agentId = agentIds[index]
+      const sessionId = sessionIds[index]
+      const remappedAgentId = remap.agentIds.get(agentId)
+      expect(messageAgentIds).toContain(remappedAgentId)
+      expect(channelsById.get(`channel-${index}`)?.agentId).toBe(remappedAgentId)
+      expect(channelsById.get(`channel-${index}`)?.sessionId).toBe(remap.sessionIds.get(sessionId))
+      expect(schedulesByName.get(`Task ${index}`)?.jobInputTemplate).toMatchObject({
+        agentId: remappedAgentId
+      })
+    }
+    const temporaryMaps = dbh.db.all<{ name: string }>(
+      sql.raw(`SELECT name FROM sqlite_temp_master
+        WHERE name IN ('agent_id_remap', 'agent_session_id_remap')`)
+    )
+    expect(temporaryMaps).toHaveLength(0)
+  })
+
   it('leaves rows that already have UUID IDs untouched', async () => {
     const uuidId = 'a1b2c3d4-e5f6-4789-abcd-ef0123456789'
     await insertAgent(dbh.db, uuidId)
 
     const before = await dbh.db.select({ id: agentTable.id }).from(agentTable)
-    await remapAgentPrefixIds(dbh.db)
+    remapAgentPrefixIds(dbh.db)
     const after = await dbh.db.select({ id: agentTable.id }).from(agentTable)
 
     expect(after.map((r) => r.id)).toContain(uuidId)
     expect(after.length).toBe(before.length)
+  })
+
+  it('produces stable IDs when the same legacy identifiers are imported again', async () => {
+    const agentId = 'agent_retry_abc'
+    const sessionId = 'session_retry_abc'
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+
+    const first = remapAgentPrefixIds(dbh.db)
+    const remappedAgentId = first.agentIds.get(agentId)
+    const remappedSessionId = first.sessionIds.get(sessionId)
+
+    await dbh.db.delete(agentSessionTable)
+    await dbh.db.delete(agentTable)
+    await dbh.db.delete(agentWorkspaceTable)
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+
+    const second = remapAgentPrefixIds(dbh.db)
+    expect(second.agentIds.get(agentId)).toBe(remappedAgentId)
+    expect(second.sessionIds.get(sessionId)).toBe(remappedSessionId)
   })
 
   it('passes PRAGMA foreign_key_check after remapping', async () => {
@@ -124,9 +255,9 @@ describe('remapAgentPrefixIds', () => {
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, sessionId, agentId)
 
-    await remapAgentPrefixIds(dbh.db)
+    remapAgentPrefixIds(dbh.db)
 
-    const violations = await dbh.db.all(sql`PRAGMA foreign_key_check`)
+    const violations = dbh.db.all(sql`PRAGMA foreign_key_check`)
     expect(violations).toHaveLength(0)
   })
 })

@@ -2,7 +2,7 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-05-22T11:33:31.538Z
+ * Generated at: 2026-07-17T15:59:16.129Z
  * Total icons: 22
  */
 
@@ -20,11 +20,11 @@ export { Emoji } from './emoji'
 export { GeminiCli } from './gemini-cli'
 export { GithubCopilotCli } from './github-copilot-cli'
 export { Group } from './group'
-export { IflowCli } from './iflow-cli'
 export { KimiCli } from './kimi-cli'
 export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { OpenCode } from './open-code'
 export { OpenaiCodex } from './openai-codex'
+export { QoderCli } from './qoder-cli'
 export { QwenCode } from './qwen-code'
 export { Vector } from './vector'

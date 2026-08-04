@@ -35,7 +35,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key }
 }))
 

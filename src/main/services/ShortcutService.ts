@@ -3,21 +3,23 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import type { CommandShortcutPreferenceKey } from '@shared/command'
+import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { IpcChannel } from '@shared/IpcChannel'
+import type {
+  CommandShortcutPreferenceKey,
+  ContextReader,
+  ContextValue,
+  SupportedPlatform
+} from '@shared/types/command'
+import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import {
   collectContextKeys,
   type CommandId,
-  type ContextReader,
-  type ContextValue,
   evaluateContextExpr,
   findCommandDefinition,
   REGISTERED_KEYBINDINGS,
-  resolveCommandKeybinding,
-  type SupportedPlatform
-} from '@shared/command'
-import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+  resolveCommandKeybinding
+} from '@shared/utils/command'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 

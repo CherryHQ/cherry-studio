@@ -2,12 +2,15 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { normalizeTabInstanceMetadata } from '@shared/types/tabInstanceMetadata'
-import { BrowserWindow, nativeImage, nativeTheme } from 'electron'
+import { normalizeTabInstanceMetadata } from '@shared/utils/tabInstanceMetadata'
+import { BrowserWindow, ipcMain, type IpcMainEvent, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'
 
@@ -19,9 +22,6 @@ const logger = loggerService.withContext('SubWindowService')
 // Windows reads the taskbar icon from the exe manifest. So we only materialize
 // one on Linux and only pass it through on Linux; the field is omitted otherwise.
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
-
-/** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
-const TAB_BAR_HEIGHT = 40
 
 /** Default content-size cache for SubWindow (must match windowRegistry width/height) */
 const SUB_WINDOW_DEFAULT_WIDTH = 800
@@ -58,42 +58,13 @@ export class SubWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcOn(IpcChannel.Tab_Detach, (_, payload) => {
-      this.createWindow(payload)
-    })
-
-    this.ipcHandle(IpcChannel.Tab_Attach, (event, payload) => {
-      const wm = application.get('WindowManager')
-      if (wm.getWindowsByType(WindowType.Main).length === 0) {
-        logger.warn('Tab_Attach failed: main window not available')
-        return false
-      }
-
-      try {
-        wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload)
-      } catch (err) {
-        logger.error('Tab_Attach failed: could not send to main window', err as Error)
-        return false
-      }
-
-      // Close the sender sub window after successful broadcast. Membership is
-      // determined via WindowManager's own type index (not the service's private
-      // map) so this branch does not depend on tabIdToWindowId staying in sync.
-      const senderId = wm.getWindowIdByWebContents(event.sender)
-      const isSubWindow = senderId
-        ? wm.getWindowInfosByType(WindowType.SubWindow).some((w) => w.id === senderId)
-        : false
-      if (senderId && isSubWindow) {
-        try {
-          wm.close(senderId)
-        } catch (err) {
-          logger.error('Failed to close sub window after tab attach', err as Error)
-        }
-      }
-      return true
-    })
-
-    this.ipcOn(IpcChannel.Tab_MoveWindow, (event, payload: { tabId: string; x: number; y: number }) => {
+    // Tab_MoveWindow is the repo's only per-frame R→M escape hatch (see docs Not-In-Scope):
+    // it stays on native IPC rather than IpcApi. Registered with native ipcMain.on + an explicit
+    // validateSender gate (mirroring the data subsystems), cleaned up via registerDisposable —
+    // NOT the `this.ipcOn` sugar (slated for removal). Tab_Attach / Tab_Detach / Tab_DragEnd /
+    // SubWindow_SetAlwaysOnTop moved to IpcApi (tab.* / window.*).
+    const onMoveWindow = (event: IpcMainEvent, payload: { tabId: string; x: number; y: number }) => {
+      if (!validateSender(event)) return
       const wm = application.get('WindowManager')
       // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
       // but we want to move the sub window identified by tabId.
@@ -114,74 +85,9 @@ export class SubWindowService extends BaseService {
           win.setOpacity(0.85)
         }
       }
-    })
-
-    // Retained until the renderer-side `useTabDrag` migration (renderer split): on `origin/main`
-    // the renderer (`useTabDrag.ts`) still invokes `Tab_TryAttach`, so removing this handler now
-    // would make that invoke reject after merge and break drag-to-reattach. The handler and its
-    // `useTabDrag` caller will be removed together in the renderer split (feat/chat-page already
-    // rewrote `useTabDrag` to not use this channel, so it intentionally has no handler).
-    this.ipcHandle(
-      IpcChannel.Tab_TryAttach,
-      (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const wm = application.get('WindowManager')
-        const mainWindow = wm.getWindowsByType(WindowType.Main)[0]
-        if (!mainWindow) {
-          logger.warn('Tab_TryAttach failed: main window not available')
-          return false
-        }
-
-        const bounds = mainWindow.getBounds()
-        const isOverTabBar =
-          payload.screenX >= bounds.x &&
-          payload.screenX <= bounds.x + bounds.width &&
-          payload.screenY >= bounds.y &&
-          payload.screenY <= bounds.y + TAB_BAR_HEIGHT
-
-        if (isOverTabBar) {
-          try {
-            wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload.tab)
-          } catch (err) {
-            logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
-            return false
-          }
-
-          const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-          if (subWindowId) {
-            wm.close(subWindowId)
-          }
-          return true
-        }
-
-        // Not over tab bar — restore opacity
-        const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-        const subWin = subWindowId ? wm.getWindow(subWindowId) : undefined
-        if (subWin && !subWin.isDestroyed()) {
-          subWin.setOpacity(1)
-        }
-
-        return false
-      }
-    )
-
-    this.ipcOn(IpcChannel.Tab_DragEnd, (event) => {
-      // Restore opacity for the sender window after drag ends. Main window never sets
-      // opacity <1, so the opacity predicate self-gates — no additional SubWindow filter needed.
-      const senderWindow = BrowserWindow.fromWebContents(event.sender)
-      if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
-        senderWindow.setOpacity(1)
-      }
-    })
-
-    this.ipcHandle(IpcChannel.SubWindow_SetAlwaysOnTop, (event, pinned: boolean) => {
-      const wm = application.get('WindowManager')
-      const senderId = wm.getWindowIdByWebContents(event.sender)
-      // Only WindowManager-tracked windows can be sub-windows; an untracked sender is
-      // definitely not one, so ignore it rather than poking an arbitrary BrowserWindow.
-      if (!senderId) return false
-      wm.behavior.setAlwaysOnTop(senderId, pinned)
-      return true
-    })
+    }
+    ipcMain.on(IpcChannel.Tab_MoveWindow, onMoveWindow)
+    this.registerDisposable(() => ipcMain.removeListener(IpcChannel.Tab_MoveWindow, onMoveWindow))
   }
 
   /**
@@ -307,5 +213,38 @@ export class SubWindowService extends BaseService {
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
     return windowId
+  }
+
+  /** Whether the calling window resolves to a SubWindow (guards operations that must never act on the main window). */
+  private isSubWindowSender(senderId: WindowId | null): senderId is WindowId {
+    return senderId != null && application.get('WindowManager').getWindowType(senderId) === WindowType.SubWindow
+  }
+
+  /**
+   * Re-attaches a tab from a detached sub-window back into the main window: broadcasts the
+   * Tab to the main window (which re-absorbs it) and closes the caller sub-window. The two
+   * guards are load-bearing: skip the whole thing when no main window exists (else the tab
+   * would be lost), and only close the caller when it truly is a SubWindow (never the main
+   * window). `senderId` is the calling window resolved by IpcContext.
+   */
+  public attachTab(tab: Tab, senderId: WindowId | null): void {
+    const wm = application.get('WindowManager')
+    if (wm.getWindowsByType(WindowType.Main).length === 0) {
+      logger.warn('tab attach skipped: main window not available')
+      return
+    }
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'tab.attached', tab)
+    if (this.isSubWindowSender(senderId)) wm.close(senderId)
+  }
+
+  /**
+   * Pins/unpins the caller sub-window (always-on-top). Only a SubWindow caller is honored —
+   * the main window is rejected. Returns whether the pin was applied (the renderer reads this
+   * to reconcile its toggle state).
+   */
+  public setAlwaysOnTop(senderId: WindowId | null, pinned: boolean): boolean {
+    if (!this.isSubWindowSender(senderId)) return false
+    application.get('WindowManager').behavior.setAlwaysOnTop(senderId, pinned)
+    return true
   }
 }

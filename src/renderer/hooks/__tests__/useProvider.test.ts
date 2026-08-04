@@ -52,7 +52,7 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -62,24 +62,11 @@ describe('useProviders', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviders())
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
 
     expect(result.current.providers).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useProviders())
-    const firstProviders = result.current.providers
 
     rerender()
 
@@ -96,6 +83,21 @@ describe('useProviders', () => {
     renderHook(() => useProviders({ enabled: false }))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
+  })
+
+  it('should disable the provider request through hook options', () => {
+    renderHook(() => useProviders(undefined, { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
+  })
+
+  it('should pass local SWR options when provided', () => {
+    renderHook(() => useProviders({ enabled: true }, { swrOptions: { refreshInterval: 3000 } }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', {
+      query: { enabled: true },
+      swrOptions: { refreshInterval: 3000 }
+    })
   })
 
   it('should filter undefined query fields before passing to useQuery', () => {
@@ -201,6 +203,7 @@ describe('useProvider', () => {
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
       params: { providerId: 'openai' },
+      enabled: true,
       swrOptions: { keepPreviousData: false }
     })
   })
@@ -210,6 +213,17 @@ describe('useProvider', () => {
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
       params: { providerId: 'openai-main' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+  })
+
+  it('should not fetch a single provider until an ID is available', () => {
+    renderHook(() => useProvider(undefined))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: '' },
+      enabled: false,
       swrOptions: { keepPreviousData: false }
     })
   })
@@ -230,17 +244,6 @@ describe('useProvider', () => {
 
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
-  })
-
-  it('should include mutation functions', () => {
-    const { result } = renderHook(() => useProvider('openai'))
-
-    expect(result.current.updateProvider).toBeDefined()
-    expect(result.current.deleteProvider).toBeDefined()
-    expect(result.current.updateAuthConfig).toBeDefined()
-    expect(result.current.updateApiKeys).toBeDefined()
-    expect(result.current.addApiKey).toBeDefined()
-    expect(result.current.deleteApiKey).toBeDefined()
   })
 })
 
@@ -348,6 +351,24 @@ describe('useProviderMutations', () => {
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { isEnabled: false } })
+  })
+
+  it('should enable a provider through the generic PATCH mutation', async () => {
+    const patchTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PATCH' && path === '/providers/:providerId' ? patchTrigger : vi.fn().mockResolvedValue(undefined),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await result.current.enableProvider()
+    })
+
+    expect(patchTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { isEnabled: true } })
   })
 
   it('should call deleteTrigger with providerId param when deleteProvider is invoked', async () => {
@@ -703,7 +724,8 @@ describe('useProviderAuthConfig', () => {
     expect(result.current.data).toEqual(mockAuthConfig)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
-      params: { providerId: 'vertexai' }
+      params: { providerId: 'vertexai' },
+      enabled: true
     })
   })
 
@@ -711,7 +733,17 @@ describe('useProviderAuthConfig', () => {
     renderHook(() => useProviderAuthConfig('vertexai-prod'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
-      params: { providerId: 'vertexai-prod' }
+      params: { providerId: 'vertexai-prod' },
+      enabled: true
+    })
+  })
+
+  it('does not fetch when the provider id is empty (guards /providers//auth-config)', () => {
+    renderHook(() => useProviderAuthConfig(''))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
+      params: { providerId: '' },
+      enabled: false
     })
   })
 })

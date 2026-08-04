@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import type { Model } from '@shared/data/types/model'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -31,8 +32,8 @@ async function loadOvmsState(): Promise<OvmsState> {
   if (!inflightOvmsPromise) {
     inflightOvmsPromise = (async () => {
       try {
-        const supported = await window.api.ovms.isSupported()
-        const status: OvmsStatus = supported ? await window.api.ovms.getStatus() : 'not-running'
+        const supported = await ipcApi.request('ovms.is_supported')
+        const status: OvmsStatus = supported ? await ipcApi.request('ovms.get_status') : 'not-running'
         cachedOvmsState = { supported, status }
         return cachedOvmsState
       } finally {

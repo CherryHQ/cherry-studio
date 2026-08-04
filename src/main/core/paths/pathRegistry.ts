@@ -12,10 +12,24 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
+
+const logger = loggerService.withContext('PathRegistry')
+
+type UserSystemPathName = 'desktop' | 'documents' | 'downloads'
+
+function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
+  try {
+    return app.getPath(name)
+  } catch (error) {
+    logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error as Error)
+    return fallback
+  }
+}
 
 /**
  * Build the frozen path registry. Called once during preboot (after
@@ -29,8 +43,12 @@ import { CHERRY_HOME, LOGS_DIR } from './constants'
  */
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
+  const sysHome = os.homedir()
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
+  const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataToolchain = path.join(appUserData, 'Toolchain')
+  const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -46,14 +64,11 @@ export function buildPathRegistry() {
     'cherry.config': path.join(CHERRY_HOME, 'config'),
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
-    'sys.home': os.homedir(),
+    'sys.home': sysHome,
     'sys.temp': sysTemp, // OS-wide; prefer app.temp for Cherry-specific temp
-    'sys.downloads': app.getPath('downloads'),
-    'sys.documents': app.getPath('documents'),
-    'sys.desktop': app.getPath('desktop'),
-    'sys.music': app.getPath('music'),
-    'sys.pictures': app.getPath('pictures'),
-    'sys.videos': app.getPath('videos'),
+    'sys.downloads': getUserSystemPath('downloads', path.join(sysHome, 'Downloads')),
+    'sys.documents': getUserSystemPath('documents', path.join(sysHome, 'Documents')),
+    'sys.desktop': getUserSystemPath('desktop', path.join(sysHome, 'Desktop')),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 
@@ -73,7 +88,7 @@ export function buildPathRegistry() {
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
     'app.userdata.data': appUserDataData,
-    'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'app.database.file': path.join(appUserDataData, 'cherrystudio.sqlite'),
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged
       ? path.join(appExtraResources, 'migrations/sqlite-drizzle')
@@ -85,6 +100,21 @@ export function buildPathRegistry() {
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
+
+    // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
+    'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
+
+    // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
+    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
+
+    // BinaryManager (tool manager)
+    'feature.binary.data': appUserDataToolchainMise,
+    // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
+    // home so mise's aqua signature verification resolves its cache/config dirs
+    // without reading the user's real values (see getBinaryIsolatedHomeEnv).
+    'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
+    'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
@@ -109,10 +139,11 @@ export function buildPathRegistry() {
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
-    'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
-    'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
+    'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
+    'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
-    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
+    'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
+    'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
     // Files / Notes / Knowledgebase
@@ -122,12 +153,30 @@ export function buildPathRegistry() {
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
+    // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
+    'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
+    // Backup restore promotion — the journal sidecar is owned by
+    // src/main/data/db/restore/ (see its README.md); the staging tree's
+    // content is owned by BackupService.
+    // INVARIANT: the journal file must stay in the SAME directory as
+    // 'app.database.file' — every journal write fsyncs their shared parent,
+    // which is what makes a commit-step marker imply the DB rename is
+    // durable (see restoreJournal.ts). Never relocate the two independently.
+    'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
+    'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
+    // Stored in the profile it authorizes for reset.
+    'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
+
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
+
+    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
+    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
 
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
@@ -170,7 +219,8 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
 
 /**
  * Keys that opt out of auto-ensure: OS dirs (`sys.*`), third-party
- * paths (`external.*`), and read-only build artifacts.
+ * paths (`external.*`), read-only build artifacts, and paths whose owning
+ * runtime must control materialization separately from database writes.
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
@@ -188,7 +238,10 @@ const NO_ENSURE = [
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
-  'feature.agents.skills.builtin'
+  'feature.agents.skills.builtin',
+  // AgentSessionService stores this path through DataApi. The runtime creates
+  // the concrete session directory later, keeping database writes filesystem-free.
+  'feature.agents.system_workspaces'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */

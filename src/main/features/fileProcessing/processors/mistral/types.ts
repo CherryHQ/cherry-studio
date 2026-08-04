@@ -1,5 +1,5 @@
 import type { Mistral } from '@mistralai/mistralai'
-import type { FileInfo } from '@shared/file/types'
+import type { FileInfo } from '@shared/types/file'
 import * as z from 'zod'
 
 export type PreparedMistralContext = {

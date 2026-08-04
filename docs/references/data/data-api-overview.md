@@ -40,6 +40,10 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 - Explicit cache control via query options
 - Supports large datasets with pagination
 
+### Data Change Notifications (opt-in)
+- After a business write commits, main broadcasts which read models changed; renderers subscribe per endpoint and decide their own convergence — data itself stays fetch-on-demand
+- Renderer usage: [DataApi in Renderer — Data Change Notifications](./data-api-in-renderer.md#data-change-notifications); main-side publish point and fences: [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification)
+
 ## Architecture Diagram
 
 ```
@@ -65,6 +69,7 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 │ ┌────────────────────────────────────────────────────────┐ │
 │ │ IpcAdapter                                             │ │
 │ │ - Receives IPC requests                                │ │
+│ │ - Rejects untrusted senders (validateSender)           │ │
 │ │ - Routes to ApiServer                                  │ │
 │ └──────────────────────────┬─────────────────────────────┘ │
 │                            ▼                               │
@@ -107,7 +112,7 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 - **Location**: `src/main/data/services/`
 - **Responsibility**: Domain logic, workflows, and data access
 - **Does**: Validation, transaction coordination, orchestration, Drizzle ORM queries
-- **Concurrent write paths**: Use `application.get('DbService').withWriteTx(fn)` instead of `db.transaction(fn)` to avoid `SQLITE_BUSY` from libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288). See [Database Patterns — Write Serialization](./database-patterns.md#write-serialization-dbservicewritewritetx).
+- **Write atomicity**: use `application.get('DbService').withWriteTx(fn)` to commit multiple writes (or a read-then-write) all-or-nothing in one synchronous `BEGIN IMMEDIATE` transaction (`fn` must be synchronous — better-sqlite3 rejects a Promise-returning callback). A single autocommit write doesn't need it. See [Database Patterns — Write Serialization](./database-patterns.md#write-serialization-dbservicewithwritetx).
 
 > **Note:** In rare cases, a read-only Registry Service (e.g., `ProviderRegistryService`)
 > may exist alongside Entity Services to merge preset data with DB data.

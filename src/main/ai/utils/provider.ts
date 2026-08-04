@@ -1,7 +1,7 @@
 import { providerService } from '@data/services/ProviderService'
+import { defaultAppHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { defaultAppHeaders } from '@shared/utils'
 
 const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -43,11 +43,21 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
 }
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
-  return provider.settings?.extraHeaders ?? {}
+  const headers = { ...provider.settings?.extraHeaders }
+  if (provider.id !== 'radeon-cloud' && provider.presetProviderId !== 'radeon-cloud') {
+    return headers
+  }
+
+  for (const name of Object.keys(headers)) {
+    if (name.toLowerCase() === 'x-source') {
+      delete headers[name]
+    }
+  }
+  return { ...headers, 'X-Source': 'cherry-studio' }
 }
 
-export async function defaultHeaders(provider: Provider): Promise<Record<string, string>> {
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
+export function defaultHeaders(provider: Provider): Record<string, string> {
+  const apiKey = providerService.getRotatedApiKey(provider.id)
   return {
     ...defaultAppHeaders(),
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),

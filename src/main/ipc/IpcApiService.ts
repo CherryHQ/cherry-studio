@@ -2,16 +2,17 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors'
-import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas'
+import { validateSender } from '@main/core/security/validateSender'
+import type { WindowType } from '@main/core/window/types'
+import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
+import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 
-import { ipcHandlers } from './handlers'
+import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'
-import { validateSender } from './validateSender'
 
 const logger = loggerService.withContext('IpcApiService')
 
@@ -49,8 +50,7 @@ export class IpcApiService extends BaseService {
 
   private async handleRequest(event: IpcMainInvokeEvent, route: string, input: unknown): Promise<IpcResult<unknown>> {
     // Source-trust gate first: one channel funnels every capability, so verify the caller before the input.
-    // `app.root` (the app's own bundle root) scopes which file:// frames count as the app's own renderer.
-    if (!validateSender(event, application.getPath('app.root'))) {
+    if (!validateSender(event)) {
       // Audit trail for probing against this single capability funnel. NOT throttled:
       // a flood needs an untrusted surface that can both reach the channel and fail
       // validateSender at high frequency, which is not reachable today. Revisit
@@ -90,6 +90,11 @@ export class IpcApiService extends BaseService {
   /** Broadcast a typed event to every window. */
   broadcast<E extends IpcEventName>(event: E, payload: EventPayload<E>): void {
     application.get('WindowManager').broadcast(IpcChannel.IpcApi_Event, event, payload)
+  }
+
+  /** Broadcast a typed event only to windows of the given type (destroyed windows are skipped). */
+  broadcastToType<E extends IpcEventName>(windowType: WindowType, event: E, payload: EventPayload<E>): void {
+    application.get('WindowManager').broadcastToType(windowType, IpcChannel.IpcApi_Event, event, payload)
   }
 
   /**

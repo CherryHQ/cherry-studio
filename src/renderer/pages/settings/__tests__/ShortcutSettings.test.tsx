@@ -1,7 +1,7 @@
-import type * as RendererConstantModule from '@renderer/config/constant'
-import type { ShortcutListItem } from '@renderer/hooks/useShortcuts'
-import { type CommandId, commandShortcutPreferenceKey } from '@shared/command'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,11 +27,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof RendererConstantModule
 
   return {
@@ -51,9 +51,9 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
+vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
   getAllShortcutDefaultPreferences: () => ({}),
-  useAllShortcuts: () => ({
+  useCommandShortcuts: () => ({
     shortcuts: shortcutsMock.shortcuts,
     updatePreference: shortcutsMock.updatePreference
   })
@@ -61,14 +61,6 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
 
 vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
-vi.mock('@ant-design/icons', () => ({
-  UndoOutlined: ({ onClick, className }: { onClick?: () => void; className?: string }) => (
-    <button type="button" className={className} onClick={onClick}>
-      undo
-    </button>
-  )
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -175,16 +167,6 @@ describe('ShortcutSettings shortcut recorder', () => {
         onRegistrationConflict: registrationConflictMock
       }
     } as unknown as typeof window.api
-    window.modal = {
-      confirm: vi.fn()
-    } as unknown as typeof window.modal
-    window.toast = {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('uses a non-text focus target while recording shortcuts', () => {
@@ -205,12 +187,12 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
     const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
 
-    fireEvent.keyDown(recorder, { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true })
+    fireEvent.keyDown(recorder, { key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true, bubbles: true })
 
     expect(parentKeyDown).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
-        binding: ['CommandOrControl', 'K'],
+        binding: ['CommandOrControl', 'Shift', 'K'],
         enabled: true
       })
     })

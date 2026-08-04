@@ -1,36 +1,46 @@
-import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,
   checkConnection,
   createDirectory,
+  getNutstoreSyncState,
   restoreFromNutstore,
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
-import { useAppSelector } from '@renderer/store'
-import { modalConfirm } from '@renderer/utils'
-import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
+import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import NutstorePathPopup from './NutstorePathPopup'
+
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { nutstoreSyncState } = useAppSelector((state) => state.nutstore)
+  const nutstoreSyncState = getNutstoreSyncState()
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -46,8 +56,6 @@ const NutstoreSettings: FC = () => {
   const [nsConnected, setNsConnected] = useState<boolean>(false)
 
   // const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
-  // const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
-
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const nutstoreSsoHandler = useNutstoreSso()
@@ -80,7 +88,8 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
-    const confirmedLogout = await modalConfirm({
+    const confirmedLogout = await popup.confirm({
+      centered: true,
       title: t('settings.data.nutstore.logout.title'),
       content: t('settings.data.nutstore.logout.content')
     })
@@ -97,7 +106,7 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+    toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
       title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')
@@ -124,10 +133,6 @@ const NutstoreSettings: FC = () => {
       await setNutstoreAutoSync(true)
       void startNutstoreAutoSync()
     }
-  }
-
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setNutstoreSkipBackupFile(value)
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -168,20 +173,20 @@ const NutstoreSettings: FC = () => {
     if (!nutstoreToken) return null
 
     if (!nutstoreSyncState.lastSyncTime && !nutstoreSyncState.syncing && !nutstoreSyncState.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {nutstoreSyncState.syncing && <SyncOutlined spin />}
+        {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {nutstoreSyncState.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -214,9 +219,9 @@ const NutstoreSettings: FC = () => {
               onClick={handleCheckConnection}
               disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
-                <LoadingOutlined spin />
+                <Loader2 className="animate-spin" size={14} />
               ) : nsConnected ? (
-                <CheckOutlined />
+                <Check size={14} />
               ) : (
                 t('settings.data.nutstore.checkConnection.name')
               )}
@@ -228,6 +233,7 @@ const NutstoreSettings: FC = () => {
         ) : (
           <Button onClick={handleClickNutstoreSSO} variant="outline">
             {t('settings.data.nutstore.login.button')}
+            <ExternalLink size={13} />
           </Button>
         )}
       </SettingRow>
@@ -236,7 +242,7 @@ const NutstoreSettings: FC = () => {
         <>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <span className="text-foreground-muted">{nutstoreUsername}</span>
+            <span className="text-foreground-tertiary">{nutstoreUsername}</span>
           </SettingRow>
 
           <SettingDivider />
@@ -252,7 +258,7 @@ const NutstoreSettings: FC = () => {
                 }}
               />
               <Button variant="outline" onClick={handleClickPathChange} size="icon">
-                <FolderOutlined />
+                <FolderOpen size={14} />
               </Button>
             </RowFlex>
           </SettingRow>
@@ -320,7 +326,10 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={nutstoreSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+            <Switch
+              checked={nutstoreSkipBackupFile}
+              onCheckedChange={(value) => void setNutstoreSkipBackupFile(value)}
+            />
           </SettingRow>
           <SettingRow>
             <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

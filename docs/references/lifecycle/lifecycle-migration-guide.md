@@ -154,9 +154,9 @@ export class TrayService extends BaseService {
 }
 ```
 
-### Step 6: Remove manual init/destroy calls from index.ts
+### Step 6: Remove manual init/destroy calls from main.ts
 
-After migration, delete the manual calls in `src/main/index.ts`:
+After migration, delete the manual calls in `src/main/main.ts`:
 
 ```typescript
 // DELETE from index.ts

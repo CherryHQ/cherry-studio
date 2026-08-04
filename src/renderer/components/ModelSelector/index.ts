@@ -1,6 +1,11 @@
 export type { ModelSelectorTag } from './filters'
 export { useModelTagFilter } from './filters'
 export { ModelSelector } from './ModelSelector'
+export {
+  MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
+  ModelSelectorRow,
+  ModelSelectorRowActionButton
+} from './ModelSelectorRow'
 export type {
   FlatListItem,
   ModelSelectorAlign,
@@ -17,3 +22,4 @@ export type {
   UseModelSelectorDataResult
 } from './types'
 export { useModelSelectorData } from './useModelSelectorData'
+export { getProviderDisplayName } from './utils'

@@ -1,5 +1,6 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
@@ -29,9 +30,10 @@ export type RestoreKnowledgeBaseInput = Pick<
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
 >
 
-export const useKnowledgeBases = () => {
+export const useKnowledgeBases = (options: { enabled?: boolean } = {}) => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
-    query: KNOWLEDGE_V2_BASES_QUERY
+    query: KNOWLEDGE_V2_BASES_QUERY,
+    ...(options.enabled !== undefined && { enabled: options.enabled })
   })
 
   const bases = useMemo(() => data?.items ?? [], [data])
@@ -56,39 +58,29 @@ export const useCreateKnowledgeBase = () => {
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
       const embeddingModelId = input.embeddingModelId?.trim()
-      const dimensions = input.dimensions
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
-      }
-
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
-      }
-
-      const body: {
-        name: string
-        embeddingModelId: string
-        dimensions: number
-        groupId?: string
-      } = {
-        name,
-        embeddingModelId,
-        dimensions
+      const body: CreateKnowledgeBaseInput = {
+        name
       }
 
       if (groupId) {
         body.groupId = groupId
       }
 
+      // Embedding is optional; when present the schema requires its dimensions alongside it.
+      if (embeddingModelId) {
+        body.embeddingModelId = embeddingModelId
+        body.dimensions = input.dimensions
+      }
+
       setIsCreating(true)
 
       try {
-        const createdBase = await window.api.knowledge.createBase(body)
+        const createdBase = await ipcApi.request('knowledge.create_base', { base: body })
 
         try {
           await invalidateCache('/knowledge-bases')
@@ -104,8 +96,7 @@ export const useCreateKnowledgeBase = () => {
         const normalizedError = normalizeError(error)
         logger.error('Failed to create knowledge base', normalizedError, {
           name,
-          groupId,
-          embeddingModelId
+          groupId
         })
         setCreateError(normalizedError)
         setIsCreating(false)
@@ -133,7 +124,7 @@ export const useRestoreKnowledgeBase = () => {
 
       const sourceBaseId = input.sourceBaseId.trim()
       const name = input.name?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim() || null
       const dimensions = input.dimensions
 
       if (!sourceBaseId) {
@@ -144,18 +135,18 @@ export const useRestoreKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
+      if (dimensions !== null && (!Number.isInteger(dimensions) || dimensions <= 0)) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      if ((embeddingModelId === null) !== (dimensions === null)) {
+        throw new Error('Knowledge base embedding model and dimensions must be provided together')
       }
 
       setIsRestoring(true)
 
       try {
-        const restoredBase = await window.api.knowledge.restoreBase({
+        const result = await ipcApi.request('knowledge.restore_base', {
           sourceBaseId,
           name,
           embeddingModelId,
@@ -167,12 +158,12 @@ export const useRestoreKnowledgeBase = () => {
         } catch (invalidateError) {
           logger.error('Failed to refresh knowledge base list after restore', normalizeError(invalidateError), {
             sourceBaseId,
-            restoredBaseId: restoredBase.id
+            restoredBaseId: result.base.id
           })
         }
 
         setIsRestoring(false)
-        return restoredBase
+        return result
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to restore knowledge base', normalizedError, {
@@ -192,6 +183,76 @@ export const useRestoreKnowledgeBase = () => {
     restoreBase,
     isRestoring,
     restoreError
+  }
+}
+
+export const useEnableKnowledgeBaseEmbedding = () => {
+  const [isEnabling, setIsEnabling] = useState(false)
+  const [enableError, setEnableError] = useState<Error | undefined>()
+  const invalidateCache = useInvalidateCache()
+
+  const enableEmbedding = useCallback(
+    async (baseId: string, patch: UpdateKnowledgeBaseDto) => {
+      setEnableError(undefined)
+
+      const trimmedBaseId = baseId.trim()
+      const embeddingModelId = patch.embeddingModelId?.trim()
+      const dimensions = patch.dimensions
+
+      if (!trimmedBaseId) {
+        throw new Error('Knowledge base id is required')
+      }
+
+      if (!embeddingModelId) {
+        throw new Error('Knowledge base embedding model is required')
+      }
+
+      if (!Number.isInteger(dimensions) || (dimensions as number) <= 0) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${dimensions}"`)
+      }
+
+      setIsEnabling(true)
+
+      try {
+        const result = await ipcApi.request('knowledge.enable_embedding_model', {
+          baseId: trimmedBaseId,
+          patch: { ...patch, embeddingModelId, dimensions }
+        })
+
+        try {
+          // Also invalidate the item list: enabling embedding flips every existing item back to
+          // processing/embedding server-side, but the item list's own polling already stopped
+          // once they last reached a terminal status (see useKnowledgeItems' hasNonTerminalItem) —
+          // without this, the UI keeps showing the stale "completed" badges from the BM25-only run.
+          await invalidateCache([`/knowledge-bases/${trimmedBaseId}/items`, '/knowledge-bases'])
+        } catch (invalidateError) {
+          logger.error(
+            'Failed to refresh knowledge base list after enabling embedding',
+            normalizeError(invalidateError),
+            { baseId: trimmedBaseId }
+          )
+        }
+
+        setIsEnabling(false)
+        return result
+      } catch (error) {
+        const normalizedError = normalizeError(error)
+        logger.error('Failed to enable knowledge base embedding', normalizedError, {
+          baseId: trimmedBaseId,
+          embeddingModelId
+        })
+        setEnableError(normalizedError)
+        setIsEnabling(false)
+        throw normalizedError
+      }
+    },
+    [invalidateCache]
+  )
+
+  return {
+    enableEmbedding,
+    isEnabling,
+    enableError
   }
 }
 
@@ -242,7 +303,7 @@ export const useDeleteKnowledgeBase = () => {
       let mutationError: Error | undefined
 
       try {
-        await window.api.knowledge.deleteBase(baseId)
+        await ipcApi.request('knowledge.delete_base', { baseId })
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to delete knowledge base', normalizedError, {
@@ -253,9 +314,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }

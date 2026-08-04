@@ -1,10 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { isAvailableSystemMock } = vi.hoisted(() => ({
+  isAvailableSystemMock: vi.fn(() => true)
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
 
   return mockApplicationFactory()
 })
+
+vi.mock('../../processors/registry', () => ({
+  processorRegistry: {
+    tesseract: { isAvailable: () => true },
+    system: { isAvailable: isAvailableSystemMock },
+    paddleocr: { isAvailable: () => true },
+    ovocr: { isAvailable: () => true },
+    mineru: { isAvailable: () => true },
+    doc2x: { isAvailable: () => true },
+    mistral: { isAvailable: () => true },
+    'open-mineru': { isAvailable: () => true }
+  }
+}))
+
+const { resolveDefaultImageToTextProcessorMock } = vi.hoisted(() => ({
+  resolveDefaultImageToTextProcessorMock: vi.fn(() => 'tesseract' as const)
+}))
+
+vi.mock('../defaultImageToTextProcessor', () => ({
+  resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
+}))
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
@@ -14,6 +39,8 @@ describe('resolveProcessorConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
+    isAvailableSystemMock.mockReturnValue(true)
+    resolveDefaultImageToTextProcessorMock.mockReturnValue('tesseract')
   })
 
   it('getFileProcessorConfigById merges preference override into preset config', () => {
@@ -102,10 +129,17 @@ describe('resolveProcessorConfig', () => {
     )
   })
 
-  it('fails fast when no default processor is configured for the requested feature', () => {
-    expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
-      'Default file processor for image_to_text is not configured'
+  it('fails fast when no default processor is configured and the feature has no fallback', () => {
+    expect(() => resolveProcessorConfigByFeature('document_to_markdown')).toThrowError(
+      'Default file processor for document_to_markdown is not configured'
     )
+  })
+
+  it('falls back to the platform default for image_to_text when the pref is unset', () => {
+    resolveDefaultImageToTextProcessorMock.mockReturnValue('tesseract')
+
+    expect(resolveProcessorConfigByFeature('image_to_text')).toEqual(expect.objectContaining({ id: 'tesseract' }))
+    expect(resolveDefaultImageToTextProcessorMock).toHaveBeenCalled()
   })
 
   it('uses mistral when it is the default markdown processor', () => {
@@ -123,6 +157,15 @@ describe('resolveProcessorConfig', () => {
 
     expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
       'File processor open-mineru does not support image_to_text'
+    )
+  })
+
+  it('throws when the configured default processor is not available on this platform', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'system')
+    isAvailableSystemMock.mockReturnValue(false)
+
+    expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
+      'File processor system is not available on this platform'
     )
   })
 })

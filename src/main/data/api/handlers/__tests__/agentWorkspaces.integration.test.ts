@@ -17,9 +17,7 @@ describe('agentWorkspaceHandlers integration', () => {
   const agentId = 'agent-workspace-handler-test'
 
   beforeEach(async () => {
-    ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
-      dbh.db.transaction(fn as never)
-    )
+    ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
     await dbh.db.insert(agentTable).values({
       id: agentId,
       type: 'claude-code',
@@ -35,17 +33,17 @@ describe('agentWorkspaceHandlers integration', () => {
   }
 
   async function createWorkspace(name: string): Promise<AgentWorkspaceEntity> {
-    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
+    return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
   }
 
   it('deletes a user workspace and its bound sessions and pins in one handler call', async () => {
     const workspace = await createWorkspace('cascade')
-    const first = await agentSessionService.create({
+    const first = agentSessionService.create({
       agentId,
       name: 'First',
       workspace: { type: 'user', workspaceId: workspace.id }
     })
-    const second = await agentSessionService.create({
+    const second = agentSessionService.create({
       agentId,
       name: 'Second',
       workspace: { type: 'user', workspaceId: workspace.id }
@@ -63,18 +61,24 @@ describe('agentWorkspaceHandlers integration', () => {
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: workspace.id }
       } as never)
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
 
     expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))).toEqual([])
     expect(
       await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.workspaceId, workspace.id))
     ).toEqual([])
     expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, first.id))).toEqual([])
-    await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    let err: unknown
+    try {
+      agentSessionService.getById(second.id)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: 'NOT_FOUND' })
   })
 
   it('rejects system workspace deletes and preserves the backing session and pin', async () => {
-    const session = await agentSessionService.create({
+    const session = agentSessionService.create({
       agentId,
       name: 'System Session',
       workspace: { type: 'system' }

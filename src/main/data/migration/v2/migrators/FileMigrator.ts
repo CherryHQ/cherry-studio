@@ -4,12 +4,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { FileEntrySchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { sql } from 'drizzle-orm'
+import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
+import { SafeExtSchema } from '@shared/types/file'
+import { inArray, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -20,13 +21,15 @@ const BATCH_SIZE = 500
 const VALIDATE_SAMPLE_LIMIT = 10
 
 /**
- * Strip leading dot from extension, return null for empty/extensionless.
- * Legacy v1 ext field looks like '.pdf' or '.txt' or '' for extensionless.
+ * Strip legacy leading dot and OS-ignored trailing dot/space from extension,
+ * return null for empty/extensionless. Legacy v1 ext field looks like '.pdf'
+ * or '.txt' or '' for extensionless.
  */
 function normalizeExt(ext: string | undefined | null): string | null {
   if (!ext || ext.trim() === '') return null
   const stripped = ext.startsWith('.') ? ext.slice(1) : ext
-  return stripped.length > 0 ? stripped : null
+  const normalized = stripped.replace(/[\s.]+$/, '')
+  return normalized.length > 0 ? normalized : null
 }
 
 /**
@@ -72,8 +75,8 @@ function stripExt(base: string): string {
  *
  * Degradation chain: raw → sanitized (last segment, trimmed) → row id.
  * Never asks the caller to skip the row: a skipped internal row strands
- * its physical file, which the user-triggered FS orphan sweep
- * (`File_RunSweep`; no startup auto-run) then reclaims — real data loss.
+ * its physical file, which the scheduled FS orphan sweep then reclaims
+ * (`FileManager.fileSweepTick`, weekly floor) — real data loss.
  * `name` does not participate in physical paths (`{id}.{ext}`), so
  * degrading it is always safe.
  */
@@ -101,7 +104,9 @@ interface PreparedFileEntry {
   origin: 'internal'
   name: string
   ext: string | null
+  cleanupPolicy: 'manual'
   size: number
+  contentHash: null
   externalPath: null
   deletedAt: null
   createdAt: number
@@ -113,7 +118,7 @@ interface PreparedFileEntry {
  * Returns null if the row is malformed (missing required fields).
  *
  * The v1 id is preserved verbatim into v2 (per migration-plan §2.9): cross-table
- * references in message_blocks / paintings / knowledge_items / file_ref need no
+ * references in message_blocks / paintings / knowledge_items / file associations need no
  * translation, and `FileEntryIdSchema = z.uuid()` already accepts the v4 ids
  * that v1 emits.
  */
@@ -157,8 +162,8 @@ function toFileEntry(
   if (!isInternal) {
     // Neither under the internal dir nor physically present: dead metadata
     // left by incomplete v1 deletes. Do not fabricate an external entry —
-    // downstream migrators (Chat/Painting) already resolve file_ref against
-    // file_entry, so skipping cannot create dangling FKs.
+    // downstream migrators (Chat/Painting) already resolve file associations
+    // against file_entry, so skipping cannot create dangling FKs.
     onWarning(
       `Orphan file row id=${row.id}: no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
     )
@@ -170,7 +175,7 @@ function toFileEntry(
   // indistinguishably as an empty file in the v2 UI. Skipping outright is
   // worse: every row reaching this point is internal, so a physically
   // present file would be stranded and become eligible for the
-  // user-triggered FS orphan sweep (`File_RunSweep`) — real data loss for
+  // scheduled FS orphan sweep (`FileManager.fileSweepTick`) — real data loss for
   // recoverable content. Recover the true size from disk instead; skip only
   // when the disk holds nothing recoverable.
   let size: number
@@ -193,7 +198,9 @@ function toFileEntry(
     origin: 'internal',
     name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
     ext,
+    cleanupPolicy: 'manual',
     size,
+    contentHash: null,
     externalPath: null,
     deletedAt: null,
     createdAt,
@@ -210,7 +217,9 @@ function toFileEntry(
     origin: 'internal',
     name: entry.name,
     ext: entry.ext,
+    cleanupPolicy: 'manual',
     size: entry.size,
+    contentHash: entry.contentHash,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt
   })
@@ -222,6 +231,37 @@ function toFileEntry(
   }
 
   return entry
+}
+
+/** Ids per UPDATE … IN (…) statement — stays well under SQLite's bound-parameter cap. */
+const CLEANUP_UPDATE_CHUNK_SIZE = 500
+
+/**
+ * Flip already-inserted `file_entry` rows to `cleanup_policy =
+ * 'delete_when_unreferenced'` (file-entry-cleanup.md §7.2 — classification by
+ * reference state).
+ *
+ * It lives here because it is the second half of this migrator's story about
+ * `cleanup_policy`: `FileMigrator` inserts every v1 file as `'manual'` (it has
+ * no way to know what will reference it), and this flips the ones that turn out
+ * to be referenced once the chat / painting migrators have written their refs.
+ *
+ * This is an UPDATE by design, not a value the ref-row inserts could carry:
+ * `cleanup_policy` is a `file_entry` column, while the chat/painting migrators
+ * insert into their *ref* tables — the entry rows themselves were inserted
+ * earlier by FileMigrator (as `'manual'`), before referenced-ness is known.
+ * Idempotent, so a retried batch (or a ref insert skipped by
+ * `onConflictDoNothing`) is safe. Call inside the same transaction as the ref
+ * inserts so referenced-ness and policy commit atomically.
+ */
+export function markEntriesAutoCleanup(tx: DbOrTx, entryIds: Iterable<string>): void {
+  const ids = [...new Set(entryIds)]
+  for (let i = 0; i < ids.length; i += CLEANUP_UPDATE_CHUNK_SIZE) {
+    tx.update(fileEntryTable)
+      .set({ cleanupPolicy: 'delete_when_unreferenced' })
+      .where(inArray(fileEntryTable.id, ids.slice(i, i + CLEANUP_UPDATE_CHUNK_SIZE)))
+      .run()
+  }
 }
 
 export class FileMigrator extends BaseMigrator {
@@ -314,8 +354,8 @@ export class FileMigrator extends BaseMigrator {
       for (let i = 0; i < this.preparedEntries.length; i += BATCH_SIZE) {
         const batch = this.preparedEntries.slice(i, i + BATCH_SIZE)
 
-        await ctx.db.transaction(async (tx) => {
-          await tx.insert(fileEntryTable).values(batch)
+        ctx.db.transaction((tx) => {
+          tx.insert(fileEntryTable).values(batch).run()
         })
 
         processed += batch.length
@@ -344,7 +384,7 @@ export class FileMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(fileEntryTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(fileEntryTable).get()
       const targetCount = result?.count ?? 0
       const expectedCount = this.preparedEntries.length
 
@@ -361,7 +401,7 @@ export class FileMigrator extends BaseMigrator {
       // a real condition on v1 installs — users delete `~/.../Data/Files/*`
       // outside Cherry, leaving dangling metadata. Surfacing it as a fatal
       // validation error aborts the whole migration over data that the
-      // user-triggered FS orphan sweep (`File_RunSweep`) can clean up later.
+      // scheduled FS orphan sweep (`FileManager.fileSweepTick`) cleans up later.
       // Record as a non-fatal warning so the migration log carries the
       // diagnostic trail but the engine still proceeds to downstream
       // migrators.

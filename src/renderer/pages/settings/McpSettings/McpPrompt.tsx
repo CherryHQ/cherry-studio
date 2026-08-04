@@ -6,12 +6,13 @@ import {
   ColFlex,
   EmptyState,
   Flex,
+  RequiredMark,
   Tooltip
 } from '@cherrystudio/ui'
-import type { McpPrompt } from '@renderer/types'
+import type { McpPrompt } from '@shared/types/mcp'
 import { useTranslation } from 'react-i18next'
 
-import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
+import { McpDetailItem, McpDetailList } from './McpDetailList'
 
 interface McpPromptsSectionProps {
   prompts: McpPrompt[]
@@ -42,9 +43,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
                 </Flex>
               }>
               <ColFlex className="gap-1">
-                {arg.description && (
-                  <p className="m-0 text-foreground-secondary text-sm leading-5">{arg.description}</p>
-                )}
+                {arg.description && <p className="m-0 text-muted-foreground text-sm leading-5">{arg.description}</p>}
               </ColFlex>
             </McpDetailItem>
           ))}
@@ -57,7 +56,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
     <div className="mt-2 pt-2">
       {prompts.length > 0 ? (
         <>
-          <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
             {t('settings.mcp.prompts.availablePrompts')}
           </h3>
           <Accordion type="multiple">
@@ -66,10 +65,10 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
                 <AccordionTrigger className="py-3">
                   <ColFlex className="min-w-0 items-start">
                     <Flex className="w-full min-w-0 items-center">
-                      <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
+                      <span className="truncate text-foreground text-sm">{prompt.name}</span>
                     </Flex>
                     {prompt.description && (
-                      <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>
+                      <span className="mt-1 text-[13px] text-muted-foreground leading-5">{prompt.description}</span>
                     )}
                   </ColFlex>
                 </AccordionTrigger>

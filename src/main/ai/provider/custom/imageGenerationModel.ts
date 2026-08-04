@@ -1,10 +1,35 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createAbortError } from './transportUtils'
 
+/**
+ * Per-model transport routing — which endpoint to POST, whether to poll, and
+ * which response family to parse. Derived in main from the registry's
+ * `modes[mode].vendorTransport` (NOT a user param), so it travels on its own
+ * typed channel (the job payload / submit input), not the `providerParams` bag.
+ */
+export interface ImageTransportDescriptor {
+  id: string
+  endpoint: string
+  isSync?: boolean
+  mode?: ImageGenerationMode
+}
+
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
-  poll?(taskId: string, options: { signal?: AbortSignal; onProgress?: (progress: number) => void }): Promise<string[]>
+  /**
+   * `modelDescriptor` is carried so a poll on a fresh transport
+   * instance can rebuild per-task state (e.g. DashScope's response family).
+   */
+  poll?(
+    taskId: string,
+    options: {
+      signal?: AbortSignal
+      onProgress?: (progress: number) => void
+      modelDescriptor?: ImageTransportDescriptor
+    }
+  ): Promise<string[]>
   cancel?(taskId: string): Promise<void>
 }
 
@@ -23,6 +48,8 @@ export interface ImageGenerationSubmitInput {
   seed: number | undefined
   files: ImageModelV3CallOptions['files']
   mask: ImageModelV3CallOptions['mask']
+  /** Per-model routing, derived in main from the registry (not a user param). */
+  modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
   /**
    * Abort signal forwarded from `options.abortSignal`. Async providers

@@ -3,10 +3,10 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -14,13 +14,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  getIndexStoreMock: vi.fn(),
-  deleteStoreMock: vi.fn(),
-  enqueueMock: vi.fn(),
-  listMock: vi.fn(),
-  registerHandlerMock: vi.fn()
-}))
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
+  () => ({
+    getIndexStoreMock: vi.fn(),
+    deleteStoreMock: vi.fn(),
+    enqueueMock: vi.fn(),
+    enqueueTxMock: vi.fn(),
+    listMock: vi.fn(),
+    registerHandlerMock: vi.fn()
+  })
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -29,6 +32,7 @@ vi.mock('@application', async () => {
       cancel: vi.fn(),
       cancelMany: vi.fn(),
       enqueue: enqueueMock,
+      enqueueTx: enqueueTxMock,
       list: listMock,
       registerHandler: registerHandlerMock
     },
@@ -63,9 +67,13 @@ describe('KnowledgeService integration', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    // KnowledgeService extends the lifecycle BaseService singleton; reset so each test
+    // can `new KnowledgeService()` without tripping the already-instantiated guard.
+    BaseService.resetInstances()
     getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
 
     const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
@@ -102,9 +110,7 @@ describe('KnowledgeService integration', () => {
       fileProcessorId: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      threshold: null,
-      documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+      documentCount: null
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -113,7 +119,7 @@ describe('KnowledgeService integration', () => {
         groupId: null,
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       },
       {
@@ -122,7 +128,7 @@ describe('KnowledgeService integration', () => {
         groupId: SOURCE_ROOT_ITEM_ID,
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ])
@@ -131,13 +137,15 @@ describe('KnowledgeService integration', () => {
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
     const service = new KnowledgeService()
 
-    const restoredBase = await service.restoreBase({
+    const { base: restoredBase, skippedMissingSourceCount } = await service.restoreBase({
       sourceBaseId: SOURCE_BASE_ID,
       name: 'Legacy KB_bak',
       embeddingModelId,
       dimensions: 1536
     })
 
+    // All of this base's sources are present, so nothing is skipped.
+    expect(skippedMissingSourceCount).toBe(0)
     expect(restoredBase).toMatchObject({
       name: 'Legacy KB_bak',
       groupId: SOURCE_GROUP_ID,
@@ -175,7 +183,7 @@ describe('KnowledgeService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,
@@ -199,5 +207,107 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(isNull(knowledgeItemTable.groupId))
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
+  })
+
+  it('rolls back the deleting status when enqueueTx fails inside deleteItems', async () => {
+    const service = new KnowledgeService()
+    enqueueTxMock.mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID])).rejects.toThrow('enqueue failed')
+
+    const [rootRow] = await dbh.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+    expect(rootRow.status).toBe('processing')
+  })
+
+  describe('addItems conflict resolution', () => {
+    const COMPLETED_BASE_ID = '33333333-3333-4333-8333-333333333333'
+    const EXISTING_NOTE_ID = '0198f3f2-7d2a-7abc-8def-123456789abc'
+
+    const seedCompletedBaseWithNote = async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        id: COMPLETED_BASE_ID,
+        name: 'Active KB',
+        groupId: null,
+        dimensions: 1536,
+        embeddingModelId,
+        status: 'completed',
+        error: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+        documentCount: null
+      })
+      await dbh.db.insert(knowledgeItemTable).values({
+        id: EXISTING_NOTE_ID,
+        baseId: COMPLETED_BASE_ID,
+        groupId: null,
+        type: 'note',
+        data: { source: 'Doc A', content: 'Doc A\noriginal body' },
+        status: 'completed',
+        error: null
+      })
+    }
+
+    const noteInput = (content: string) => ({
+      type: 'note' as const,
+      data: { source: content.split('\n')[0], content }
+    })
+
+    const baseRows = () =>
+      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
+
+    it('detect reports a same-name conflict and adds nothing', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nnew body')], 'detect')
+
+      expect(result).toEqual({ status: 'conflicts', conflicts: [{ type: 'note', title: 'Doc A' }] })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).toBe(EXISTING_NOTE_ID)
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('detect adds the item when nothing collides', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc B\nbody')], 'detect')
+
+      expect(result).toEqual({ status: 'added' })
+      expect(await baseRows()).toHaveLength(2)
+    })
+
+    it('replace purges the conflicting existing item and adds the incoming one', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nreplacement body')], 'replace')
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
+      expect((rows[0].data as { content: string }).content).toBe('Doc A\nreplacement body')
+    })
+
+    it('defaults to rename (keep all) when no strategy is given, adding alongside the existing item', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nanother body')])
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(2)
+      expect(rows.some((row) => row.id === EXISTING_NOTE_ID)).toBe(true)
+    })
   })
 })

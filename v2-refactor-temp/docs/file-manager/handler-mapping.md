@@ -102,7 +102,6 @@ Main process 其他 service 可根据实际需求直接调 ops.ts 或 FileManage
 | `getPathForFile`                | preload utils | 同步方法，不经过 IPC                    |
 | `Open_Website`                  | App 层        | `shell.openExternal(url)`               |
 | `Pdf_ExtractText`               | 保持独立      | 纯内容处理（传 buffer），不依赖文件系统 |
-| `App_Copy`                      | 数据迁移模块  | userData 递归复制，专用场景             |
 | `FileService_*`                 | Provider 模块 | AI Provider 远程文件 API                |
 | `Gemini_*File`                  | Provider 模块 | Gemini 专用                             |
 | `Export_Word`                   | Export 模块   |                                         |

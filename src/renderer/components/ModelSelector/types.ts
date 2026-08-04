@@ -1,6 +1,6 @@
-import type { CommandId } from '@shared/command'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CommandId } from '@shared/utils/command'
 import type { ReactNode } from 'react'
 
 import type { ModelSelectorTag } from './filters'
@@ -8,6 +8,7 @@ import type { ModelSelectorTag } from './filters'
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
+export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
@@ -17,15 +18,17 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
   sideOffset?: number
   contentClassName?: string
-  listVisibleCount?: number
+  portalContainer?: HTMLElement | null
+  mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
+  onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
 }
 
@@ -36,6 +39,7 @@ export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps 
   multiple: false
   selectionType?: 'model'
   value?: Model
+  noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
 
@@ -43,6 +47,7 @@ export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
   multiple: false
   selectionType: 'id'
   value?: UniqueModelId
+  noneOptionLabel?: string
   onSelect: (modelId: UniqueModelId | undefined) => void
 }
 
@@ -83,20 +88,20 @@ export interface ModelSelectorModelItem {
   modelId: UniqueModelId
   modelIdentifier: string
   isPinned: boolean
-  isSelected: boolean
   showIdentifier: boolean
 }
 
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
+  enabled?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string
   filter?: (model: Model) => boolean
   showTagFilter?: boolean
   showPinnedModels?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
 }
 
 export interface UseModelSelectorDataResult {
@@ -106,7 +111,9 @@ export interface UseModelSelectorDataResult {
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
   pinnedIds: readonly UniqueModelId[]
+  refetchModels: () => Promise<unknown>
   refetchPinnedModels: () => Promise<unknown>
+  refetchProviders: () => Promise<unknown>
   resetTags: () => void
   resolvedSelectedModelIds: UniqueModelId[]
   selectableModelsById: ReadonlyMap<UniqueModelId, Model>
@@ -115,4 +122,5 @@ export interface UseModelSelectorDataResult {
   tagSelection: Record<ModelSelectorTag, boolean>
   togglePin: (modelId: UniqueModelId) => Promise<void>
   toggleTag: (tag: ModelSelectorTag) => void
+  visibleSelectedModelIdSet: ReadonlySet<UniqueModelId>
 }

@@ -1,5 +1,5 @@
+import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 

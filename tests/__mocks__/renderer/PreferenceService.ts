@@ -70,6 +70,10 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
       return Promise.resolve()
     }),
 
+    preload: vi.fn(() => Promise.resolve()),
+
+    preloadAll: vi.fn(() => Promise.resolve()),
+
     getCachedValue: vi.fn((key: string) => {
       return mergedDefaults[key]
     }),

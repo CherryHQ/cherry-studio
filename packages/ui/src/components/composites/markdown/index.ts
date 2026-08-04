@@ -5,11 +5,11 @@
  * - `<StreamingMarkdown>` — token-by-token output with AST-stable per-id
  *   animation that does NOT re-fade already-rendered text on mid-stream
  *   structural changes.
- * - Plugin presets live at `@cherrystudio/ui/composites/markdown/presets`
- *   so math / Mermaid dependencies remain opt-in.
+ * - Plugin presets are exported from `@cherrystudio/ui` so math / Mermaid
+ *   dependencies remain opt-in at the call site.
  * - rehype plugins + sanitize schema — used by chat to ship its own
  *   pre-processing layer on top.
- * Side-effect styles: `import '@cherrystudio/ui/composites/markdown/styles'`
+ * Side-effect styles: `import '@cherrystudio/ui/components/composites/markdown/styles'`
  * once at app entry to pick up Streamdown / KaTeX / remark-alert CSS.
  */
 

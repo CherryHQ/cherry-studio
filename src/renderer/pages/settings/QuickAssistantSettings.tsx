@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonGroup,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -12,25 +11,33 @@ import {
   PopoverContent,
   PopoverTrigger,
   RowFlex,
+  SegmentedControl,
   Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { resolveDefaultAssistantOption, useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import type { Assistant } from '@renderer/types'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
@@ -45,33 +52,33 @@ const QuickAssistantSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { assistants } = useAssistants()
-  const { assistant: _defaultAssistant } = useDefaultAssistant()
+  const { assistants, hasLoaded: haveAssistantsLoaded } = useAssistants()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
-  const defaultAssistant = useMemo(
-    () => resolveDefaultAssistantOption(assistants, _defaultAssistant),
-    [assistants, _defaultAssistant]
-  )
-  const assistantOptions = useMemo(
-    () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
-    [assistants, defaultAssistant]
-  )
-  const selectedAssistantId = quickAssistantId === DEFAULT_ASSISTANT_ID ? defaultAssistant.id : quickAssistantId
-  const selectedAssistant =
-    assistantOptions.find((assistant) => assistant.id === selectedAssistantId) || defaultAssistant
+  const assistantOptions = assistants
+  const firstAssistantId = assistantOptions[0]?.id
+  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId)
+  const isAssistantMode = Boolean(quickAssistantId && (!haveAssistantsLoaded || selectedAssistant))
+
+  useEffect(() => {
+    if (haveAssistantsLoaded && quickAssistantId && !selectedAssistant) {
+      void setQuickAssistantId('')
+    }
+  }, [haveAssistantsLoaded, quickAssistantId, selectedAssistant, setQuickAssistantId])
+
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
+    setAssistantSelectOpen(false)
   }
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
     await setEnableQuickAssistant(enable)
 
-    void (!enable && window.api.quickAssistant.close())
+    void (!enable && ipcApi.request('quick_assistant.close'))
 
     if (enable && !clickTrayToShowQuickAssistant) {
-      window.toast.info({
+      toast.info({
         title: t('settings.quickAssistant.use_shortcut_to_show'),
         timeout: 4000,
         icon: <Info size={16} />
@@ -90,7 +97,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
     await setReadClipboardAtStartup(checked)
-    void window.api.quickAssistant.close()
+    void ipcApi.request('quick_assistant.close')
   }
 
   return (
@@ -140,7 +147,7 @@ const QuickAssistantSettings: FC = () => {
               />
             </SettingRowTitle>
             <RowFlex className="items-center gap-2.5">
-              {!quickAssistantId ? null : (
+              {!quickAssistantId || !selectedAssistant ? null : (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -150,7 +157,7 @@ const QuickAssistantSettings: FC = () => {
                         aria-expanded={assistantSelectOpen}>
                         <AssistantOption
                           assistant={selectedAssistant}
-                          defaultAssistantId={defaultAssistant.id}
+                          firstAssistantId={firstAssistantId}
                           defaultModel={defaultModel}
                         />
                         <ChevronDown size={16} className="shrink-0 opacity-50" />
@@ -178,10 +185,10 @@ const QuickAssistantSettings: FC = () => {
                                 }}>
                                 <AssistantOption
                                   assistant={assistant}
-                                  defaultAssistantId={defaultAssistant.id}
+                                  firstAssistantId={firstAssistantId}
                                   defaultModel={defaultModel}
                                 />
-                                {assistant.id === selectedAssistantId && (
+                                {assistant.id === quickAssistantId && (
                                   <Check size={14} className="ml-auto text-primary" />
                                 )}
                               </CommandItem>
@@ -193,22 +200,21 @@ const QuickAssistantSettings: FC = () => {
                   </Popover>
                 </RowFlex>
               )}
-              <ButtonGroup>
-                <Button
-                  className="min-w-20"
-                  variant={quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => {
-                    void setQuickAssistantId(defaultAssistant.id)
-                  }}>
-                  {t('settings.models.use_assistant')}
-                </Button>
-                <Button
-                  className="min-w-20"
-                  variant={!quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => void setQuickAssistantId('')}>
-                  {t('settings.models.use_model')}
-                </Button>
-              </ButtonGroup>
+              <SegmentedControl<'assistant' | 'model'>
+                size="sm"
+                value={isAssistantMode ? 'assistant' : 'model'}
+                options={[
+                  {
+                    value: 'assistant',
+                    label: t('settings.models.use_assistant'),
+                    disabled: assistantOptions.length === 0
+                  },
+                  { value: 'model', label: t('settings.models.use_model') }
+                ]}
+                onValueChange={(value) =>
+                  void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')
+                }
+              />
             </RowFlex>
           </SettingRow>
         </SettingGroup>
@@ -224,15 +230,15 @@ const QuickAssistantSettings: FC = () => {
 
 const AssistantOption = ({
   assistant,
-  defaultAssistantId,
+  firstAssistantId,
   defaultModel
 }: {
   assistant: Assistant
-  defaultAssistantId: string
+  firstAssistantId?: string
   defaultModel: Model | undefined
 }) => {
   const { t } = useTranslation()
-  const isDefault = assistant.id === defaultAssistantId
+  const isDefault = !!firstAssistantId && assistant.id === firstAssistantId
 
   return (
     <AssistantItem>
@@ -262,7 +268,7 @@ const DefaultTag = ({
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
   <span
-    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
+    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-tertiary', className)}
     {...props}
   />
 )

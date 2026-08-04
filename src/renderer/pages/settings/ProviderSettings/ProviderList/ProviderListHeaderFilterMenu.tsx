@@ -1,6 +1,6 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Check, Filter } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,7 @@ export default function ProviderListHeaderFilterMenu({
             size={triggerIconSize}
             className={cn(
               'shrink-0',
-              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground group-hover:text-foreground'
             )}
           />
         </button>

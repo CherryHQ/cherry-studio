@@ -1,325 +1,425 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import MarqueeText from '@renderer/components/MarqueeText'
-import { isMac } from '@renderer/config/constant'
+import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import type {
+  SessionActionContext,
+  SessionExportMenuOptions
+} from '@renderer/components/chat/actions/sessionItemActions'
+import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
+import {
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+  ResourceList,
+  useResourceListActions,
+  useResourceListRowState
+} from '@renderer/components/chat/resourceList/base'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useUpdateSession } from '@renderer/hooks/agents/useSession'
-import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { useTimer } from '@renderer/hooks/useTimer'
+import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { classNames } from '@renderer/utils'
-import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { cn } from '@renderer/utils/style'
+import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
-import { MenuIcon, PinIcon, PinOffIcon, XIcon } from 'lucide-react'
-import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { CircleAlert, Loader2, PinIcon, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { SessionLabel } from './SessionLabel'
-
-// const logger = loggerService.withContext('AgentItem')
+const DELETE_CONFIRMATION_TIMEOUT = 2000
 
 interface SessionItemProps {
-  session: AgentSessionEntity
+  active?: boolean
   channelType?: string
+  onDelete: (id: string) => void | Promise<void>
+  onOpenInNewTab?: (session: AgentSessionEntity) => void
+  onOpenInNewWindow?: (session: AgentSessionEntity) => void
+  onPress: (id: string) => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
+  onTogglePin?: (id: string) => void | Promise<unknown>
+  panePosition?: TopicTabPosition
   pinned?: boolean
-  onTogglePin?: () => void
-  onDelete: () => void
-  onPress: () => void
+  reserveLeadingIconSlot?: boolean
+  session: AgentSessionEntity
+  sessionMenuActions: SessionItemMenuActions
 }
 
-const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPress }: SessionItemProps) => {
+export interface SessionItemMenuActions {
+  exportMenuOptions: SessionExportMenuOptions
+  onAutoRename: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyImage: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyPlainText: (session: AgentSessionEntity) => void | Promise<void>
+  onExportImage: (session: AgentSessionEntity) => void | Promise<void>
+  onExportJoplin: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdownReason: (session: AgentSessionEntity) => void | Promise<void>
+  onExportNotion: (session: AgentSessionEntity) => void | Promise<void>
+  onExportObsidian: (session: AgentSessionEntity) => void | Promise<void>
+  onExportSiyuan: (session: AgentSessionEntity) => void | Promise<void>
+  onExportWord: (session: AgentSessionEntity) => void | Promise<void>
+  onExportYuque: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToKnowledge: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToNotes: (session: AgentSessionEntity) => void | Promise<void>
+}
+
+const SessionItem = ({
+  active = false,
+  channelType,
+  onDelete,
+  onOpenInNewTab,
+  onOpenInNewWindow,
+  onPress,
+  onSetPanePosition,
+  panePosition,
+  onTogglePin,
+  pinned = false,
+  reserveLeadingIconSlot = true,
+  session,
+  sessionMenuActions
+}: SessionItemProps) => {
   const { t } = useTranslation()
-  const [activeSessionId] = useCache('agent.active_session_id')
-  const { updateSession } = useUpdateSession(session.agentId)
-  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
-  const { setTimeoutTimer } = useTimer()
-
-  const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
-    onSave: async (value) => {
-      if (value !== session.name) {
-        await updateSession({ id: session.id, name: value })
-      }
-    }
-  })
-
-  const DeleteButton = () => {
-    return (
-      <Tooltip
-        placement="bottom"
-        delay={700}
-        content={
-          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-          </div>
-        }>
-        <MenuButton
-          className="menu"
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation()
-            if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
-              onDelete()
-            } else {
-              startTransition(() => {
-                setIsConfirmingDeletion(true)
-                setTimeoutTimer(
-                  'confirmDeletion',
-                  () => {
-                    setIsConfirmingDeletion(false)
-                  },
-                  3000
-                )
-              })
-            }
-          }}>
-          {isConfirmingDeletion ? (
-            <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
-          ) : (
-            <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
-          )}
-        </MenuButton>
-      </Tooltip>
-    )
-  }
-
-  const isActive = activeSessionId === session.id
-  const sessionTopicId = buildAgentSessionTopicId(session.id)
-  // `pending` (request sent, waiting for provider) and `streaming` (chunks
-  // flowing) both mean "busy" from the sidebar's perspective. If a future
-  // design wants to distinguish them (spinner vs pulse), split here.
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(sessionTopicId)
+  const rightPanelState = useOptionalRightPanelState()
+  const rightPanelActions = useOptionalRightPanelActions()
+  const actions = useResourceListActions()
+  const rowState = useResourceListRowState(session.id)
+  const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const isRenaming = renamingTopics.includes(sessionTopicId)
-  const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
+  const {
+    status,
+    awaitingApprovalAnchors,
+    isFulfilled: isStreamFulfilled,
+    isPending: isStreamPending,
+    markSeen
+  } = useTopicStreamStatus(topicId)
+  const channelIcon = getChannelTypeIcon(channelType)
+  const isActive = rowState.selected
+  const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
+  const isRenaming = renamingTopics?.includes(topicId) === true
+  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
+  const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
+  // A live stream can pause for tool approval without a status transition
+  // (anchors set mid-stream), while the MCP needsApproval path ends the stream
+  // with the terminal 'awaiting-approval' status — the badge must cover both.
+  // Unlike the completion dot, awaiting-approval is an ongoing state, so it
+  // stays on the selected row too (it only yields to hover actions).
+  const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
+  const isStreamErrored = status === 'error'
+  // The status overlay (spinner / red / green dot) sits at ONE fixed spot
+  // (right-1.5) on every row so the indicators line up. Running (spinner) and
+  // errored (red) are ongoing states that stay on the selected row too — only
+  // the completion dot (green) is a read-receipt that clears once the row is
+  // opened (`!isActive`). It yields to hover actions. While awaiting approval
+  // the pill alone is shown — no spinner: a paused turn is blocked, not
+  // running, so a spinner would send the opposite signal ("wait" vs "act").
+  const hasStreamIndicator =
+    (isStreamPending || isStreamErrored || (!isActive && isStreamFulfilled)) && !showAwaitingApprovalBadge
+  const showPinAction = !rowState.renaming && !!onTogglePin
+  const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
+  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
+
+  const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
+  const startMenuEdit = useCallback(() => setRenameDialogOpen(true), [])
+  const submitRenameDialog = useCallback(
+    (name: string) => actions.commitRename(session.id, name),
+    [actions, session.id]
+  )
+  const handleDelete = useCallback(() => {
+    void onDelete(session.id)
+  }, [onDelete, session.id])
+  const handleTogglePin = useCallback(() => {
+    void onTogglePin?.(session.id)
+  }, [onTogglePin, session.id])
+  const handleOpenInNewTab = useCallback(() => {
+    onOpenInNewTab?.(session)
+  }, [onOpenInNewTab, session])
+  const handleOpenInNewWindow = useCallback(() => {
+    onOpenInNewWindow?.(session)
+  }, [onOpenInNewWindow, session])
+
+  const actionContext = useMemo<SessionActionContext>(
+    () => ({
+      exportMenuOptions: sessionMenuActions.exportMenuOptions,
+      isActiveInCurrentTab: active,
+      isRenaming,
+      onAutoRename: () => sessionMenuActions.onAutoRename(session),
+      onCopyImage: () => sessionMenuActions.onCopyImage(session),
+      onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
+      onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
+      onDelete: handleDelete,
+      onExportImage: () => sessionMenuActions.onExportImage(session),
+      onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
+      onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
+      onExportMarkdownReason: () => sessionMenuActions.onExportMarkdownReason(session),
+      onExportNotion: () => sessionMenuActions.onExportNotion(session),
+      onExportObsidian: () => sessionMenuActions.onExportObsidian(session),
+      onExportSiyuan: () => sessionMenuActions.onExportSiyuan(session),
+      onExportWord: () => sessionMenuActions.onExportWord(session),
+      onExportYuque: () => sessionMenuActions.onExportYuque(session),
+      onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
+      onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
+      onSaveToKnowledge: () => sessionMenuActions.onSaveToKnowledge(session),
+      onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
+      onSetPanePosition,
+      onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      panePosition,
+      pinned,
+      sessionName,
+      startEdit: startMenuEdit,
+      t
+    }),
+    [
+      handleDelete,
+      handleOpenInNewTab,
+      handleOpenInNewWindow,
+      handleTogglePin,
+      active,
+      isRenaming,
+      onOpenInNewTab,
+      onOpenInNewWindow,
+      onSetPanePosition,
+      onTogglePin,
+      panePosition,
+      pinned,
+      session,
+      sessionMenuActions,
+      sessionName,
+      startMenuEdit,
+      t
+    ]
+  )
+
+  const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
+
+  const clearDeleteConfirmationTimeout = useCallback(() => {
+    if (deleteConfirmationTimeoutRef.current === null) return
+    window.clearTimeout(deleteConfirmationTimeoutRef.current)
+    deleteConfirmationTimeoutRef.current = null
+  }, [])
+
+  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
+
+  const handleDeleteClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation()
+
+      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
+        clearDeleteConfirmationTimeout()
+        setIsConfirmingDeletion(false)
+        handleDelete()
+        return
+      }
+
+      startTransition(() => {
+        clearDeleteConfirmationTimeout()
+        setIsConfirmingDeletion(true)
+        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
+          deleteConfirmationTimeoutRef.current = null
+          setIsConfirmingDeletion(false)
+        }, DELETE_CONFIRMATION_TIMEOUT)
+      })
+    },
+    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
+  )
+
+  const handlePress = useCallback(
+    (event: MouseEvent) => {
+      // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching the hover action.
+      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !active) {
+        handleOpenInNewTab()
+        return
+      }
+      if (rightPanelState?.maximized) rightPanelActions?.minimize()
+      onPress(session.id)
+    },
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, rightPanelActions, rightPanelState?.maximized, session.id]
+  )
+
+  const handleAuxClick = useCallback(
+    (event: MouseEvent) => {
+      // Middle-click opens in a new tab.
+      if (event.button !== 1 || !onOpenInNewTab || active) return
+      event.preventDefault()
+      handleOpenInNewTab()
+    },
+    [active, handleOpenInNewTab, onOpenInNewTab]
+  )
+
+  const handleTogglePinClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation()
+      handleTogglePin()
+    },
+    [handleTogglePin]
+  )
 
   useEffect(() => {
-    // Mark the fulfilled badge as consumed when the user opens the
-    // session — the shared stream status stays `done` globally, but each
-    // window tracks its own "already seen" flag.
-    if (isFulfilled && activeSessionId === session.id) {
-      markSeen()
-    }
-  }, [activeSessionId, isFulfilled, markSeen, session.id])
+    if (!isActive || !isStreamFulfilled) return
+    markSeen()
+  }, [isActive, isStreamFulfilled, markSeen])
 
-  const channelIcon = getChannelTypeIcon(channelType)
+  const row = (
+    <ResourceList.Item
+      item={session}
+      data-testid="agent-session-row"
+      className="relative"
+      style={{ cursor: 'pointer' }}
+      onClick={handlePress}
+      onAuxClick={handleAuxClick}
+      title={sessionName}>
+      {showLeadingSlot && (
+        <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
+          {!rowState.renaming && channelIcon ? (
+            <img
+              src={channelIcon}
+              alt=""
+              className="pointer-events-none absolute inset-0 m-auto size-3.5 rounded-[2px] object-contain transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0"
+            />
+          ) : null}
+        </ResourceList.ItemLeadingSlot>
+      )}
 
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-  const singlealone = topicPosition === 'right'
+      <ResourceList.RenameField
+        item={session}
+        aria-label={t('agent.session.edit.title')}
+        autoFocus
+        onClick={(event) => event.stopPropagation()}
+      />
 
-  const menuItems: MenuProps['items'] = useMemo(
-    () => [
-      {
-        label: t('common.rename'),
-        key: 'rename',
-        icon: <EditIcon size={14} />,
-        onClick: () => startEdit(session.name ?? '')
-      },
-      ...(onTogglePin
-        ? [
-            {
-              label: pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
-              key: 'pin',
-              icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
-              onClick: () => onTogglePin()
-            }
-          ]
-        : []),
-      {
-        label: t('settings.topic.position.label'),
-        key: 'topic-position',
-        icon: <MenuIcon size={14} />,
-        children: [
-          {
-            label: t('settings.topic.position.left'),
-            key: 'left',
-            onClick: () => setTopicPosition('left')
-          },
-          {
-            label: t('settings.topic.position.right'),
-            key: 'right',
-            onClick: () => setTopicPosition('right')
-          }
-        ]
-      },
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteIcon size={14} className="lucide-custom" />,
-        danger: true,
-        onClick: () => {
-          onDelete()
-        }
-      }
-    ],
-    [onDelete, onTogglePin, pinned, session.name, setTopicPosition, startEdit, t]
+      {!rowState.renaming && (
+        <ResourceList.ItemTitle
+          title={sessionName}
+          className={cn(
+            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
+            nameAnimationClassName,
+            RESOURCE_LIST_TITLE_FADE_CLASS,
+            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            // The stream indicator is an absolute overlay (keeps no flex space),
+            // so the title needs a standing yield for its dot zone; on hover the
+            // overlay fades out and the actions (pin + delete) take over via
+            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin. The
+            // awaiting-approval pill (mutually exclusive with the overlay) is an
+            // in-flow sibling the title simply fades against — no standing margin.
+            hasStreamIndicator && 'mr-7'
+          )}
+          onDoubleClick={(event) => {
+            event.stopPropagation()
+            startInlineEdit()
+          }}>
+          {sessionName}
+        </ResourceList.ItemTitle>
+      )}
+
+      {!rowState.renaming && showAwaitingApprovalBadge && (
+        // Paused-state label, shown alone (no spinner): a turn paused on an
+        // approval is blocked, not running, and the pill already says "act". It
+        // is in-flow so the title fades against it, and collapses on hover /
+        // focus / delete-confirm so the pin + delete actions take over. Warning
+        // tint matches the composer's approval pill; max-w-28 fits the en label,
+        // longer locales truncate rather than eat the title.
+        <span
+          data-testid="agent-session-awaiting-approval-badge"
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          {t('agent.toolPermission.pendingBadge')}
+        </span>
+      )}
+
+      {hasStreamIndicator && (
+        <SessionStreamIndicator
+          isErrored={isStreamErrored}
+          isFulfilled={isStreamFulfilled}
+          isPending={isStreamPending}
+        />
+      )}
+
+      <ResourceList.ItemActions active={isConfirmingDeletion}>
+        {showPinAction && (
+          <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
+              className={cn(pinned && 'text-foreground')}
+              onClick={handleTogglePinClick}>
+              <PinIcon size={13} className={cn('size-3.25!', pinned && '-rotate-45')} />
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
+        {!pinned && (
+          <Tooltip title={t('common.delete')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={t('common.delete')}
+              data-deleting={isConfirmingDeletion}
+              onClick={handleDeleteClick}>
+              {isConfirmingDeletion ? (
+                <Trash2 size={14} className="size-3.5! text-destructive" />
+              ) : (
+                <XIcon size={14} className="size-3.5!" />
+              )}
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
+      </ResourceList.ItemActions>
+    </ResourceList.Item>
   )
 
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <SessionListItem
-        className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-        onClick={isEditing ? undefined : onPress}
-        onDoubleClick={() => startEdit(session.name ?? '')}
-        title={session.name ?? session.id}
-        style={{
-          borderRadius: 'var(--list-item-border-radius)',
-          cursor: isEditing ? 'default' : 'pointer'
-        }}>
-        {isPending && !isActive && <PendingIndicator />}
-        {isFulfilled && !isActive && <FulfilledIndicator />}
-        <SessionNameContainer>
-          {isEditing ? (
-            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
-          ) : (
-            <>
-              <SessionName>
-                {channelIcon && <ChannelIconImg src={channelIcon} />}
-                <MarqueeText className="flex min-w-0 flex-1">
-                  <SessionLabel
-                    session={session}
-                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                  />
-                </MarqueeText>
-              </SessionName>
-              <DeleteButton />
-            </>
-          )}
-        </SessionNameContainer>
-      </SessionListItem>
-    </Dropdown>
+    <>
+      <ResourceListActionContextMenu item={session} getActions={getMenuActions} onAction={handleMenuAction}>
+        {row}
+      </ResourceListActionContextMenu>
+      <EditNameDialog
+        open={renameDialogOpen}
+        title={t('agent.session.edit.title')}
+        initialName={session.name ?? ''}
+        onSubmit={submitRenameDialog}
+        onOpenChange={setRenameDialogOpen}
+      />
+    </>
   )
 }
 
-const SessionListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+const SessionStreamIndicator = ({
+  isErrored,
+  isFulfilled,
+  isPending
+}: {
+  isErrored: boolean
+  isFulfilled: boolean
+  isPending: boolean
+}) => {
+  const { t } = useTranslation()
 
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
+  if (!isPending && !isFulfilled && !isErrored) return null
 
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
+  const statusLabel = isPending
+    ? t('message.tools.status.running')
+    : isErrored
+      ? t('message.tools.status.error')
+      : t('message.tools.status.done')
 
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-
-  &.singlealone {
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      background-color: var(--color-background-mute);
-      box-shadow: none;
-    }
-  }
-`
-
-const SessionNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
-
-const SessionName = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-  min-width: 0;
-`
-
-const ChannelIconImg = styled.img`
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 2px;
-  object-fit: contain;
-`
-
-const SessionEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
+  return (
+    // Absolute overlay at the actions' resting spot: it fades out on hover /
+    // focus / delete-confirm so the pin + delete buttons take its place (the
+    // dot/spinner and the actions are mutually exclusive, never side by side).
+    <span
+      aria-label={statusLabel}
+      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
+      data-testid="agent-session-stream-indicator"
+      role="img">
+      {isPending ? (
+        // A spinner reads as "running", where the old pulsing amber dot looked
+        // like a warning. Error uses a distinct icon instead of relying on
+        // red/green color alone; completion remains a green read-receipt dot.
+        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
+      ) : isErrored ? (
+        <CircleAlert aria-hidden="true" className="size-3 text-error" />
+      ) : (
+        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
+      )}
+    </span>
+  )
+}
 
 export default memo(SessionItem)

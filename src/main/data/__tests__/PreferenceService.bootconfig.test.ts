@@ -121,14 +121,18 @@ describe('PreferenceService BootConfig routing', () => {
     })
 
     it('does not call bootConfigService for preference keys', async () => {
-      const mockTx = {
+      // set() writes a single preference row via getDb() directly (one autocommit
+      // UPDATE), so it no longer wraps withWriteTx — stub getDb, not withWriteTx.
+      const mockDb = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockGetDb.mockReturnValue(mockDb)
 
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
@@ -143,11 +147,13 @@ describe('PreferenceService BootConfig routing', () => {
       const mockTx = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockWithWriteTx.mockImplementation((fn: any) => fn(mockTx))
 
       await service.setMultiple({
         [BOOT_CONFIG_KEY]: true,
@@ -166,6 +172,26 @@ describe('PreferenceService BootConfig routing', () => {
       })
 
       expect(mockBootConfigSet).not.toHaveBeenCalled()
+    })
+
+    it('rejects the batch and skips the preference transaction when bootConfigService.set throws', async () => {
+      // Value validation is owned by bootConfigService.set() (throws before any
+      // state change). The bootConfig loop runs before the preference DB
+      // transaction, so a schema-invalid value rejects the batch with the
+      // preference part unwritten.
+      mockBootConfigGet.mockReturnValue(false)
+      mockBootConfigSet.mockImplementationOnce(() => {
+        throw new Error('Invalid boot config value for "app.disable_hardware_acceleration"')
+      })
+
+      await expect(
+        service.setMultiple({
+          [BOOT_CONFIG_KEY]: true,
+          [PREFERENCE_KEY]: 'en-US'
+        })
+      ).rejects.toThrow(/Invalid boot config value/)
+
+      expect(mockWithWriteTx).not.toHaveBeenCalled()
     })
   })
 
@@ -190,6 +216,58 @@ describe('PreferenceService BootConfig routing', () => {
 
       expect(result[BOOT_CONFIG_KEY]).toBe(true)
       expect(result[PREFERENCE_KEY]).toBe(DefaultPreferences.default[PREFERENCE_KEY])
+    })
+  })
+
+  describe('internal boot config key isolation', () => {
+    const INTERNAL_KEY = 'BootConfig.temp.user_data_relocation'
+    const UNKNOWN_KEY = 'BootConfig.foo.does_not_exist'
+
+    it('get() rejects internal and unknown BootConfig keys without reading them', () => {
+      expect(() => service.get(INTERNAL_KEY)).toThrow(/not accessible/)
+      expect(() => service.get(UNKNOWN_KEY)).toThrow(/not accessible/)
+      expect(mockBootConfigGet).not.toHaveBeenCalled()
+    })
+
+    it('set() rejects an internal key before any write', async () => {
+      await expect(service.set(INTERNAL_KEY, { status: 'pending' })).rejects.toThrow(/not accessible/)
+      expect(mockBootConfigSet).not.toHaveBeenCalled()
+    })
+
+    it('getMultipleRaw() rejects the whole batch if any key is internal', () => {
+      expect(() => service.getMultipleRaw([BOOT_CONFIG_KEY, INTERNAL_KEY])).toThrow(/not accessible/)
+    })
+
+    it('subscribeForWindow() rejects an internal key and registers nothing', () => {
+      expect(() => service.subscribeForWindow(1, [INTERNAL_KEY])).toThrow(/not accessible/)
+      expect(service.getSubscriptions().size).toBe(0)
+    })
+
+    it('setMultiple() rejects a mixed batch before any partial write', async () => {
+      mockBootConfigGet.mockReturnValue(false)
+
+      await expect(
+        service.setMultiple({
+          [BOOT_CONFIG_KEY]: true,
+          [INTERNAL_KEY]: { status: 'pending' }
+        })
+      ).rejects.toThrow(/not accessible/)
+
+      // Neither the BootConfig write nor the DB transaction must have run.
+      expect(mockBootConfigSet).not.toHaveBeenCalled()
+      expect(mockWithWriteTx).not.toHaveBeenCalled()
+    })
+
+    it('getAll() excludes internal keys from the merged result', () => {
+      mockBootConfigGetAll.mockReturnValue({
+        'app.disable_hardware_acceleration': true,
+        'temp.user_data_relocation': { status: 'pending' }
+      })
+
+      const result = service.getAll()
+
+      expect(result[BOOT_CONFIG_KEY]).toBe(true)
+      expect(INTERNAL_KEY in result).toBe(false)
     })
   })
 })

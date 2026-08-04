@@ -1,15 +1,15 @@
-import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -69,8 +69,7 @@ describe('KnowledgeItemService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
   })
 
@@ -80,7 +79,7 @@ describe('KnowledgeItemService', () => {
       groupId: null,
       type: 'note',
       data: { source: 'seed-note', content: 'hello world' },
-      status: 'idle',
+      status: 'processing',
       error: null,
       ...overrides
     }
@@ -97,13 +96,13 @@ describe('KnowledgeItemService', () => {
   }
 
   describe('list', () => {
-    it('returns paginated items for a knowledge base', async () => {
+    it('returns items for a knowledge base', async () => {
       await seedItem()
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
       expect(result.items[0]).toMatchObject({
         baseId: KNOWLEDGE_BASE_ID,
         type: 'note',
@@ -111,24 +110,109 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('paginates with a cursor across pages without overlap', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 3000, data: { source: 'c', content: 'c' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: NOTE_1_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const first = service.list(KNOWLEDGE_BASE_ID, { limit: 2 })
+
+      expect(first.total).toBe(3)
+      // Newest first: createdAt DESC.
+      expect(first.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+      expect(first.nextCursor).toBeDefined()
+
+      const second = service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor: first.nextCursor })
+
+      expect(second.total).toBe(3)
+      expect(second.items.map((item) => item.id)).toEqual([NOTE_1_ID])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('lists directories before files across page boundaries', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        createdAt: 1000,
+        data: { source: '/older-directory' }
+      })
+      await seedItem({
+        id: DIR_B_ID,
+        type: 'directory',
+        createdAt: 2000,
+        data: { source: '/newer-directory' }
+      })
+      await seedItem({ id: ITEM_1_ID, type: 'file', createdAt: 4000, data: createFileItemData(ITEM_1_ID) })
+      await seedItem({ id: ITEM_2_ID, type: 'file', createdAt: 3000, data: createFileItemData(ITEM_2_ID) })
+
+      const first = service.list(KNOWLEDGE_BASE_ID, { limit: 2 })
+      const second = service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor: first.nextCursor })
+
+      expect(first.items.map((item) => item.id)).toEqual([DIR_B_ID, DIR_A_ID])
+      expect(second.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+      expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('tiebreaks rows sharing a createdAt by id without overlap or gaps', async () => {
+      // All four share a createdAt, so only the `id ASC` tiebreaker separates them — and the
+      // page boundary lands *inside* that equal-createdAt run. `createdAt = Date.now()` makes
+      // millisecond collisions common, so this is exactly where a wrong keyset duplicates or
+      // skips a row. A small limit forces several boundaries through the tied run.
+      const ids = [itemId('7d70'), itemId('7d71'), itemId('7d72'), itemId('7d73')]
+      for (const id of ids) {
+        await seedItem({ id, createdAt: 5000, data: { source: id, content: id } })
+      }
+
+      const seen: string[] = []
+      const pageSizes: number[] = []
+      let lastNextCursor: string | undefined
+      let cursor: string | undefined
+      for (let guard = 0; guard < 10; guard++) {
+        const page = service.list(KNOWLEDGE_BASE_ID, { limit: 2, cursor })
+        expect(page.total).toBe(4)
+        seen.push(...page.items.map((item) => item.id))
+        pageSizes.push(page.items.length)
+        lastNextCursor = page.nextCursor
+        if (!page.nextCursor) break
+        cursor = page.nextCursor
+      }
+
+      // Exactly once each: no overlap (a cursor re-emitting a row) and no gap (a cursor
+      // skipping one). Within an equal createdAt the order is id ASC.
+      expect(seen).toEqual([...ids].sort())
+      // The 4 rows divide evenly into pages of `limit` (2), so the final page holds exactly `limit`
+      // rows yet must still report no next cursor — the limit+1 probe finds no row past the boundary.
+      expect(pageSizes).toEqual([2, 2])
+      expect(lastNextCursor).toBeUndefined()
+    })
+
+    it('falls back to the first page when the cursor is malformed', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 1000, data: { source: 'a', content: 'a' } })
+
+      const result = service.list(KNOWLEDGE_BASE_ID, { limit: 20, cursor: 'not-a-valid-cursor' })
+
+      expect(result.items.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
+    })
+
     it('filters items by type and group', async () => {
-      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
-      await seedItem({ id: DIR_B_ID, type: 'directory', data: { source: '/b', path: '/b' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
+      await seedItem({ id: DIR_B_ID, type: 'directory', data: { source: '/b' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: NOTE_1_ID, content: 'n1' } })
 
-      const directories = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, type: 'directory' })
-      const grouped = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: DIR_A_ID })
+      const directories = service.list(KNOWLEDGE_BASE_ID, { limit: 20, type: 'directory' })
+      const grouped = service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: DIR_A_ID })
 
       expect(directories.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, DIR_B_ID])
       expect(grouped.items.map((item) => item.id)).toEqual([NOTE_1_ID])
     })
 
     it('filters root items when groupId is null', async () => {
-      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root', content: 'root' } })
       await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: 'child', content: 'child' } })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: null })
+      const result = service.list(KNOWLEDGE_BASE_ID, { limit: 20, groupId: null })
 
       expect(result.total).toBe(2)
       expect(result.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, NOTE_ROOT_ID])
@@ -138,7 +222,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
       await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
 
-      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+      const result = service.list(KNOWLEDGE_BASE_ID, { limit: 20 })
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
@@ -160,7 +244,7 @@ describe('KnowledgeItemService', () => {
         updatedAt: 10
       })
 
-      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
 
       expect(result.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
       expect(result[0]).toMatchObject({
@@ -169,7 +253,7 @@ describe('KnowledgeItemService', () => {
         groupId: null,
         type: 'note',
         data: { source: ITEM_1_ID, content: 'item 1' },
-        status: 'idle',
+        status: 'processing',
         error: null
       })
     })
@@ -195,7 +279,7 @@ describe('KnowledgeItemService', () => {
         updatedAt: 15
       })
 
-      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: null })
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: null })
 
       expect(result.map((item) => item.id)).toEqual([ROOT_1_ID, ROOT_2_ID])
     })
@@ -204,17 +288,17 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: ROOT_1_ID, data: { source: ROOT_1_ID, content: 'root 1' } })
       await seedItem({ id: CHILD_1_ID, groupId: ROOT_1_ID, data: { source: CHILD_1_ID, content: 'child 1' } })
 
-      const result = await service.getRootItemsByBaseId(KNOWLEDGE_BASE_ID)
+      const result = service.getRootItemsByBaseId(KNOWLEDGE_BASE_ID)
 
       expect(result.map((item) => item.id)).toEqual([ROOT_1_ID])
     })
 
     it('collapses selected descendants to their outermost selected roots', async () => {
-      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
       await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
 
-      const result = await service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [
+      const result = service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [
         DIR_A_ID,
         NOTE_A_ID,
         NOTE_ROOT_ID,
@@ -225,11 +309,11 @@ describe('KnowledgeItemService', () => {
     })
 
     it('filters items by group id', async () => {
-      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
       await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
 
-      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: DIR_A_ID })
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: DIR_A_ID })
 
       expect(result.map((item) => item.id)).toEqual([NOTE_A_ID])
     })
@@ -238,13 +322,19 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
       await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
 
-      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
 
       expect(result.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
 
-    it('throws NotFound when listing items for a missing base', async () => {
-      await expect(service.getItemsByBaseId('missing')).rejects.toMatchObject({
+    it('throws NotFound when listing items for a missing base', () => {
+      let err: unknown
+      try {
+        service.getItemsByBaseId('missing')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -257,7 +347,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: 'deleting-dir',
         type: 'directory',
-        data: { source: '/deleting-dir', path: '/deleting-dir' },
+        data: { source: '/deleting-dir' },
         status: 'deleting'
       })
       await seedItem({
@@ -269,7 +359,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: 'visible-dir',
         type: 'directory',
-        data: { source: '/visible-dir', path: '/visible-dir' },
+        data: { source: '/visible-dir' },
         status: 'completed'
       })
       await seedItem({
@@ -287,8 +377,7 @@ describe('KnowledgeItemService', () => {
         status: 'completed',
         error: null,
         chunkSize: 1024,
-        chunkOverlap: 200,
-        searchMode: 'hybrid'
+        chunkOverlap: 200
       })
       await seedItem({
         id: 'kb-2-deleting-root',
@@ -297,7 +386,7 @@ describe('KnowledgeItemService', () => {
         status: 'deleting'
       })
 
-      await expect(service.getDeletingRootGroups()).resolves.toEqual([
+      expect(service.getDeletingRootGroups()).toEqual([
         {
           baseId: KNOWLEDGE_BASE_ID,
           rootItemIds: ['deleting-child-of-visible', 'deleting-dir', 'deleting-root-note']
@@ -310,29 +399,107 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('create', () => {
-    it('creates one knowledge item as idle', async () => {
-      const item: CreateKnowledgeItemDto = {
-        type: 'directory',
-        data: { source: '/tmp/files', path: '/tmp/files' }
+  describe('failInterruptedItems', () => {
+    const INTERRUPTED = 'Indexing interrupted; reindex to finish.'
+    const PREPARING_DIR = itemId('7e00')
+    const PROCESSING_DIR = itemId('7e01')
+    const READING_LEAF = itemId('7e02')
+    const EMBEDDING_LEAF = itemId('7e03')
+    const PROCESSING_LEAF = itemId('7e04')
+    const IDLE_LEAF = itemId('7e05')
+    const COMPLETED_LEAF = itemId('7e06')
+    const FAILED_LEAF = itemId('7e07')
+    const DELETING_LEAF = itemId('7e08')
+
+    it('marks every in-flight item (leaves and containers) failed, leaving terminal/idle/deleting untouched', async () => {
+      // In-flight: a container mid-expansion, a container with an in-flight child, and standalone leaves.
+      await seedItem({ id: PREPARING_DIR, type: 'directory', data: { source: '/p' }, status: 'preparing' })
+      await seedItem({ id: PROCESSING_DIR, type: 'directory', data: { source: '/q' }, status: 'processing' })
+      await seedItem({
+        id: READING_LEAF,
+        groupId: PROCESSING_DIR,
+        data: { source: 'r', content: 'r' },
+        status: 'reading'
+      })
+      await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
+      await seedItem({ id: PROCESSING_LEAF, data: { source: 'p2', content: 'p2' }, status: 'processing' })
+
+      // Untouched: not started, already terminal, or being deleted.
+      await seedItem({ id: IDLE_LEAF, data: { source: 'i', content: 'i' }, status: 'idle' })
+      await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
+      await seedItem({ id: FAILED_LEAF, data: { source: 'f', content: 'f' }, status: 'failed', error: 'real failure' })
+      await seedItem({ id: DELETING_LEAF, data: { source: 'd', content: 'd' }, status: 'deleting' })
+
+      const count = service.failInterruptedItems(INTERRUPTED)
+      expect(count).toBe(5)
+
+      for (const id of [PREPARING_DIR, PROCESSING_DIR, READING_LEAF, EMBEDDING_LEAF, PROCESSING_LEAF]) {
+        const item = service.getById(id)
+        expect(item.status).toBe('failed')
+        expect(item.error).toBe(INTERRUPTED)
       }
 
-      const result = await service.create(KNOWLEDGE_BASE_ID, item)
+      expect(service.getById(IDLE_LEAF).status).toBe('idle')
+      expect(service.getById(COMPLETED_LEAF).status).toBe('completed')
+      const realFailure = service.getById(FAILED_LEAF)
+      expect(realFailure.status).toBe('failed')
+      expect(realFailure.error).toBe('real failure')
+      expect(service.getById(DELETING_LEAF).status).toBe('deleting')
+    })
+
+    it('returns 0 when nothing is in flight', async () => {
+      await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
+      expect(service.failInterruptedItems(INTERRUPTED)).toBe(0)
+    })
+
+    it('rejects a blank failure reason', async () => {
+      await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
+      expect(() => service.failInterruptedItems('   ')).toThrow()
+      expect(service.getById(EMBEDDING_LEAF).status).toBe('embedding')
+    })
+  })
+
+  describe('create', () => {
+    it('creates a directory item as preparing', async () => {
+      const item: CreateKnowledgeItemDto = {
+        type: 'directory',
+        data: { source: '/tmp/files' }
+      }
+
+      const result = service.createActive(KNOWLEDGE_BASE_ID, item)
 
       expect(result).toMatchObject({
         baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'directory',
-        status: 'idle',
+        status: 'preparing',
+        error: null,
+        data: item.data
+      })
+    })
+
+    it('creates a leaf item as processing', async () => {
+      const item: CreateKnowledgeItemDto = {
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      }
+
+      const result = service.createActive(KNOWLEDGE_BASE_ID, item)
+
+      expect(result).toMatchObject({
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type: 'note',
+        status: 'processing',
         error: null,
         data: item.data
       })
     })
 
     it('accepts a group owner in the same base', async () => {
-      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
 
-      const result = await service.create(KNOWLEDGE_BASE_ID, {
+      const result = service.createActive(KNOWLEDGE_BASE_ID, {
         groupId: DIR_A_ID,
         type: 'note',
         data: { source: 'new grouped note', content: 'new grouped note' }
@@ -349,17 +516,21 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_A_ID,
         type: 'directory',
-        data: { source: '/a', path: '/a' },
+        data: { source: '/a' },
         status: 'deleting'
       })
 
-      await expect(
-        service.create(KNOWLEDGE_BASE_ID, {
+      let err: unknown
+      try {
+        service.createActive(KNOWLEDGE_BASE_ID, {
           groupId: DIR_A_ID,
           type: 'note',
           data: { source: 'child note', content: 'child note' }
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -372,13 +543,17 @@ describe('KnowledgeItemService', () => {
     it('rejects leaf items as group owners', async () => {
       await seedItem({ id: NOTE_OWNER_ID, type: 'note', data: { source: 'owner', content: 'owner' } })
 
-      await expect(
-        service.create(KNOWLEDGE_BASE_ID, {
+      let err: unknown
+      try {
+        service.createActive(KNOWLEDGE_BASE_ID, {
           groupId: NOTE_OWNER_ID,
           type: 'note',
           data: { source: 'child note', content: 'child note' }
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -389,13 +564,17 @@ describe('KnowledgeItemService', () => {
     })
 
     it('rejects blank group owner ids before hitting foreign key constraints', async () => {
-      await expect(
-        service.create(KNOWLEDGE_BASE_ID, {
+      let err: unknown
+      try {
+        service.createActive(KNOWLEDGE_BASE_ID, {
           groupId: '   ',
           type: 'note',
           data: { source: 'child note', content: 'child note' }
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -405,21 +584,29 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('translates missing base and missing group owner constraints', async () => {
-      await expect(
-        service.create('missing-base', { type: 'note', data: { source: 'note', content: 'note' } })
-      ).rejects.toMatchObject({
+    it('translates missing base and missing group owner constraints', () => {
+      let missingBaseErr: unknown
+      try {
+        service.createActive('missing-base', { type: 'note', data: { source: 'note', content: 'note' } })
+      } catch (e) {
+        missingBaseErr = e
+      }
+      expect(missingBaseErr).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
 
-      await expect(
-        service.create(KNOWLEDGE_BASE_ID, {
+      let missingOwnerErr: unknown
+      try {
+        service.createActive(KNOWLEDGE_BASE_ID, {
           groupId: 'missing-owner',
           type: 'note',
           data: { source: 'child note', content: 'child note' }
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        missingOwnerErr = e
+      }
+      expect(missingOwnerErr).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -470,7 +657,7 @@ describe('KnowledgeItemService', () => {
           baseId: KNOWLEDGE_BASE_ID,
           groupId: null,
           type: 'directory',
-          data: { source: '/docs', path: '/docs' },
+          data: { source: '/docs' },
           status: 'reading',
           error: null
         })
@@ -478,7 +665,7 @@ describe('KnowledgeItemService', () => {
     })
 
     it('creates a file knowledge item with a copied relative path', async () => {
-      const result = await service.create(KNOWLEDGE_BASE_ID, {
+      const result = service.createActive(KNOWLEDGE_BASE_ID, {
         type: 'file',
         data: {
           source: '/docs/a.md',
@@ -493,8 +680,6 @@ describe('KnowledgeItemService', () => {
           relativePath: 'a.md'
         }
       })
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, result.id))
-      expect(refs).toHaveLength(0)
     })
   })
 
@@ -502,7 +687,7 @@ describe('KnowledgeItemService', () => {
     it('returns a knowledge item by id', async () => {
       const seeded = await seedItem({ data: { source: 'stored note', content: 'stored note' } })
 
-      const result = await service.getById(seeded.id)
+      const result = service.getById(seeded.id)
 
       expect(result).toMatchObject({
         id: seeded.id,
@@ -510,8 +695,14 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('throws NotFound when the knowledge item does not exist', async () => {
-      await expect(service.getById('missing')).rejects.toMatchObject({
+    it('throws NotFound when the knowledge item does not exist', () => {
+      let err: unknown
+      try {
+        service.getById('missing')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -520,12 +711,12 @@ describe('KnowledgeItemService', () => {
 
   describe('getSubtreeItems', () => {
     it('returns only leaf knowledge items in the requested subtrees when leafOnly is true', async () => {
-      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/root/child', path: '/root/child' }
+        data: { source: '/root/child' }
       })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -541,7 +732,7 @@ describe('KnowledgeItemService', () => {
       })
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root note', content: 'root note' } })
 
-      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
         includeRoots: true,
         leafOnly: true
       })
@@ -567,12 +758,12 @@ describe('KnowledgeItemService', () => {
     })
 
     it('returns every descendant in the requested subtrees without roots by default', async () => {
-      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/root/child', path: '/root/child' }
+        data: { source: '/root/child' }
       })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -586,23 +777,18 @@ describe('KnowledgeItemService', () => {
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [
-        DIR_ROOT_ID,
-        DIR_CHILD_ID,
-        NOTE_ROOT_ID,
-        'missing'
-      ])
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, DIR_CHILD_ID, NOTE_ROOT_ID, 'missing'])
 
       expect(result.map((item) => item.id).sort()).toEqual([FILE_CHILD_ID])
     })
 
     it('returns every descendant in the requested subtrees plus the roots themselves when includeRoots is true', async () => {
-      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/root/child', path: '/root/child' }
+        data: { source: '/root/child' }
       })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -616,7 +802,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
         includeRoots: true
       })
 
@@ -624,12 +810,12 @@ describe('KnowledgeItemService', () => {
     })
 
     it('deduplicates when an ancestor and its descendant are both passed as roots', async () => {
-      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/root/child', path: '/root/child' }
+        data: { source: '/root/child' }
       })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -638,7 +824,7 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData(FILE_CHILD_ID)
       })
 
-      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, DIR_CHILD_ID], {
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, DIR_CHILD_ID], {
         includeRoots: true
       })
 
@@ -646,7 +832,7 @@ describe('KnowledgeItemService', () => {
     })
 
     it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
-      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: FILE_CHILD_ID,
         groupId: DIR_ROOT_ID,
@@ -658,7 +844,7 @@ describe('KnowledgeItemService', () => {
       const selectSpy = vi.spyOn(dbh.db, 'select')
 
       try {
-        const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
+        const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
 
         expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
         expect(allSpy).toHaveBeenCalledTimes(1)
@@ -669,8 +855,8 @@ describe('KnowledgeItemService', () => {
       }
     })
 
-    it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [])).resolves.toEqual([])
+    it('returns an empty list when no roots are provided', () => {
+      expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [])).toEqual([])
     })
   })
 
@@ -680,11 +866,15 @@ describe('KnowledgeItemService', () => {
       return row
     }
 
+    it('exposes only deleting through the transaction-scoped API', () => {
+      expectTypeOf<Parameters<KnowledgeItemService['setSubtreeStatusTx']>[3]>().toEqualTypeOf<'deleting'>()
+    })
+
     it('does not overwrite deleting items when marking a subtree failed', async () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -700,9 +890,9 @@ describe('KnowledgeItemService', () => {
         status: 'deleting'
       })
 
-      await expect(
-        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'failed', { error: 'enqueue failed' })
-      ).resolves.toEqual([DIR_ROOT_ID, COMPLETED_CHILD_ID])
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'failed', { error: 'enqueue failed' })).toEqual(
+        [DIR_ROOT_ID, COMPLETED_CHILD_ID]
+      )
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
       await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({
         status: 'failed',
@@ -715,7 +905,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -726,14 +916,28 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await expect(
-        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'failed', { error: 'enqueue failed' })
-      ).resolves.toEqual([NOTE_1_ID])
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'failed', { error: 'enqueue failed' })).toEqual([
+        NOTE_1_ID
+      ])
       await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         status: 'failed',
         error: 'One or more child items failed'
       })
+    })
+
+    it('marks a subtree deleting', async () => {
+      await seedItem({ id: NOTE_1_ID, data: { source: 'note', content: 'note' }, status: 'processing' })
+
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'deleting')).toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('is a no-op to mark an already-deleting subtree deleting again', async () => {
+      await seedItem({ id: NOTE_1_ID, data: { source: 'note', content: 'note' }, status: 'deleting' })
+
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'deleting')).toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
     })
   })
 
@@ -746,7 +950,7 @@ describe('KnowledgeItemService', () => {
     it('updates progress status and clears stale error fields', async () => {
       const seeded = await seedItem()
 
-      const result = await service.updateStatus(seeded.id, 'reading')
+      const result = service.updateStatus(seeded.id, 'reading')
 
       expect(result).toMatchObject({
         id: seeded.id,
@@ -765,7 +969,7 @@ describe('KnowledgeItemService', () => {
         error: 'previous failure'
       })
 
-      const result = await service.updateStatus(seeded.id, 'processing')
+      const result = service.updateStatus(seeded.id, 'processing')
 
       expect(result).toMatchObject({
         id: seeded.id,
@@ -782,7 +986,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -793,7 +997,7 @@ describe('KnowledgeItemService', () => {
         status: 'reading'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'completed')
+      service.updateStatus(NOTE_1_ID, 'completed')
 
       await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({
         status: 'completed',
@@ -809,11 +1013,11 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'preparing'
       })
 
-      await service.updateStatus(DIR_ROOT_ID, 'failed', { error: 'enqueue failed' })
+      service.updateStatus(DIR_ROOT_ID, 'failed', { error: 'enqueue failed' })
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         status: 'failed',
@@ -821,8 +1025,14 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('throws NotFound when updating status for a missing item', async () => {
-      await expect(service.updateStatus('missing', 'failed', { error: 'missing' })).rejects.toMatchObject({
+    it('throws NotFound when updating status for a missing item', () => {
+      let err: unknown
+      try {
+        service.updateStatus('missing', 'failed', { error: 'missing' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -834,7 +1044,7 @@ describe('KnowledgeItemService', () => {
         error: null
       })
 
-      const result = await service.updateStatus(seeded.id, 'failed', { error: '  read failed  ' })
+      const result = service.updateStatus(seeded.id, 'failed', { error: '  read failed  ' })
 
       expect(result).toMatchObject({
         status: 'failed',
@@ -849,7 +1059,13 @@ describe('KnowledgeItemService', () => {
     it('rejects failed status without a non-empty error', async () => {
       const seeded = await seedItem()
 
-      await expect(service.updateStatus(seeded.id, 'failed', { error: '   ' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        service.updateStatus(seeded.id, 'failed', { error: '   ' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
       })
@@ -859,8 +1075,10 @@ describe('KnowledgeItemService', () => {
       const seeded = await seedItem({
         status: 'deleting'
       })
+      mockMainLoggerService.warn.mockClear()
+      mockMainLoggerService.info.mockClear()
 
-      const result = await service.updateStatus(seeded.id, 'completed')
+      const result = service.updateStatus(seeded.id, 'completed')
 
       expect(result).toMatchObject({
         id: seeded.id,
@@ -871,14 +1089,21 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Skipped status update for deleting item',
+        expect.objectContaining({ id: seeded.id, attemptedStatus: 'completed' })
+      )
+      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
 
     it('does not overwrite deleting items with failed status from settled jobs', async () => {
       const seeded = await seedItem({
         status: 'deleting'
       })
+      mockMainLoggerService.warn.mockClear()
+      mockMainLoggerService.info.mockClear()
 
-      const result = await service.updateStatus(seeded.id, 'failed', { error: 'cancelled' })
+      const result = service.updateStatus(seeded.id, 'failed', { error: 'cancelled' })
 
       expect(result).toMatchObject({
         id: seeded.id,
@@ -889,6 +1114,11 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Skipped status update for deleting item',
+        expect.objectContaining({ id: seeded.id, attemptedStatus: 'failed' })
+      )
+      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
   })
 
@@ -896,7 +1126,7 @@ describe('KnowledgeItemService', () => {
     it('deletes the requested item by id', async () => {
       const seeded = await seedItem()
 
-      await expect(service.delete(seeded.id)).resolves.toBeUndefined()
+      expect(service.delete(seeded.id)).toBeUndefined()
 
       const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, seeded.id))
       expect(rows).toHaveLength(0)
@@ -909,7 +1139,7 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData(FILE_A_ID)
       })
 
-      await service.delete(FILE_A_ID)
+      service.delete(FILE_A_ID)
 
       const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, FILE_A_ID))
       expect(rows).toHaveLength(0)
@@ -919,7 +1149,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_OWNER_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' }
+        data: { source: '/docs' }
       })
       await seedItem({
         id: CHILD_A_ID,
@@ -939,7 +1169,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'keep me', content: 'keep me' }
       })
 
-      await service.delete(DIR_OWNER_ID)
+      service.delete(DIR_OWNER_ID)
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
       expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
@@ -949,13 +1179,13 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' }
+        data: { source: '/docs' }
       })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' }
+        data: { source: '/docs/child' }
       })
       await seedItem({
         id: FILE_GRANDCHILD_ID,
@@ -969,8 +1199,8 @@ describe('KnowledgeItemService', () => {
         data: { source: 'keep me', content: 'keep me' }
       })
 
-      const descendants = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
-      await service.deleteItemsByIds(
+      const descendants = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+      service.deleteItemsByIds(
         KNOWLEDGE_BASE_ID,
         descendants.map((item) => item.id)
       )
@@ -983,13 +1213,13 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' }
+        data: { source: '/docs' }
       })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' }
+        data: { source: '/docs/child' }
       })
       await seedItem({
         id: FILE_GRANDCHILD_ID,
@@ -1003,14 +1233,20 @@ describe('KnowledgeItemService', () => {
         data: { source: 'keep me', content: 'keep me' }
       })
 
-      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+      service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
       expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
     })
 
-    it('throws NotFound when deleting a missing knowledge item', async () => {
-      await expect(service.delete('missing')).rejects.toMatchObject({
+    it('throws NotFound when deleting a missing knowledge item', () => {
+      let err: unknown
+      try {
+        service.delete('missing')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -1025,7 +1261,7 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData(FILE_A_ID)
       })
 
-      const result = await service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
+      const result = service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
 
       expect(result).toMatchObject({
         id: FILE_A_ID,
@@ -1038,8 +1274,14 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('rejects updating indexed path for a missing knowledge item', async () => {
-      await expect(service.updateIndexedRelativePath(OTHER_ITEM_ID, 'processed.md')).rejects.toMatchObject({
+    it('rejects updating indexed path for a missing knowledge item', () => {
+      let err: unknown
+      try {
+        service.updateIndexedRelativePath(OTHER_ITEM_ID, 'processed.md')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1051,7 +1293,13 @@ describe('KnowledgeItemService', () => {
         data: { source: 'note', content: 'note' }
       })
 
-      await expect(service.updateIndexedRelativePath(NOTE_A_ID, 'processed.md')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        service.updateIndexedRelativePath(NOTE_A_ID, 'processed.md')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
@@ -1065,7 +1313,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'https://example.com', url: 'https://example.com' }
       })
 
-      const result = await service.updateSnapshotRelativePath(ITEM_1_ID, 'url', 'example.md')
+      const result = service.updateSnapshotRelativePath(ITEM_1_ID, 'url', 'example.md')
 
       expect(result).toMatchObject({
         id: ITEM_1_ID,
@@ -1085,7 +1333,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'Meeting notes', content: '# Meeting\n\nbody' }
       })
 
-      const result = await service.updateSnapshotRelativePath(NOTE_A_ID, 'note', 'Meeting notes.md')
+      const result = service.updateSnapshotRelativePath(NOTE_A_ID, 'note', 'Meeting notes.md')
 
       expect(result).toMatchObject({
         id: NOTE_A_ID,
@@ -1098,8 +1346,14 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('rejects updating snapshot path for a missing knowledge item', async () => {
-      await expect(service.updateSnapshotRelativePath(OTHER_ITEM_ID, 'url', 'example.md')).rejects.toMatchObject({
+    it('rejects updating snapshot path for a missing knowledge item', () => {
+      let err: unknown
+      try {
+        service.updateSnapshotRelativePath(OTHER_ITEM_ID, 'url', 'example.md')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -1111,7 +1365,13 @@ describe('KnowledgeItemService', () => {
         data: { source: 'note', content: 'note' }
       })
 
-      await expect(service.updateSnapshotRelativePath(NOTE_A_ID, 'url', 'example.md')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        service.updateSnapshotRelativePath(NOTE_A_ID, 'url', 'example.md')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
@@ -1123,7 +1383,64 @@ describe('KnowledgeItemService', () => {
         data: { source: 'https://example.com', url: 'https://example.com' }
       })
 
-      await expect(service.updateSnapshotRelativePath(ITEM_1_ID, 'note', 'note.md')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        service.updateSnapshotRelativePath(ITEM_1_ID, 'note', 'note.md')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+  })
+
+  describe('updateDirectoryRelativePath', () => {
+    it('stores the deduped raw/ prefix on directory item data, preserving source', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: { source: '/docs' }
+      })
+
+      const result = service.updateDirectoryRelativePath(DIR_A_ID, 'docs')
+
+      expect(result).toMatchObject({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: {
+          source: '/docs',
+          relativePath: 'docs'
+        }
+      })
+    })
+
+    it('rejects updating directory relative path for a missing knowledge item', () => {
+      let err: unknown
+      try {
+        service.updateDirectoryRelativePath(OTHER_ITEM_ID, 'docs')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects storing a directory relative path on a non-directory item', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      let err: unknown
+      try {
+        service.updateDirectoryRelativePath(NOTE_A_ID, 'docs')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
@@ -1139,7 +1456,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -1150,7 +1467,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'completed')
+      service.updateStatus(NOTE_1_ID, 'completed')
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         id: DIR_ROOT_ID,
@@ -1163,14 +1480,14 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' },
+        data: { source: '/docs/child' },
         status: 'processing'
       })
       await seedItem({
@@ -1180,7 +1497,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'note', content: 'note' },
         status: 'processing'
       })
-      await service.delete(NOTE_1_ID)
+      service.delete(NOTE_1_ID)
 
       await expect(getItemRow(DIR_CHILD_ID)).resolves.toMatchObject({ status: 'completed', error: null })
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
@@ -1190,7 +1507,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -1201,7 +1518,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'processing')
+      service.updateStatus(NOTE_1_ID, 'processing')
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
     })
@@ -1210,7 +1527,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -1222,7 +1539,7 @@ describe('KnowledgeItemService', () => {
         error: 'read failed'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'failed', { error: 'read failed' })
+      service.updateStatus(NOTE_1_ID, 'failed', { error: 'read failed' })
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         status: 'failed',
@@ -1234,14 +1551,14 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs/child', path: '/docs/child' },
+        data: { source: '/docs/child' },
         status: 'preparing'
       })
       await seedItem({
@@ -1252,7 +1569,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'completed')
+      service.updateStatus(NOTE_1_ID, 'completed')
 
       await expect(getItemRow(DIR_CHILD_ID)).resolves.toMatchObject({ status: 'preparing', error: null })
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
@@ -1262,7 +1579,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'deleting'
       })
       await seedItem({
@@ -1273,7 +1590,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.updateStatus(NOTE_1_ID, 'completed')
+      service.updateStatus(NOTE_1_ID, 'completed')
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
     })
@@ -1282,7 +1599,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -1300,7 +1617,7 @@ describe('KnowledgeItemService', () => {
         status: 'deleting'
       })
 
-      await service.updateStatus(COMPLETED_CHILD_ID, 'completed')
+      service.updateStatus(COMPLETED_CHILD_ID, 'completed')
 
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
@@ -1309,7 +1626,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
-        data: { source: '/docs', path: '/docs' },
+        data: { source: '/docs' },
         status: 'processing'
       })
       await seedItem({
@@ -1320,7 +1637,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
+      service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
 
       await expect(getItemRow(NOTE_1_ID)).resolves.toBeUndefined()
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
@@ -1330,7 +1647,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: DIR_A_ID,
         type: 'directory',
-        data: { source: '/docs/a', path: '/docs/a' },
+        data: { source: '/docs/a' },
         status: 'processing'
       })
       await seedItem({
@@ -1344,7 +1661,7 @@ describe('KnowledgeItemService', () => {
         id: DIR_B_ID,
         groupId: DIR_A_ID,
         type: 'directory',
-        data: { source: '/docs/a/b', path: '/docs/a/b' },
+        data: { source: '/docs/a/b' },
         status: 'processing'
       })
       await seedItem({
@@ -1355,14 +1672,64 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.delete(FILE_B_ID)
+      service.delete(FILE_B_ID)
 
       await expect(getItemRow(DIR_B_ID)).resolves.toMatchObject({ status: 'completed', error: null })
       await expect(getItemRow(DIR_A_ID)).resolves.toMatchObject({ status: 'processing', error: null })
 
-      await service.delete(FILE_A_ID)
+      service.delete(FILE_A_ID)
 
       await expect(getItemRow(DIR_A_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
+    it('pulls a completed container back to processing when createActive adds a new child', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs' },
+        status: 'completed'
+      })
+
+      service.createActive(KNOWLEDGE_BASE_ID, {
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
+    })
+
+    it('rolls back the createActive INSERT when the ancestor rollup throws (one transaction)', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs' },
+        status: 'completed'
+      })
+      const before = service.getItemsByBaseId(KNOWLEDGE_BASE_ID).length
+
+      // The INSERT and the ancestor rollup share one transaction: a reconcile
+      // failure must unwind the freshly-inserted child, or the caller (which never
+      // sees the committed row) deletes its copied source file and strands the row.
+      vi.spyOn(
+        service as unknown as { reconcileContainersTx: () => void },
+        'reconcileContainersTx'
+      ).mockImplementationOnce(() => {
+        throw new Error('reconcile boom')
+      })
+
+      expect(() =>
+        service.createActive(KNOWLEDGE_BASE_ID, {
+          groupId: DIR_ROOT_ID,
+          type: 'note',
+          data: { source: 'note', content: 'note' }
+        })
+      ).toThrow('reconcile boom')
+
+      // No orphan child was committed and the parent stays completed — its rollup
+      // rolled back together with the INSERT.
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toHaveLength(before)
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
   })
 })

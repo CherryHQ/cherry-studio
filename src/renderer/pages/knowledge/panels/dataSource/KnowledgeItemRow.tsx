@@ -1,25 +1,19 @@
-import {
-  Button,
-  Checkbox,
-  MenuItem,
-  MenuList,
-  NormalTooltip,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  TableCell,
-  TableRow
-} from '@cherrystudio/ui'
+import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
+import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
-import type { ComponentProps, MouseEvent } from 'react'
-import { useState } from 'react'
+import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { knowledgeDataSourceCheckboxClassName } from './styles'
+import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -34,14 +28,38 @@ export interface KnowledgeItemRowProps {
   onViewChunks: () => void
 }
 
+/**
+ * Live " NN%" suffix for a row whose index job is embedding. Mounted only while
+ * `item.status === 'embedding'` and subscribed read-only, so ordinary rows never
+ * create or pin the shared-cache key — the indexing job in main owns it end-to-end
+ * (created when embedding actually starts, TTL-collected after the job exits).
+ */
+const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
+  const progress = useSharedCacheValue(`knowledge.item.embedding_progress.${itemId}` as const)
+  if (progress == null) {
+    return null
+  }
+  return ` ${progress}%`
+}
+
+const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
+  const { t } = useTranslation()
+  const progress = useSharedCacheValue(`knowledge.item.directory_copy_progress.${itemId}` as const)
+  if (progress == null) {
+    return t('knowledge.data_source.status.pending')
+  }
+  return t('knowledge.data_source.status.copying', { percent: progress })
+}
+
 const KnowledgeItemStatusBadge = ({
   failureReason,
-  status
+  status,
+  statusText
 }: {
   failureReason: string | null
   status: DataSourceStatusViewModel
+  statusText: ReactNode
 }) => {
-  const { t } = useTranslation()
   const icon =
     status.icon === 'loader' ? (
       <LoaderCircle className={cn('size-3 animate-spin', status.textClassName)} />
@@ -61,7 +79,7 @@ const KnowledgeItemStatusBadge = ({
       tabIndex={failureReason ? 0 : undefined}
       aria-label={failureReason ?? undefined}>
       {icon}
-      <span>{t(status.labelKey)}</span>
+      <span>{statusText}</span>
     </span>
   )
 
@@ -81,153 +99,6 @@ const KnowledgeItemStatusBadge = ({
   return content
 }
 
-const KnowledgeItemRowMoreButton = ({ isOpen, ...props }: { isOpen: boolean } & ComponentProps<typeof Button>) => {
-  const { t } = useTranslation()
-
-  return (
-    <Button
-      {...props}
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={t('common.more')}
-      className={cn(isOpen ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100')}>
-      <MoreHorizontal />
-    </Button>
-  )
-}
-
-const KnowledgeItemRowMenuItems = ({
-  canReindex,
-  canViewChunks,
-  onDelete,
-  onPreviewSource,
-  onReindex,
-  onViewChunks
-}: {
-  canReindex: boolean
-  canViewChunks: boolean
-  onDelete: (event: MouseEvent<HTMLButtonElement>) => void
-  onPreviewSource: (event: MouseEvent<HTMLButtonElement>) => void
-  onReindex: (event: MouseEvent<HTMLButtonElement>) => void
-  onViewChunks: (event: MouseEvent<HTMLButtonElement>) => void
-}) => {
-  const { t } = useTranslation()
-
-  return (
-    <MenuList>
-      <MenuItem
-        variant="ghost"
-        size="sm"
-        icon={<BookOpen className="size-3.5" />}
-        label={t('knowledge.data_source.actions.preview_source')}
-        onClick={onPreviewSource}
-      />
-      {canViewChunks ? (
-        <MenuItem
-          variant="ghost"
-          size="sm"
-          icon={<Eye className="size-3.5" />}
-          label={t('knowledge.data_source.actions.view_chunks')}
-          onClick={onViewChunks}
-        />
-      ) : null}
-      {canReindex ? (
-        <MenuItem
-          variant="ghost"
-          size="sm"
-          icon={<RefreshCw className="size-3.5" />}
-          label={t('knowledge.data_source.actions.reindex')}
-          onClick={onReindex}
-        />
-      ) : null}
-      <MenuItem
-        variant="ghost"
-        size="sm"
-        icon={<Trash2 className="size-3.5" />}
-        label={t('knowledge.data_source.actions.delete')}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
-        onClick={onDelete}
-      />
-    </MenuList>
-  )
-}
-
-const KnowledgeItemRowMoreMenu = ({
-  canReindex,
-  canViewChunks,
-  onDelete,
-  onPreviewSource,
-  onReindex,
-  onViewChunks
-}: {
-  canReindex: boolean
-  canViewChunks: boolean
-  onDelete: () => void | Promise<unknown>
-  onPreviewSource: () => void | Promise<unknown>
-  onReindex: () => void | Promise<unknown>
-  onViewChunks: () => void
-}) => {
-  const { t } = useTranslation()
-  const [isOpen, setIsOpen] = useState(false)
-
-  const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setIsOpen(false)
-    void Promise.resolve(onPreviewSource()).catch((error) => {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
-    })
-  }
-
-  const handleViewChunks = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setIsOpen(false)
-    onViewChunks()
-  }
-
-  const handleReindex = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setIsOpen(false)
-    void Promise.resolve(onReindex()).catch((error) => {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
-    })
-  }
-
-  const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setIsOpen(false)
-    void Promise.resolve(onDelete()).catch((error) => {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
-    })
-  }
-
-  return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <KnowledgeItemRowMoreButton isOpen={isOpen} onClick={(event) => event.stopPropagation()} />
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        side="bottom"
-        sideOffset={4}
-        collisionPadding={8}
-        className="z-30 w-max max-w-56"
-        onClick={(event) => event.stopPropagation()}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => event.preventDefault()}>
-        <KnowledgeItemRowMenuItems
-          canReindex={canReindex}
-          canViewChunks={canViewChunks}
-          onDelete={handleDelete}
-          onPreviewSource={handlePreviewSource}
-          onReindex={handleReindex}
-          onViewChunks={handleViewChunks}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 const KnowledgeItemRow = ({
   item,
   selected,
@@ -244,37 +115,125 @@ const KnowledgeItemRow = ({
   } = useTranslation()
   const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  const failureReason = item.status === 'failed' ? item.error : null
+  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
+  // be migrated); surface it as the badge tooltip.
+  const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
+  // Every row's primary click views its original content in-app: files/URLs delegate
+  // preview/fallback/error handling to `previewSource`, directories drill into their children, and
+  // notes open their stored `data.content`. All are status-independent — a note's text is present
+  // from creation, well before its chunk view (`completed`) exists.
+  const canActivate = true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
 
+  // Row actions, surfaced via the whole-row right-click menu (replacing the old per-row more
+  // button). Same shape the navigator's KnowledgeBaseRow uses, so presentation stays consistent.
+  const contextMenuItems = useMemo<CommandContextMenuExtraItem[]>(() => {
+    const items: CommandContextMenuExtraItem[] = []
+
+    // Notes have no external source to preview — their original text opens via the row's primary
+    // click — so the "preview original" action only applies to files, URLs, and directories.
+    if (item.type !== 'note') {
+      items.push({
+        type: 'item',
+        id: 'preview-source',
+        label: t('knowledge.data_source.actions.preview_source'),
+        icon: <BookOpen className="size-3.5" />,
+        onSelect: () => {
+          void Promise.resolve(onPreviewSource()).catch((error) => {
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
+          })
+        }
+      })
+    }
+
+    if (canViewChunks) {
+      items.push({
+        type: 'item',
+        id: 'view-chunks',
+        label: t('knowledge.data_source.actions.view_chunks'),
+        icon: <Eye className="size-3.5" />,
+        onSelect: onViewChunks
+      })
+    }
+
+    if (canReindex) {
+      items.push({
+        type: 'item',
+        id: 'reindex',
+        label: t('knowledge.data_source.actions.reindex'),
+        icon: <RefreshCw className="size-3.5" />,
+        onSelect: () => {
+          void Promise.resolve(onReindex()).catch((error) => {
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+          })
+        }
+      })
+    }
+
+    items.push({ type: 'separator' })
+    items.push({
+      type: 'item',
+      id: 'delete',
+      label: t('knowledge.data_source.actions.delete'),
+      icon: <Trash2 className="size-3.5" />,
+      destructive: true,
+      onSelect: () => {
+        void Promise.resolve(onDelete()).catch((error) => {
+          toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+        })
+      }
+    })
+
+    return items
+  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+
+  // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
+  // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onClick()
+    }
+  }
+
   return (
-    <TableRow
-      data-state={selected ? 'selected' : undefined}
-      onClick={canViewChunks ? onClick : undefined}
-      className={cn(
-        'group/row transition-colors',
-        canViewChunks && 'cursor-pointer',
-        // The shared TableRow paints its highlight on the <tr>, whose corners a rounded cell can't clip.
-        // Neutralize it and paint a rounded inset pill on the cells instead (needs border-separate on the Table).
-        'hover:bg-transparent data-[state=selected]:bg-transparent',
-        '[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:transition-colors',
-        selected ? '[&>td]:bg-accent' : canViewChunks && '[&:hover>td]:bg-accent/40'
-      )}>
-      <TableCell className="w-10 px-3" onClick={(event) => event.stopPropagation()}>
-        <Checkbox
-          size="sm"
-          className={knowledgeDataSourceCheckboxClassName}
-          aria-label={t('knowledge.data_source.table.select_row')}
-          checked={selected}
-          onCheckedChange={(next) => onToggleSelect(next === true)}
-        />
-      </TableCell>
-      <TableCell className="min-w-0 py-3">
-        <div className="flex min-w-0 items-center gap-2">
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+      <div
+        role="row"
+        data-state={selected ? 'selected' : undefined}
+        tabIndex={canActivate ? 0 : undefined}
+        aria-label={canActivate ? t('knowledge.data_source.table.open_row', { title }) : undefined}
+        onClick={canActivate ? onClick : undefined}
+        onKeyDown={canActivate ? handleRowKeyDown : undefined}
+        className={cn(
+          KNOWLEDGE_ITEM_ROW_GRID,
+          'group/row rounded-md px-2.5 py-1.5 transition-colors',
+          canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
+          // Match the navigator base rows: hover highlight for any row, solid selected background
+          // for the checked one.
+          selected ? 'bg-muted' : 'hover:bg-muted'
+        )}>
+        <div role="gridcell" className="flex items-center self-stretch" onClick={(event) => event.stopPropagation()}>
+          {/* The label fills the whole cell so a click anywhere in the checkbox column toggles
+              selection; the cell's stopPropagation keeps that click from also opening the row. */}
+          <label className="flex size-full cursor-pointer items-center">
+            <Checkbox
+              size="sm"
+              className={knowledgeDataSourceCheckboxClassName}
+              aria-label={t('knowledge.data_source.table.select_row')}
+              checked={selected}
+              onCheckedChange={(next) => onToggleSelect(next === true)}
+            />
+          </label>
+        </div>
+        <div role="gridcell" className="flex min-w-0 items-center gap-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
@@ -282,23 +241,33 @@ const KnowledgeItemRow = ({
             {title}
           </span>
         </div>
-      </TableCell>
-      <TableCell className="w-24 text-foreground-secondary text-xs">{typeLabel}</TableCell>
-      <TableCell className="w-32">
-        <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
-      </TableCell>
-      <TableCell className="w-32 text-foreground-muted text-xs">{updatedAt}</TableCell>
-      <TableCell className="w-12 px-2" onClick={(event) => event.stopPropagation()}>
-        <KnowledgeItemRowMoreMenu
-          canReindex={canReindex}
-          canViewChunks={canViewChunks}
-          onDelete={onDelete}
-          onPreviewSource={onPreviewSource}
-          onReindex={onReindex}
-          onViewChunks={onViewChunks}
-        />
-      </TableCell>
-    </TableRow>
+        <div role="gridcell" className="truncate text-muted-foreground text-xs">
+          {typeLabel}
+        </div>
+        <div role="gridcell">
+          <KnowledgeItemStatusBadge
+            status={status}
+            failureReason={failureReason}
+            statusText={
+              item.type === 'directory' && item.status === 'preparing' ? (
+                <KnowledgeDirectoryCopyStatus itemId={item.id} />
+              ) : (
+                <>
+                  {t(status.labelKey)}
+                  {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+                </>
+              )
+            }
+          />
+        </div>
+        <div role="gridcell" className="truncate text-foreground-tertiary text-xs">
+          {updatedAt}
+        </div>
+        <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
+          <KnowledgeRowActionsMenu items={contextMenuItems} />
+        </div>
+      </div>
+    </CommandContextMenu>
   )
 }
 

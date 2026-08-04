@@ -1,9 +1,12 @@
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { PaddleOCRClient as PaddleOCRClientType } from '@paddleocr/api-sdk'
-import { MB } from '@shared/config/constant'
+import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 export const PADDLE_MAX_FILE_SIZE = 50 * MB
+
+/** Identifies Cherry Studio to the PaddleOCR API gateway (Client-Platform header). */
+export const PADDLE_CLIENT_PLATFORM = 'cherrystudio'
 
 type PaddleOcrClientLike = typeof PaddleOCRClientType
 
@@ -40,5 +43,10 @@ export async function createPaddleClient(apiHost: string, apiKey: string) {
     } as RequestInit) as unknown as ReturnType<typeof fetch>
   }
 
-  return new PaddleOCRClient({ token: apiKey, baseUrl: apiHost, fetch: safeFetch })
+  return new PaddleOCRClient({
+    token: apiKey,
+    baseUrl: apiHost,
+    fetch: safeFetch,
+    clientPlatform: PADDLE_CLIENT_PLATFORM
+  })
 }

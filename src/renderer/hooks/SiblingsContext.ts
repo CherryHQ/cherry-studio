@@ -1,7 +1,7 @@
 /**
  * Sibling-branch context.
  *
- * Carries the per-topic `siblingsMap` (from `useTopicMessagesV2`) and the
+ * Carries the per-topic `siblingsMap` (from `useTopicMessages`) and the
  * current `activeNodeId` so user-message sibling navigators can render
  * `< i/N >` and switch branches without each consumer plumbing topic-level
  * state through props.
@@ -11,7 +11,7 @@ import type { Message as SharedMessage } from '@shared/data/types/message'
 import { createContext, use, useMemo } from 'react'
 
 export interface SiblingsContextValue {
-  /** See `UseTopicMessagesV2Result.siblingsMap`. */
+  /** See `UseTopicMessagesResult.siblingsMap`. */
   siblingsMap: Record<string, SharedMessage[]>
   /** Current topic `activeNodeId`, used to compute which sibling is in view. */
   activeNodeId: string | null

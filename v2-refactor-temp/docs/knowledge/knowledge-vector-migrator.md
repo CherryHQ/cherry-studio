@@ -23,7 +23,7 @@
 `KnowledgeVectorMigrator` 的职责不是迁移知识库业务主数据，而是：
 
 1. 读取 V1 每个 knowledge base 对应的 legacy `embedjs` 向量库
-2. 将旧的 chunk 向量数据转换为新的 libsql-backed `vectorstores` 布局
+2. 将旧的 chunk 向量数据转换为新的 better-sqlite3-backed `vectorstores` 布局
 3. 保证新向量数据能稳定关联回已经迁移完成的 V2 `knowledge_base` / `knowledge_item`
 
 换句话说：
@@ -89,7 +89,7 @@
 当前实现的目标结构是：
 
 - 目标文件：迁移后 base 的 runtime 路径 `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`（不再沿用原 legacy DB 路径）
-- 目标表：`libsql_vectorstores_embedding`
+- 目标 schema：以 `schema.ts` 的多表 index store 为准（`meta`/`content`/`material`/`search_unit`/`search_text`/`embedding` + 外部内容 FTS5 `search_text_fts`），由 `openBetterSqlite3IndexDriver` → `createKnowledgeIndexSchema` 建立。下方“1. 主表字段/2. 普通索引”是旧 embedjs/langchain 单表布局，已被上述多表 schema 取代。
 
 迁移器会为目标存储补齐必要 schema：
 
@@ -129,6 +129,8 @@ V2 迁移时，不保留这个旧字段作为最终业务标识，而是把它�
 2. 无法映射到 `knowledge_item.id` 的 legacy 向量，即使仍存在于旧 `embedjs` DB 中，也视为无效残留数据
 3. 因此迁移器的目标不是“尽量保留旧向量文件中的所有内容”，而是“只保留能被当前 V2 业务表证明合法归属的向量数据”
 
+目录（`directory`）的特殊处理：V1 把目录下每个文件都登记在该目录 item 的 loader id 上，没有 per-file item。迁移时不再把这些容器级向量直接丢弃，而是为每个嵌入文件合成一个 `file` 子项（一个 loader id 对应一个子项，见 `KnowledgeMigrator.expandLegacyDirectoryItem`），把目录向量重新归属（re-attribute）到这些子项上，目录因此保持可检索且无需重新 embedding。只有在 fallback 情况下——legacy 向量源不可读，或某个嵌入文件没有可迁移向量——才会跳过容器级向量，并把目录保留为 `directory_not_migrated` 失败墓碑。
+
 ### 5.2 Chunk 内容映射
 
 旧向量记录中的内容字段会转换为：
@@ -151,7 +153,7 @@ V2 迁移时，不保留这个旧字段作为最终业务标识，而是把它�
 
 它会直接复用 V1 已存在的向量：
 
-1. 从 legacy `vector` 字段读取 `F32_BLOB`
+1. 从 legacy `vector` 字段读取原始 little-endian float32 BLOB 字节
 2. 反序列化为 `number[]`
 3. 再写入新表的 `embeddings`
 
@@ -190,8 +192,7 @@ V2 迁移时，不保留这个旧字段作为最终业务标识，而是把它�
 这意味着：
 
 1. 迁移过程**任何阶段**都不会破坏 v1 原始 legacy DB —— 迁移失败、放弃或成功后回退 v1，知识库都可正常使用
-2. retry 天然幂等：legacy 源一直在原路径，retry 直接重新读取原始 legacy DB
-3. 新流程不再写 `.embedjs.bak`；`KnowledgeVectorSourceReader` 仅保留只读的 `.embedjs.bak` 回退，用于兼容“已经跑过旧迁移、原文件已被改名”的老安装
+2. retry 天然幂等：legacy 源一直在原路径，retry 直接通过 `KnowledgeVectorSourceReader` 重新读取原始 legacy DB
 
 ## IMPORTANT: 当前已接受的局限
 
@@ -281,18 +282,18 @@ V2 迁移时，不保留这个旧字段作为最终业务标识，而是把它�
 
 - `src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
 - `src/main/services/knowledge/vectorstore/KnowledgeVectorStoreService.ts`
-- `src/main/services/knowledge/vectorstore/providers/LibSqlVectorStoreProvider.ts`
+- `src/main/features/knowledge/vectorstore/indexStore/BetterSqlite3VectorIndex.ts`
 
 这意味着迁移后的向量数据并不是孤立的一次性产物，而是会被当前 runtime 直接按 knowledge base 打开和查询。
 
 当前已确认的衔接点是：
 
 1. runtime 通过 `KnowledgeVectorStoreService` 按 `base.id` 获取 store
-2. 实际 store provider 是 `LibSqlVectorStoreProvider`
-3. runtime 检索和写入都基于 libsql vector store
+2. 实际 store provider 是 `BetterSqlite3VectorIndex`
+3. runtime 检索和写入都基于 better-sqlite3 vector store
 
 因此，迁移器与 runtime 的共同前提是：
 
 1. V2 业务真相来自 `knowledge_base` / `knowledge_item`
-2. 运行时向量文件与迁移后的向量文件都属于同一类 libsql-backed vector store 体系
+2. 运行时向量文件与迁移后的向量文件都属于同一类 better-sqlite3-backed vector store 体系
 3. 运行时关联业务 item 仍应以 `knowledge_item.id` 为稳定标识，而不是继续依赖 V1 loader identity

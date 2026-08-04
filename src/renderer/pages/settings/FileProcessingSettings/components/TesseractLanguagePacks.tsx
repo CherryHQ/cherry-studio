@@ -1,8 +1,7 @@
 import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingRow, SettingRowTitle } from '../..'
 
 type TesseractLanguagePacksProps = {
   options: ComboboxOption[]
@@ -37,7 +36,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
   )
 
   return (
-    <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+    <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
       <SettingRow className="items-center gap-4 py-0">
         <SettingRowTitle className="w-24 shrink-0">
           {t('settings.tool.file_processing.fields.languages')}

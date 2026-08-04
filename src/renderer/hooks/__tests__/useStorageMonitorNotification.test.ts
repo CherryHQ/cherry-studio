@@ -1,6 +1,6 @@
+import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import { renderHook } from '@testing-library/react'
-import { notification } from 'antd'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useStorageMonitorNotification } from '../useStorageMonitorNotification'
@@ -8,11 +8,7 @@ import { useStorageMonitorNotification } from '../useStorageMonitorNotification'
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
-vi.mock('antd', () => ({ notification: { warning: vi.fn(), destroy: vi.fn() } }))
 vi.mock('i18next', () => ({ t: (key: string) => key }))
-
-const warningMock = vi.mocked(notification.warning)
-const destroyMock = vi.mocked(notification.destroy)
 
 type Level = StorageHealth['level']
 const health = (level: Level, freeBytes = 0): StorageHealth => ({
@@ -58,12 +54,12 @@ describe('useStorageMonitorNotification', () => {
     renderHook(() => useStorageMonitorNotification())
     healthCallback!(health('low', 0.5 * 1024 ** 3))
 
-    expect(warningMock).toHaveBeenCalledTimes(1)
-    expect(warningMock).toHaveBeenCalledWith(
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'settings.data.limit.appDataDiskQuota',
         description: 'settings.data.limit.appDataDiskQuotaDescription',
-        duration: 0
+        timeout: 0,
+        title: 'settings.data.limit.appDataDiskQuota'
       })
     )
   })
@@ -73,7 +69,7 @@ describe('useStorageMonitorNotification', () => {
     healthCallback!(health('low'))
     healthCallback!(health('low'))
 
-    expect(warningMock).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledTimes(1)
   })
 
   it('dismisses the warning when health recovers to ok', () => {
@@ -81,14 +77,14 @@ describe('useStorageMonitorNotification', () => {
     healthCallback!(health('low'))
     healthCallback!(health('ok'))
 
-    expect(destroyMock).toHaveBeenCalledTimes(1)
+    expect(toast.closeToast).toHaveBeenCalledTimes(1)
   })
 
   it('does not dismiss when no warning is currently shown', () => {
     renderHook(() => useStorageMonitorNotification())
     healthCallback!(health('ok'))
 
-    expect(destroyMock).not.toHaveBeenCalled()
+    expect(toast.closeToast).not.toHaveBeenCalled()
   })
 
   it('warns when the initial pulled health is already low', async () => {
@@ -96,7 +92,7 @@ describe('useStorageMonitorNotification', () => {
     renderHook(() => useStorageMonitorNotification())
     await flush()
 
-    expect(warningMock).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledTimes(1)
   })
 
   it('ignores the initial pull that resolves after unmount', async () => {
@@ -105,7 +101,7 @@ describe('useStorageMonitorNotification', () => {
     unmount() // tear down before the async getHealth() pull resolves
     await flush()
 
-    expect(warningMock).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('unsubscribes on unmount', () => {

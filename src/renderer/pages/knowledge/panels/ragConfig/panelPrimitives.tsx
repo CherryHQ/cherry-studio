@@ -44,38 +44,53 @@ export const RagSelectField = ({
   )
 }
 
-export const RagNumericField = ({
+/** A single settings row: label (with optional hint) on the left, control on the right. */
+export const RagFieldRow = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <RagFieldLabel label={label} hint={hint} className="mb-0" />
+      {children}
+    </div>
+  )
+}
+
+/** A {@link RagFieldRow} whose control is a fixed-width text input with an optional trailing unit. */
+export const RagInlineField = ({
   label,
+  hint,
   value,
   suffix,
-  hint,
+  placeholder,
+  inputMode,
   onChange,
-  inputClassName
+  controlClassName
 }: {
-  label?: string
+  label: string
+  hint?: string
   value: string
   suffix?: string
-  hint?: string
+  placeholder?: string
+  inputMode?: 'numeric' | 'text'
   onChange: (value: string) => void
-  inputClassName?: string
+  controlClassName?: string
 }) => {
   return (
-    <div>
-      {label ? <RagFieldLabel label={label} hint={hint} /> : null}
-      <div className="relative">
+    <RagFieldRow label={label} hint={hint}>
+      <div className={cn('relative', controlClassName ?? 'w-44')}>
         <Input
           value={value}
-          inputMode="numeric"
+          placeholder={placeholder}
+          inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
-          className={cn('shadow-none', inputClassName)}
+          className={cn('shadow-none', suffix ? 'pr-14' : undefined)}
         />
         {suffix ? (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-muted text-xs leading-4">
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-foreground-tertiary text-xs leading-4">
             {suffix}
           </span>
         ) : null}
       </div>
-    </div>
+    </RagFieldRow>
   )
 }
 
@@ -97,13 +112,13 @@ export const RagHintText = ({
 }) => {
   if (tone === 'error') {
     return (
-      <div className="rounded-md border border-error-border bg-error-bg px-2.5 py-1.5 text-error-text text-xs leading-4">
+      <div className="rounded-md border border-error-border bg-error-subtle px-2.5 py-1.5 text-error-subtle-foreground text-xs leading-4">
         {children}
       </div>
     )
   }
 
-  return <p className="text-foreground-muted text-xs leading-4">{children}</p>
+  return <p className="text-muted-foreground text-xs leading-4">{children}</p>
 }
 
 export const RagSliderField = ({
@@ -135,7 +150,7 @@ export const RagSliderField = ({
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
         <RagFieldLabel label={label} hint={hint} className="mb-0" />
-        <span className="text-foreground-secondary text-xs tabular-nums leading-4">{formatValue(value)}</span>
+        <span className="text-muted-foreground text-xs tabular-nums leading-4">{formatValue(value)}</span>
       </div>
 
       <div className={disabled ? 'opacity-50' : undefined}>
@@ -151,7 +166,7 @@ export const RagSliderField = ({
           className="w-full **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
         />
 
-        <div className="mt-px flex items-center justify-between text-foreground-muted text-xs leading-4">
+        <div className="mt-px flex items-center justify-between text-foreground-tertiary text-xs leading-4">
           <span>{minLabel}</span>
           <span>{maxLabel}</span>
         </div>

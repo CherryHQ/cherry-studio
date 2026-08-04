@@ -1,17 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getNormalizedExtension } from '../utils'
-
-const hoisted = vi.hoisted(() => ({
-  languages: {
-    svg: { extensions: ['.svg'] },
-    TypeScript: { extensions: ['.ts'] }
-  }
-}))
-
-vi.mock('@shared/config/languages', () => ({
-  languages: hoisted.languages
-}))
+import { getCmThemeByName, getCmThemeNames, getNormalizedExtension } from '../utils'
 
 describe('getNormalizedExtension', () => {
   beforeEach(() => {
@@ -37,5 +26,34 @@ describe('getNormalizedExtension', () => {
 
   it('should return language as-is when no rules matched', async () => {
     await expect(getNormalizedExtension('unknownLanguage')).resolves.toBe('unknownLanguage')
+  })
+})
+
+describe('getCmThemeNames', () => {
+  it('resolves base names plus themes-all entries, excluding settings and highlight styles', async () => {
+    const names = await getCmThemeNames()
+
+    expect(names).toEqual(expect.arrayContaining(['auto', 'light', 'dark', 'dracula']))
+    expect(names.some((name) => name.startsWith('defaultSettings'))).toBe(false)
+    expect(names.some((name) => name.endsWith('Style'))).toBe(false)
+  })
+})
+
+describe('getCmThemeByName', () => {
+  it('resolves the themes-all extension for a known theme name', async () => {
+    const theme = await getCmThemeByName('dracula')
+
+    expect(theme).not.toBe('light')
+    expect(typeof theme).toBe('object')
+  })
+
+  it('resolves basic string themes as-is', async () => {
+    await expect(getCmThemeByName('light')).resolves.toBe('light')
+    await expect(getCmThemeByName('dark')).resolves.toBe('dark')
+    await expect(getCmThemeByName('none')).resolves.toBe('none')
+  })
+
+  it('falls back to light for unknown theme names', async () => {
+    await expect(getCmThemeByName('unknown-theme-name')).resolves.toBe('light')
   })
 })

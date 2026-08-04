@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -83,9 +83,10 @@ describe('paintingMappers', () => {
       mode: 'generate',
       model: 'model-1',
       prompt: 'draw a cat',
-      // `name` is the on-disk filename (`${id}${ext}`) — Artboard's
-      // FileManager.getFileUrl appends it to `Data/Files/` to build the
-      // <img src>. `origin_name` carries the user-facing display name.
+      // `name` keeps the legacy on-disk filename (`${id}${ext}`) shape while
+      // paintings still carry FileMetadata. `path` carries the main-resolved
+      // physical path used for preview URLs; `origin_name` carries the
+      // user-facing display name.
       files: [{ ...file, name: 'file-1.png', origin_name: 'file-1.png', path: '/tmp/file-1.png' }],
       // `inputFiles` are raw v2 `FileEntry[]` — the painting form passes them
       // through to canonicalGenerate which pre-fetches bytes via

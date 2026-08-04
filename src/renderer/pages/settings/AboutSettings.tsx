@@ -1,23 +1,39 @@
-import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  CircularProgress,
+  Divider,
+  Scrollbar,
+  SegmentedControl,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
+import AppLogo from '@renderer/assets/images/logo.png'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { APP_NAME, AppLogo } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
+import {
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import i18n from '@renderer/i18n'
-import { runAsyncFunction } from '@renderer/utils'
+import { useTheme } from '@renderer/hooks/useTheme'
+import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
-
-import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -46,10 +62,10 @@ const AboutSettings: FC = () => {
       updateAppUpdateState({ checking: true, manualCheck: true })
 
       try {
-        await window.api.checkForUpdate()
+        await ipcApi.request('app.updater.check_for_update')
       } catch {
         updateAppUpdateState({ manualCheck: false })
-        window.toast.error(t('settings.about.updateError'))
+        toast.error(t('settings.about.updateError'))
       }
 
       updateAppUpdateState({ checking: false })
@@ -59,20 +75,20 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    void window.api.openWebsite(url)
+    void ipcApi.request('system.shell.open_website', url)
   }
 
   const mailto = async () => {
     const email = 'support@cherry-ai.com'
-    const subject = `${APP_NAME} Feedback`
-    const version = (await window.api.getAppInfo()).version
+    const subject = 'Cherry Studio Feedback'
+    const version = (await ipcApi.request('app.get_info')).version
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
   }
 
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('system.toggle_dev_tools')
   }
 
   const showEnterprise = async () => {
@@ -80,7 +96,7 @@ const AboutSettings: FC = () => {
   }
 
   const showReleases = async () => {
-    const { appPath } = await window.api.getAppInfo()
+    const { appPath } = await ipcApi.request('app.get_info')
     openSmartMiniApp({
       appId: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
@@ -97,7 +113,7 @@ const AboutSettings: FC = () => {
 
   const handleTestChannelChange = async (value: UpgradeChannel) => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
-      window.toast.warning(t('settings.general.test_plan.version_channel_not_match'))
+      toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
     void setTestChannel(value)
     updateAppUpdateState({
@@ -149,20 +165,27 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    void runAsyncFunction(async () => {
-      const appInfo = await window.api.getAppInfo()
+    void (async () => {
+      const appInfo = await ipcApi.request('app.get_info')
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
-    })
-    void setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, setAutoCheckUpdate])
+    })()
+  }, [])
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void ipcApi.request(
+      'system.shell.open_website',
+      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us'
+    )
   }
 
   const testChannels = getAvailableTestChannels()
+  const isUpdateReady = appUpdateState.available && appUpdateState.downloaded && !appUpdateState.downloading
+  const releaseNotesText =
+    typeof appUpdateState.info?.releaseNotes === 'string'
+      ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
+      : (appUpdateState.info?.releaseNotes?.map((note) => note.note).join('\n') ?? '')
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -171,6 +194,7 @@ const AboutSettings: FC = () => {
           <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
           <button
             type="button"
+            aria-label={t('settings.about.repository')}
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
             className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
             <Github className="size-5" />
@@ -183,9 +207,10 @@ const AboutSettings: FC = () => {
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
+              aria-label="Cherry Studio"
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
               className="relative cursor-pointer">
-              {appUpdateState.downloadProgress > 0 && (
+              {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
                 <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
                   <CircularProgress
                     value={appUpdateState.downloadProgress}
@@ -201,13 +226,14 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-foreground text-lg">{APP_NAME}</div>
-              <div className="text-foreground-secondary text-sm">{t('settings.about.description')}</div>
+              <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
+              <div className="text-muted-foreground text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
+                aria-label={t('settings.about.releases.title')}
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 className="mt-1.5">
-                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 font-medium text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
+                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
                   v{version}
                 </Badge>
               </button>
@@ -218,11 +244,15 @@ const AboutSettings: FC = () => {
             <div className="flex shrink-0 items-center justify-end">
               <Button
                 size="sm"
-                variant="outline"
+                variant={isUpdateReady ? 'default' : 'outline'}
                 loading={appUpdateState.checking}
                 onClick={onCheckUpdate}
                 disabled={appUpdateState.downloading}
-                className="w-fit! min-w-0! shrink-0">
+                className={cn(
+                  'w-fit! min-w-0! shrink-0',
+                  isUpdateReady &&
+                    'bg-success text-primary-foreground hover:bg-success/90 dark:bg-success dark:text-primary-foreground dark:hover:bg-success/90'
+                )}>
                 {appUpdateState.downloading
                   ? t('settings.about.downloading')
                   : appUpdateState.available
@@ -242,18 +272,10 @@ const AboutSettings: FC = () => {
             </SettingRow>
 
             <Divider className="my-3" />
-            <SettingRow className="gap-3">
-              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip content={t('settings.general.test_plan.tooltip')}>
-                <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
-              </Tooltip>
-            </SettingRow>
-
-            {testPlan && (
-              <>
-                <Divider className="my-1.5" />
-                <SettingRow className="items-center gap-3">
-                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+            <SettingRow className="flex-nowrap gap-6">
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-6">
+                <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+                {testPlan && (
                   <SegmentedControl<UpgradeChannel>
                     value={getTestChannel()}
                     onValueChange={handleTestChannelChange}
@@ -267,9 +289,14 @@ const AboutSettings: FC = () => {
                     }))}
                     size="sm"
                   />
-                </SettingRow>
-              </>
-            )}
+                )}
+              </div>
+              <Tooltip
+                content={t('settings.general.test_plan.tooltip')}
+                classNames={{ placeholder: 'inline-flex items-center' }}>
+                <Switch className="shrink-0" checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
+              </Tooltip>
+            </SettingRow>
           </>
         )}
       </SettingGroup>
@@ -279,16 +306,13 @@ const AboutSettings: FC = () => {
           <SettingRow className="gap-3">
             <SettingRowTitle className="gap-2.5">
               {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
-              <IndicatorLight color="green" />
+              <IndicatorLight color="var(--success)" />
             </SettingRowTitle>
           </SettingRow>
-          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
-            <Markdown>
-              {typeof appUpdateState.info.releaseNotes === 'string'
-                ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
-                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Markdown>
-          </div>
+          <Divider className="my-3" />
+          <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
+            <ReleaseNotes content={releaseNotesText} />
+          </Scrollbar>
         </SettingGroup>
       )}
 

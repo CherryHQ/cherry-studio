@@ -100,16 +100,18 @@ Use `.ts` files (not JSON):
 
 ### Naming Convention
 
+File names follow the repo-wide [`naming-conventions.md` §3.2](../naming-conventions.md) `camelCase` rule for `.ts` source — `presets/` is not one of the `kebab-case` exceptions (those are limited to `packages/ui/` and `src/renderer/routes/`).
+
 | Element       | Convention                          | Example                      |
 | ------------- | ----------------------------------- | ---------------------------- |
-| File name     | kebab-case                          | `selection-actions.ts`       |
+| File name     | camelCase                           | `selectionActions.ts`        |
 | Constant name | SCREAMING_SNAKE_CASE with `PRESETS_` prefix | `PRESETS_SELECTION_ACTIONS` |
 
 **Naming correspondence:**
 
 - `providers.ts` → `PRESETS_PROVIDERS`
-- `selection-actions.ts` → `PRESETS_SELECTION_ACTIONS`
-- `ai-models.ts` → `PRESETS_AI_MODELS`
+- `selectionActions.ts` → `PRESETS_SELECTION_ACTIONS`
+- `aiModels.ts` → `PRESETS_AI_MODELS`
 
 ### File Structure
 
@@ -317,7 +319,7 @@ The layered pattern ensures smooth updates:
 For presets with frequent configuration changes, consider adding a version field to facilitate migration management:
 
 ```typescript
-// src/shared/data/presets/complex-config.ts
+// src/shared/data/presets/complexConfig.ts
 
 export const PRESETS_COMPLEX_CONFIG_VERSION = 2
 

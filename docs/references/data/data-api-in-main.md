@@ -12,6 +12,8 @@ Handlers → Services → Database
 - **Services**: Business logic, validation, transaction coordination, data access via Drizzle ORM
 - **Database**: Drizzle ORM + SQLite
 
+After a write commits, a service may additionally publish a cross-window data change notification via `notifyDataApiDataChange(effects)` — a strictly fenced exception to the no-side-effects rule. See [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification) and [Fenced Exception: Data Change Notification](./api-design-guidelines.md#fenced-exception-data-change-notification).
+
 ## Transport Adapters
 
 ApiServer is transport-agnostic. Adapters in `api/core/adapters/` bridge specific transports (IPC, HTTP) to ApiServer. Each adapter implements `Disposable` for automatic lifecycle cleanup. See `IpcAdapter.ts` JSDoc for design rationale and extension guide.
@@ -41,7 +43,7 @@ Every per-module handler record **MUST** be annotated with `HandlersFor<XxxSchem
 ```typescript
 // handlers/topics.ts
 import { topicService } from '@data/services/TopicService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/types'
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
@@ -74,7 +76,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 ### Register Handlers
 
 ```typescript
-// handlers/index.ts
+// handlers/apiHandlers.ts
 import { topicHandlers } from './topic'
 import { messageHandlers } from './message'
 
@@ -133,12 +135,17 @@ Contract and rationale: `src/main/data/services/dataServiceRegistry.ts`.
 
 ### Example Service
 
+> The `list()` below shows the **offset** pagination shape for illustration. The
+> real `TopicService` is cursor-paginated (`listByCursor`); a production offset
+> list looks like `AssistantService.list`. See the
+> [Pagination Guide](./data-pagination-guide.md) for both server patterns.
+
 ```typescript
 // services/TopicService.ts
 import { eq, desc, sql } from 'drizzle-orm'
 import { application } from '@application'
 import { topicTable } from '@data/db/schemas/topic'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 export class TopicService {
   private get db() {
@@ -276,6 +283,8 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 
 For function signature details and design-decision history (e.g. why shallow-not-recursive, why not `dnull`), see [services/utils/README.md](../../../src/main/data/services/utils/README.md).
 
+**Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries, and the [Pagination Guide](./data-pagination-guide.md) for the end-to-end pagination model (offset + cursor).
+
 ### Service with Transaction
 
 ```typescript
@@ -391,7 +400,7 @@ The merged result reaches the renderer exclusively through these endpoints.
 ### Using DataApiErrorFactory
 
 ```typescript
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 // Not found
 throw DataApiErrorFactory.notFound('Topic', id)
@@ -438,7 +447,7 @@ export type TopicSchemas = {
 }
 ```
 
-2. **Register schema** in `schemas/index.ts`
+2. **Register schema** in `schemas/apiSchemas.ts`
 
 ```typescript
 export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
@@ -448,7 +457,7 @@ export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
 
 4. **Implement handler** in `handlers/`
 
-5. **Register handler** in `handlers/index.ts`
+5. **Register handler** in `handlers/apiHandlers.ts`
 
 ## Best Practices
 

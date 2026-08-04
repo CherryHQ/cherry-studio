@@ -1,8 +1,9 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { readErrorMessage } from '@shared/ai/readErrorMessage'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
 
 /**
@@ -36,33 +37,6 @@ export interface AihubmixFluxTransportSettings {
 const POLL_INTERVAL_MS = 2_000
 const MAX_WAIT_MS = 5 * 60_000
 
-function readSafetyTolerance(bag: Record<string, unknown>): number | undefined {
-  for (const key of ['safetyTolerance', 'safety_tolerance']) {
-    const value = bag[key]
-    if (typeof value === 'number') return value
-    if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
-  }
-  return undefined
-}
-
-function readAspectRatio(bag: Record<string, unknown>, fallback: string | undefined): string | undefined {
-  // canonicalGenerate routes aspectRatio through AI SDK positional; modern
-  // GeneratePaintingImage normalizes `ASPECT_X_Y` → `X:Y` before doGenerate.
-  // Still accept a bag value as a defensive fallback.
-  const value = fallback ?? (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
-  if (!value) return undefined
-  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+:\d+$/.test(stripped) ? stripped : undefined
-}
-
-function readSeed(bag: Record<string, unknown>, positional: number | undefined): number | undefined {
-  if (typeof positional === 'number') return positional
-  const value = bag.seed
-  if (typeof value === 'number') return value
-  if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) return Number(value.trim())
-  return undefined
-}
-
 class AihubmixFluxTransport implements ImageGenerationTransport {
   private settings: AihubmixFluxTransportSettings
   constructor(settings: AihubmixFluxTransportSettings) {
@@ -74,20 +48,25 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     const inputBody: Record<string, unknown> = {}
     if (input.prompt) inputBody.prompt = input.prompt
 
-    const aspect = readAspectRatio(
-      bag,
-      // aspectRatio gets normalized into `${number}:${number}` upstream and lives
-      // on `options.aspectRatio`, but it isn't part of ImageGenerationSubmitInput.
-      // Callers that need it pass it via the bag.
-      typeof bag.aspect_ratio === 'string' ? bag.aspect_ratio : undefined
-    )
-    if (aspect) inputBody.aspect_ratio = aspect
+    // aspectRatio gets normalized into `${number}:${number}` upstream and lives
+    // on `options.aspectRatio`, but it isn't part of ImageGenerationSubmitInput —
+    // callers that need it pass it via the bag (snake or camel). Strip any
+    // `ASPECT_X_Y` form to `X:Y` as a defensive fallback.
+    const rawAspect =
+      (typeof bag.aspect_ratio === 'string' ? bag.aspect_ratio : undefined) ??
+      (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
+    if (rawAspect) {
+      const aspect = rawAspect.replace(/^ASPECT_/i, '').replace('_', ':')
+      if (/^\d+:\d+$/.test(aspect)) inputBody.aspect_ratio = aspect
+    }
 
-    const seed = readSeed(bag, input.seed)
-    if (seed !== undefined) inputBody.seed = seed
+    if (typeof input.seed === 'number') inputBody.seed = input.seed
+    else if (typeof bag.seed === 'number') inputBody.seed = bag.seed
+    else if (typeof bag.seed === 'string' && /^-?\d+$/.test(bag.seed.trim())) inputBody.seed = Number(bag.seed.trim())
 
-    const safety = readSafetyTolerance(bag)
-    if (safety !== undefined) inputBody.safety_tolerance = safety
+    const safety = bag.safetyTolerance ?? bag.safety_tolerance
+    if (typeof safety === 'number') inputBody.safety_tolerance = safety
+    else if (typeof safety === 'string' && /^\d+$/.test(safety)) inputBody.safety_tolerance = Number(safety)
 
     const firstFile = input.files?.[0]
     if (firstFile) inputBody.input_image = fileToDataUrl(firstFile)
@@ -105,7 +84,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     })
 
     if (!response.ok) {
-      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      const message = await readErrorMessage(response, t('paintings.generate_failed'))
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
@@ -143,7 +122,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
           signal: options.signal
         })
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.generate_failed')
+          const message = await readErrorMessage(response, t('paintings.generate_failed'))
           throw new Error(message)
         }
         json = (await response.json()) as typeof json

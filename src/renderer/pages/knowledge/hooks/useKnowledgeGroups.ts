@@ -1,27 +1,15 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useGroups } from '@renderer/hooks/useGroups'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { Group } from '@shared/data/types/group'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 
-import { normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useKnowledgeGroups')
 
-export const useKnowledgeGroups = () => {
-  const { data, isLoading, error, refetch } = useQuery('/groups', {
-    query: { entityType: 'knowledge' }
-  })
-
-  const groups = useMemo(() => data ?? [], [data])
-
-  return {
-    groups,
-    isLoading,
-    error,
-    refetch
-  }
-}
+export const useKnowledgeGroups = () => useGroups('knowledge')
 
 export const useCreateKnowledgeGroup = () => {
   const {

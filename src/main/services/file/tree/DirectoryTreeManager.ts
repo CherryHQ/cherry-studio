@@ -11,14 +11,13 @@
  *
  * When a `treeId` is disposed and that builder's last consumer leaves, the
  * tear-down is deferred by `DISPOSE_GRACE_MS`. React commits effects in
- * order "deletions before insertions" within a single commit — when
- * `ArtifactPane` swaps between `Shell.Host` and `Shell.MaximizedOverlay`
- * (or a tab unmounts and immediately remounts) the unmount fires
+ * order "deletions before insertions" within a single commit — when a keyed
+ * consumer is replaced or a tab unmounts and immediately remounts, the unmount fires
  * `File_TreeDispose` for the old id and the mount fires `File_TreeCreate` for the
  * new id back-to-back. The grace window lets the new call grab the still-
  * warm builder instead of waiting on a fresh scan + watcher install.
  *
- * Renderer→main IPC sequence on a tab/maximize remount:
+ * Renderer→main IPC sequence on a same-commit consumer replacement:
  *   T0     unmount   File_TreeDispose(old)  → refcount=0, grace timer queued
  *   T0+ε   mount     File_TreeCreate(...)   → cancels timer, attaches as new consumer
  */
@@ -27,25 +26,25 @@ import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { AbsolutePathSchema } from '@shared/data/types/file'
+import { IpcChannel } from '@shared/IpcChannel'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
   DirectoryTreeOptionsSchema,
   type TreeMutationPushPayload
-} from '@shared/file/types'
-import { IpcChannel } from '@shared/IpcChannel'
+} from '@shared/utils/file'
 import type { WebContents } from 'electron'
 import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 
 // IPC param schemas. `DirectoryTreeOptionsSchema` is the shared source of
-// truth (see `@shared/file/types/tree`); the IPC-level wrappers stay here
+// truth (see `@shared/utils/file/tree`); the IPC-level wrappers stay here
 // next to the handlers, matching the FileManager / DataApi convention where
 // leaf schemas live in shared and per-channel param schemas live in main.
 const TreeCreateParamsSchema = z.strictObject({
-  rootPath: AbsolutePathSchema,
+  rootPath: AbsoluteFilePathSchema,
   options: DirectoryTreeOptionsSchema.optional()
 })
 
@@ -53,8 +52,8 @@ const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
 
 const TreeRenameParamsSchema = z.strictObject({
   treeId: z.string().min(1),
-  oldPath: AbsolutePathSchema,
-  newPath: AbsolutePathSchema
+  oldPath: AbsoluteFilePathSchema,
+  newPath: AbsoluteFilePathSchema
 })
 
 /**

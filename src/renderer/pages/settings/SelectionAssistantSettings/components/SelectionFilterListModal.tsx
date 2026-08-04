@@ -1,5 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { isWin } from '@renderer/config/constant'
+import { isWin } from '@renderer/utils/platform'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +34,10 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-130" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="sm:max-w-130"
+        onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('selection.settings.filter_modal.title')}</DialogTitle>
         </DialogHeader>

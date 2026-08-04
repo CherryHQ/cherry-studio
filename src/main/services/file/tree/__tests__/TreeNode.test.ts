@@ -1,4 +1,4 @@
-import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/file/types'
+import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 describe('TreeFile', () => {

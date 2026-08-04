@@ -14,8 +14,14 @@ export const DEFAULT_RELEVANT_SCORE = 0
  * knowledge base's interim collision handling for its `raw/<name>` store. Once the file
  * manager owns file identity (UUID storage), this can migrate to a unified dedup there.
  */
-export function nextFreeKnowledgeRelativePath(relativePath: string, isFree: (candidate: string) => boolean): string {
-  const ext = path.extname(relativePath)
+export function nextFreeKnowledgeRelativePath(
+  relativePath: string,
+  isFree: (candidate: string) => boolean,
+  splitExtension = true
+): string {
+  // Directory prefixes are not filenames: a folder `report.v2` must dedupe to
+  // `report.v2_1`, not `report_1.v2`. Callers pass splitExtension=false for those.
+  const ext = splitExtension ? path.extname(relativePath) : ''
   const stem = relativePath.slice(0, relativePath.length - ext.length)
 
   for (let suffix = 0; ; suffix += 1) {

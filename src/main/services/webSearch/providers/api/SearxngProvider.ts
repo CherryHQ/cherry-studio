@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
+import { isAbortError } from '@main/utils/error'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
-import { defaultAppHeaders, isValidUrl } from '@shared/utils'
+import { isHttpUrl } from '@shared/utils/url'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { isAbortError } from '../../utils/errors'
 import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
@@ -148,7 +149,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
     context: SearxngSearchContext,
     searchPayload: z.infer<typeof SearxngSearchResponseSchema>
   ) {
-    const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
+    const validItems = searchPayload.results.filter((item) => isHttpUrl(item.url || '')).slice(0, context.maxResults)
     if (validItems.length === 0 && searchPayload.results.length > 0) {
       logger.warn('All Searxng search URLs failed validation', {
         query: context.query,
@@ -164,7 +165,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
 
     const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
 
-    if (abortResult) {
+    if (abortResult && context.signal?.aborted) {
       throw abortResult.reason
     }
 

@@ -10,6 +10,7 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -53,7 +54,6 @@ vi.mock('@main/services/file/toFileInfo', () => ({
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
   class MockBaseService {
-    ipcHandle = vi.fn()
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
       this._disposables.push(d)
@@ -133,7 +133,7 @@ const FAKE_PDF_INFO = {
   modifiedAt: 1
 }
 
-const MARKDOWN_OUTPUT = { kind: 'path' as const, path: '/tmp/out.md' }
+const MARKDOWN_OUTPUT = { kind: 'path' as const, path: '/tmp/out.md' as AbsoluteFilePath }
 
 const entryPayload = (
   feature: 'image_to_text' | 'document_to_markdown',
@@ -205,25 +205,13 @@ describe('FileProcessingService.onInit', () => {
     expect(types).toContain('file-processing.background')
     expect(types).toContain('file-processing.remote-poll')
   })
-
-  it('registers IPC handlers for start + listAvailableProcessors only', () => {
-    const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const channels = ipcHandle.mock.calls.map((c) => c[0])
-    expect(channels).toEqual([
-      expect.stringContaining('start-job'),
-      expect.stringContaining('list-available-processors')
-    ])
-  })
 })
 
 describe('FileProcessingService.startJob — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
-    enqueueMock.mockResolvedValue({
+    enqueueMock.mockReturnValue({
       id: 'job-test-1',
       snapshot: {
         id: 'job-test-1',

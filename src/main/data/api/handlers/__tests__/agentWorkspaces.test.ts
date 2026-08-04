@@ -1,4 +1,4 @@
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -54,8 +54,8 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('delegates list and get to AgentWorkspaceService', async () => {
-    listMock.mockResolvedValueOnce([workspace])
-    getByIdMock.mockResolvedValueOnce(workspace)
+    listMock.mockReturnValueOnce([workspace])
+    getByIdMock.mockReturnValueOnce(workspace)
 
     await expect(agentWorkspaceHandlers['/agent-workspaces'].GET({} as never)).resolves.toEqual([workspace])
     await expect(
@@ -69,8 +69,8 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('delegates create and update to AgentWorkspaceService', async () => {
-    findOrCreateByPathResultMock.mockResolvedValueOnce({ workspace, created: true })
-    updateMock.mockResolvedValueOnce({ ...workspace, name: 'Renamed' })
+    findOrCreateByPathResultMock.mockReturnValueOnce({ workspace, created: true })
+    updateMock.mockReturnValueOnce({ ...workspace, name: 'Renamed' })
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
@@ -89,7 +89,7 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('returns 200 OK when POST finds an existing workspace', async () => {
-    findOrCreateByPathResultMock.mockResolvedValueOnce({ workspace, created: false })
+    findOrCreateByPathResultMock.mockReturnValueOnce({ workspace, created: false })
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
@@ -120,20 +120,21 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('delegates workspace deletion cascade to AgentSessionService', async () => {
-    deleteWorkspaceCascadeMock.mockResolvedValueOnce(undefined)
+    const result = { deletedIds: ['session-1'] }
+    deleteWorkspaceCascadeMock.mockReturnValueOnce(result)
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: workspace.id }
       } as never)
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(result)
 
     expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
   })
 
   it('delegates order mutations', async () => {
-    reorderMock.mockResolvedValueOnce(undefined)
-    reorderBatchMock.mockResolvedValueOnce(undefined)
+    reorderMock.mockReturnValueOnce(undefined)
+    reorderBatchMock.mockReturnValueOnce(undefined)
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:id/order'].PATCH({

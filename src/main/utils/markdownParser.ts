@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { PluginError, PluginMetadata } from '@types'
+import type { PluginMetadata } from '@main/utils/plugin'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
 import matter from 'gray-matter'
@@ -9,6 +9,12 @@ import { parse } from 'yaml'
 import { getDirectorySize } from './fileOperations'
 
 const logger = loggerService.withContext('Utils:MarkdownParser')
+
+// Error handling types (used by markdownParser)
+export type PluginError =
+  | { type: 'FILE_NOT_FOUND'; path: string; message?: string }
+  | { type: 'INVALID_METADATA'; reason: string; path: string }
+  | { type: 'READ_FAILED'; path: string; reason: string }
 
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 
@@ -220,21 +226,19 @@ export async function parsePluginMetadata(
 
 /**
  * Recursively find all directories containing SKILL.md or skill.md
- * Supports symlinks and deduplicates by skill name
+ * Supports symlinks and preserves every matching directory.
  *
  * @param dirPath - Directory to search in
  * @param basePath - Base path for calculating relative source paths
  * @param maxDepth - Maximum depth to search (default: 10 to prevent infinite loops)
  * @param currentDepth - Current search depth (used internally)
- * @param seen - Set of already seen skill names (for deduplication)
  * @returns Array of objects with absolute folder path and relative source path
  */
 export async function findAllSkillDirectories(
   dirPath: string,
   basePath: string,
   maxDepth = 10,
-  currentDepth = 0,
-  seen: Set<string> = new Set()
+  currentDepth = 0
 ): Promise<Array<{ folderPath: string; sourcePath: string }>> {
   const results: Array<{ folderPath: string; sourcePath: string }> = []
 
@@ -247,18 +251,11 @@ export async function findAllSkillDirectories(
   const skillMdPath = await findSkillMdPath(dirPath)
 
   if (skillMdPath) {
-    // Found skill markdown in this directory
-    const skillName = path.basename(dirPath)
-
-    // Deduplicate: only add if we haven't seen this skill name yet
-    if (!seen.has(skillName)) {
-      seen.add(skillName)
-      const relativePath = path.relative(basePath, dirPath)
-      results.push({
-        folderPath: dirPath,
-        sourcePath: relativePath
-      })
-    }
+    const relativePath = path.relative(basePath, dirPath)
+    results.push({
+      folderPath: dirPath,
+      sourcePath: relativePath
+    })
     return results
   }
 
@@ -270,7 +267,7 @@ export async function findAllSkillDirectories(
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)
-        const subResults = await findAllSkillDirectories(subDirPath, basePath, maxDepth, currentDepth + 1, seen)
+        const subResults = await findAllSkillDirectories(subDirPath, basePath, maxDepth, currentDepth + 1)
         results.push(...subResults)
       }
     }
@@ -297,7 +294,8 @@ export async function findAllSkillDirectories(
 export async function parseSkillMetadata(
   skillFolderPath: string,
   sourcePath: string,
-  category: string
+  category: string,
+  options: { calculateSize?: boolean } = {}
 ): Promise<PluginMetadata> {
   // Input validation
   if (!skillFolderPath || !path.isAbsolute(skillFolderPath)) {
@@ -360,13 +358,13 @@ export async function parseSkillMetadata(
   const folderName = path.basename(skillFolderPath)
 
   // Get total folder size
-  let folderSize: number
-  try {
-    folderSize = await getDirectorySize(skillFolderPath)
-  } catch (error: any) {
-    logger.error('Failed to calculate skill folder size', { skillFolderPath, error })
-    // Use 0 as fallback instead of failing completely
-    folderSize = 0
+  let folderSize = 0
+  if (options.calculateSize !== false) {
+    try {
+      folderSize = await getDirectorySize(skillFolderPath)
+    } catch (error: any) {
+      logger.error('Failed to calculate skill folder size', { skillFolderPath, error })
+    }
   }
 
   // Parse tools (skills use 'tools', not 'allowed_tools')
@@ -378,13 +376,18 @@ export async function parseSkillMetadata(
   // Validate and sanitize name
   const rawName = toString(data.name)
   const name = rawName && rawName.trim() ? rawName.trim() : folderName
+  const slug = toString(data.slug)
 
   // Validate and sanitize description
   const rawDescription = toString(data.description)
   const description = rawDescription && rawDescription.trim() ? rawDescription.trim() : undefined
 
   // Validate version and author
-  const version = toString(data.version)
+  const nestedMetadata =
+    typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
+      ? (data.metadata as Record<string, unknown>)
+      : undefined
+  const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)
 
   logger.debug('Successfully parsed skill metadata', {
@@ -397,6 +400,7 @@ export async function parseSkillMetadata(
     sourcePath, // e.g., "skills/my-skill"
     filename: folderName, // e.g., "my-skill" (folder name, NO .md extension)
     name,
+    slug,
     description,
     tools,
     category, // "skills" for flat structure

@@ -1,6 +1,6 @@
 /** MCP tool-result formatters. */
 
-import type { McpCallToolResponse } from '@types'
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 /** True if the call produced any image / audio / binary resource. */
 export function hasMultimodalContent(result: McpCallToolResponse): boolean {

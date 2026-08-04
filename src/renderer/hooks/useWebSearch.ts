@@ -1,5 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { splitApiKeyString } from '@renderer/utils/api'
 import type {
   PreferenceDefaultScopeType,
@@ -8,7 +9,7 @@ import type {
   WebSearchProviderId,
   WebSearchProviderOverride
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -202,7 +203,7 @@ export const useSyncZhipuWebSearchApiKeys = () => {
 
       void setApiKeys('zhipu', splitApiKeyString(apiKey)).catch((error) => {
         logger.error('Failed to sync Zhipu web search API keys', error as Error)
-        window.toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
+        toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
       })
     },
     [setApiKeys, t]

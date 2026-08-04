@@ -1,5 +1,12 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { ipcRequestMock } = vi.hoisted(() => ({
+  ipcRequestMock: vi.fn().mockResolvedValue(undefined)
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => {}) }
+}))
 
 import { useTranslateMessage } from '../useTranslateMessage'
 
@@ -10,24 +17,8 @@ import { useTranslateMessage } from '../useTranslateMessage'
  * `useTranslationOverlaySetter()` guard.
  */
 describe('useTranslateMessage without a translation-overlay provider', () => {
-  const translateOpen = vi.fn()
-
   beforeEach(() => {
-    vi.stubGlobal('window', {
-      api: {
-        translate: { open: translateOpen },
-        ai: { streamAbort: vi.fn(), onStreamChunk: vi.fn(), onStreamDone: vi.fn(), onStreamError: vi.fn() }
-      }
-    } as unknown as Window & typeof globalThis)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    translateOpen.mockReset()
-  })
-
-  it('mounts without throwing', () => {
-    expect(() => renderHook(() => useTranslateMessage('msg-1'))).not.toThrow()
+    vi.clearAllMocks()
   })
 
   it('translate() is a no-op (never opens a stream) when no overlay sink', async () => {
@@ -37,6 +28,6 @@ describe('useTranslateMessage without a translation-overlay provider', () => {
       await result.current.translate('hello', { langCode: 'en-us' } as never)
     })
 
-    expect(translateOpen).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalled()
   })
 })

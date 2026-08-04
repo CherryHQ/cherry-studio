@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
-import type { Notification } from '@types'
+import type { Notification } from '@shared/types/notification'
 import { Notification as ElectronNotification } from 'electron'
 
 class NotificationService {
@@ -13,7 +13,7 @@ class NotificationService {
 
     electronNotification.on('click', () => {
       application.get('MainWindowService').showMainWindow()
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'notification.clicked', notification)
     })
 
     electronNotification.show()

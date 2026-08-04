@@ -1,11 +1,17 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
-import AnthropicImportPopup from '@renderer/components/Popups/AnthropicImportPopup'
-import ImportPopup from '@renderer/components/Popups/ImportPopup'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import AnthropicImportPopup from './AnthropicImportPopup'
+import ImportPopup from './ImportPopup'
 
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
@@ -19,7 +25,7 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={ImportPopup.show} variant="outline">
+          <Button onClick={() => ImportPopup.show()} variant="outline">
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>
@@ -28,7 +34,7 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.claude')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={AnthropicImportPopup.show} variant="outline">
+          <Button onClick={() => AnthropicImportPopup.show()} variant="outline">
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>

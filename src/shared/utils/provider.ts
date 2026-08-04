@@ -1,5 +1,5 @@
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { getProviderHostTopology } from './providerTopology'
@@ -16,16 +16,23 @@ export function isAzureOpenAIProvider(provider: Provider): boolean {
 }
 
 export function isAwsBedrockProvider(provider: Provider): boolean {
-  return provider.authType === 'iam-aws'
+  return provider.authType === 'iam-aws' || provider.authType === 'api-key-aws'
 }
 
-export function isOllamaProvider(provider: Provider): boolean {
+export function isOllamaProvider(provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>): boolean {
   return (
     provider.id === 'ollama' ||
     provider.presetProviderId === 'ollama' ||
     provider.defaultChatEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT
   )
 }
+
+/**
+ * Ollama's local server does not validate credentials, but the SDKs backing
+ * Claude Code and OpenCode still require a non-empty auth token string — used
+ * as a stand-in wherever an Ollama provider has no configured API key.
+ */
+export const OLLAMA_PLACEHOLDER_AUTH_TOKEN = 'ollama'
 
 // `&& !iam-gcp` excludes Vertex, which the seeder gives the same
 // google-generate-content endpoint as Gemini.
@@ -77,7 +84,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
-  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+  return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
@@ -92,7 +99,7 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
-export function matchesPreset(provider: Provider, presetId: string): boolean {
+export function matchesPreset(provider: Pick<Provider, 'id' | 'presetProviderId'>, presetId: string): boolean {
   return provider.id === presetId || provider.presetProviderId === presetId
 }
 
@@ -104,9 +111,41 @@ export function canManageProvider(provider: Provider): boolean {
   return provider.presetProviderId == null || provider.presetProviderId !== provider.id
 }
 
+/**
+ * Providers whose API key is obtained via a hosted OAuth "get key" flow (the
+ * `OauthButton`), keyed by runtime id. Single source of truth: `OauthButton`
+ * supplies one handler per id (a missing handler is a compile error there), and
+ * `isProviderSupportAuth` gates whether the button renders.
+ */
+export const API_KEY_OAUTH_PROVIDER_IDS = ['302ai', 'silicon', 'aihubmix', 'ppio', 'aionly'] as const
+
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
-  return supportProviders.includes(provider.id)
+  return (API_KEY_OAUTH_PROVIDER_IDS as readonly string[]).includes(provider.id)
+}
+
+/**
+ * Login-based providers authenticate via a sign-in flow (CLI login / hosted
+ * OAuth) and accept no user API key, so the generic API-key/host UI is
+ * suppressed and their sign-in panel renders through the provider registry
+ * instead. Derived from the provider's `authMethods` (registry capability):
+ * login-based ⇔ it declares methods and none is `'api-key'`. Absent ⇒ default
+ * `['api-key']` ⇒ not login-based. CherryIN declares `['api-key', 'oauth']`, so
+ * it is *not* login-based — its key inputs stay alongside the OAuth panel.
+ */
+export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  const methods = provider.authMethods
+  return methods !== undefined && methods.length > 0 && !methods.includes('api-key')
+}
+
+/**
+ * External-CLI providers (e.g. Claude Code) reuse a CLI's own stored login and
+ * hold no app-side credential, so they cannot serve a normal chat/generation
+ * request: they are surfaced only to agent pickers (hidden from chat selectors,
+ * rejected as a topic-naming model). Capability-derived from `authMethods`, not
+ * keyed to a specific provider id, so a second such provider is covered for free.
+ */
+export function isExternalCliProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  return provider.authMethods?.includes('external-cli') ?? false
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
@@ -119,13 +158,20 @@ export function isSupportUrlContextProvider(provider: Provider): boolean {
     isVertexProvider(provider) ||
     isAnthropicProvider(provider) ||
     isAzureOpenAIProvider(provider) ||
-    isNewApiProvider(provider) ||
-    provider.id === 'cherryin'
+    isNewApiProvider(provider)
   )
 }
 
 export function isSupportServiceTierProvider(provider: Provider): boolean {
   return provider.apiFeatures?.serviceTier ?? false
+}
+
+/** Effective Fast support belongs to the provider-model pair, not either side alone. */
+export function isSupportFastMode(
+  provider: Pick<Provider, 'fastMode'>,
+  model: Pick<Model, 'supportsFastMode'>
+): provider is Pick<Provider, 'fastMode'> & { fastMode: NonNullable<Provider['fastMode']> } {
+  return provider.fastMode !== undefined && model.supportsFastMode === true
 }
 
 export function isSupportVerbosityProvider(provider: Provider): boolean {
@@ -173,4 +219,14 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
     provider.id === 'openrouter' ||
     isAzureOpenAIProvider(provider)
   )
+}
+
+/**
+ * Sanitize a provider display name for use in config file keys / launch args.
+ * Shared by the renderer (writes CLI config files) and main (assembles the
+ * matching launch command) — they must agree on the exact same output.
+ */
+export function sanitizeProviderName(name: string, fallback: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+  return sanitized || fallback
 }

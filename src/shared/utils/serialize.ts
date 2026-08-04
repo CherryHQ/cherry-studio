@@ -1,4 +1,4 @@
-import { isSerializable } from '@types'
+import { isSerializable } from '@shared/utils/serializable'
 
 /**
  * 安全地序列化一个值为 JSON 字符串。

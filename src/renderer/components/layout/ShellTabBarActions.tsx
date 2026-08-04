@@ -1,80 +1,127 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { isLinux, isWin } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { getThemeModeLabelKey } from '@renderer/i18n/label'
-import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
-import { formatErrorMessage } from '@renderer/utils/error'
-import { Monitor, Moon, Settings, Sun } from 'lucide-react'
+import { CommandTooltip } from '@renderer/components/command'
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { CircleArrowUp, Search, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import WindowControls from '../WindowControls'
+import { WindowControls } from '../WindowControls'
 
 const logger = loggerService.withContext('ShellTabBarActions')
 
-export function useShellTabBarLayout(isDetached: boolean) {
-  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
-  const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
+export function ShellTabBarActions() {
+  const { t } = useTranslation()
+  const [sidebarWidth] = usePersistCache('ui.sidebar.width')
+  const { appUpdateState } = useAppUpdateState()
+  const isSidebarHidden = getSidebarLayout(sidebarWidth) === 'hidden'
+  const hasUpdateAction = Boolean(appUpdateState.available && appUpdateState.downloaded && appUpdateState.info)
 
-  const rightPaddingClass = isDetached
-    ? hasWindowControls
-      ? 'pr-36'
-      : 'pr-4'
-    : hasWindowControls
-      ? 'pr-[212px]'
-      : 'pr-[84px]'
-
-  return {
-    hasWindowControls,
-    rightPaddingClass
+  const handleSearchClick = () => {
+    void GlobalSearchPopup.show()
   }
+
+  const handleSettingsClick = () => {
+    openSettingsTab('/settings/provider')
+  }
+
+  const handleUpdateClick = () => {
+    const releaseInfo = appUpdateState.info
+    if (!releaseInfo) return
+
+    void import('@renderer/components/UpdateDialogPopup')
+      .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+      .catch((error) => logger.error('Failed to open update dialog', error as Error))
+  }
+
+  const updateLabel = appUpdateState.info
+    ? t('settings.about.updateAvailable', { version: appUpdateState.info.version })
+    : t('button.update_available')
+
+  return (
+    <div className="flex h-full shrink-0 items-stretch">
+      <div className="flex items-center gap-1 pr-2 [-webkit-app-region:no-drag]">
+        {hasUpdateAction && (
+          <Tooltip content={updateLabel} placement="bottom" delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={updateLabel}
+              onClick={handleUpdateClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] transition-colors hover:bg-accent">
+              <CircleArrowUp className="lucide-custom size-[18px] text-success" strokeWidth={1.8} />
+            </Button>
+          </Tooltip>
+        )}
+        {isSidebarHidden && (
+          <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('settings.title')}
+              onClick={handleSettingsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+              <Settings size={16} strokeWidth={1.8} />
+            </Button>
+          </CommandTooltip>
+        )}
+        <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('globalSearch.open')}
+            onClick={handleSearchClick}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+            <Search size={16} strokeWidth={1.8} />
+          </Button>
+        </CommandTooltip>
+      </div>
+
+      <WindowControls />
+    </div>
+  )
 }
 
-export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolean }) {
+export function SidebarShellActions({
+  layout,
+  onSettingsClick
+}: {
+  layout: SidebarVisibleLayout
+  onSettingsClick: () => void
+}) {
   const { t } = useTranslation()
-  const { settedTheme, toggleTheme } = useTheme()
-  const { hasWindowControls } = useShellTabBarLayout(isDetached)
 
-  const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
-
-  const handleSettingsClick = async () => {
-    const settingsPath = '/settings/provider'
-
-    try {
-      await openSettingsWindow(settingsPath)
-    } catch (error) {
-      logger.error('Failed to open settings', error as Error)
-      window.toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
-    }
+  if (layout === 'icon') {
+    return (
+      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('settings.title')}
+          onClick={onSettingsClick}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
+          <Settings size={18} strokeWidth={1.6} />
+        </Button>
+      </CommandTooltip>
+    )
   }
 
   return (
-    <div className="absolute top-0 right-0 flex h-full items-stretch">
-      {!isDetached && (
-        <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
-          <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
-            <Tooltip placement="bottom" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
-              <button
-                type="button"
-                aria-label={t(getThemeModeLabelKey(settedTheme))}
-                onClick={toggleTheme}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-                <ThemeIcon size={16} strokeWidth={1.8} />
-              </button>
-            </Tooltip>
-            <button
-              type="button"
-              aria-label={t('settings.title')}
-              onClick={handleSettingsClick}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-              <Settings size={16} strokeWidth={1.8} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {hasWindowControls && <WindowControls />}
-    </div>
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={t('settings.title')}
+      onClick={onSettingsClick}
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+      <Settings size={16} strokeWidth={1.6} />
+      <span>{t('settings.title')}</span>
+    </Button>
   )
 }

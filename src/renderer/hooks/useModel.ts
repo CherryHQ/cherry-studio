@@ -10,7 +10,7 @@ import type {
 } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { isUndefined, omitBy } from 'lodash'
+import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
 
@@ -19,27 +19,43 @@ const logger = loggerService.withContext('useModels')
 const EMPTY_MODELS: readonly Model[] = Object.freeze([])
 
 /**
- * Reactive read of the user's default / quick / translate models. Each id
- * lives in Preference; the Model record lives in DataApi. Quick / translate
- * fall back to the default-model id when their dedicated preference is unset.
+ * Reactive read of the user's default / quick / translate / painting models.
+ * Each id lives in Preference; the Model record lives in DataApi. Quick /
+ * translate fall back to the default-model id when their dedicated preference
+ * is unset; painting does not — it needs an image-generation model, which the
+ * chat default is not, so it stays empty (and out of the cascade) until the
+ * user picks one.
  */
-export function useDefaultModel() {
+export function useDefaultModel(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
   const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
   const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+  const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
-  const { model: defaultModel } = useModelById(defaultModelId as UniqueModelId)
-  const { model: quickModel } = useModelById((quickModelId as UniqueModelId) ?? defaultModelId)
-  const { model: translateModel } = useModelById((translateModelId as UniqueModelId) ?? defaultModelId)
+  const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
+  const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
+  const { model: translateModel } = useModelById(
+    enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
+  )
+  const { model: paintingModel } = useModelById(enabled ? (paintingModelId as UniqueModelId) : null)
 
   return {
     defaultModel,
     quickModel,
     translateModel,
+    paintingModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
-    setDefaultModel: (next: { id: UniqueModelId }) => setDefaultModelId(next.id),
+    setDefaultModel: async (next: { id: UniqueModelId }, options?: { forceCascade?: boolean }) => {
+      await setDefaultModelId(next.id)
+      await Promise.all([
+        options?.forceCascade || !quickModelId ? setQuickModelId(next.id) : Promise.resolve(),
+        options?.forceCascade || !translateModelId ? setTranslateModelId(next.id) : Promise.resolve()
+      ])
+    },
     setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
-    setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id)
+    setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id),
+    setPaintingModel: (next: { id: UniqueModelId }) => setPaintingModelId(next.id)
   }
 }
 
@@ -86,6 +102,12 @@ export function useModelMutations() {
     isLoading: isDeleting,
     error: deleteError
   } = useMutation('DELETE', '/models/:uniqueModelId*', { refresh: ['/models'] })
+
+  const {
+    trigger: bulkDeleteTrigger,
+    isLoading: isBulkDeleting,
+    error: bulkDeleteError
+  } = useMutation('DELETE', '/models', { refresh: ['/models'] })
 
   const {
     trigger: updateTrigger,
@@ -140,6 +162,18 @@ export function useModelMutations() {
     [deleteTrigger]
   )
 
+  const deleteModels = useCallback(
+    async (uniqueModelIds: UniqueModelId[]) => {
+      try {
+        await bulkDeleteTrigger({ query: { ids: uniqueModelIds } })
+      } catch (error) {
+        logger.error('Failed to bulk delete models', { count: uniqueModelIds.length, error })
+        throw error
+      }
+    },
+    [bulkDeleteTrigger]
+  )
+
   const updateModel = useCallback(
     async (providerId: string, modelId: string, updates: UpdateModelDto) => {
       try {
@@ -157,7 +191,7 @@ export function useModelMutations() {
    *
    * One IPC + one DB transaction + one `/models` revalidation. Per-item field
    * semantics match `updateModel` (only fields present in `patch` are written;
-   * other columns and `userOverrides` tracking are preserved). On any failure
+   * other columns and sparse preset deltas are preserved). On any failure
    * the whole batch rolls back — there is no partial-success state for
    * callers to reason about.
    */
@@ -181,6 +215,9 @@ export function useModelMutations() {
     deleteModel,
     isDeleting,
     deleteError,
+    deleteModels,
+    isBulkDeleting,
+    bulkDeleteError,
     updateModel,
     isUpdating,
     updateError,

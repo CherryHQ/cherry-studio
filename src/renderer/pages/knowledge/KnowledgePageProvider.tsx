@@ -5,13 +5,14 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
 import {
   createContext,
-  type MouseEvent as ReactMouseEvent,
   type PropsWithChildren,
   type RefObject,
   use,
@@ -23,13 +24,14 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCreateKnowledgeGroup, useDeleteKnowledgeGroup, useKnowledgeGroups, useUpdateKnowledgeGroup } from './hooks'
+import {
+  useCreateKnowledgeGroup,
+  useDeleteKnowledgeGroup,
+  useKnowledgeGroups,
+  useUpdateKnowledgeGroup
+} from './hooks/useKnowledgeGroups'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
-import type { KnowledgeTabKey } from './types'
-
-const NAVIGATOR_DEFAULT_WIDTH = 240
-const NAVIGATOR_MIN_WIDTH = 220
-const NAVIGATOR_MAX_WIDTH = 360
+import type { KnowledgeFilePreviewTarget, KnowledgeTabKey } from './types'
 
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
@@ -43,8 +45,11 @@ interface KnowledgePageContextValue {
   selectedBase: KnowledgeBase | undefined
   selectedBaseId: string
   selectedItemId: string | null
+  /** Which detail view the selected item opens into: its original content or its indexed chunks. */
+  selectedItemView: 'content' | 'chunks'
+  filePreview: KnowledgeFilePreviewTarget | null
+  baseNavigationVersion: number
   activeTab: KnowledgeTabKey
-  navigatorWidth: number
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
   editingGroup: EditableKnowledgeGroup | null
@@ -68,14 +73,17 @@ interface KnowledgePageContextValue {
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
   openItemChunks: (itemId: string) => void
+  openItemContent: (itemId: string) => void
   closeItemChunks: () => void
+  openFilePreview: (target: KnowledgeFilePreviewTarget) => void
+  closeFilePreview: () => void
   openAddSourceDialog: (source?: KnowledgeItemType, files?: File[]) => void
   openRagConfigDrawer: () => void
   openRecallTestDrawer: () => void
   handleRagConfigDrawerOpenChange: (open: boolean) => void
   handleRecallTestDrawerOpenChange: (open: boolean) => void
   openCreateBaseDialog: (groupId?: string) => void
-  openCreateGroupDialog: () => void
+  openCreateGroupDialog: (baseIdToMove?: string) => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
   openRestoreBaseDialog: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
@@ -93,7 +101,6 @@ interface KnowledgePageContextValue {
   moveBase: (baseId: string, groupId: string | null) => Promise<void>
   deleteBase: (baseId: string) => Promise<void>
   deleteGroup: (groupId: string) => Promise<void>
-  startNavigatorResize: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
@@ -111,10 +118,14 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { deleteGroup } = useDeleteKnowledgeGroup()
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [selectedItemView, setSelectedItemView] = useState<'content' | 'chunks'>('content')
+  const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
+  const [previewNavigationVersion, setPreviewNavigationVersion] = useState(0)
+  const [baseNavigationVersion, setBaseNavigationVersion] = useState(0)
+  const previewNavigationVersionRef = useRef(0)
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
-  const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [restoringBase, setRestoringBase] = useState<KnowledgeBase | null>(null)
@@ -129,19 +140,34 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
-  const isResizingRef = useRef(false)
-  const resizeCleanupRef = useRef<(() => void) | null>(null)
+  // Set when the create-group dialog is opened from a base's context menu: the
+  // freshly created group immediately adopts that base (create-and-move in one go).
+  const [pendingGroupMoveBaseId, setPendingGroupMoveBaseId] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
   }, [bases, selectedBaseId])
 
-  useEffect(() => {
-    return () => {
-      resizeCleanupRef.current?.()
-    }
+  const resetFilePreview = useCallback(() => {
+    const nextVersion = previewNavigationVersionRef.current + 1
+    previewNavigationVersionRef.current = nextVersion
+    setPreviewNavigationVersion(nextVersion)
+    setFilePreview(null)
   }, [])
+
+  const resetBaseNavigation = useCallback(() => {
+    resetFilePreview()
+    setBaseNavigationVersion((version) => version + 1)
+  }, [resetFilePreview])
+
+  const openFilePreview = useCallback(
+    (target: KnowledgeFilePreviewTarget) => {
+      if (previewNavigationVersionRef.current !== previewNavigationVersion) return
+      setFilePreview(target)
+    },
+    [previewNavigationVersion]
+  )
 
   useEffect(() => {
     if (pendingSelectedBaseId) {
@@ -151,7 +177,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
         return
       }
 
-      if (bases === pendingSelectedBaseListRef.current) {
+      if (bases.length === 0 || bases === pendingSelectedBaseListRef.current) {
         return
       }
 
@@ -161,6 +187,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
     if (bases.length === 0) {
       if (selectedBaseId) {
+        resetBaseNavigation()
         setSelectedBaseId('')
       }
       setSelectedItemId(null)
@@ -169,17 +196,40 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
+      resetBaseNavigation()
       setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
     }
-  }, [bases, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
-  const selectBase = useCallback((baseId: string) => {
-    setPendingSelectedBaseId(null)
-    pendingSelectedBaseListRef.current = null
-    setSelectedBaseId(baseId)
-    setSelectedItemId(null)
-  }, [])
+  const selectBase = useCallback(
+    (baseId: string) => {
+      resetBaseNavigation()
+
+      if (bases.some((base) => base.id === baseId)) {
+        setPendingSelectedBaseId(null)
+        pendingSelectedBaseListRef.current = null
+      } else {
+        setPendingSelectedBaseId(baseId)
+        pendingSelectedBaseListRef.current = bases
+      }
+
+      setSelectedBaseId(baseId)
+      setSelectedItemId(null)
+    },
+    [bases, resetBaseNavigation]
+  )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
+      if (typeof baseId !== 'string') return
+      selectBase(baseId)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [selectBase])
 
   const handleSetActiveTab = useCallback((tab: KnowledgeTabKey) => {
     setActiveTab(tab)
@@ -187,6 +237,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   }, [])
 
   const openItemChunks = useCallback((itemId: string) => {
+    setSelectedItemView('chunks')
+    setSelectedItemId(itemId)
+  }, [])
+
+  const openItemContent = useCallback((itemId: string) => {
+    setSelectedItemView('content')
     setSelectedItemId(itemId)
   }, [])
 
@@ -221,7 +277,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsRecallTestDrawerOpen(open)
   }, [])
 
-  const openCreateGroupDialog = useCallback(() => {
+  const openCreateGroupDialog = useCallback((baseIdToMove?: string) => {
+    setPendingGroupMoveBaseId(baseIdToMove ?? null)
     setIsCreateGroupDialogOpen(true)
   }, [])
 
@@ -259,6 +316,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateGroupDialogOpen(open)
+
+    if (!open) {
+      setPendingGroupMoveBaseId(null)
+    }
   }, [])
 
   const handleRenameBaseDialogOpenChange = useCallback((open: boolean) => {
@@ -282,16 +343,18 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseCreated = useCallback(
     (createdBase: { id: string }) => {
+      resetBaseNavigation()
       setPendingSelectedBaseId(createdBase.id)
       pendingSelectedBaseListRef.current = bases
       setSelectedBaseId(createdBase.id)
       setSelectedItemId(null)
     },
-    [bases]
+    [bases, resetBaseNavigation]
   )
 
   const handleRestoreBaseRestored = useCallback(
     (restoredBase: { id: string }) => {
+      resetBaseNavigation()
       setRestoringBase(null)
       setRestoreBaseInitialValues(undefined)
       setPendingSelectedBaseId(restoredBase.id)
@@ -299,15 +362,35 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(restoredBase.id)
       setSelectedItemId(null)
     },
-    [bases]
+    [bases, resetBaseNavigation]
+  )
+
+  const moveBase = useCallback(
+    async (baseId: string, groupId: string | null) => {
+      try {
+        await updateBase(baseId, { groupId })
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
+      }
+    },
+    [t, updateBase]
   )
 
   const submitCreateGroup = useCallback(
     async (name: string) => {
-      await createGroup(name)
+      const group = await createGroup(name)
+      const baseIdToMove = pendingGroupMoveBaseId
       setIsCreateGroupDialogOpen(false)
+      setPendingGroupMoveBaseId(null)
+
+      // Opened from a base's context menu: the new group adopts that base right
+      // away. moveBase surfaces its own failure toast and never rejects, so a
+      // failed move can't resurrect the already-closed dialog.
+      if (baseIdToMove) {
+        await moveBase(baseIdToMove, group.id)
+      }
     },
-    [createGroup]
+    [createGroup, moveBase, pendingGroupMoveBaseId]
   )
 
   const submitRenameBase = useCallback(
@@ -344,23 +427,12 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     [editingGroup, updateGroup]
   )
 
-  const moveBase = useCallback(
-    async (baseId: string, groupId: string | null) => {
-      try {
-        await updateBase(baseId, { groupId })
-      } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
-      }
-    },
-    [t, updateBase]
-  )
-
   const handleDeleteBase = useCallback(
     async (baseId: string) => {
       try {
         await deleteBase(baseId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
       }
     },
     [deleteBase, t]
@@ -371,44 +443,11 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteGroup(groupId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
       }
     },
     [deleteGroup, t]
   )
-
-  const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    isResizingRef.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const containerLeft = contentRef.current?.getBoundingClientRect().left ?? 0
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!isResizingRef.current) {
-        return
-      }
-
-      const nextWidth = moveEvent.clientX - containerLeft
-      setNavigatorWidth(Math.min(NAVIGATOR_MAX_WIDTH, Math.max(NAVIGATOR_MIN_WIDTH, nextWidth)))
-    }
-
-    const cleanup = () => {
-      isResizingRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      resizeCleanupRef.current = null
-    }
-
-    const onMouseUp = () => cleanup()
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    resizeCleanupRef.current = cleanup
-  }, [])
 
   const value = useMemo<KnowledgePageContextValue>(
     () => ({
@@ -418,8 +457,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
+      selectedItemView,
+      filePreview,
+      baseNavigationVersion,
       activeTab,
-      navigatorWidth,
       contentRef,
       editingBase,
       editingGroup,
@@ -443,7 +484,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectBase,
       setActiveTab: handleSetActiveTab,
       openItemChunks,
+      openItemContent,
       closeItemChunks,
+      openFilePreview,
+      closeFilePreview: resetFilePreview,
       openAddSourceDialog,
       openRagConfigDrawer,
       openRecallTestDrawer,
@@ -467,11 +511,11 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       submitRenameGroup,
       moveBase,
       deleteBase: handleDeleteBase,
-      deleteGroup: handleDeleteGroup,
-      startNavigatorResize
+      deleteGroup: handleDeleteGroup
     }),
     [
       activeTab,
+      baseNavigationVersion,
       bases,
       createBase,
       editingBase,
@@ -508,22 +552,25 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingBase,
       isUpdatingGroup,
       isRestoringBase,
+      filePreview,
       moveBase,
-      navigatorWidth,
       openAddSourceDialog,
       closeItemChunks,
+      openFilePreview,
       openItemChunks,
+      openItemContent,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,
       openRenameGroupDialog,
       openRestoreBaseDialog,
       restoreBase,
+      resetFilePreview,
       selectBase,
       selectedBase,
       selectedBaseId,
       selectedItemId,
-      startNavigatorResize,
+      selectedItemView,
       submitCreateGroup,
       submitRenameBase,
       submitRenameGroup

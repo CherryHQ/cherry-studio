@@ -11,8 +11,8 @@
  *   - cursor-aware repositioning across displays
  *   - platform-specific hide branch (Windows minimize+opacity, macOS app.hide)
  *   - mainWindow lifecycle coupling (auto-hide when main window appears)
- *   - strict navigation safety (block any non-localhost navigation)
- *   - bounds persistence via electron-window-state
+ *   - strict navigation safety (block navigation outside the renderer origin)
+ *   - bounds persistence (via WindowManager's rememberBounds capability)
  *
  * Notes for future maintainers:
  *   - `mainWindowRef` caches the BrowserWindow directly because MainWindowService is
@@ -27,16 +27,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell } from 'electron'
-import windowStateKeeper from 'electron-window-state'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
-const DEFAULT_QUICK_ASSISTANT_WIDTH = 550
-const DEFAULT_QUICK_ASSISTANT_HEIGHT = 400
-const QUICK_ASSISTANT_STATE_FILE = 'quickAssistant-state.json'
 /**
  * On macOS 26+ (Tahoe / future), hiding a panel-style window keeps the previous
  * application as the frontmost without the manual `app.hide()` workaround the
@@ -124,15 +120,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private wasMainWindowFocused = false
   // Cached mainWindow reference — see file-level docstring for why this asymmetry exists.
   private mainWindowRef: BrowserWindow | null = null
-  // Instantiated in onActivate BEFORE the BrowserWindow is created so its persisted
-  // x/y/width/height can be passed as constructor options. Calling `manage()` on it later
-  // (inside setupQuickAssistant) only attaches resize/move/close listeners — it does NOT
-  // retroactively apply persisted bounds, hence the up-front instantiation. Reset to null
-  // on deactivate so the next activation reloads the most recent bounds from disk.
-  private quickAssistantState: ReturnType<typeof windowStateKeeper> | null = null
 
   protected async onInit() {
-    this.registerIpcHandlers()
     this.subscribeMainWindowLifecycle()
 
     // Attach per-instance behavior to each fresh QuickAssistant window. Fires exactly
@@ -191,8 +180,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /**
    * Release heavy resources: destroy the BrowserWindow (ending its Chromium renderer
-   * process) and drop the windowStateKeeper reference. Also invoked automatically by
-   * BaseService._doStop() on service shutdown.
+   * process). Also invoked automatically by BaseService._doStop() on service shutdown.
    */
   async onDeactivate(): Promise<void> {
     this.releaseActivationResources()
@@ -207,21 +195,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
       wm.close(this.windowId)
       this.windowId = null
     }
-    // electron-window-state writes are debounced via resize/move/close listeners that
-    // fire naturally on destroy — no manual flush needed. Drop the reference so the
-    // next activate() instantiates a fresh keeper that reloads persisted bounds.
-    this.quickAssistantState = null
     this.isPinnedQuickAssistant = false
     this.hasBlurredSinceShow = false
     this.stopPostUnpinFocusPoll()
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.QuickAssistant_Show, () => this.showQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Hide, () => this.hideQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Close, () => this.closeQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Toggle, () => this.toggleQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_SetPin, (_, isPinned: boolean) => this.setPinQuickAssistant(isPinned))
   }
 
   /**
@@ -263,8 +239,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /**
    * Strict navigation safety for the quick window. Quick window is a single-page SPA;
-   * any will-navigate that is not the dev-server URL is treated as an attempt to leave
-   * the SPA shell and is either re-routed to the system browser (when safe) or denied.
+   * any will-navigate that does not target the app's own renderer is treated as an
+   * attempt to leave the SPA shell and is either re-routed to the system browser
+   * (when safe) or denied.
    *
    * Coexists with WindowManager's default handlers (WindowManager.ts: createWindow):
    *   - will-navigate: both listeners fire; this stricter preventDefault wins.
@@ -273,7 +250,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
    */
   private setupQuickAssistantWebContents(window: BrowserWindow) {
     window.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:517')) {
+      // In-app navigation (dev-server origin, or a packaged page under the app root).
+      if (isAppRendererUrl(url)) {
         return
       }
 
@@ -299,11 +277,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * Idempotently ensure the quick window exists. Safe to call from any code path —
    * if the window is already alive (this.windowId set), this is a no-op.
    *
-   * The windowStateKeeper is instantiated BEFORE wm.open() so its persisted
-   * x/y/w/h can be passed as constructor options. `state.manage()` (invoked in
-   * setupQuickAssistant, which runs inside the onWindowCreatedByType subscription)
-   * only attaches outbound listeners — it does NOT retroactively apply persisted
-   * bounds, hence the up-front instantiation.
+   * Position/size are restored by WindowManager (rememberBounds) at construction,
+   * so no bounds options are passed here.
    *
    * wm.open() fires _onWindowCreated synchronously during createWindow(), so by
    * the time it returns both the BrowserWindow and our setup listeners (blur,
@@ -312,37 +287,18 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private createQuickAssistant() {
     if (this.windowId) return
 
-    if (!this.quickAssistantState) {
-      this.quickAssistantState = windowStateKeeper({
-        defaultWidth: DEFAULT_QUICK_ASSISTANT_WIDTH,
-        defaultHeight: DEFAULT_QUICK_ASSISTANT_HEIGHT,
-        file: QUICK_ASSISTANT_STATE_FILE
-      })
-    }
-
     const wm = application.get('WindowManager')
-    this.windowId = wm.open(WindowType.QuickAssistant, {
-      options: {
-        x: this.quickAssistantState.x,
-        y: this.quickAssistantState.y,
-        width: this.quickAssistantState.width,
-        height: this.quickAssistantState.height
-      }
-    })
+    this.windowId = wm.open(WindowType.QuickAssistant)
   }
 
   /**
    * Attach all quick-window-specific behavior to a freshly created BrowserWindow:
-   * navigation safety, bounds persistence, OS workspace visibility, alwaysOnTop level,
-   * blur/show listeners. Invoked once per fresh window from the onWindowCreatedByType
+   * navigation safety, OS workspace visibility, alwaysOnTop level, blur/show
+   * listeners. Invoked once per fresh window from the onWindowCreatedByType
    * subscription registered in onInit.
    */
   private setupQuickAssistant(window: BrowserWindow) {
     this.setupQuickAssistantWebContents(window)
-
-    // Outbound bounds persistence: resize/move/close listeners that write to disk.
-    // Inbound restoration was already done at construction via wm.create options.
-    this.quickAssistantState?.manage(window)
 
     // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
     // macOS level reapply across show cycles) is owned by WindowManager via the
@@ -370,8 +326,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // any post-unpin focus poll from a previous lifetime is irrelevant.
       this.hasBlurredSinceShow = false
       this.stopPostUnpinFocusPoll()
-      if (!window.isDestroyed()) {
-        window.webContents.send(IpcChannel.QuickAssistant_Shown)
+      if (this.windowId && !window.isDestroyed()) {
+        application.get('IpcApiService').send(this.windowId, 'quick_assistant.shown', undefined)
       }
     }
     const onHide = () => {

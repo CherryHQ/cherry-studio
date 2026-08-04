@@ -1,76 +1,71 @@
+import { timingSafeEqual } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import type { InProcessUsageContext } from '@main/ai/types'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@types'
+import type { ApiGatewayConfig } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
 
 import { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
+const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
+const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
+  private readonly internalUsageToken = uuidv4()
+  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
+  private readonly internalRequestToken = uuidv4()
   /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
   /**
-   * True while a `reconcile()` loop is converging. `reconcile()` is the SOLE caller of
-   * activate/deactivate — start/stop/restart route through it too — so transitions are
-   * never concurrent and the lifecycle's `_activating` short-circuit can't race two
-   * owners and leave the running state diverged from `desiredEnabled`.
+   * Converges the gateway's running state to `desiredEnabled`. The reconciler is the SOLE caller
+   * of activate/deactivate (start/stop/restart route through it too), so transitions are never
+   * concurrent and the lifecycle's `_activating` short-circuit can't race two owners and leave the
+   * running state diverged from `desiredEnabled`. It is level-triggered against the ACTUAL
+   * `isActivated` state, latest-wins (an opposing toggle landing mid-transition is honoured on the
+   * next pass), and a transition that throws for a still-current target is recorded — see
+   * {@link LatestReconciler.getLastError} — and not retried, so a persistent failure (e.g. port in
+   * use) can't spin the loop.
    */
-  private reconciling = false
-  /** Error from the most recent transition, surfaced to the IPC start/stop/restart callers. */
-  private lastTransitionError: unknown = null
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'apiGateway',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      // Discard activate/deactivate's returned state — the reconciler re-reads `isActivated`.
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
+    }
+  })
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
+    // The reconciler holds no OS resources (only closures + flags), so it is not disposed on stop:
+    // it is a construct-once field that is NOT recreated on restart (`start()` re-runs `onInit`), and
+    // disposing it would permanently no-op `request()` after a stop→restart. After stop, the pref
+    // subscription and IPC handlers below are cleaned up, so nothing calls `request()` anyway.
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
         this.desiredEnabled = enabled
-        void this.reconcile()
+        this.reconciler.request()
       })
     )
   }
 
   protected async onReady(): Promise<void> {
-    this.desiredEnabled = await this.shouldAutoStart()
-    await this.reconcile()
-  }
-
-  /**
-   * Converge the gateway's running state to `desiredEnabled`. Single-flight: a
-   * re-entrant call (e.g. an opposing toggle that lands mid-transition) just updates
-   * `desiredEnabled` and returns, and the running loop picks it up on its next pass.
-   * It loops against the ACTUAL `isActivated` state, not the attempted target. A
-   * transition that throws for a still-current target is recorded and not retried, so a
-   * persistent failure (e.g. port in use) can't spin the loop.
-   */
-  private async reconcile(): Promise<void> {
-    if (this.reconciling) return
-    this.reconciling = true
-    try {
-      while (this.isActivated !== this.desiredEnabled) {
-        const target = this.desiredEnabled
-        this.lastTransitionError = null
-        try {
-          if (target) {
-            await this.activate()
-          } else {
-            await this.deactivate()
-          }
-        } catch (error) {
-          this.lastTransitionError = error
-          logger.error(`API gateway ${target ? 'activation' : 'deactivation'} during reconcile failed`, error as Error)
-          if (this.desiredEnabled === target) return
-        }
-      }
-    } finally {
-      this.reconciling = false
-    }
+    this.desiredEnabled = this.shouldAutoStart()
+    this.reconciler.request()
+    await this.reconciler.flush()
   }
 
   async onActivate(): Promise<void> {
@@ -114,10 +109,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async start(): Promise<void> {
-    // Set the desired state and converge through the single queue — never transition
-    // directly, so this can't race an opposing reconcile (see `transitionQueue`).
+    // Set the desired state and converge through the reconciler — never transition directly, so
+    // this can't race an opposing toggle; `flush()` waits for the loop to go quiescent.
     this.desiredEnabled = true
-    await this.reconcile()
+    this.reconciler.request()
+    await this.reconciler.flush()
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
@@ -128,7 +124,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async stop(): Promise<void> {
     this.desiredEnabled = false
-    await this.reconcile()
+    this.reconciler.request()
+    await this.reconciler.flush()
     if (this.isActivated) {
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
@@ -139,19 +136,31 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async restart(): Promise<void> {
     // Re-create the server (e.g. to apply a new host/port) as a stop→start, so it goes
-    // through the same single reconcile owner — no direct, race-prone transition.
+    // through the same single reconciler — no direct, race-prone transition.
     await this.stop()
     await this.start()
     logger.info('API Gateway restarted successfully')
   }
 
-  /** Surface the recorded transition error to an IPC caller, or a generic fallback. */
+  /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
   private failureError(fallback: string): Error {
-    return this.lastTransitionError instanceof Error ? this.lastTransitionError : new Error(fallback)
+    const lastError = this.reconciler.getLastError()
+    return lastError instanceof Error ? lastError : new Error(fallback)
   }
 
   isRunning(): boolean {
     return this.apiGateway?.isRunning() ?? false
+  }
+
+  getInternalRequestToken(): string {
+    return this.internalRequestToken
+  }
+
+  isInternalRequestToken(candidate: string | undefined): boolean {
+    if (!candidate) return false
+    const expected = Buffer.from(this.internalRequestToken)
+    const received = Buffer.from(candidate)
+    return expected.length === received.length && timingSafeEqual(expected, received)
   }
 
   getCurrentConfig(): ApiGatewayConfig {
@@ -176,41 +185,27 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return apiKey
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.ApiGateway_Start, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.start()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
-
-    this.ipcHandle(IpcChannel.ApiGateway_Stop, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.stop()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
-
-    this.ipcHandle(IpcChannel.ApiGateway_Restart, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.restart()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
-
-    // NOTE: No status/config pull handlers. Running state is published to the
-    // shared cache (Main authoritative; read via useSharedCache) and config
-    // lives in the DataApi preference layer (feature.api_gateway.*) — pulling either
-    // over IPC would be an anti-pattern.
+  /**
+   * Headers injected only into the Claude Agent SDK subprocess that Cherry
+   * launches for this session. They let the HTTP gateway retain per-provider
+   * request records while attaching them to the owning agent.
+   */
+  getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
+    return {
+      [AGENT_SESSION_ID_HEADER]: sessionId,
+      [INTERNAL_USAGE_TOKEN_HEADER]: this.internalUsageToken
+    }
   }
 
-  private async shouldAutoStart(): Promise<boolean> {
+  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
+  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
+    if (headers.get(INTERNAL_USAGE_TOKEN_HEADER) !== this.internalUsageToken) return undefined
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    if (!sessionId) return undefined
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+  }
+
+  private shouldAutoStart(): boolean {
     try {
       const config = this.getCurrentConfig()
       // Never log the raw API key — redact before emitting.
@@ -221,7 +216,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
 
       try {
-        const { total } = await agentService.listAgents({ limit: 1 })
+        const { total } = agentService.listAgents({ limit: 1 })
         if (total > 0) {
           logger.info(`Detected ${total} agent(s), auto-starting API gateway`)
           return true

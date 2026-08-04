@@ -1,13 +1,7 @@
 import { useProvider } from '@renderer/hooks/useProvider'
+import { hasVisibleProviderApiOptions } from '@renderer/pages/settings/ProviderSettings/utils/providerApiOptions'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import {
-  isAnthropicSupportedProvider,
-  isAwsBedrockProvider,
-  isAzureOpenAIProvider,
-  isSystemProvider,
-  isVertexProvider,
-  matchesPreset
-} from '@shared/utils/provider'
+import { isAwsBedrockProvider, isAzureOpenAIProvider, isVertexProvider, matchesPreset } from '@shared/utils/provider'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,7 +25,7 @@ export function useProviderMeta(providerId: string) {
       isCherryIN: provider ? matchesPreset(provider, 'cherryin') : false,
       isDmxapi,
       isChineseUser: i18n.language.startsWith('zh'),
-      showApiOptionsButton: provider ? !isSystemProvider(provider) || isAnthropicSupportedProvider(provider) : false,
+      showApiOptionsButton: provider ? hasVisibleProviderApiOptions(provider) : false,
       isApiKeyFieldVisible: !hideApiInput && !hideApiKeyInput,
       isConnectionFieldVisible: !hideApiInput && !isDmxapi
     }

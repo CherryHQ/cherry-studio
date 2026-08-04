@@ -1,0 +1,1276 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type * as MotionReact from 'motion/react'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type * as ReactI18next from 'react-i18next'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import AgentChat from '../AgentChat'
+
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
+  useIpcOn: vi.fn()
+}))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal()),
+  Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
+  Button: ({ active, children, ...props }: PropsWithChildren<Record<string, unknown> & { active?: boolean }>) => (
+    <button type="button" data-active={active || undefined} {...props}>
+      {children}
+    </button>
+  ),
+  HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
+  Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsTrigger: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: PropsWithChildren) => children
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
+    pane,
+    paneOpen,
+    panePosition,
+    topBar,
+    topRightTool,
+    sidePanel,
+    center,
+    centerClassName,
+    overlay,
+    centerOverlay,
+    rightPane
+  }: {
+    pane?: ReactNode
+    paneOpen?: boolean
+    panePosition?: string
+    topBar?: ReactNode
+    topRightTool?: ReactNode
+    sidePanel?: ReactNode
+    center?: ReactNode
+    centerClassName?: string
+    overlay?: ReactNode
+    centerOverlay?: ReactNode
+    rightPane?: ReactNode
+  }) => (
+    <div data-testid="chat-app-shell" data-pane-open={String(Boolean(paneOpen))} data-pane-position={panePosition}>
+      <div data-testid="agent-top-bar">{topBar}</div>
+      <div data-testid="agent-top-right-tool">{topRightTool}</div>
+      <div data-testid="shell-pane">{pane}</div>
+      <div data-testid="agent-side-panel">{sidePanel}</div>
+      <div data-testid="agent-center" className={centerClassName}>
+        {center}
+      </div>
+      <div data-testid="chat-center-overlay">{centerOverlay}</div>
+      <div>{overlay}</div>
+      {rightPane}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
+  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+    <div data-testid="empty-state">
+      {title}
+      {description}
+    </div>
+  ),
+  LoadingState: () => <div data-testid="loading-state" />
+}))
+
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
+  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="session-right-pane" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </section>
+  ),
+  PersistentRightPaneHost: ({
+    children,
+    open,
+    maximized,
+    width,
+    resizable,
+    minWidth,
+    defaultWidth,
+    maxWidth,
+    cacheKey,
+    className
+  }: PropsWithChildren<{
+    open?: boolean
+    maximized?: boolean
+    width?: string | number
+    resizable?: boolean
+    minWidth?: number
+    defaultWidth?: number
+    maxWidth?: number
+    cacheKey?: string
+    className?: string
+  }>) => (
+    <section
+      data-testid={cacheKey === 'ui.chat.artifact_pane.width' ? 'artifact-right-pane' : 'session-right-pane'}
+      data-open={String(Boolean(open))}
+      data-maximized={String(Boolean(maximized))}
+      data-width={String(width)}
+      data-resizable={String(Boolean(resizable))}
+      data-min-width={String(minWidth)}
+      data-default-width={String(defaultWidth)}
+      data-max-width={String(maxWidth)}
+      data-cache-key={cacheKey}
+      data-class-name={className ?? ''}>
+      {children}
+    </section>
+  )
+}))
+
+vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
+  const workspaceRootId = '__workspace_root__'
+
+  return {
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+    isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
+      Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
+    useArtifactFileTreeModel: ({
+      workspacePath,
+      expandedIds,
+      onExpandedIdsChange
+    }: {
+      workspacePath?: string
+      expandedIds: ReadonlySet<string>
+      onExpandedIdsChange: (next: ReadonlySet<string>) => void
+    }) => {
+      const effectiveExpandedIds = new Set(expandedIds)
+      if (workspacePath) effectiveExpandedIds.add(workspaceRootId)
+
+      return {
+        filteredTree: [],
+        effectiveExpandedIds,
+        nodeById: new Map([['README.md', { kind: 'file' }]]),
+        isLoading: false,
+        hasLoaded: Boolean(workspacePath),
+        setExpandedIds: (ids: ReadonlySet<string>) => {
+          const next = new Set(ids)
+          next.delete(workspaceRootId)
+          onExpandedIdsChange(next)
+        },
+        reloadExpandedDirectories: () => {},
+        refresh: () => {}
+      }
+    }
+  }
+})
+
+vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
+  const MockArtifactPane = ({
+    workspacePath,
+    previewFileSelection,
+    onPreviewClose,
+    selectedFile,
+    onSelectedFileChange,
+    fileTreeExpandedIds,
+    onFileTreeExpandedIdsChange,
+    fileTreeSearchKeyword,
+    onFileTreeSearchKeywordChange
+  }: {
+    workspacePath?: string
+    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    onPreviewClose?: () => void
+    selectedFile?: string | null
+    onSelectedFileChange?: (file: string | null) => void
+    fileTreeExpandedIds?: ReadonlySet<string>
+    onFileTreeExpandedIdsChange?: (ids: ReadonlySet<string>) => void
+    fileTreeSearchKeyword?: string
+    onFileTreeSearchKeywordChange?: (keyword: string) => void
+  }) => {
+    const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
+    const [internalExpandedIds, setInternalExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+    const [internalFileSearchKeyword, setInternalFileSearchKeyword] = useState('')
+    const resolvedExpandedIds = fileTreeExpandedIds ?? internalExpandedIds
+    const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
+    const overlaySelection =
+      previewFileSelection ?? (selectedFile && workspacePath ? { workspacePath, filePath: selectedFile } : null)
+    const previousWorkspacePathRef = useRef(workspacePath)
+
+    useEffect(() => {
+      if (previousWorkspacePathRef.current === workspacePath) return
+      previousWorkspacePathRef.current = workspacePath
+      setViewMode('preview')
+    }, [workspacePath])
+
+    return (
+      <div
+        data-testid="artifact-pane"
+        data-workspace-path={workspacePath ?? ''}
+        data-selected-file={selectedFile ?? ''}
+        data-view-mode={viewMode}
+        data-expanded-ids={Array.from(resolvedExpandedIds).sort().join(',')}
+        data-file-search-keyword={resolvedFileSearchKeyword}>
+        <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
+          select artifact file
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = new Set(resolvedExpandedIds)
+            next.add('src')
+            if (fileTreeExpandedIds === undefined) setInternalExpandedIds(next)
+            onFileTreeExpandedIdsChange?.(next)
+          }}>
+          expand src folder
+        </button>
+        <input
+          aria-label="artifact file search"
+          value={resolvedFileSearchKeyword}
+          onChange={(event) => {
+            const next = event.target.value
+            if (fileTreeSearchKeyword === undefined) setInternalFileSearchKeyword(next)
+            onFileTreeSearchKeywordChange?.(next)
+          }}
+        />
+        <button
+          type="button"
+          aria-label={viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code'}
+          onClick={() => setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))}
+        />
+        {overlaySelection && (
+          <div data-testid="artifact-file-preview-overlay" className="overflow-auto">
+            <button type="button" aria-label="agent.preview_pane.close" onClick={onPreviewClose}>
+              close
+            </button>
+            <MockArtifactFilePreview
+              workspacePath={overlaySelection.workspacePath}
+              filePath={overlaySelection.filePath}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const MockArtifactFilePreview = ({
+    workspacePath,
+    filePath,
+    officeActions
+  }: {
+    workspacePath?: string
+    filePath?: string | null
+    officeActions?: ReactNode
+  }) => (
+    <div data-testid="artifact-file-preview" data-workspace-path={workspacePath ?? ''} data-file-path={filePath ?? ''}>
+      {officeActions}
+    </div>
+  )
+
+  const MockArtifactPaneView = ({
+    headerVariant,
+    model,
+    paneActions,
+    paneTitle,
+    searchKeyword,
+    onSearchKeywordChange,
+    selectedFile,
+    onSelectedFileChange,
+    workspacePath,
+    previewFileSelection,
+    onPreviewClose
+  }: {
+    headerVariant?: 'overlay' | 'pane'
+    model: {
+      effectiveExpandedIds: ReadonlySet<string>
+      setExpandedIds: (ids: ReadonlySet<string>) => void
+    }
+    searchKeyword: string
+    onSearchKeywordChange: (keyword: string) => void
+    paneActions?: ReactNode
+    paneTitle?: ReactNode
+    selectedFile: string | null
+    onSelectedFileChange: (file: string | null) => void
+    workspacePath?: string
+    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    onPreviewClose?: () => void
+  }) => (
+    <div>
+      {headerVariant === 'pane' ? (
+        <div data-testid="artifact-pane-header">
+          <span>{previewFileSelection?.filePath ?? paneTitle}</span>
+          {paneActions}
+        </div>
+      ) : null}
+      <MockArtifactPane
+        workspacePath={workspacePath}
+        previewFileSelection={previewFileSelection}
+        onPreviewClose={onPreviewClose}
+        selectedFile={selectedFile}
+        onSelectedFileChange={onSelectedFileChange}
+        fileTreeExpandedIds={
+          new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))
+        }
+        onFileTreeExpandedIdsChange={model.setExpandedIds}
+        fileTreeSearchKeyword={searchKeyword}
+        onFileTreeSearchKeywordChange={onSearchKeywordChange}
+      />
+    </div>
+  )
+
+  return {
+    ARTIFACT_PANE_WIDTH: 460,
+    getArtifactPaneSelectionPath: ({ workspacePath, filePath }: { workspacePath: string; filePath: string }) =>
+      `${workspacePath}/${filePath}`,
+    normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
+      rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
+    resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
+      if (workspacePath && rawPath.startsWith(`${workspacePath}/`)) {
+        return { workspacePath, filePath: rawPath.slice(workspacePath.length + 1) }
+      }
+      if (rawPath.startsWith('/')) {
+        const index = rawPath.lastIndexOf('/')
+        return { workspacePath: rawPath.slice(0, index), filePath: rawPath.slice(index + 1) }
+      }
+      return workspacePath ? { workspacePath, filePath: rawPath } : null
+    },
+    ArtifactPaneView: MockArtifactPaneView,
+    default: MockArtifactPane
+  }
+})
+
+vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
+  default: ({ workdir, filePath }: { workdir: string; filePath?: string | null }) => (
+    <button type="button" onClick={() => window.api.file.openPath(`${workdir}/${filePath ?? ''}`)}>
+      open external preview
+    </button>
+  )
+}))
+
+vi.mock('@renderer/components/chat/trace/TracePane', () => ({
+  TracePane: ({ payload }: { payload: { topicId: string; traceId: string; modelName?: string } | null }) => (
+    <div data-testid="trace-pane" data-topic-id={payload?.topicId} data-trace-id={payload?.traceId} />
+  )
+}))
+
+vi.mock('@renderer/components/composer/ComposerContext', () => ({
+  ComposerContextProvider: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/composer/ComposerCore', () => ({
+  default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>
+}))
+
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
+  useToolApprovalComposerOverrides: () => ({})
+}))
+
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
+  default: ({
+    placement,
+    main,
+    composer,
+    composerElevated
+  }: {
+    placement: string
+    main: ReactNode
+    composer: ReactNode
+    composerElevated?: boolean
+  }) => (
+    <div
+      data-testid="composer-dock-frame"
+      data-placement={placement}
+      data-main-visible={String(placement === 'docked')}
+      data-composer-elevated={String(Boolean(composerElevated))}>
+      {main}
+      {composer}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/QuickPanel', () => ({
+  QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+// Keep `motion` real; collapse AnimatePresence for synchronous assertions.
+vi.mock('motion/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof MotionReact>()),
+  AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
+  useReducedMotion: () => false
+}))
+
+vi.mock('@renderer/components/NavbarIcon', () => ({
+  default: ({ active, children, ...props }: PropsWithChildren<Record<string, unknown> & { active?: boolean }>) => (
+    <button type="button" data-active={active || undefined} {...props}>
+      {children}
+    </button>
+  )
+}))
+
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: () => [false],
+    useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue: () => undefined,
+    usePersistCache: () => [undefined, vi.fn()]
+  }
+})
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: (key: string) => {
+    if (key === 'app.developer_mode.enabled') return [true, vi.fn()]
+    return [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
+  }
+}))
+
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
+  useAgent: () => ({
+    agent: { id: 'agent-1', model: 'provider:model-1' },
+    isLoading: false
+  }),
+  useAgents: () => ({
+    agents: [
+      { id: 'agent-1', model: 'provider:model-1' },
+      { id: 'agent-2', model: 'provider:model-2' }
+    ],
+    isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/agent/useSession', () => ({
+  useUpdateSession: () => ({ updateSession: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
+  })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
+}))
+
+const activeSessionMocks = vi.hoisted(() => ({
+  result: {
+    activeSessionId: 'session-1',
+    session: {
+      id: 'session-1',
+      agentId: 'agent-1',
+      traceId: 'trace-a',
+      workspaceId: 'workspace-1',
+      workspace: { path: '/tmp/workspace' }
+    },
+    isLoading: false,
+    sessionSource: 'query',
+    setActiveSessionId: vi.fn()
+  } as {
+    activeSessionId: string | null
+    session:
+      | {
+          id: string
+          agentId: string | null
+          traceId?: string | null
+          workspaceId?: string
+          workspace: { path: string } | null
+        }
+      | undefined
+    isLoading: boolean
+    sessionSource?: 'query' | 'pending' | 'none'
+    setActiveSessionId: ReturnType<typeof vi.fn>
+  }
+}))
+
+const agentSessionPartsMocks = vi.hoisted(() => ({
+  useAgentSessionParts: vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
+  useAgentSessionParts: agentSessionPartsMocks.useAgentSessionParts
+}))
+
+vi.mock('@renderer/hooks/useChatWithHistory', () => ({
+  useChatWithHistory: () => ({
+    activeExecutions: [],
+    sendMessage: vi.fn(),
+    stop: vi.fn(),
+    setMessages: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({
+    overlay: {},
+    liveAssistants: [],
+    disposeOverlay: vi.fn(),
+    reset: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicOverlayHandoffOnTerminal: () => {}
+}))
+
+vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
+  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+}))
+
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18next>()),
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('../components/AgentChatNavbar', () => ({
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+}))
+
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
+  default: ({
+    compactWhenSingleLine,
+    sendDisabled,
+    sessionId
+  }: {
+    compactWhenSingleLine?: boolean
+    sendDisabled?: boolean
+    sessionId?: string
+  }) => (
+    <div
+      data-testid="agent-composer"
+      data-compact-when-single-line={String(Boolean(compactWhenSingleLine))}
+      data-send-disabled={String(Boolean(sendDisabled))}
+      data-session-id={sessionId}
+    />
+  ),
+  AgentHomeComposer: ({ sendMessage }: { sendMessage?: (message: { text: string }) => Promise<void> | void }) => (
+    <button type="button" data-testid="agent-home-composer" onClick={() => void sendMessage?.({ text: 'hello' })}>
+      send draft message
+    </button>
+  ),
+  MissingAgentHomeComposer: ({
+    onAgentChange
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+  }) => (
+    <button type="button" data-testid="missing-agent-home-composer" onClick={() => void onAgentChange?.('agent-2')}>
+      select missing agent
+    </button>
+  )
+}))
+
+vi.mock('../components/AgentSessionMessages', () => ({
+  default: ({
+    sessionId,
+    openAgentToolFlow,
+    openArtifactFile
+  }: {
+    sessionId: string
+    openAgentToolFlow?: (input: any) => void
+    openArtifactFile?: (path: string) => void
+  }) => (
+    <div data-testid="agent-messages" data-session-id={sessionId}>
+      <button
+        type="button"
+        onClick={() =>
+          openAgentToolFlow?.({
+            toolCallId: 'agent-a',
+            toolName: 'Agent',
+            title: 'cache-usage.md'
+          })
+        }>
+        open flow a
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          openAgentToolFlow?.({
+            toolCallId: 'agent-b',
+            toolName: 'Agent',
+            title: 'renderer audit'
+          })
+        }>
+        open flow b
+      </button>
+      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
+        open artifact file
+      </button>
+      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/report.xlsx')}>
+        open excel artifact file
+      </button>
+      <button type="button" onClick={() => openArtifactFile?.('/Users/suyao/Desktop/记忆商人.md')}>
+        open desktop artifact file
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
+  default: ({ open }: { open: boolean }) => <div data-testid="citations-panel" data-open={String(open)} />
+}))
+
+describe('AgentChat artifact pane', () => {
+  const activeSessionProps = () => ({
+    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
+    activeSessionLoading: activeSessionMocks.result.isLoading,
+    activeSessionSource:
+      activeSessionMocks.result.sessionSource ?? (activeSessionMocks.result.session ? 'query' : 'none')
+  })
+  const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
+    render(<AgentChat {...activeSessionProps()} {...props} />)
+  const rerenderAgentChat = (
+    rerender: ReturnType<typeof render>['rerender'],
+    props: ComponentProps<typeof AgentChat> = {}
+  ) => rerender(<AgentChat {...activeSessionProps()} {...props} />)
+  const openFilesPane = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+  }
+  const closeRightPane = () => {
+    fireEvent.click(
+      within(screen.getByTestId('artifact-right-pane')).getByRole('button', { name: 'common.close_sidebar' })
+    )
+  }
+
+  beforeEach(() => {
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'file.get_metadata'
+        ? Promise.resolve({
+            kind: 'file',
+            type: 'text',
+            size: 1024,
+            createdAt: 1,
+            modifiedAt: 1,
+            mime: 'text/plain'
+          })
+        : Promise.resolve(undefined)
+    )
+    agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: vi.fn(),
+      seedReservedMessages: vi.fn(),
+      deleteMessage: vi.fn()
+    })
+    activeSessionMocks.result = {
+      activeSessionId: 'session-1',
+      session: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        traceId: 'trace-a',
+        workspaceId: 'workspace-1',
+        workspace: { path: '/tmp/workspace' }
+      },
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ai: {
+          toolApproval: {
+            respond: vi.fn()
+          }
+        },
+        file: {
+          openPath: vi.fn()
+        }
+      }
+    })
+  })
+
+  it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByTestId('chat-app-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-open', 'true')
+    expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-position', 'left')
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+    expect(screen.queryByTestId('pinned-todo-panel')).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+
+    const shortcut = screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })
+    expect(shortcut).toHaveAttribute('data-shell-tab-shortcut', 'files')
+
+    fireEvent.click(shortcut)
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
+    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'true')
+
+    closeRightPane()
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+  })
+
+  it('maximizes the persistent viewport without replacing its pane subtree', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    const artifactPane = screen.getByTestId('artifact-pane')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('chat-center-overlay')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-composer-elevated', 'true')
+    expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'true')
+  })
+
+  it('only offers maximize for the files pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('keeps the selected artifact file when maximizing and restoring the pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+  })
+
+  it('keeps file tree UI state when maximizing and restoring the pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
+      target: { value: 'index' }
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+  })
+
+  it('keeps a visited files pane mounted while inactive and closed', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
+      target: { value: 'index' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    closeRightPane()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
+    openFilesPane()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('keeps the viewport and visited capability mounted while a center surface is presented', () => {
+    const { rerender } = renderAgentChat()
+
+    openFilesPane()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
+    const rightPane = screen.getByTestId('artifact-right-pane')
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    rerenderAgentChat(rerender, {
+      centerSurface: { content: <div data-testid="agent-center-surface">Agent catalog</div> }
+    })
+
+    expect(screen.getByTestId('agent-center-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
+    rerenderAgentChat(rerender)
+
+    expect(screen.queryByTestId('agent-center-surface')).toBeNull()
+    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(artifactPane).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('keeps component-local artifact view state when maximizing and restoring the pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    openFilesPane()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('resets the artifact view mode when the workspace changes', () => {
+    const { rerender } = renderAgentChat({
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    openFilesPane()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    activeSessionMocks.result = {
+      ...activeSessionMocks.result,
+      session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/other-workspace' } }
+    }
+    rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/other-workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
+  })
+
+  it('renders the empty state when there is no active session or missing-agent selection', () => {
+    activeSessionMocks.result = {
+      activeSessionId: null,
+      session: undefined,
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+
+    renderAgentChat({ activeSession: null })
+
+    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
+    expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
+  })
+
+  it('renders the missing-agent selection as a home composer without leasing a session', async () => {
+    activeSessionMocks.result = {
+      activeSessionId: null,
+      session: undefined,
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+    const onMissingAgentSelectionAgentChange = vi.fn()
+
+    renderAgentChat({
+      missingAgentSelection: true,
+      onMissingAgentSelectionAgentChange
+    })
+
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
+
+    expect(onMissingAgentSelectionAgentChange).toHaveBeenCalledWith('agent-2')
+  })
+
+  it('destroys an unavailable artifact capability without unmounting the stable viewport', () => {
+    const { rerender } = renderAgentChat({
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    openFilesPane()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    const rightPane = screen.getByTestId('artifact-right-pane')
+    const artifactPane = screen.getByTestId('artifact-pane')
+
+    rerenderAgentChat(rerender, {
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left',
+      activeSession: null,
+      missingAgentSelection: true
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(artifactPane).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
+
+    rerenderAgentChat(rerender, {
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeEnabled()
+    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(rightPane).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).not.toBe(artifactPane)
+  })
+
+  it('keeps the resource list pane visible when switching from missing-agent selection to a persisted session', () => {
+    const { rerender } = renderAgentChat({
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left',
+      activeSession: null,
+      missingAgentSelection: true
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+
+    rerenderAgentChat(rerender, {
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+  })
+
+  it('keeps the viewport mounted from selected-session loading through ready', async () => {
+    activeSessionMocks.result = {
+      activeSessionId: 'session-loading',
+      session: undefined,
+      isLoading: true,
+      setActiveSessionId: vi.fn()
+    }
+
+    const { rerender } = renderAgentChat({
+      activeSession: undefined,
+      activeSessionLoading: true,
+      sessionPaneOpen: true
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
+    })
+    expect(screen.queryByTestId('agent-home-composer')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    const rightPane = screen.getByTestId('artifact-right-pane')
+    expect(rightPane).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    activeSessionMocks.result = {
+      activeSessionId: 'session-1',
+      session: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        traceId: 'trace-a',
+        workspaceId: 'workspace-1',
+        workspace: { path: '/tmp/workspace' }
+      },
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+    rerenderAgentChat(rerender)
+
+    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
+  })
+
+  it('opens selected subagent flows in the right-pane title header', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('cache-usage.md')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
+    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+  })
+
+  it('keeps a visited trace tab keyed on the session traceId when developer mode is on', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    const tracePane = screen.getByTestId('trace-pane')
+    expect(tracePane).toHaveAttribute('data-topic-id', 'agent-session:session-1')
+    expect(tracePane).toHaveAttribute('data-trace-id', 'trace-a')
+    expect(tracePane).toBeVisible()
+
+    openFilesPane()
+
+    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
+    expect(tracePane).not.toBeVisible()
+  })
+
+  it('opens message file paths in the files tab overlay', async () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'src/index.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/index.ts')
+  })
+
+  it('opens Excel file paths in the files tab overlay without text sniffing', async () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /report\.xlsx/ })).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'report.xlsx')
+  })
+
+  it('opens absolute file paths outside the workspace in the files tab overlay', async () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /记忆商人\.md/ })).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/Users/suyao/Desktop')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', '记忆商人.md')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('closes the files tab overlay and clears the selected file', async () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
+
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.queryByTestId('artifact-file-preview')).toBeNull()
+    expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('keeps subagent flows as a title-only focus surface', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
+    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('does not render stale session content while a selected session reloads', () => {
+    function SessionPane() {
+      const [count, setCount] = useState(0)
+
+      return (
+        <button type="button" onClick={() => setCount((value) => value + 1)}>
+          pane count {count}
+        </button>
+      )
+    }
+
+    const { rerender } = renderAgentChat({ pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'pane count 0' }))
+    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+
+    activeSessionMocks.result = {
+      activeSessionId: 'session-2',
+      session: undefined,
+      isLoading: true,
+      setActiveSessionId: vi.fn()
+    }
+    rerenderAgentChat(rerender, { pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByRole('button', { name: /pane count/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+  })
+
+  it('keeps expanded session pane state when switching sessions', () => {
+    const onSelectSession = vi.fn((sessionId: string) => {
+      activeSessionMocks.result = {
+        activeSessionId: sessionId,
+        session: { id: sessionId, agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+        isLoading: false,
+        sessionSource: 'pending',
+        setActiveSessionId: vi.fn()
+      }
+    })
+
+    function SessionPane() {
+      const [expanded, setExpanded] = useState(false)
+      const sessionIds = expanded ? ['session-1', 'session-2', 'session-3', 'session-4', 'session-5', 'session-6'] : []
+
+      return (
+        <aside>
+          <button type="button" onClick={() => setExpanded(true)}>
+            Expand display
+          </button>
+          {sessionIds.map((sessionId) => (
+            <button type="button" key={sessionId} onClick={() => onSelectSession(sessionId)}>
+              {sessionId}
+            </button>
+          ))}
+        </aside>
+      )
+    }
+
+    const { rerender } = renderAgentChat({ pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
+    expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'session-6' }))
+
+    expect(onSelectSession).toHaveBeenCalledWith('session-6')
+    rerenderAgentChat(rerender, { pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-6')
+    expect(agentSessionPartsMocks.useAgentSessionParts).toHaveBeenLastCalledWith(
+      'session-6',
+      expect.objectContaining({
+        enabled: true,
+        fetchOnMount: true
+      })
+    )
+  })
+
+  it('shows the pending created session while the active session query catches up', () => {
+    const { rerender } = renderAgentChat({
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    activeSessionMocks.result = {
+      activeSessionId: 'pending-session-1',
+      session: { id: 'pending-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } },
+      isLoading: false,
+      sessionSource: 'pending',
+      setActiveSessionId: vi.fn()
+    }
+    rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'pending-session-1')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'false')
+  })
+
+  it('shows history without composer for an unlinked session', () => {
+    activeSessionMocks.result = {
+      activeSessionId: 'session-unlinked',
+      session: { id: 'session-unlinked', agentId: null, workspace: { path: '/tmp/workspace' } },
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+  })
+})

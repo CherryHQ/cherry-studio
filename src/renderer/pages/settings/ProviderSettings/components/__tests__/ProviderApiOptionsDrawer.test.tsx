@@ -8,12 +8,13 @@ const useProviderMock = vi.fn()
 const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
+const isSystemProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -37,7 +38,8 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 vi.mock('@shared/utils/provider', () => ({
   isAnthropicSupportedProvider: (...args: unknown[]) => isAnthropicSupportedProviderMock(...args),
   isAzureOpenAIProvider: (...args: unknown[]) => isAzureOpenAIProviderMock(...args),
-  isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args)
+  isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args),
+  isSystemProvider: (...args: unknown[]) => isSystemProviderMock(...args)
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -79,6 +81,12 @@ const provider = {
     enableThinking: true
   },
   settings: {
+    serviceTier: undefined,
+    summaryText: undefined,
+    verbosity: undefined,
+    streamOptions: {
+      includeUsage: undefined
+    },
     cacheControl: {
       enabled: true,
       tokenThreshold: 1024,
@@ -99,18 +107,18 @@ describe('ProviderApiOptionsDrawer', () => {
     isOpenAICompatibleProviderMock.mockReturnValue(true)
     isAzureOpenAIProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(true)
+    isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('patches apiFeatures when an option changes', () => {
+  it('patches only the toggled apiFeatures key (delta, not a full snapshot)', () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
+    // Echoing the merged runtime snapshot would mark every baseline value as
+    // a user override; main shallow-merges the stored delta instead.
     expect(updateProviderMock).toHaveBeenCalledWith({
-      apiFeatures: {
-        ...provider.apiFeatures,
-        developerRole: true
-      }
+      apiFeatures: { developerRole: true }
     })
   })
 
@@ -134,6 +142,18 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
+  it('shows default Anthropic cache values when cacheControl is unset', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+  })
+
   it('only renders array content for non OpenAI providers without anthropic cache support', () => {
     isOpenAICompatibleProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(false)
@@ -142,6 +162,7 @@ describe('ProviderApiOptionsDrawer', () => {
 
     expect(screen.getByLabelText('settings.provider.api.options.array_content.label')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.provider.api.options.developer_role.label')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.openai.title')).not.toBeInTheDocument()
     expect(
       screen.queryByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
     ).not.toBeInTheDocument()

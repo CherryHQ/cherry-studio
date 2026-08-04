@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { toDataApiError } from '@shared/data/api/apiErrors'
-import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/apiTypes'
+import { toDataApiError } from '@shared/data/api/errors'
+import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/types'
 
 const logger = loggerService.withContext('DataApi:MiddlewareEngine')
 

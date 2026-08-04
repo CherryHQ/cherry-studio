@@ -1,17 +1,12 @@
+import { Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { Assistant } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
-import { Input as AntdInput } from 'antd'
-import type { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
-import styled from 'styled-components'
 
 interface InputBarProps {
   text: string
-  assistant: Assistant
   model?: Model
-  referenceText: string
   placeholder: string
   loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
@@ -27,39 +22,26 @@ const InputBar = ({
   handleKeyDown,
   handleChange
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const inputRef = useRef<InputRef>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const { setTimeoutTimer } = useTimer()
   if (!loading) {
-    setTimeoutTimer('focus', () => inputRef.current?.input?.focus(), 0)
+    setTimeoutTimer('focus', () => inputRef.current?.focus(), 0)
   }
   return (
-    <InputWrapper ref={ref}>
+    <div ref={ref} className="mt-2.5 flex items-center gap-2">
       {model && <ModelAvatar model={model} size={30} />}
       <Input
+        ref={inputRef}
         value={text}
         placeholder={placeholder}
-        variant="borderless"
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        ref={inputRef}
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
-    </InputWrapper>
+    </div>
   )
 }
 InputBar.displayName = 'InputBar'
-
-const InputWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  margin-top: 10px;
-`
-
-const Input = styled(AntdInput)`
-  background: none;
-  border: none;
-  -webkit-app-region: none;
-  font-size: 18px;
-`
 
 export default InputBar

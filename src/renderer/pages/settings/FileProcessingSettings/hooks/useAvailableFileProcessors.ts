@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { useEffect, useState } from 'react'
 
@@ -18,8 +19,8 @@ export function useAvailableFileProcessors(): AvailableFileProcessorsState {
   useEffect(() => {
     let mounted = true
 
-    window.api.fileProcessing
-      .listAvailableProcessors()
+    ipcApi
+      .request('file_processing.list_available_processors')
       .then(({ processorIds }) => {
         if (mounted) {
           setAvailableProcessors({

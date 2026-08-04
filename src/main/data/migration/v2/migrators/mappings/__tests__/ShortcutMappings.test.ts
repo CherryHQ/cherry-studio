@@ -1,4 +1,4 @@
-import { REGISTERED_KEYBINDINGS } from '@shared/command'
+import { REGISTERED_KEYBINDINGS } from '@shared/utils/command'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LEGACY_KEY_TO_TARGET_KEY, transformShortcuts } from '../ShortcutMappings'
@@ -30,6 +30,11 @@ describe('transformShortcuts', () => {
           key: 'selection_assistant_toggle',
           shortcut: [],
           enabled: false
+        },
+        {
+          key: 'toggle_new_context',
+          shortcut: ['CommandOrControl', 'Alt', 'K'],
+          enabled: true
         }
       ]
     })
@@ -46,6 +51,10 @@ describe('transformShortcuts', () => {
       'shortcut.selection.toggle': {
         binding: [],
         enabled: false
+      },
+      'shortcut.chat.context.toggle_new': {
+        binding: ['CommandOrControl', 'Alt', 'K'],
+        enabled: true
       }
     })
   })

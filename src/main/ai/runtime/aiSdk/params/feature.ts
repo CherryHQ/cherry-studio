@@ -1,7 +1,7 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StopCondition, ToolSet } from 'ai'
 
-import type { AgentLoopHooks } from '../loop'
+import type { AgentLoopHooks } from '../loop/types'
 import type { RequestScope } from './scope'
 
 export interface RequestFeature {

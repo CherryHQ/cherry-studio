@@ -29,14 +29,19 @@ export interface UsePinsResult {
   togglePin: (entityId: string) => Promise<void>
 }
 
-export function usePins(entityType: EntityType): UsePinsResult {
+export interface UsePinsOptions {
+  enabled?: boolean
+}
+
+export function usePins(entityType: EntityType, options: UsePinsOptions = {}): UsePinsResult {
+  const enabled = options.enabled ?? true
   const {
     data: rawPins = [],
     isLoading,
     isRefreshing,
     error: queryError,
     refetch
-  } = useQuery('/pins', { query: { entityType } })
+  } = useQuery('/pins', { enabled, query: { entityType } })
 
   const {
     trigger: createPin,
@@ -54,29 +59,33 @@ export function usePins(entityType: EntityType): UsePinsResult {
   })
   const toggleInFlightRef = useRef(false)
 
-  const pins = useMemo(() => rawPins.filter((pin) => pin.entityType === entityType), [rawPins, entityType])
+  const pins = useMemo(
+    () => (enabled ? rawPins.filter((pin) => pin.entityType === entityType) : []),
+    [enabled, rawPins, entityType]
+  )
   const pinnedIds = useMemo(() => pins.map((pin) => pin.entityId), [pins])
   const isMutating = isCreatingPin || isDeletingPin
   const error = queryError ?? createError ?? deleteError
 
   useEffect(() => {
-    if (queryError) {
+    if (enabled && queryError) {
       logger.error('Failed to read pins', queryError, { entityType })
     }
-  }, [queryError, entityType])
+  }, [enabled, queryError, entityType])
 
-  const stateRef = useRef({ isLoading, isRefreshing, isMutating })
+  const stateRef = useRef({ enabled, isLoading, isRefreshing, isMutating })
   const pinsRef = useRef(pins)
-  stateRef.current = { isLoading, isRefreshing, isMutating }
+  stateRef.current = { enabled, isLoading, isRefreshing, isMutating }
   pinsRef.current = pins
 
   const togglePin = useCallback(
     async (entityId: string) => {
       const state = stateRef.current
-      if (state.isLoading || state.isRefreshing || state.isMutating || toggleInFlightRef.current) {
+      if (!state.enabled || state.isLoading || state.isRefreshing || state.isMutating || toggleInFlightRef.current) {
         logger.debug('togglePin gated', {
           entityType,
           entityId,
+          enabled: state.enabled,
           isLoading: state.isLoading,
           isRefreshing: state.isRefreshing,
           isMutating: state.isMutating,

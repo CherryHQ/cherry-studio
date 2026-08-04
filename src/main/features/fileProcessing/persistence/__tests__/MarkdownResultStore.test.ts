@@ -19,15 +19,15 @@ vi.mock('../resultPersistence', () => ({
   readMarkdownFromResponseZip: readMarkdownFromResponseZipMock
 }))
 
-vi.mock('@main/utils/file/fs', () => ({
+vi.mock('@main/utils/file', () => ({
   atomicWriteFile: atomicWriteFileMock
 }))
 
-import type { FilePath } from '@shared/file/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { markdownResultStore } from '../MarkdownResultStore'
 
-const OUTPUT_PATH = '/mock/out.md' as FilePath
+const OUTPUT_PATH = '/mock/out.md' as AbsoluteFilePath
 
 describe('MarkdownResultStore', () => {
   beforeEach(() => {

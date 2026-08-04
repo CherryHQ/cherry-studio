@@ -1,28 +1,30 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { isGenerateImageModel } from '@shared/utils/model'
-import { first } from 'lodash'
+import { first } from 'es-toolkit/compat'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 interface PaintingModelSelectorProps {
   className?: string
   painting: PaintingData
   onSelect: (selection: { providerId: string; modelId: string }) => void
+  /** Drop the "Model" section title — used by the composer's bottom toolbar. */
+  hideTitle?: boolean
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect }) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect, hideTitle }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
@@ -49,18 +51,25 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
 
   const selectedName = selectedModel?.name ?? painting.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
-  const selectedIcon = useMemo(() => {
-    if (!painting.providerId) return undefined
-    const identifier = selectedModel?.apiModelId ?? painting.model
-    if (!identifier) return undefined
-    return resolveIcon(identifier, painting.providerId) ?? resolveIcon(selectedModel?.name ?? '', painting.providerId)
-  }, [painting.providerId, painting.model, selectedModel])
+  const selectedIconRef = useMemo(
+    () =>
+      painting.providerId
+        ? getModelLogoRef(
+            selectedModel ?? { id: painting.model ?? '', name: painting.model ?? '' },
+            painting.providerId
+          )
+        : undefined,
+    [painting.providerId, painting.model, selectedModel]
+  )
+  const selectedIcon = useIcon(selectedIconRef)
 
   return (
-    <div>
-      <PaintingSectionTitle>
-        <span className="min-w-0 truncate">{t('paintings.model')}</span>
-      </PaintingSectionTitle>
+    <div className={hideTitle ? 'contents' : undefined}>
+      {!hideTitle && (
+        <PaintingSectionTitle>
+          <span className="min-w-0 truncate">{t('paintings.model')}</span>
+        </PaintingSectionTitle>
+      )}
       <ModelSelector
         open={open}
         onOpenChange={setOpen}
@@ -72,7 +81,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
           onSelect({ providerId, modelId })
         }}
-        filter={isGenerateImageModel}
+        filter={supportsImageGenerationEndpoint}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
@@ -80,10 +89,10 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle bg-secondary px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-secondary-hover hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:text-foreground',
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -96,20 +105,18 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                   </Avatar>
                 )
               ) : null}
-              <span className="min-w-0 truncate text-foreground/90">
+              <span className="min-w-0 truncate text-foreground">
                 {selectedName ? (
                   <>
                     {selectedName}
-                    {selectedProviderName && (
-                      <span className="text-muted-foreground/80"> | {selectedProviderName}</span>
-                    )}
+                    {selectedProviderName && <span className="text-muted-foreground"> | {selectedProviderName}</span>}
                   </>
                 ) : (
                   t('paintings.select_model')
                 )}
               </span>
             </div>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
           </Button>
         }
       />

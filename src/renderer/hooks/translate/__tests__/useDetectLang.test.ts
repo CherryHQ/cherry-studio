@@ -1,18 +1,30 @@
+import { toast } from '@renderer/services/toast'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
-import { detectLanguageByFranc, detectLanguageByLLM, detectWithMethod, useDetectLang } from '../useDetectLang'
+import {
+  detectLanguageByFranc,
+  detectLanguageByLLM,
+  detectLanguageOrUnknown,
+  detectWithMethod,
+  useDetectLang
+} from '../useDetectLang'
+import { setLanguagesQuery } from './testUtils'
 
 const lang = parseTranslateLangCode
 
 // Stand-in Model used everywhere the helper needs one. Shape only — never
 // inspected by the assertions; what matters is whether the LLM path was hit.
 const TEST_MODEL = { id: 'gpt', provider: 'openai' } as never
+
+const languagesFixture = [
+  { langCode: lang('en-us'), value: 'English', emoji: '🇺🇸' },
+  { langCode: lang('zh-cn'), value: '中文', emoji: '🇨🇳' }
+]
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
@@ -23,18 +35,24 @@ vi.mock('i18next', () => ({
 }))
 
 // Franc returns the iso3 code; we canonicalize per test via mockReturnValue.
-const francMock = vi.fn<(input: string) => string>()
+// Forward options so tests catch unexpected franc configuration changes.
+const francMock = vi.fn<(input: string, options?: { minLength?: number }) => string>()
 vi.mock('franc-min', () => ({
-  franc: (input: string) => francMock(input)
+  franc: (input: string, options?: { minLength?: number }) =>
+    options === undefined ? francMock(input) : francMock(input, options)
 }))
 
-// LLM goes through window.api.ai.generateText now (Main IPC). Tests can drive
-// the response per case via mockImplementation/mockResolvedValueOnce.
-const generateTextMock =
-  vi.fn<(args: { uniqueModelId: string; system?: string; prompt: string }) => Promise<{ text: string }>>()
+// LLM goes through ipcApi.request('ai.text.generate', …) now (Main IPC). Tests can
+// drive the response per case via mockImplementation/mockResolvedValueOnce.
+const { generateTextMock } = vi.hoisted(() => ({
+  generateTextMock:
+    vi.fn<(args: { uniqueModelId: string; system?: string; prompt: string }) => Promise<{ text: string }>>()
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: any) => generateTextMock(input) }
+}))
 vi.stubGlobal('window', {
   ...globalThis.window,
-  api: { ai: { generateText: (args: any) => generateTextMock(args) } },
   toast: { error: vi.fn() }
 })
 
@@ -68,7 +86,7 @@ describe('detectLanguageByLLM', () => {
     generateTextMock.mockResolvedValue({ text: 'en-us' })
   })
 
-  it('returns the trimmed lang code from window.api.ai.generateText', async () => {
+  it('returns the trimmed lang code from ai.text.generate', async () => {
     generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
@@ -160,6 +178,26 @@ describe('detectWithMethod', () => {
   })
 })
 
+describe('detectLanguageOrUnknown', () => {
+  it('returns the detected language when detection succeeds', async () => {
+    const detectLanguage = vi.fn().mockResolvedValue(lang('en-us'))
+    const onError = vi.fn()
+
+    await expect(detectLanguageOrUnknown('Hello', detectLanguage, onError)).resolves.toBe('en-us')
+    expect(detectLanguage).toHaveBeenCalledWith('Hello')
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('returns unknown and reports the error when detection fails', async () => {
+    const error = new Error('detect failed')
+    const detectLanguage = vi.fn().mockRejectedValue(error)
+    const onError = vi.fn()
+
+    await expect(detectLanguageOrUnknown('Hello', detectLanguage, onError)).resolves.toBe(UNKNOWN_LANG_CODE)
+    expect(onError).toHaveBeenCalledWith(error)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Hook surface
 // ---------------------------------------------------------------------------
@@ -168,20 +206,7 @@ describe('useDetectLang hook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUsePreference.mockImplementation(() => ['llm', vi.fn()] as any)
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: [
-            { langCode: lang('en-us'), value: 'English', emoji: '🇺🇸' },
-            { langCode: lang('zh-cn'), value: '中文', emoji: '🇨🇳' }
-          ],
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery(languagesFixture)
     useDefaultModelMock.mockReturnValue({ quickModel: TEST_MODEL })
     isQwenMTModelMock.mockReturnValue(false)
     generateTextMock.mockResolvedValue({ text: 'en-us' })
@@ -196,18 +221,8 @@ describe('useDetectLang hook', () => {
     expect(francMock).not.toHaveBeenCalled()
   })
 
-  it('returns the unknown lang code when languages are still loading (undefined) and logs a warn', async () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: undefined,
-          isLoading: true,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+  it('returns the unknown lang code when languages are still loading without showing a load-failed toast', async () => {
+    setLanguagesQuery(undefined)
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())
@@ -215,21 +230,28 @@ describe('useDetectLang hook', () => {
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked before languages were ready, returning UNKNOWN')
+    expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked while languages were loading, returning UNKNOWN')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('returns the unknown lang code when languages failed to load without duplicating the load error toast', async () => {
+    setLanguagesQuery(undefined, { error: new Error('load failed') })
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useDetectLang())
+
+    await act(async () => {})
+    expect(toast.error).toHaveBeenCalledTimes(1)
+
+    const code = await act(async () => result.current('Hello'))
+    expect(code).toBe(UNKNOWN_LANG_CODE)
+    expect(generateTextMock).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked after languages failed to load, returning UNKNOWN')
+    expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('returns the unknown lang code when the language list resolved to an empty array and logs an error', async () => {
-    mockUseQuery.mockImplementation(
-      () =>
-        ({
-          data: [],
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn(),
-          mutate: vi.fn()
-        }) as any
-    )
+    setLanguagesQuery([])
     const errorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())

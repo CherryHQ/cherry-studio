@@ -2,10 +2,23 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
+  notifyDataApiDataChangeMock: vi.fn()
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
 
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
@@ -34,6 +47,7 @@ describe('AgentSessionMessageService', () => {
   }
 
   beforeEach(async () => {
+    notifyDataApiDataChangeMock.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
@@ -46,32 +60,70 @@ describe('AgentSessionMessageService', () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
       })
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: { id: DONE, role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'done' }] } }
       })
-      await agentSessionMessageService.saveMessage({
+      agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
       })
 
-      expect(await agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
+      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
 
-      await agentSessionMessageService.markMessagesError([PENDING])
-      expect(await agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
+      agentSessionMessageService.markMessagesError([PENDING])
+      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       expect(row.status).toBe('error')
+    })
+  })
+
+  it('atomically settles a persisted background tool approval with the user-updated input', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        approvalId: 'approval-1',
+        approved: true,
+        updatedInput
+      })
+    ).toBe(true)
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.data.parts?.[0]).toMatchObject({
+      state: 'approval-responded',
+      input: updatedInput,
+      approval: { id: 'approval-1', approved: true }
     })
   })
 
   it('creates messages with service-owned audit timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
-    const saved = await agentSessionMessageService.saveMessage({
+    const saved = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
         id: USER_MESSAGE_ID,
@@ -96,7 +148,7 @@ describe('AgentSessionMessageService', () => {
   it('keeps createdAt stable when updating an existing message', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
 
-    const created = await agentSessionMessageService.saveMessage({
+    const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
         id: USER_MESSAGE_ID,
@@ -104,7 +156,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
-    const updated = await agentSessionMessageService.saveMessage({
+    const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
         id: USER_MESSAGE_ID,
@@ -126,10 +178,137 @@ describe('AgentSessionMessageService', () => {
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
 
+  it('publishes the data change derived from an inserted or updated message', () => {
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'hello' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        entityIds: [USER_MESSAGE_ID]
+      }
+    ])
+
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'updated' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [USER_MESSAGE_ID]
+      }
+    ])
+  })
+
+  it('reads and updates message data within the owning Agent session', async () => {
+    const otherSessionId = 'session-other-update'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] }
+      }
+    })
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(() => agentSessionMessageService.getSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID)).toThrow(
+      "Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found"
+    )
+
+    const data = {
+      parts: [
+        {
+          type: 'data-error' as const,
+          data: { message: 'failed' },
+          providerMetadata: { cherry: { diagnosis: { summary: 'Check the provider' } } }
+        }
+      ]
+    }
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, { data })
+
+    expect(updated.data).toEqual(data)
+    expect(updated.status).toBe('error')
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID, { data })
+    ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
+  })
+
+  it('replaces parts on the original assistant row', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit' }
+            }
+          ]
+        }
+      }
+    })
+
+    agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+      {
+        type: 'tool-Agent',
+        toolCallId: 'task-root',
+        state: 'input-available',
+        input: { prompt: 'Audit' }
+      },
+      {
+        type: 'text',
+        text: 'Subagent finished',
+        providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+      }
+    ])
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.status).toBe('success')
+    expect(saved.data.parts).toEqual([
+      expect.objectContaining({ toolCallId: 'task-root' }),
+      expect.objectContaining({ type: 'text', text: 'Subagent finished' })
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [ASSISTANT_MESSAGE_ID]
+      }
+    ])
+  })
+
   it('uses one timestamp for a batch of newly saved messages', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
 
-    await agentSessionMessageService.saveMessages({
+    agentSessionMessageService.saveMessages({
       sessionId: SESSION_ID,
       messages: [
         {
@@ -177,13 +356,107 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+    const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       cursor: 'not-a-cursor',
       limit: 1
     })
 
     expect(result.items.map((item) => item.id)).toEqual([ASSISTANT_MESSAGE_ID])
     expect(result.nextCursor).toBe(`200:${ASSISTANT_MESSAGE_ID}`)
+  })
+
+  it('anchors list pagination at messageId and continues older pages with cursor', async () => {
+    const older = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+    const middle = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302'
+    const target = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d303'
+    const newer = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d304'
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: older,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'older' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: middle,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'middle' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: target,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'target' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: newer,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newer' }] },
+        status: 'success',
+        createdAt: 400,
+        updatedAt: 400
+      }
+    ])
+
+    const firstPage = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: target,
+      limit: 2
+    })
+    const secondPage = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: target,
+      cursor: firstPage.nextCursor,
+      limit: 2
+    })
+
+    expect(firstPage.items.map((item) => item.id)).toEqual([target, middle])
+    expect(firstPage.nextCursor).toBe(`200:${middle}`)
+    expect(secondPage.items.map((item) => item.id)).toEqual([older])
+    expect(secondPage.nextCursor).toBeUndefined()
+  })
+
+  it('falls back to the newest page when the anchor messageId is outside the requested session', async () => {
+    const otherSessionId = 'session-other'
+    const otherMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d305'
+    const newestMessageId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d306'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: otherMessageId,
+        sessionId: otherSessionId,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'other' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: newestMessageId,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newest' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      messageId: otherMessageId
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual([newestMessageId])
+    expect(result.nextCursor).toBeUndefined()
   })
 
   it('keeps searchable_text and FTS index in sync from message data', async () => {
@@ -206,37 +479,40 @@ describe('AgentSessionMessageService', () => {
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
     expect(inserted.searchableText).toBe('hello\nthinking')
 
-    const thinkingMatches = await dbh.client.execute({
-      sql: `SELECT m.id
+    const thinkingMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
             FROM agent_session_message m
             JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
-            WHERE agent_session_message_fts MATCH ?`,
-      args: ['thinking']
-    })
-    expect(thinkingMatches.rows.map((row) => String(row[0]))).toEqual([USER_MESSAGE_ID])
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('thinking') as Array<{ id: string }>
+    expect(thinkingMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
 
     await dbh.db
       .update(agentSessionMessageTable)
       .set({ data: { parts: [{ type: 'text', text: 'updated target' }] } })
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
 
-    const staleMatches = await dbh.client.execute({
-      sql: `SELECT m.id
+    const staleMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
             FROM agent_session_message m
             JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
-            WHERE agent_session_message_fts MATCH ?`,
-      args: ['thinking']
-    })
-    const targetMatches = await dbh.client.execute({
-      sql: `SELECT m.id
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('thinking') as Array<{ id: string }>
+    const targetMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
             FROM agent_session_message m
             JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
-            WHERE agent_session_message_fts MATCH ?`,
-      args: ['target']
-    })
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('target') as Array<{ id: string }>
 
-    expect(staleMatches.rows).toHaveLength(0)
-    expect(targetMatches.rows.map((row) => String(row[0]))).toEqual([USER_MESSAGE_ID])
+    expect(staleMatches).toHaveLength(0)
+    expect(targetMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
   })
 
   it('searches session message parts text', async () => {
@@ -266,7 +542,7 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 300
     })
 
-    const result = await agentSessionMessageService.search({ q: 'needle' })
+    const result = agentSessionMessageService.search({ q: 'needle' })
 
     expect(result.items).toEqual([
       expect.objectContaining({
@@ -297,7 +573,7 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 300
     })
 
-    const result = await agentSessionMessageService.search({
+    const result = agentSessionMessageService.search({
       q: '"line one\nline two"'
     })
 
@@ -320,7 +596,7 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 300
     })
 
-    const result = await agentSessionMessageService.search({ q: 'needle' })
+    const result = agentSessionMessageService.search({ q: 'needle' })
 
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa'])
   })
@@ -352,7 +628,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const result = await agentSessionMessageService.search({ q: 'alpha needle' })
+    const result = agentSessionMessageService.search({ q: 'alpha needle' })
 
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba'])
   })
@@ -393,8 +669,8 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const percentResult = await agentSessionMessageService.search({ q: '50%' })
-    const underscoreResult = await agentSessionMessageService.search({ q: '50_' })
+    const percentResult = agentSessionMessageService.search({ q: '50%' })
+    const underscoreResult = agentSessionMessageService.search({ q: '50_' })
 
     expect(percentResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc'])
     expect(underscoreResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be'])
@@ -416,21 +692,21 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 300
     })
 
-    const ftsRow = await dbh.client.execute({
-      sql: 'SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = ?',
-      args: ['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab']
-    })
-    await dbh.client.execute({
-      sql: `INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
-            VALUES ('delete', ?, ?)`,
-      args: [ftsRow.rows[0][0], ftsRow.rows[0][1]]
-    })
+    const ftsRow = dbh.sqlite
+      .prepare('SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = ?')
+      .get('018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab') as { fts_rowid: number; searchable_text: string }
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
+            VALUES ('delete', ?, ?)`
+      )
+      .run(ftsRow.fts_rowid, ftsRow.searchable_text)
 
     let result: Awaited<ReturnType<typeof agentSessionMessageService.search>>
     try {
-      result = await agentSessionMessageService.search({ q: 'needle' })
+      result = agentSessionMessageService.search({ q: 'needle' })
     } finally {
-      await dbh.client.execute(`INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')`)
+      dbh.sqlite.prepare(`INSERT INTO agent_session_message_fts(agent_session_message_fts) VALUES ('rebuild')`).run()
     }
 
     expect(result.items).toEqual([])
@@ -470,7 +746,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const result = await agentSessionMessageService.search({
+    const result = agentSessionMessageService.search({
       q: 'needle',
       sessionId: 'session-source-filter'
     })
@@ -505,7 +781,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const result = await agentSessionMessageService.search({
+    const result = agentSessionMessageService.search({
       q: 'needle',
       createdAtFrom: '1970-01-01T00:00:00.250Z'
     })
@@ -549,12 +825,12 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const firstPage = await agentSessionMessageService.search({
+    const firstPage = agentSessionMessageService.search({
       q: 'needle',
       sessionId: 'session-page',
       limit: 2
     })
-    const secondPage = await agentSessionMessageService.search({
+    const secondPage = agentSessionMessageService.search({
       q: 'needle',
       sessionId: 'session-page',
       limit: 2,
@@ -606,12 +882,12 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const firstPage = await agentSessionMessageService.search({
+    const firstPage = agentSessionMessageService.search({
       q: 'needle',
       sessionId: 'session-page-tie',
       limit: 2
     })
-    const secondPage = await agentSessionMessageService.search({
+    const secondPage = agentSessionMessageService.search({
       q: 'needle',
       sessionId: 'session-page-tie',
       limit: 2,
@@ -627,14 +903,244 @@ describe('AgentSessionMessageService', () => {
     expect(secondPage.nextCursor).toBeUndefined()
   })
 
-  it('rejects malformed session message search cursors', async () => {
-    await expect(agentSessionMessageService.search({ q: 'needle', cursor: 'not-a-cursor' })).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR'
-    })
-    await expect(
+  it('rejects malformed session message search cursors', () => {
+    let malformedError: unknown
+    try {
+      agentSessionMessageService.search({ q: 'needle', cursor: 'not-a-cursor' })
+    } catch (error) {
+      malformedError = error
+    }
+    expect(malformedError).toMatchObject({ code: 'VALIDATION_ERROR' })
+
+    let nonNumericKeyError: unknown
+    try {
       agentSessionMessageService.search({ q: 'needle', cursor: 'abc:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206' })
-    ).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR'
+    } catch (error) {
+      nonNumericKeyError = error
+    }
+    expect(nonNumericKeyError).toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+
+  describe('saveMessage — record projection ownership', () => {
+    const USAGE_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+    const USAGE_AGENT_ID = 'agent-usage'
+
+    beforeEach(() => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: USAGE_AGENT_ID,
+          type: 'claude_code',
+          name: 'Usage Agent',
+          instructions: '',
+          model: null,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ agentId: USAGE_AGENT_ID })
+        .where(eq(agentSessionTable.id, SESSION_ID))
+        .run()
+    })
+
+    function seedModel() {
+      dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: 'p0' }).run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'anthropic::claude-sonnet',
+          providerId: 'anthropic',
+          modelId: 'claude-sonnet',
+          presetModelId: 'claude-sonnet',
+          name: 'claude-sonnet',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'm0'
+        })
+        .run()
+    }
+
+    it('persists runtime timing without turning it into a usage record', async () => {
+      seedModel()
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeStats: {
+          runtimeTiming: {
+            startedAt: 1_000,
+            completedAt: 2_000,
+            spans: []
+          }
+        },
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet'
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+      expect(
+        dbh.db
+          .select({ stats: agentSessionMessageTable.stats })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()?.stats
+      ).toEqual({
+        requestCount: 0,
+        estimatedRequestCount: 0,
+        unpricedRequestCount: 0,
+        costs: [],
+        runtimeTiming: {
+          startedAt: 1_000,
+          completedAt: 2_000,
+          spans: []
+        }
+      })
+    })
+
+    it('needs no route-owner flag to suppress stats-less message persistence', async () => {
+      seedModel()
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet'
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+    })
+
+    it('projects a provider-call record that arrived before the agent message row', async () => {
+      seedModel()
+
+      aiUsageRecordService.recordInvocation({
+        requestId: 'gateway-provider-call',
+        context: createAiUsageCaptureContext({
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          modelId: 'claude-sonnet',
+          modelName: 'Claude Sonnet',
+          credentialReceipt: {
+            attribution: 'explicit',
+            id: 'key-primary',
+            label: 'Primary',
+            masked: 'sk-a****aaaa'
+          },
+          source: { type: 'agent', id: USAGE_AGENT_ID, name: 'Usage Agent', icon: null },
+          messageRef: { kind: 'agent-session', id: USAGE_MESSAGE_ID }
+        }),
+        modality: 'language',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        completedAt: 1_000
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet'
+        }
+      })
+
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'gateway-provider-call',
+        totalTokens: 15,
+        apiKeyId: 'key-primary',
+        sourceType: 'agent',
+        sourceId: USAGE_AGENT_ID
+      })
+      expect(
+        dbh.db
+          .select({ stats: agentSessionMessageTable.stats })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()?.stats
+      ).toMatchObject({ inputTokens: 10, outputTokens: 5, totalTokens: 15, requestCount: 1 })
+    })
+
+    it('does not infer usage from a persisted model snapshot after the model row is deleted', async () => {
+      seedModel()
+      const messageSnapshot = {
+        id: 'agent-at-request-time',
+        name: 'Agent at request time',
+        model: {
+          id: 'claude-sonnet',
+          name: 'Claude Sonnet',
+          provider: 'anthropic'
+        }
+      }
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          messageSnapshot
+        }
+      })
+      dbh.db.delete(userModelTable).where(eq(userModelTable.id, 'anthropic::claude-sonnet')).run()
+      expect(
+        dbh.db
+          .select({ modelId: agentSessionMessageTable.modelId })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()
+      ).toEqual({ modelId: null })
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] }
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+    })
+
+    it('does not record user messages or stats-less assistant messages', async () => {
+      seedModel()
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302',
+          role: 'user',
+          status: 'success',
+          data: { parts: [] }
+        }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d303',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet'
+        }
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
     })
   })
 })

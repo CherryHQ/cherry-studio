@@ -1,0 +1,107 @@
+import { cn } from '@renderer/utils/style'
+import { type KeyboardEvent, type ReactNode, useId } from 'react'
+
+import { useMessageDisclosureState } from '../../hooks/useMessageDisclosureState'
+import { StreamingContext } from '../shared/GenericTools'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+
+export function AgentToolDisclosureLabel({
+  label,
+  trailing,
+  labelClassName,
+  trailingClassName
+}: {
+  label: ReactNode
+  trailing?: ReactNode
+  labelClassName?: string
+  trailingClassName?: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className={labelClassName ?? 'min-w-0 flex-1'}>{label}</div>
+      {trailing && <div className={trailingClassName ?? 'shrink-0'}>{trailing}</div>}
+    </div>
+  )
+}
+
+export function AgentToolDisclosure({
+  className,
+  defaultActiveKey = [],
+  isStreaming = false,
+  item,
+  onOpenDetails,
+  stateId,
+  showInlineDetails = true
+}: {
+  className?: string
+  defaultActiveKey?: string[]
+  isStreaming?: boolean
+  item: ToolDisclosureItem
+  onOpenDetails?: () => void
+  stateId?: string
+  showInlineDetails?: boolean
+}) {
+  const contentId = useId()
+  const itemKey = String(item.key)
+  const canExpand = showInlineDetails && item.children !== undefined && item.children !== null
+  const isInteractive = canExpand || !!onOpenDetails
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+    stateId ? `agent-tool:${stateId}` : undefined,
+    defaultActiveKey.includes(itemKey)
+  )
+  const toggleExpanded = () => {
+    if (!canExpand) return
+    setIsExpanded((current) => !current)
+  }
+  const openOrToggle = () => {
+    if (onOpenDetails) {
+      onOpenDetails()
+      return
+    }
+    toggleExpanded()
+  }
+  const handleHeaderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isInteractive) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openOrToggle()
+  }
+
+  return (
+    <StreamingContext value={isStreaming}>
+      <div
+        className={cn(
+          'w-full overflow-hidden rounded-[7px] border border-border bg-background',
+          className,
+          item.classNames?.item,
+          item.className
+        )}>
+        <div
+          role={isInteractive ? 'button' : undefined}
+          tabIndex={isInteractive ? 0 : undefined}
+          aria-expanded={canExpand ? isExpanded : undefined}
+          aria-controls={canExpand ? contentId : undefined}
+          className={cn(
+            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground text-sm leading-4 outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
+            item.classNames?.header
+          )}
+          onClick={isInteractive ? openOrToggle : undefined}
+          onKeyDown={handleHeaderKeyDown}>
+          {item.label}
+        </div>
+        {canExpand && (
+          <div
+            id={contentId}
+            data-testid={`collapse-content-${item.key}`}
+            hidden={!isExpanded}
+            className={cn(
+              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-muted-foreground leading-5',
+              item.classNames?.body
+            )}>
+            {item.children}
+          </div>
+        )}
+      </div>
+    </StreamingContext>
+  )
+}

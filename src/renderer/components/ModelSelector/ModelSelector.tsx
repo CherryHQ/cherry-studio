@@ -1,52 +1,61 @@
-import {
-  Avatar,
-  AvatarFallback,
-  Button,
-  Checkbox,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { isDev } from '@renderer/config/constant'
-import { useCommandHandler } from '@renderer/features/command'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
-import { first } from 'lodash'
-import { Pin, Search, Settings2 } from 'lucide-react'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
+import { first } from 'es-toolkit/compat'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
-  isValidElement,
+  type KeyboardEvent,
   startTransition,
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
-import { FreeTrialModelTag } from './FreeTrialModelTag'
-import { ModelTagChip } from './ModelTagChip'
+import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
+import { SelectorShell } from '../SelectorShell'
+import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
+import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
+import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
 
 const logger = loggerService.withContext('ModelSelector')
 
-const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
-const ROW_TAG_SIZE = 8
+const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
+const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
+const MODEL_SELECTOR_CONTENT_HEIGHT = 440
+const MODEL_SELECTOR_WIDTH = 400
+const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
+const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
+
+const estimateModelSelectorItemSize = () => ITEM_HEIGHT
+type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
+
+type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
+type ModelSelectorSelectionSnapshot = {
+  multiple: boolean
+  selectionType?: ModelSelectorSelectionType
+  value: ModelSelectorValue
+}
 
 function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   const nextSelectedIds: UniqueModelId[] = []
@@ -64,12 +73,13 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function getMalformedSelectionWarning(
-  props: ModelSelectorProps
-): { message: string; context: Record<string, unknown> } | null {
-  if (props.multiple) {
-    if (props.selectionType === 'id') {
-      const value = props.value
+function getMalformedSelectionWarning({
+  multiple,
+  selectionType,
+  value
+}: ModelSelectorSelectionSnapshot): { message: string; context: Record<string, unknown> } | null {
+  if (multiple) {
+    if (selectionType === 'id') {
       return value !== undefined && !Array.isArray(value)
         ? {
             message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
@@ -78,7 +88,6 @@ function getMalformedSelectionWarning(
         : null
     }
 
-    const value = props.value
     return value !== undefined && !Array.isArray(value)
       ? {
           message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
@@ -87,8 +96,7 @@ function getMalformedSelectionWarning(
       : null
   }
 
-  if (props.selectionType === 'id') {
-    const value = props.value
+  if (selectionType === 'id') {
     return value !== undefined && Array.isArray(value)
       ? {
           message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
@@ -97,7 +105,6 @@ function getMalformedSelectionWarning(
       : null
   }
 
-  const value = props.value
   return value !== undefined && Array.isArray(value)
     ? {
         message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
@@ -106,31 +113,31 @@ function getMalformedSelectionWarning(
     : null
 }
 
-function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId[] {
-  // Narrow on the discriminator pair directly so each branch operates on the
-  // variant-specific `value` type — no wide `ModelSelectorValue` needed.
-  if (props.multiple) {
-    if (props.selectionType === 'id') {
-      const value = props.value
+function normalizeSelectedIdsFromValue({
+  multiple,
+  selectionType,
+  value
+}: ModelSelectorSelectionSnapshot): UniqueModelId[] {
+  if (multiple) {
+    if (selectionType === 'id') {
       const ids = Array.isArray(value)
         ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
         : []
       return dedupeSelectedIds(ids)
     }
 
-    const value = props.value
     const modelValues = Array.isArray(value) ? value : []
-    const ids = modelValues.flatMap((candidate) => (candidate?.id ? [candidate.id] : []))
+    const ids = modelValues.flatMap((candidate) =>
+      typeof candidate === 'object' && candidate?.id ? [candidate.id] : []
+    )
     return dedupeSelectedIds(ids)
   }
 
-  if (props.selectionType === 'id') {
-    const value = props.value
+  if (selectionType === 'id') {
     return typeof value === 'string' && isUniqueModelId(value) ? dedupeSelectedIds([value]) : []
   }
 
-  const value = props.value
-  return value?.id ? dedupeSelectedIds([value.id]) : []
+  return typeof value === 'object' && !Array.isArray(value) && value?.id ? dedupeSelectedIds([value.id]) : []
 }
 
 function modelsFromSelectedIds(
@@ -148,112 +155,98 @@ function ModelRow({
   isFocused,
   onPin,
   onSelect,
-  onNavigateBeforeTrial,
   showCheckbox,
   showPinActions,
   isPinActionDisabled,
+  isSelected,
+  detailPortalContainer,
   t
 }: {
   item: ModelSelectorModelItem
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
-  onNavigateBeforeTrial: () => void
   showCheckbox: boolean
   showPinActions: boolean
   isPinActionDisabled: boolean
+  isSelected: boolean
+  detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
-  const icon = resolveIcon(item.modelIdentifier, item.provider.id)
-  const rowTags = useMemo(() => MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(item.model, tag)), [item.model])
+  const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
+  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
   const providerName = getProviderDisplayName(item.provider)
-  const isCherryAi = item.provider.id === 'cherryai'
+
+  const leading = icon ? (
+    <icon.Avatar size={24} className="border border-border" />
+  ) : (
+    <Avatar size="sm" className="border border-border">
+      <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
+    </Avatar>
+  )
+
+  const checkbox = showCheckbox ? (
+    <Checkbox
+      checked={isSelected}
+      size="sm"
+      tabIndex={-1}
+      aria-hidden="true"
+      className="ml-1"
+      data-testid={`model-selector-checkbox-${item.modelId}`}
+    />
+  ) : null
+
+  const trailing =
+    rowTags.length > 0 ? (
+      <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        {rowTags.map((tag) => (
+          <ModelTag
+            key={`${item.key}-${tag}`}
+            tag={tag}
+            size={ROW_TAG_SIZE}
+            showLabel={false}
+            showTooltip
+            className="h-full items-center"
+          />
+        ))}
+      </div>
+    ) : null
+
+  const pinAction = showPinActions ? (
+    <ModelSelectorRowActionButton
+      disabled={isPinActionDisabled}
+      aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+      className="size-4 rounded-sm hover:bg-transparent"
+      pinned={item.isPinned}
+      selected={isSelected}
+      onClick={() => onPin(item.modelId)}>
+      <Pin className="size-3" />
+    </ModelSelectorRowActionButton>
+  ) : null
 
   return (
-    <div
-      role="option"
-      tabIndex={-1}
-      aria-selected={item.isSelected}
-      className={cn(
-        'group relative flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors',
-        item.isSelected && 'bg-primary/10 text-foreground',
-        !item.isSelected && isFocused && 'bg-accent/60',
-        !item.isSelected && !isFocused && 'text-foreground hover:bg-accent/60'
-      )}
-      data-testid={`model-selector-item-${item.modelId}`}
-      onClick={() => onSelect(item)}>
-      {!showCheckbox && item.isSelected && (
-        <span
-          aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-4xs bg-primary/40"
-        />
-      )}
-      {showCheckbox && (
-        <Checkbox
-          checked={item.isSelected}
-          tabIndex={-1}
-          aria-hidden="true"
-          className="pointer-events-none"
-          data-testid={`model-selector-checkbox-${item.modelId}`}
-        />
-      )}
-      {/* 左侧：图标 + 名称 */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        {icon ? (
-          <icon.Avatar size={20} />
-        ) : (
-          <Avatar size="sm">
-            <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
-          </Avatar>
+    <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
+      <ModelSelectorRow
+        selected={isSelected}
+        focused={isFocused}
+        showSelectedIndicator={!showCheckbox && isSelected}
+        checkbox={checkbox}
+        leading={leading}
+        trailing={trailing}
+        actions={pinAction}
+        onSelect={() => onSelect(item)}
+        rootProps={{ className: 'pr-0.5' }}
+        optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
+        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
+          {item.model.name}
+        </span>
+        {item.isPinned && (
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
+            | {providerName}
+          </span>
         )}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="truncate">{item.model.name}</span>
-          {item.showIdentifier && item.modelIdentifier !== item.model.name && (
-            <span className="max-w-[45%] truncate font-mono text-muted-foreground text-xs" title={item.modelIdentifier}>
-              {item.modelIdentifier}
-            </span>
-          )}
-          {item.isPinned && <span className="shrink-0 truncate text-muted-foreground text-xs">| {providerName}</span>}
-          {isCherryAi && (
-            <FreeTrialModelTag model={item.model} showLabel={false} onBeforeNavigate={onNavigateBeforeTrial} />
-          )}
-        </div>
-      </div>
-      {/* 右侧：tags — 容器固定 h-4，所有 tag h-full + items-center，消除 SVG/iconfont/纯文字渲染高度差 */}
-      {rowTags.length > 0 && (
-        <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-          {rowTags.map((tag) => (
-            <ModelTagChip
-              key={`${item.key}-${tag}`}
-              tag={tag}
-              size={ROW_TAG_SIZE}
-              showLabel={false}
-              showTooltip
-              className="h-full items-center"
-            />
-          ))}
-        </div>
-      )}
-      {/* Pin 按钮 — 悬浮/置顶时显示 */}
-      {showPinActions && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={isPinActionDisabled}
-          aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-          className={cn(
-            'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
-            item.isPinned && '-rotate-45 text-primary opacity-100'
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            onPin(item.modelId)
-          }}>
-          <Pin className="size-3" />
-        </Button>
-      )}
-    </div>
+      </ModelSelectorRow>
+    </ModelSelectorDetailCard>
   )
 }
 
@@ -266,26 +259,31 @@ export function ModelSelector(props: ModelSelectorProps) {
     showTagFilter = true,
     showPinnedModels = true,
     showPinActions = true,
-    prioritizedProviderIds = [],
+    prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
     sideOffset = 4,
     contentClassName,
-    listVisibleCount = PAGE_SIZE,
+    portalContainer,
+    mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
+    onSettingsNavigate,
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
+  const noneOptionLabel = props.multiple ? undefined : props.noneOptionLabel
+  const selectionType = props.selectionType
+  const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
+  const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -297,6 +295,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const skipNextFocusScroll = useRef(false)
+  const ignoreNextMultiSelectCloseRef = useRef(false)
+  const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
@@ -315,6 +315,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   useEffect(() => {
     return () => {
       if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current)
+      if (ignoreNextMultiSelectCloseTimerRef.current) clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
       if (focusScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
       }
@@ -323,10 +324,20 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
-  const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
+  const multiSelectModeRef = useRef(multiSelectMode)
+  multiSelectModeRef.current = multiSelectMode
 
   const setOpen = useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && ignoreNextMultiSelectCloseRef.current) {
+        ignoreNextMultiSelectCloseRef.current = false
+        if (ignoreNextMultiSelectCloseTimerRef.current) {
+          clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
+          ignoreNextMultiSelectCloseTimerRef.current = null
+        }
+        return
+      }
+
       if (openProp === undefined) {
         setInternalOpen(nextOpen)
       }
@@ -343,6 +354,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
+      multiSelectModeRef.current = nextEnabled
       if (multiSelectModeProp === undefined) {
         setInternalMultiSelectMode(nextEnabled)
       }
@@ -352,11 +364,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const rawSelectedModelIds = useMemo(
-    () => normalizeSelectedIdsFromValue(props),
-    // Narrowing is driven by the three discriminators — any of them changing
-    // means `props.value` may be typed differently too.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- these discriminators intentionally cover the relevant prop shape.
-    [props.multiple, props.selectionType, props.value]
+    () => normalizeSelectedIdsFromValue({ multiple, selectionType, value: selectedValue }),
+    [multiple, selectionType, selectedValue]
   )
 
   const {
@@ -365,15 +374,19 @@ export function ModelSelector(props: ModelSelectorProps) {
     isPinActionDisabled,
     listItems,
     modelItems,
+    refetchModels,
     refetchPinnedModels,
+    refetchProviders,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,
     selectedTags,
     tagSelection,
     togglePin,
-    toggleTag
+    toggleTag,
+    visibleSelectedModelIdSet
   } = useModelSelectorData({
+    enabled: open,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -384,15 +397,19 @@ export function ModelSelector(props: ModelSelectorProps) {
   })
   const listItemsRef = useRef(listItems)
   const modelItemsRef = useRef(modelItems)
+  const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
+  visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
 
-  const normalizedListVisibleCount = useMemo(() => Math.max(1, Math.floor(listVisibleCount)), [listVisibleCount])
   const listHeight = useMemo(
-    () => Math.min(normalizedListVisibleCount, listItems.length || 1) * ITEM_HEIGHT,
-    [listItems.length, normalizedListVisibleCount]
+    () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
+    [listItems.length]
   )
+  const pageSize = DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
+  const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
+  const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -423,7 +440,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const focusItem = useCallback(
-    (key: string) => {
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
       setFocusedItemKey(key)
       const index = listItemsRef.current.findIndex((item) => item.key === key)
       if (index >= 0) {
@@ -432,9 +449,24 @@ export function ModelSelector(props: ModelSelectorProps) {
         }
         focusScrollFrameRef.current = window.requestAnimationFrame(() => {
           focusScrollFrameRef.current = null
-          listRef.current?.scrollToIndex(index, { align: 'auto' })
+          listRef.current?.scrollToIndex(index, { align })
         })
       }
+    },
+    [setFocusedItemKey]
+  )
+
+  const focusItemBeforePaint = useCallback(
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
+      setFocusedItemKey(key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
+      if (index < 0) return
+
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+        focusScrollFrameRef.current = null
+      }
+      listRef.current?.scrollToIndex(index, { align })
     },
     [setFocusedItemKey]
   )
@@ -443,7 +475,15 @@ export function ModelSelector(props: ModelSelectorProps) {
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
 
-      if (multiple && multiSelectMode) {
+      if (multiple && multiSelectModeRef.current) {
+        ignoreNextMultiSelectCloseRef.current = true
+        if (ignoreNextMultiSelectCloseTimerRef.current) {
+          clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
+        }
+        ignoreNextMultiSelectCloseTimerRef.current = setTimeout(() => {
+          ignoreNextMultiSelectCloseRef.current = false
+          ignoreNextMultiSelectCloseTimerRef.current = null
+        }, 0)
         emitSelection(computeToggledSelection(rawSelectedModelIds, item.modelId))
         return
       }
@@ -451,22 +491,66 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, multiSelectMode, rawSelectedModelIds, setOpen]
+    [emitSelection, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
     setOpen(false)
   }, [setOpen])
 
-  const handleNavigateToProviderSettings = useCallback(
-    (providerId: string) => {
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setShellKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      setShellKey((key) => key + 1)
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
-        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+    },
+    [open, runPendingCloseAction, setOpen]
+  )
+
+  const closeBeforeSettingsNavigation = useCallback(
+    (path: SettingsPath) => {
+      closeBeforeAction(() => {
+        const navigate = () => openSettingsTab(path)
+        if (onSettingsNavigate) {
+          onSettingsNavigate(navigate)
+          return
+        }
+
+        navigate()
       })
     },
-    [navigate, setOpen]
+    [closeBeforeAction, onSettingsNavigate]
   )
+
+  const handleNavigateToProviderSettings = useCallback(
+    (providerId: string) => {
+      closeBeforeSettingsNavigation(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+    },
+    [closeBeforeSettingsNavigation]
+  )
+
+  const handleNavigateToCustomModelSettings = useCallback(() => {
+    closeBeforeSettingsNavigation('/settings/provider')
+  }, [closeBeforeSettingsNavigation])
+
+  const handleSelectNone = useCallback(() => {
+    emitSelection([])
+    setOpen(false)
+  }, [emitSelection, setOpen])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
@@ -477,7 +561,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       skipNextFocusScroll.current = true
       togglePin(modelId).catch((error) => {
         logger.error('Failed to toggle model pin', error as Error, { modelId })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [isPinActionDisabled, t, togglePin]
@@ -513,7 +597,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     onClose: handleClose,
     onFocusItem: focusItem,
     onSelectItem: handleSelectItem,
-    pageSize: normalizedListVisibleCount
+    pageSize
   })
 
   useEffect(() => {
@@ -521,7 +605,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       return
     }
 
-    const warning = getMalformedSelectionWarning(props)
+    const warning = getMalformedSelectionWarning({ multiple, selectionType, value: selectedValue })
     if (!warning) {
       return
     }
@@ -533,8 +617,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     malformedSelectionWarningKeyRef.current = warningKey
     logger.warn(warning.message, warning.context)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the warning only depends on the discriminator subset above.
-  }, [props.multiple, props.selectionType, props.value])
+  }, [multiple, selectionType, selectedValue])
 
   useEffect(() => {
     if (!open) {
@@ -545,13 +628,21 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open])
 
   useEffect(() => {
-    if (open && showPinnedModels) {
+    if (!open) {
+      return
+    }
+
+    void refetchModels()
+    void refetchProviders()
+
+    if (showPinnedModels) {
       void refetchPinnedModels()
     }
-  }, [open, refetchPinnedModels, showPinnedModels])
+  }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
 
   useEffect(() => {
     if (!open) {
+      skipNextFocusScroll.current = false
       setSearchText('')
       setFocusedItemKey('')
       resetTags()
@@ -559,6 +650,15 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
+
+  useLayoutEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -572,22 +672,25 @@ export function ModelSelector(props: ModelSelectorProps) {
     const targetKey =
       deferredSearchText || selectedTagsKey.length > 0
         ? currentModelItems[0]?.key
-        : (currentModelItems.find((item) => item.isSelected)?.key ?? currentModelItems[0]?.key)
+        : (currentModelItems.find((item) => visibleSelectedModelIdSetRef.current.has(item.modelId))?.key ??
+          currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey)
+      // Position the virtual list before paint so opening does not briefly show
+      // the first rows before jumping to the selected model on the next frame.
+      focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
-    (item: FlatListItem) => {
+    (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
       if (item.type === 'group') {
         const groupTitle =
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-[11px] text-muted-foreground">
-            <span className="truncate">{groupTitle}</span>
+          <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
+            <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -595,12 +698,12 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
                     handleNavigateToProviderSettings(item.provider!.id)
                   }}>
-                  <Settings2 className="size-3" />
+                  <Settings2 className="block size-3" />
                 </Button>
               </Tooltip>
             )}
@@ -612,7 +715,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         // 静态时 onMouseEnter 同步 focusedItemKey（让 Enter 命中鼠标所在行）。
         // 滚动中通过 isScrollingRef 跳过 setState，避免与 virtualizer flushSync 竞争。
         <div
-          className="py-0.5"
+          className="px-1 py-0.5"
           onMouseEnter={() => {
             if (isScrollingRef.current) return
             setFocusedItemKey(item.key)
@@ -621,11 +724,12 @@ export function ModelSelector(props: ModelSelectorProps) {
             item={item}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
+            isSelected={visibleSelectedModelIdSet.has(item.modelId)}
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
-            onNavigateBeforeTrial={handleClose}
             showCheckbox={multiple && multiSelectMode}
             showPinActions={showPinActions}
+            detailPortalContainer={detailPortalContainer}
             t={t}
           />
         </div>
@@ -633,7 +737,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     [
       focusedItemKey,
-      handleClose,
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
@@ -642,99 +745,148 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiSelectMode,
       setFocusedItemKey,
       showPinActions,
-      t
+      t,
+      visibleSelectedModelIdSet
     ]
   )
 
+  const handleSearchKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (MODEL_SELECTOR_NAVIGATION_KEYS.has(event.key)) {
+      event.preventDefault()
+    }
+  }, [])
+
+  const searchConfig = useMemo(
+    () => ({
+      inputRef,
+      value: searchText,
+      onChange: setSearchText,
+      placeholder: t('models.search.placeholder'),
+      dataTestId: 'model-selector-search',
+      onKeyDown: handleSearchKeyDown
+    }),
+    [handleSearchKeyDown, searchText, t]
+  )
+
+  const filterContent = useMemo(() => {
+    if (!showTagFilter || availableTags.length === 0) {
+      return undefined
+    }
+
+    return (
+      <div
+        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="model-selector-filter-tags">
+        {availableTags.map((tag) => (
+          <ModelTag
+            key={`filter-${tag}`}
+            tag={tag}
+            size={FILTER_TAG_SIZE}
+            showLabel
+            inactive={!tagSelection[tag]}
+            onClick={() => toggleTag(tag)}
+            className="h-5 shrink-0 items-center transition-colors"
+          />
+        ))}
+      </div>
+    )
+  }, [availableTags, showTagFilter, tagSelection, toggleTag])
+
+  const multiSelectConfig = useMemo(
+    () =>
+      multiple
+        ? {
+            label: t('models.multi_select.label'),
+            ariaLabel: t('models.multi_select.label'),
+            checked: multiSelectMode,
+            placement: 'search-badge' as const,
+            onCheckedChange: handleMultiSelectModeChange,
+            dataTestId: 'model-selector-multi-select-switch',
+            rowTestId: 'model-selector-multi-select-row'
+          }
+        : undefined,
+    [handleMultiSelectModeChange, multiSelectMode, multiple, t]
+  )
+
+  const bottomActions = useMemo<SelectorShellBottomAction[]>(() => {
+    const actions: SelectorShellBottomAction[] = [
+      {
+        icon: <Settings2 className="size-3.5" />,
+        label: t('models.action.configure_custom'),
+        onClick: handleNavigateToCustomModelSettings
+      }
+    ]
+
+    if (noneOptionLabel) {
+      actions.push({
+        type: 'selectable',
+        icon: <CircleSlash className="size-3.5" />,
+        label: noneOptionLabel,
+        selected: rawSelectedModelIds.length === 0,
+        onClick: handleSelectNone
+      })
+    }
+
+    return actions
+  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
+
+  const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
-      <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
-      <PopoverContent
+      <SelectorShell
+        key={shellKey}
+        trigger={trigger}
+        open={open}
+        onOpenChange={setOpen}
+        search={searchConfig}
+        filterContent={filterContent}
+        multiSelect={multiSelectConfig}
+        width={MODEL_SELECTOR_WIDTH}
         side={side}
         align={align}
         sideOffset={sideOffset}
-        className={cn('max-h-140 w-90 overflow-hidden rounded-lg p-0 py-1', contentClassName)}
+        portalContainer={portalContainer}
+        contentClassName={contentClassName}
+        mountStrategy={mountStrategy}
+        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
+        bottomAction={bottomActions}
         data-testid="model-selector-content">
-        <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
-          <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
-          <Input
-            ref={inputRef}
-            value={searchText}
-            autoFocus
-            spellCheck={false}
-            placeholder={t('models.search.placeholder')}
-            className={cn(
-              'h-auto flex-1 border-0 bg-transparent p-0 shadow-none transition-none',
-              'text-xs md:text-xs',
-              'focus-visible:border-transparent focus-visible:ring-0',
-              'placeholder:text-muted-foreground/40'
-            )}
-            data-testid="model-selector-search"
-            onChange={(event) => setSearchText(event.target.value)}
-            onKeyDown={(event) => {
-              if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'].includes(event.key)) {
-                event.preventDefault()
-              }
-            }}
-          />
-        </div>
+        {({ availableListHeight, portalContainer: detailPortalContainer }) => {
+          const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight
+          const virtualListHeight = Math.max(0, visibleListHeight - MODEL_SELECTOR_LIST_VERTICAL_PADDING)
 
-        {showTagFilter && availableTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-border/60 border-b px-3 py-2">
-            <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
-            {availableTags.map((tag) => (
-              <ModelTagChip
-                key={`filter-${tag}`}
-                tag={tag}
-                size={FILTER_TAG_SIZE}
-                showLabel
-                inactive={!tagSelection[tag]}
-                onClick={() => toggleTag(tag)}
-                className="transition-colors"
-              />
-            ))}
-          </div>
-        )}
-
-        {multiple && (
-          <div
-            className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
-            data-testid="model-selector-multi-select-row">
-            <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
-            <Switch
-              checked={multiSelectMode}
-              size="sm"
-              data-testid="model-selector-multi-select-switch"
-              onCheckedChange={handleMultiSelectModeChange}
-            />
-          </div>
-        )}
-
-        {listItems.length > 0 ? (
-          <div className="px-1 py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
-            <DynamicVirtualList
-              ref={listRef}
-              list={listItems}
-              size={listHeight}
-              estimateSize={() => ITEM_HEIGHT}
-              getItemKey={(index) => listItems[index].key}
-              isSticky={(index) => listItems[index].type === 'group'}
-              scrollPaddingStart={ITEM_HEIGHT}
-              onScroll={handleListScroll}
-              overscan={6}>
-              {rowRenderer}
-            </DynamicVirtualList>
-          </div>
-        ) : (
-          <div
-            className="flex items-center justify-center px-3 py-4 text-muted-foreground text-xs"
-            data-testid="model-selector-empty">
-            {t('models.no_matches')}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+          return listItems.length > 0 ? (
+            <div
+              className="py-1"
+              role="listbox"
+              aria-multiselectable={multiple && multiSelectMode}
+              style={{ height: visibleListHeight }}>
+              <DynamicVirtualList
+                ref={listRef}
+                list={listItems}
+                size={virtualListHeight}
+                estimateSize={estimateModelSelectorItemSize}
+                getItemKey={getListItemKey}
+                isSticky={isStickyListItem}
+                scrollPaddingStart={ITEM_HEIGHT}
+                onScroll={handleListScroll}
+                overscan={6}>
+                {(item) => rowRenderer(item, detailPortalContainer)}
+              </DynamicVirtualList>
+            </div>
+          ) : (
+            <div
+              className="flex items-center justify-center px-3 py-4 text-muted-foreground text-xs"
+              style={{ height: visibleListHeight }}
+              data-testid="model-selector-empty">
+              {t('models.no_matches')}
+            </div>
+          )
+        }}
+      </SelectorShell>
+    </>
   )
 }
 

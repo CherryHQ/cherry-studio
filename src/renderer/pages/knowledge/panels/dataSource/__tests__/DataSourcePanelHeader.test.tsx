@@ -6,15 +6,21 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanelHeader from '../DataSourcePanelHeader'
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
+    <button type="button" data-variant={variant} {...props}>
+      {children}
+    </button>
   ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => <button {...props}>{label}</button>,
+  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
+    <button type="button" {...props}>
+      {label}
+    </button>
+  ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -27,7 +33,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, opts?: Record<string, unknown>) => {
       if (key === 'knowledge.data_source.bulk.selected_count') return `已选 ${opts?.count}`
       if (key === 'knowledge.meta.updated_at') return `更新于 ${opts?.time}`
-      if (key === 'knowledge.data_source.ready_summary') return `${opts?.ready}/${opts?.total}`
+      if (key === 'knowledge.data_source.bulk.loaded_only_hint') return `仅已加载，共 ${opts?.total} 项`
       return (
         (
           {
@@ -43,8 +49,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 const baseProps = {
-  readyCount: 3,
-  totalCount: 5,
+  total: 5,
+  loadedCount: 5,
   selectedCount: 0,
   updatedAt: '2026-06-16T00:00:00.000Z',
   onBulkReindex: vi.fn(),
@@ -53,11 +59,10 @@ const baseProps = {
 }
 
 describe('DataSourcePanelHeader', () => {
-  it('renders the updated time, ready summary and add button in the default state', () => {
+  it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
     expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByText('3/5')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
   })
 
@@ -70,15 +75,17 @@ describe('DataSourcePanelHeader', () => {
     expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
   })
 
-  // Regression for the QA issue "选中文件后列表轻微上移": the default toolbar
-  // (32px add button) and the bulk toolbar (28px sm buttons) differed by 4px,
-  // shifting the list on selection. Both states must keep the same min height.
-  it('keeps the same min height across default and selected states', () => {
-    const { container: defaultContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
-    const { container: selectedContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={2} />)
+  it('warns that a selection only covers loaded rows when unloaded pages remain', () => {
+    const { rerender } = render(
+      <DataSourcePanelHeader {...baseProps} total={200} loadedCount={50} selectedCount={50} />
+    )
 
-    expect(defaultContainer.firstChild).toHaveClass('min-h-8')
-    expect(selectedContainer.firstChild).toHaveClass('min-h-8')
+    expect(screen.getByText('仅已加载，共 200 项')).toBeInTheDocument()
+
+    // Fully loaded (total === loadedCount): no hint.
+    rerender(<DataSourcePanelHeader {...baseProps} total={50} loadedCount={50} selectedCount={50} />)
+
+    expect(screen.queryByText('仅已加载，共 50 项')).not.toBeInTheDocument()
   })
 
   it('invokes bulk callbacks from the selected-state toolbar', () => {

@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { RequestSearchContext } from '../base/context'
 
@@ -44,7 +45,6 @@ const ExaSearchResultsSchema = z.object({
   autopromptString: z.string().optional()
 })
 
-const DEFAULT_API_HOST = 'https://mcp.exa.ai/mcp'
 const REQUEST_TIMEOUT_MS = 25000
 const logger = loggerService.withContext('MainWebSearchProvider:ExaMcp')
 
@@ -72,9 +72,7 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
     return {
       query,
       maxResults: config.maxResults,
-      requestUrl:
-        this.provider.capabilities.find((item) => item.feature === 'searchKeywords')?.apiHost?.trim() ||
-        DEFAULT_API_HOST,
+      requestUrl: resolveProviderApiHost(this.provider, 'searchKeywords'),
       requestBody: McpSearchRequestSchema.parse({
         jsonrpc: '2.0',
         id: 1,

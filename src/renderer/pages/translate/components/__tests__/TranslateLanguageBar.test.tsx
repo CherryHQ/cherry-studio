@@ -1,23 +1,23 @@
-import { parsePersistedLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TranslateLanguageBar from '../TranslateLanguageBar'
+import { chinese, createLanguage, createLanguagesHookResult, english, japanese } from './testUtils'
 
 const mockUseLanguages = vi.fn()
+const mockT = vi.fn((key: string) => key)
 const sourceLanguageButtonName = /translate\.source_language/
 const targetLanguageButtonName = /translate\.target_language/
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockT })
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
   useLanguages: () => mockUseLanguages()
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -29,7 +29,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   const { createContext, use, cloneElement, isValidElement } = await import('react')
   type Ctx = { open: boolean; onOpenChange: (next: boolean) => void }
-  const PopoverCtx = createContext<Ctx>({ open: false, onOpenChange: () => {} })
+  const PopoverContext = createContext<Ctx>({ open: false, onOpenChange: () => {} })
 
   const Popover = ({
     children,
@@ -39,13 +39,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     children?: React.ReactNode
     open?: boolean
     onOpenChange?: (next: boolean) => void
-  }) => <PopoverCtx value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>{children}</PopoverCtx>
+  }) => (
+    <PopoverContext value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>
+      {children}
+    </PopoverContext>
+  )
 
   const PopoverTrigger = ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => {
-    const { open, onOpenChange } = use(PopoverCtx)
+    const { open, onOpenChange } = use(PopoverContext)
     const toggle = () => onOpenChange(!open)
     if (asChild && isValidElement(children)) {
       const child = children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
       return cloneElement(child, {
         onClick: (e: React.MouseEvent) => {
           child.props.onClick?.(e)
@@ -61,7 +66,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 
   const PopoverContent = ({ children }: { children?: React.ReactNode }) => {
-    const { open } = use(PopoverCtx)
+    const { open } = use(PopoverContext)
     return open ? <div data-testid="popover-content">{children}</div> : null
   }
 
@@ -79,17 +84,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-const createLanguage = (langCode: string, value: string, emoji: string): TranslateLanguage => ({
-  value,
-  langCode: parsePersistedLangCode(langCode),
-  emoji,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-})
-
-const english = createLanguage('en-us', 'English', '🇬🇧')
-const chinese = createLanguage('zh-cn', 'Chinese', '🇨🇳')
-const japanese = createLanguage('ja-jp', 'Japanese', '🇯🇵')
+const longNamedLanguage = createLanguage('es-es', 'Extraordinarily Long Language Name', '🇪🇸')
 
 type BarProps = React.ComponentProps<typeof TranslateLanguageBar>
 
@@ -108,14 +103,21 @@ const baseProps = (): BarProps => ({
 describe('TranslateLanguageBar', () => {
   beforeEach(() => {
     mockUseLanguages.mockReset()
-    mockUseLanguages.mockReturnValue({
-      languages: [english, chinese, japanese],
-      getLanguage: (code: string) => [english, chinese, japanese].find((l) => l.langCode === code),
-      getLabel: (language: TranslateLanguage | TranslateLangCode | null, withEmoji = true) => {
-        if (typeof language === 'string') return language === 'unknown' ? 'Unknown' : language
-        if (!language) return 'Unknown'
-        return withEmoji ? `${language.emoji} ${language.value}` : language.value
-      }
+    mockT.mockReset()
+    mockT.mockImplementation((key: string) => key)
+    mockUseLanguages.mockReturnValue(createLanguagesHookResult())
+  })
+
+  it('sizes language selectors from the longest option label', () => {
+    mockUseLanguages.mockReturnValue(createLanguagesHookResult([english, chinese, japanese, longNamedLanguage]))
+
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, calc(34ch + 72px), 260px)'
+    })
+    expect(screen.getByRole('button', { name: targetLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, calc(34ch + 72px), 260px)'
     })
   })
 
@@ -183,7 +185,7 @@ describe('TranslateLanguageBar', () => {
     expect(swapButton).toHaveAttribute('disabled')
   })
 
-  it('renders bidirectional pair display and disables source dropdown', () => {
+  it('renders bidirectional pair display without the source dropdown', () => {
     const props = baseProps()
     props.isBidirectional = true
     const { container } = render(<TranslateLanguageBar {...props} />)
@@ -191,19 +193,22 @@ describe('TranslateLanguageBar', () => {
     // The A ⇆ B text is present
     expect(container.textContent).toContain('English ⇆ Chinese')
 
-    // Source trigger button is disabled
-    const sourceButton = screen.getByRole('button', { name: sourceLanguageButtonName })
-    expect(sourceButton).toHaveAttribute('disabled')
+    const pairButton = screen.getByRole('button', { name: 'English ⇆ Chinese' })
+    expect(pairButton).toHaveClass('h-8', 'text-sm')
+    expect(pairButton).not.toHaveClass('h-9')
+    expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
   })
 
-  it('adds visible focus rings to language trigger buttons', () => {
+  it('uses contained focus feedback on language trigger buttons', () => {
     render(<TranslateLanguageBar {...baseProps()} />)
 
     const sourceButton = screen.getByRole('button', { name: sourceLanguageButtonName })
     const targetButton = screen.getByRole('button', { name: targetLanguageButtonName })
 
-    expect(sourceButton?.className).toContain('focus-visible:ring')
-    expect(targetButton?.className).toContain('focus-visible:ring')
+    expect(sourceButton).toHaveClass('focus-visible:bg-accent')
+    expect(targetButton).toHaveClass('focus-visible:bg-accent')
+    expect(sourceButton?.className).not.toContain('focus-visible:ring')
+    expect(targetButton?.className).not.toContain('focus-visible:ring')
   })
 
   it('opens target dropdown and calls onTargetChange on select', () => {
@@ -223,8 +228,32 @@ describe('TranslateLanguageBar', () => {
     props.detectedLanguage = chinese.langCode
     render(<TranslateLanguageBar {...props} />)
 
-    // Inside the source trigger the label contains "(Chinese)"
     const sourceTrigger = screen.getByRole('button', { name: sourceLanguageButtonName })
     expect(within(sourceTrigger).getByText(/translate\.detected\.language \(Chinese\)/)).toBeInTheDocument()
+  })
+
+  it('accounts for CJK label width when sizing the auto detected source selector', () => {
+    const simplifiedChinese = createLanguage('zh-cn', '简体中文', '🇨🇳')
+    mockT.mockImplementation((key: string) => (key === 'translate.detected.language' ? '自动检测' : key))
+    mockUseLanguages.mockReturnValue(createLanguagesHookResult([english, simplifiedChinese, japanese]))
+
+    const props = baseProps()
+    props.detectedLanguage = simplifiedChinese.langCode
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, calc(19ch + 72px), 260px)'
+    })
+  })
+
+  it('keeps the auto source display when detection resolves to unknown', () => {
+    const props = baseProps()
+    props.detectedLanguage = 'unknown'
+    render(<TranslateLanguageBar {...props} />)
+
+    const sourceTrigger = screen.getByRole('button', { name: sourceLanguageButtonName })
+    expect(within(sourceTrigger).getByText('🌐')).toBeInTheDocument()
+    expect(within(sourceTrigger).getByText('translate.detected.language')).toBeInTheDocument()
+    expect(within(sourceTrigger).queryByText(/Unknown/)).not.toBeInTheDocument()
   })
 })

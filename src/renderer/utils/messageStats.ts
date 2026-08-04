@@ -1,18 +1,42 @@
-/**
- * Stats projection: `MessageStats` (DB / shared schema, camelCase) →
- * Renderer `Usage` / `Metrics` (OpenAI snake_case) consumed by
- * `MessageTokens` and friends.
- *
- * Kept as pure functions so both the V1 block-based renderer data source
- * (`getTopicMessages` in `useTopic.ts`) and the V2 chat adapter
- * (`useChatWithHistory.adaptedMessages`) share a single projection path —
- * no inline re-implementation drift when the `MessageStats` schema
- * redesign (see TODO in `packages/shared/data/types/message.ts`) finally
- * lands.
- */
-
-import type { Metrics, Usage } from '@renderer/types'
+import type { Metrics, Usage } from '@renderer/types/message'
 import type { MessageStats } from '@shared/data/types/message'
+
+export interface CacheTokenStats {
+  noCacheTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalInputTokens: number
+  hitRate: number
+  savedInputTokens: number
+}
+
+function buildCacheTokenStats(
+  noCacheTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number
+): CacheTokenStats | undefined {
+  if (cacheReadTokens === 0 && cacheWriteTokens === 0) return undefined
+
+  const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+
+  return {
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalInputTokens,
+    hitRate: cacheReadTokens / totalInputTokens,
+    // Anthropic cache reads are discounted rather than free; this is token-volume saved from re-sending.
+    savedInputTokens: cacheReadTokens
+  }
+}
+
+export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
+  return buildCacheTokenStats(
+    stats.inputTokenDetails?.noCacheTokens ?? 0,
+    stats.inputTokenDetails?.cacheReadTokens ?? 0,
+    stats.inputTokenDetails?.cacheWriteTokens ?? 0
+  )
+}
 
 /**
  * Project `MessageStats` onto the OpenAI-shaped `Usage` the renderer
@@ -23,11 +47,18 @@ import type { MessageStats } from '@shared/data/types/message'
  */
 export function statsToUsage(stats: MessageStats): Usage {
   return {
-    prompt_tokens: stats.promptTokens ?? 0,
-    completion_tokens: stats.completionTokens ?? 0,
+    prompt_tokens: stats.inputTokens ?? 0,
+    completion_tokens: stats.outputTokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
-    ...(stats.thoughtsTokens !== undefined && { thoughts_tokens: stats.thoughtsTokens }),
-    ...(stats.cost !== undefined && { cost: stats.cost })
+    ...(stats.outputTokenDetails?.reasoningTokens !== undefined && {
+      thoughts_tokens: stats.outputTokenDetails.reasoningTokens
+    }),
+    ...(stats.inputTokenDetails?.cacheReadTokens !== undefined && {
+      cache_read_tokens: stats.inputTokenDetails.cacheReadTokens
+    }),
+    ...(stats.inputTokenDetails?.cacheWriteTokens !== undefined && {
+      cache_write_tokens: stats.inputTokenDetails.cacheWriteTokens
+    })
   }
 }
 
@@ -40,7 +71,7 @@ export function statsToUsage(stats: MessageStats): Usage {
  */
 export function statsToMetrics(stats: MessageStats): Metrics {
   return {
-    completion_tokens: stats.completionTokens ?? 0,
+    completion_tokens: stats.outputTokens ?? 0,
     time_completion_millsec: stats.timeCompletionMs ?? 0,
     time_first_token_millsec: stats.timeFirstTokenMs,
     time_thinking_millsec: stats.timeThinkingMs

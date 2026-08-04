@@ -2,17 +2,22 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
   type MigratorStatus,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }
+
+const logger = loggerService.withContext('useMigrationProgress')
 
 const initialProgress: MigrationProgress = {
   stage: 'introduction',
@@ -24,27 +29,60 @@ const initialProgress: MigrationProgress = {
 export function useMigrationProgress() {
   const [progress, setProgress] = useState<MigrationProgress>(initialProgress)
   const [lastError, setLastError] = useState<string | null>(null)
+  const migrationStageStartedAtRef = useRef<number | null>(null)
+
+  const applyMigrationStageTiming = useCallback((progressData: MigrationProgress): MigrationProgress => {
+    if (progressData.stage === 'migration') {
+      if (migrationStageStartedAtRef.current === null) {
+        migrationStageStartedAtRef.current = performance.now()
+      }
+      return progressData
+    }
+
+    if (progressData.stage === 'completed') {
+      const startedAt = migrationStageStartedAtRef.current
+      migrationStageStartedAtRef.current = null
+
+      if (startedAt === null || !progressData.summary) {
+        return progressData
+      }
+
+      return {
+        ...progressData,
+        summary: {
+          ...progressData.summary,
+          durationMs: Math.max(0, performance.now() - startedAt)
+        }
+      }
+    }
+
+    migrationStageStartedAtRef.current = null
+    return progressData
+  }, [])
 
   useEffect(() => {
     // Listen for progress updates from Main process
     const handleProgress = (_: unknown, progressData: MigrationProgress) => {
-      setProgress(progressData)
+      const nextProgress = applyMigrationStageTiming(progressData)
+      setProgress(nextProgress)
       if (progressData.error) {
         setLastError(progressData.error)
       }
     }
 
-    window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
+    const cleanupProgressListener = window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
 
     // Request initial progress
     window.electron.ipcRenderer
       .invoke(MigrationIpcChannels.GetProgress)
       .then((initialProgress: MigrationProgress) => {
         if (initialProgress) {
-          setProgress(initialProgress)
+          setProgress(applyMigrationStageTiming(initialProgress))
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get initial migration progress', error)
+      })
 
     // Check for last error
     window.electron.ipcRenderer
@@ -54,36 +92,16 @@ export function useMigrationProgress() {
           setLastError(error)
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get last migration error', error)
+      })
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
-    }
-  }, [])
-
-  // Local state transition for confirming migration completion (frontend only)
-  const confirmComplete = useCallback(() => {
-    setProgress((prev) => ({
-      ...prev,
-      stage: 'completed',
-      currentMessage: 'Migration completed successfully! Click restart to continue.'
-    }))
-  }, [])
-
-  // Stage helpers
-  const isInProgress = progress.stage === 'migration'
-  const isCompleted = progress.stage === 'completed'
-  const isError = progress.stage === 'error'
-  const canCancel = progress.stage === 'introduction' || progress.stage === 'backup_required'
+    return cleanupProgressListener
+  }, [applyMigrationStageTiming])
 
   return {
     progress,
-    lastError,
-    isInProgress,
-    isCompleted,
-    isError,
-    canCancel,
-    confirmComplete
+    lastError
   }
 }
 
@@ -91,18 +109,6 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
-  const proceedToBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ProceedToBackup)
-  }, [])
-
-  const confirmBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.BackupCompleted)
-  }, [])
-
-  const showBackupDialog = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
-  }, [])
-
   const startMigration = useCallback(async (payload: StartMigrationPayload) => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
   }, [])
@@ -123,14 +129,34 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback(
+    (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
+      const payload: MigrationDiagnosticSavePayload = {
+        dialogTitle,
+        logDate
+      }
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
+    },
+    []
+  )
+
+  const showDiagnosticBundleInFolder = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
+  // Main maps the language to a regional site; the renderer never names a URL.
+  const openDownloadPage = useCallback((language: string): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDownloadPage, language)
+  }, [])
+
   return {
-    proceedToBackup,
-    confirmBackup,
-    showBackupDialog,
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    showDiagnosticBundleInFolder,
+    openDownloadPage
   }
 }

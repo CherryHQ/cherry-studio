@@ -1,15 +1,21 @@
 import { exec } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
+import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
+import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { app } from 'electron'
 
-import { handleMcpProtocolUrl } from './handlers/mcpInstall'
+import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
 import { handleProvidersProtocolUrl } from './handlers/providersImport'
 
@@ -26,6 +32,11 @@ const logger = loggerService.withContext('ProtocolService')
 // open-url events to fire before our listener attaches. MainWindowService is resolved
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
+  private pendingProtocolUrls: string[] = []
+  private pendingMcpInstallRequests: ProtocolMcpInstallRequest[] = []
+  private areServicesReady = false
+  private isMainRendererReady = false
+
   protected async onInit() {
     // NOTE: Background phase's onInit runs on the first microtask after startPhase(),
     // which is before app.whenReady() (an OS-level event requiring the event loop).
@@ -33,6 +44,18 @@ export class ProtocolService extends BaseService {
 
     // 1) Register OS-level protocol scheme
     this.registerProtocolScheme()
+
+    const windowManager = application.get('WindowManager')
+    const markMainRendererNotReady = () => {
+      this.isMainRendererReady = false
+    }
+    this.registerDisposable(
+      windowManager.onWindowCreatedByType(WindowType.Main, ({ window }) => {
+        window.webContents.on('did-start-loading', markMainRendererNotReady)
+        window.webContents.on('render-process-gone', markMainRendererNotReady)
+      })
+    )
+    this.registerDisposable(windowManager.onWindowDestroyedByType(WindowType.Main, markMainRendererNotReady))
 
     // 2) macOS open-url listener (cold + hot start)
     const openUrlHandler = (event: Electron.Event, url: string) => {
@@ -65,8 +88,54 @@ export class ProtocolService extends BaseService {
   }
 
   protected async onAllReady() {
+    this.areServicesReady = true
+    this.flushPendingProtocolUrls()
+
     // Runs after all bootstrap phases — application.getPath() is safe
     await this.setupAppImageDeepLink()
+  }
+
+  public onMainRendererReady(windowId: string) {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return
+    }
+
+    this.isMainRendererReady = true
+    this.flushPendingProtocolUrls()
+  }
+
+  public listPendingMcpInstallRequests(windowId: string): ProtocolMcpInstallRequest[] {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return []
+    }
+
+    return [...this.pendingMcpInstallRequests]
+  }
+
+  public installPendingMcpInstallRequest(windowId: string, requestId: string): McpServer[] {
+    const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+    if (requestIndex === -1) {
+      throw new Error('MCP protocol install request not found')
+    }
+
+    const createdServers = mcpServerService.createMany(this.pendingMcpInstallRequests[requestIndex].servers)
+    this.pendingMcpInstallRequests.splice(requestIndex, 1)
+    return createdServers
+  }
+
+  public cancelPendingMcpInstallRequest(windowId: string, requestId: string): void {
+    const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+    if (requestIndex !== -1) {
+      this.pendingMcpInstallRequests.splice(requestIndex, 1)
+    }
+  }
+
+  private findPendingMcpInstallRequest(windowId: string, requestId: string): number {
+    if (application.get('WindowManager').getWindowType(windowId) !== WindowType.Main) {
+      return -1
+    }
+
+    return this.pendingMcpInstallRequests.findIndex((request) => request.requestId === requestId)
   }
 
   private registerProtocolScheme() {
@@ -87,13 +156,33 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
+    if (!this.areServicesReady || !this.isMainRendererReady) {
+      this.pendingProtocolUrls.push(url)
+      return
+    }
+
+    this.dispatchProtocolUrl(url)
+  }
+
+  private flushPendingProtocolUrls() {
+    if (!this.areServicesReady || !this.isMainRendererReady) {
+      return
+    }
+
+    const pendingUrls = this.pendingProtocolUrls.splice(0)
+    for (const url of pendingUrls) {
+      this.dispatchProtocolUrl(url)
+    }
+  }
+
+  private dispatchProtocolUrl(url: string) {
     try {
       const urlObj = new URL(url)
       const params = new URLSearchParams(urlObj.search)
 
       switch (urlObj.hostname.toLowerCase()) {
         case 'mcp':
-          handleMcpProtocolUrl(urlObj)
+          this.handleMcpInstallProtocolUrl(urlObj)
           return
         case 'providers':
           handleProvidersProtocolUrl(urlObj).catch((error) =>
@@ -104,23 +193,18 @@ export class ProtocolService extends BaseService {
           handleNavigateProtocolUrl(urlObj)
           return
         case 'oauth':
-          // CherryIN OAuth callback. CherryInOauthService delivers the result
-          // point-to-point to the renderer that started the flow, so the `code`
-          // never reaches unrelated windows. PPIO/Nutstore deep links use
-          // different hosts and still go through the broadcast fallback below.
           application
-            .get('CherryInOauthService')
-            .handleOAuthCallback(urlObj)
-            .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
+            .get('OAuthRuntimeService')
+            .handleDeepLinkCallback(urlObj)
+            .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
           return
       }
 
       // Default branch: deep link with no main-process handler. Fan out to every
-      // managed renderer (Main / Settings / SubWindow / pooled tool surfaces);
+      // managed renderer (Main / SubWindow / pooled tool surfaces);
       // consumers (oauth.ts, useNutstoreSso, ...) filter by urlObj.hostname/pathname.
       // broadcast() — not broadcastToType(Main) — because the flow-initiating
-      // window is not necessarily Main: the Settings window owns CherryIN OAuth
-      // in v2. Trade-off: the payload reaches renderers that don't need it; if
+      // window is not necessarily Main. Trade-off: the payload reaches renderers that don't need it; if
       // selective routing is required (e.g. to confine OAuth `code`), promote
       // that scheme to its own switch case alongside mcp/providers/navigate.
       //
@@ -131,13 +215,26 @@ export class ProtocolService extends BaseService {
       // PR #14631 review #4282327822 (Important #5). When adding such a host,
       // either route it through a dedicated case or add a parameter allowlist /
       // sensitive-name strip to this default broadcast.
-      application.get('WindowManager').broadcast('protocol-data', {
+      application.get('IpcApiService').broadcast('navigation.protocol_data', {
         url,
         params: Object.fromEntries(params.entries())
       })
     } catch (error) {
       logger.error('Failed to handle protocol URL', error as Error)
     }
+  }
+
+  private handleMcpInstallProtocolUrl(url: URL) {
+    const servers = parseMcpInstallProtocolUrl(url)
+    if (!servers) {
+      application.get('MainWindowService').showMainWindow()
+      return
+    }
+
+    const requestId = randomUUID()
+    this.pendingMcpInstallRequests.push({ requestId, servers })
+    logger.debug('Prepared MCP protocol install preview', { count: servers.length })
+    openSettingsInMainWindow(`/settings/mcp/servers?protocolInstallRequestId=${requestId}`)
   }
 
   private handleArgvForUrl(args: string[]) {

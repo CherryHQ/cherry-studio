@@ -61,6 +61,12 @@ const { trigger } = useMutation('POST', '/topics', {
 })
 ```
 
+Functions returned by data hooks (`trigger`, `invalidate`, `refetch`, `nextPage`,
+`prevPage`, `reset`, ...) keep stable identity across re-renders, consistent with
+SWR's own `mutate`/`trigger`, changing only when a meaningful input changes
+(e.g. `nextPage` when page availability flips). `useMutation`'s `trigger` reads
+its options through a ref, so inline `options` objects never churn its identity.
+
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
 For infinite scroll UIs with "Load More" pattern. The hook exposes `pages` —
@@ -120,6 +126,10 @@ const { items, page, total, hasNext, hasPrev, nextPage, prevPage } =
 Each pagination hook constrains its path generic to the matching pagination
 shape: passing a cursor path to `usePaginatedQuery` or an offset path to
 `useInfiniteQuery` is a compile-time error, not a silent runtime hang.
+
+> For the full pagination model — when to choose offset vs cursor, the wire
+> contract, and the server-side implementation — see the
+> [Pagination Guide](./data-pagination-guide.md).
 
 ## Dynamic Paths
 
@@ -232,6 +242,37 @@ Use when the set of keys is only known at call time (ids from args/result).
 4. **Don't mix template paths and helper functions for the same resource in one module.** Cache keys end up identical but code review becomes harder. Pick one form per module.
 5. **`refresh` is for DataApi keys only.** Non-SQLite data (Cache, Preference) has its own invalidation mechanisms.
 
+## Data Change Notifications
+
+`refresh` only covers this window's own mutations. For writes from **other windows or main-process background paths**, main broadcasts a `DataApiDataChangeEffect[]` after each committed write; consumers opt in per endpoint and decide their own convergence (revalidate / rebuild / ignore).
+
+```typescript
+import { useDataChange } from '@data/hooks/useDataApi'
+
+// Conservative list convergence: any signal → refetch
+const { refetch } = useQuery('/topics')
+useDataChange('/topics', () => refetch())
+
+// Multiple endpoints, one merged callback per notification
+useDataChange(['/topics', '/topics/latest'], () => refreshAll())
+
+// By-ID surface: filter with entityIds (absent = no claim → act)
+useDataChange('/topics/:id', (effects) => {
+  if (effects.some((e) => !e.entityIds || e.entityIds.includes(myId))) mutate()
+})
+
+// Non-React code: same facility on the service (returns unsubscribe)
+const unsubscribe = dataApiService.onDataChanged('/topics', (effects) => { ... })
+```
+
+Semantics (frozen by the Phase A contract, see issue 17144):
+
+- **Exact endpoint match** — no prefix/wildcard subscription; effects are `endpoint` + optional `kind` (`projection` / `membership` / `order`) + `dimension` + `entityIds`.
+- **One business operation = one callback**: all matching entries of one notification arrive merged in a single call; no aggregation across notifications.
+- **Everything below the endpoint is consumer policy**: dimension/entityIds filtering, convergence choice, and idempotency towards echoes of this window's own writes (the originating window receives its own signals).
+- **Hints only narrow**: an omitted `dimension`/`entityIds` means "no claim — assume relevant", never "no impact".
+- **Best-effort delivery** to live, continuously subscribed renderers (FIFO per window). Changes committed before a consumer's subscription registered (including main-process bootstrap) are not signaled; recovery is the endpoint's next change, a remount, or any fresh query.
+
 ## DataApiService Direct Usage
 
 For non-React code or more control.
@@ -288,7 +329,7 @@ function TopicList() {
 ### With Try-Catch
 
 ```typescript
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 try {
   await dataApiService.post('/topics', { body: data })
@@ -444,3 +485,4 @@ const { data: topic } = useQuery('/topics/abc123')
 6. **Revalidate after mutations**: Use `refresh` option to keep the UI in sync
 7. **Use conditional fetching**: Set `enabled: false` to skip queries when dependencies aren't ready
 8. **Batch related operations**: Consider using transactions for multiple updates
+9. **Returned functions are dependency-safe**: put `trigger`, `invalidate`, `refetch`, etc. directly in `useCallback`/`useEffect` dependency arrays — never re-wrap them in refs or omit them from deps to dodge identity churn

@@ -3,25 +3,20 @@
  */
 
 import {
+  CURRENCY,
+  type Currency,
   ENDPOINT_TYPE,
+  endpointImpliedCapability,
   type EndpointType,
-  inferAdapterFamily,
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
+import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
-import type {
-  ApiFeatures,
-  ApiKeyEntry,
-  AuthConfig,
-  EndpointConfig,
-  ProviderSettings,
-  ReasoningFormatType
-} from '@shared/data/types/provider'
-import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
+import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -79,22 +74,12 @@ const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
 
 const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
 
-const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningFormatType>> = {
-  openai: 'openai-chat',
-  'openai-response': 'openai-responses',
-  anthropic: 'anthropic',
-  gemini: 'gemini',
-  'new-api': 'openai-chat',
-  gateway: 'openai-chat',
-  ollama: 'openai-chat'
-}
-
 /**
  * Legacy `provider.type` → AI SDK adapter family, for custom-id v1 providers
  * the registry catalog can't supply (no `legacy.id` match in providers.json).
  * Lets the runtime resolver trust `adapterFamily` as the sole routing signal
  * instead of re-deriving from heuristics. Catalog-matched system providers get
- * their (more specific) adapterFamily from `enrichProviderRow`.
+ * their (more specific) adapterFamily from `projectProviderDeltaRow`.
  */
 const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
   openai: 'openai-compatible',
@@ -117,9 +102,7 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'qiniu',
   'dmxapi',
   'burncloud',
-  'tokenflux',
   '302ai',
-  'cephalon',
   'lanyun',
   'ph8',
   'openrouter',
@@ -170,7 +153,8 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'mimo',
   'gitee-ai',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
@@ -219,7 +203,7 @@ function buildEndpointConfigs(
   legacy: LegacyProvider,
   endpointType: EndpointType | undefined
 ): InsertUserProviderRow['endpointConfigs'] {
-  const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
+  const configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
 
   if (legacy.apiHost && endpointType !== undefined) {
     configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
@@ -230,22 +214,20 @@ function buildEndpointConfigs(
     configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
   }
 
-  const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
-  if (endpointType !== undefined && reasoningFormatType) {
-    configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
-  }
-
-  // Backfill `adapterFamily` so the runtime resolver (endpoint.ts) can route
-  // by it alone. ANTHROPIC_MESSAGES skips the legacy-type hint: v1 custom
+  // Persist the legacy-type adapterFamily hint for custom (no-catalog)
+  // providers — a relay signal (new-api/gateway) that read-time endpoint-type
+  // inference cannot reproduce. ANTHROPIC_MESSAGES skips the hint: v1 custom
   // anthropic relays carried `type:'openai'` (the relay protocol) even when
   // the endpoint speaks anthropic — the endpoint protocol must win there.
-  // Catalog-matched system providers get a more specific value later in
-  // `enrichProviderRow`; this only covers custom (no-catalog) providers.
+  // Everything else is left absent; the read-time merge infers it. Catalog-
+  // matched system providers get stripped to baseUrl-only in
+  // `projectProviderDeltaRow` regardless.
   const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
-  for (const key of Object.keys(configs) as EndpointType[]) {
-    if (configs[key]?.adapterFamily) continue
-    const legacyHint = key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? undefined : legacyTypeFamily
-    configs[key] = { ...configs[key], adapterFamily: legacyHint ?? inferAdapterFamily(key) }
+  if (legacyTypeFamily) {
+    for (const key of Object.keys(configs) as EndpointType[]) {
+      if (key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || configs[key]?.adapterFamily) continue
+      configs[key] = { ...configs[key], adapterFamily: legacyTypeFamily }
+    }
   }
 
   return Object.keys(configs).length > 0 ? configs : null
@@ -456,14 +438,13 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 }
 
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
-  const hasCustomizedCapabilities =
-    legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
-    // Leave presetModelId null here. enrichModelRow looks up the registry and
+    // Leave presetModelId null here. projectModelDeltaRow looks up the registry and
     // sets presetModelId only when a real preset matches; setting it here
     // unconditionally would mark fully-custom v1 models as preset overrides
     // (symmetric to the v1 default-name bug fixed in db3e1f76).
@@ -471,10 +452,10 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.capabilities),
+    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
     inputModalities: null,
     outputModalities: null,
-    endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
+    endpointTypes,
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,
@@ -482,24 +463,40 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     parameters: null,
     pricing: mapPricing(legacy.pricing),
     isEnabled: true,
-    isHidden: false,
-    userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
+    isHidden: false
   }
 }
 
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
-  if (!capabilities || capabilities.length === 0) {
-    return []
+function mapCapabilities(
+  capabilities?: LegacyModel['capabilities'],
+  endpointTypes?: EndpointType[] | null
+): ModelCapability[] {
+  // Capabilities the user explicitly turned off in v1 — respected over any
+  // duplicate "enabled" entry and never re-added by an endpoint.
+  const disabled = new Set<ModelCapability>()
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result !== undefined && capability.isUserSelected === false) {
+      disabled.add(result)
+    }
   }
 
   const mapped: ModelCapability[] = []
-  for (const capability of capabilities) {
+  for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
-    if (result !== undefined) {
-      mapped.push(result)
-    } else if (capability.type !== 'text') {
-      logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+    if (result === undefined) {
+      if (capability.type !== 'text') {
+        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      }
+      continue
     }
+    if (disabled.has(result)) continue
+    mapped.push(result)
+  }
+
+  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+  if (impliedCapability && !disabled.has(impliedCapability)) {
+    mapped.push(impliedCapability)
   }
 
   return mapped.length > 0 ? Array.from(new Set(mapped)) : []
@@ -517,7 +514,7 @@ function mapEndpointTypes(
   const mapped: EndpointType[] = []
   for (const type of sourceTypes) {
     if (!type) continue
-    const result = ENDPOINT_MAP[type]
+    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
     if (result !== undefined) {
       mapped.push(result)
     } else {
@@ -528,13 +525,25 @@ function mapEndpointTypes(
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
 
+/** Map only currencies the v2 pricing contract can represent without changing value semantics. */
+function mapPricingCurrency(currencySymbol?: string): Currency | null {
+  const symbol = currencySymbol?.trim()
+  if (!symbol || symbol === '$') return CURRENCY.USD
+  if (symbol === '¥' || symbol === '￥') return CURRENCY.CNY
+
+  logger.warn('Unsupported legacy pricing currency dropped during migration', { currencySymbol })
+  return null
+}
+
 function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
   if (!pricing) {
     return null
   }
 
+  const currency = mapPricingCurrency(pricing.currencySymbol)
+  if (!currency) return null
   return {
-    input: { perMillionTokens: pricing.input_per_million_tokens },
-    output: { perMillionTokens: pricing.output_per_million_tokens }
+    input: { perMillionTokens: pricing.input_per_million_tokens, currency },
+    output: { perMillionTokens: pricing.output_per_million_tokens, currency }
   }
 }

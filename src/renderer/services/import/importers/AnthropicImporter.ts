@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
-import type { Topic } from '@renderer/types'
+import i18n from '@renderer/i18n/resolver'
 import {
   AssistantMessageStatus,
   type MainTextMessageBlock,
@@ -11,9 +10,10 @@ import {
   type ToolMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
-import { uuid } from '@renderer/utils'
+import type { Topic } from '@renderer/types/topic'
+import { uuid } from '@renderer/utils/uuid'
 
-import type { ConversationImporter, ImportResult } from '../types'
+import type { ConversationImporter, ImportMessageBlock, ImportResult } from '../types'
 
 const logger = loggerService.withContext('AnthropicImporter')
 
@@ -67,16 +67,17 @@ interface AnthropicContentBlock {
   truncated?: boolean
   alternative_display_type?: string | null
   // tool_use block fields
-  id?: string
+  id?: string | null
   name?: string
   input?: Record<string, string | number | boolean | null>
   message?: string | null
   display_content?: { type: string; text?: string; json_block?: string } | null
   icon_name?: string | null
   // tool_result block fields
-  tool_use_id?: string
+  tool_use_id?: string | null
   content?: AnthropicToolResultContent[]
   is_error?: boolean
+  structured_content?: object | null
 }
 
 interface AnthropicMessage {
@@ -149,7 +150,7 @@ export class AnthropicImporter implements ConversationImporter {
 
     const topics: Topic[] = []
     const allMessages: Message[] = []
-    const allBlocks: (MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock)[] = []
+    const allBlocks: ImportMessageBlock[] = []
 
     for (const conversation of conversations) {
       try {
@@ -203,11 +204,18 @@ export class AnthropicImporter implements ConversationImporter {
   /**
    * Extract text from tool_result content items
    */
-  private extractToolResultText(contentItems: AnthropicToolResultContent[]): string {
-    return contentItems
-      .filter((item) => item.text)
-      .map((item) => item.text!)
-      .join('\n\n')
+  private extractToolResultContent(block: AnthropicContentBlock): string | object | undefined {
+    if (block.structured_content) return block.structured_content
+
+    if (block.content?.length) {
+      const textItems = block.content.filter((item) => item.type === 'text' && item.text)
+      if (textItems.length === block.content.length) {
+        return textItems.map((item) => item.text).join('\n\n')
+      }
+      return block.content
+    }
+
+    return block.display_content?.text ?? block.display_content?.json_block ?? block.message ?? undefined
   }
 
   /**
@@ -218,24 +226,29 @@ export class AnthropicImporter implements ConversationImporter {
     anthropicMessage: AnthropicMessage,
     topicId: string,
     assistantId: string
-  ): { message: Message; blocks: (MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock)[] } {
+  ): { message: Message; blocks: ImportMessageBlock[] } {
     const messageId = uuid()
     const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
     const createdAt = anthropicMessage.created_at ?? new Date().toISOString()
     const updatedAt = anthropicMessage.updated_at ?? createdAt
 
-    const blocks: (MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock)[] = []
+    const blocks: ImportMessageBlock[] = []
     const contentBlocks = anthropicMessage.content ?? []
 
     // Index tool_result blocks by their tool_use_id for O(1) lookup
     const toolResultMap = new Map<string, AnthropicContentBlock>()
+    const anonymousToolResults: AnthropicContentBlock[] = []
     for (const block of contentBlocks) {
-      if (block.type === 'tool_result' && block.tool_use_id) {
+      if (block.type !== 'tool_result') continue
+      if (block.tool_use_id) {
         toolResultMap.set(block.tool_use_id, block)
+      } else {
+        anonymousToolResults.push(block)
       }
     }
 
     // Iterate content blocks in order, building typed blocks
+    let anonymousToolIndex = 0
     for (const contentBlock of contentBlocks) {
       switch (contentBlock.type) {
         case 'thinking': {
@@ -261,18 +274,18 @@ export class AnthropicImporter implements ConversationImporter {
         }
 
         case 'tool_use': {
-          if (!contentBlock.id) break
-
-          // Find matching tool_result
-          const toolResult = toolResultMap.get(contentBlock.id)
-          const resultContent = toolResult?.content ? this.extractToolResultText(toolResult.content) : undefined
+          const toolId = contentBlock.id ?? `${anthropicMessage.uuid}-tool-${anonymousToolIndex}`
+          const toolResult = contentBlock.id
+            ? toolResultMap.get(contentBlock.id)
+            : anonymousToolResults[anonymousToolIndex++]
+          const resultContent = toolResult ? this.extractToolResultContent(toolResult) : undefined
           const toolStatus = toolResult?.is_error ? 'error' : 'done'
 
           const toolBlock: ToolMessageBlock = {
             id: uuid(),
             messageId,
             type: MessageBlockType.TOOL,
-            toolId: contentBlock.id,
+            toolId,
             toolName: contentBlock.name,
             arguments: contentBlock.input,
             content: resultContent,
@@ -282,8 +295,8 @@ export class AnthropicImporter implements ConversationImporter {
             // Populate rawMcpToolResponse so MessageMcpTool can render arguments and response
             metadata: {
               rawMcpToolResponse: {
-                id: contentBlock.id,
-                toolUseId: contentBlock.id,
+                id: toolId,
+                toolUseId: toolId,
                 tool: {
                   id: contentBlock.name ?? '',
                   name: contentBlock.name ?? '',
@@ -294,7 +307,16 @@ export class AnthropicImporter implements ConversationImporter {
                 },
                 arguments: contentBlock.input ?? {},
                 status: toolStatus,
-                response: resultContent ? { content: [{ type: 'text', text: resultContent }] } : undefined
+                response: resultContent
+                  ? {
+                      content: [
+                        {
+                          type: 'text',
+                          text: typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent)
+                        }
+                      ]
+                    }
+                  : undefined
               }
             }
           }
@@ -360,11 +382,11 @@ export class AnthropicImporter implements ConversationImporter {
   ): {
     topic: Topic
     messages: Message[]
-    blocks: (MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock)[]
+    blocks: ImportMessageBlock[]
   } | null {
     const topicId = uuid()
     const messages: Message[] = []
-    const blocks: (MainTextMessageBlock | ThinkingMessageBlock | ToolMessageBlock)[] = []
+    const blocks: ImportMessageBlock[] = []
 
     // Filter out messages with no usable content
     const usableMessages = (conversation.chat_messages ?? []).filter((msg) => this.hasUsableContent(msg))

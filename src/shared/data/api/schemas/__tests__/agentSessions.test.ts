@@ -2,61 +2,74 @@ import { describe, expect, it } from 'vitest'
 
 import {
   AGENT_SESSION_DELETE_MAX_IDS,
-  AgentSessionMessageEntitySchema,
-  CreateAgentSessionMessageSchema,
-  CreateAgentSessionMessagesSchema,
+  CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
-describe('AgentSessionMessage schemas', () => {
-  const baseMessage = {
-    id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
-    sessionId: 'session-1',
-    role: 'assistant',
-    data: { parts: [{ type: 'text', text: 'hello' }] },
-    searchableText: 'hello',
-    status: 'success',
-    modelId: null,
-    modelSnapshot: null,
-    stats: null,
-    runtimeResumeToken: null,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z'
-  }
-
-  it('requires ISO audit timestamps on entity rows', () => {
-    expect(AgentSessionMessageEntitySchema.parse(baseMessage).createdAt).toBe(baseMessage.createdAt)
-    expect(AgentSessionMessageEntitySchema.safeParse({ ...baseMessage, createdAt: 'not-a-date' }).success).toBe(false)
+describe('AgentSession schemas', () => {
+  it('accepts workspace changes through the dedicated workspace source body', () => {
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user' }).success).toBe(false)
   })
 
-  it('does not accept audit timestamps in create DTOs', () => {
+  it('rejects workspace fields on the generic session PATCH body', () => {
     expect(
-      CreateAgentSessionMessageSchema.safeParse({
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'hello' }] },
-        createdAt: '2026-01-01T00:00:00.000Z'
+      UpdateAgentSessionSchema.safeParse({
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
       }).success
     ).toBe(false)
-  })
-
-  it('allows batch create without runtimeResumeToken', () => {
-    const parsed = CreateAgentSessionMessagesSchema.parse({
-      sessionId: 'session-1',
-      messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }]
-    })
-
-    expect(parsed.runtimeResumeToken).toBeUndefined()
-  })
-})
-
-describe('AgentSession schemas', () => {
-  it('rejects workspace updates because workspace binding is insert-only', () => {
     expect(
       UpdateAgentSessionSchema.safeParse({
         workspaceId: 'workspace-1'
       }).success
     ).toBe(false)
+  })
+
+  it('accepts manual-name marker updates', () => {
+    expect(
+      UpdateAgentSessionSchema.parse({
+        name: 'Renamed session',
+        isNameManuallyEdited: true
+      })
+    ).toEqual({
+      name: 'Renamed session',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('allows blank names for untitled placeholder sessions', () => {
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: '',
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(UpdateAgentSessionSchema.parse({ name: '' })).toEqual({ name: '' })
+  })
+
+  it('caps session names at 255 characters, matching topic.name semantics', () => {
+    const maxName = 'a'.repeat(255)
+    const overflowName = 'a'.repeat(256)
+
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: maxName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: overflowName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
   })
 
   it('caps bulk delete ids', () => {

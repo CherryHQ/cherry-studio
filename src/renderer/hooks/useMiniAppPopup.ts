@@ -1,10 +1,13 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
+import { fileUrlToPath } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
@@ -20,7 +23,12 @@ type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orde
   appId: string
 }
 
-function toMiniApp(input: MiniAppInput): MiniApp {
+/**
+ * Rebuild a keep-alive entry from a raw descriptor. Exported for `MiniAppPage`,
+ * which resolves transient apps from the shared descriptor registry and must apply
+ * the same convention as the window that opened them.
+ */
+export function toTransientMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
@@ -85,25 +93,18 @@ function miniAppIdFromTabUrl(url: string): string | null {
   return id ? id : null
 }
 
-function fileUrlToPath(url: URL): string {
-  const pathname = decodeURIComponent(url.pathname)
-  if (url.hostname) return `//${url.hostname}${pathname}`
-  if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
-  return pathname
-}
-
 function openExternalMiniAppUrl(url: string) {
   try {
     const parsed = new URL(url)
     if (parsed.protocol === 'file:') {
-      void window.api.openPath(fileUrlToPath(parsed))
+      void ipcApi.request('system.shell.open_path', fileUrlToPath(parsed))
       return
     }
   } catch {
     // Fall through to openWebsite so the existing main-process URL guard handles it.
   }
 
-  void window.api.openWebsite(url)
+  void ipcApi.request('system.shell.open_website', url)
 }
 
 /**
@@ -144,7 +145,7 @@ export const useMiniAppPopup = () => {
   // Pinned AppShell tabs are exempt from keep-alive eviction. The user pins a
   // tab to say "keep this state alive across switches"; honoring that here
   // prevents the cap from quietly throwing away webviews behind a pinned tab.
-  // Detached settings windows can open mini-app content without AppShell tabs;
+  // Isolated renderer surfaces can open mini-app content without AppShell tabs;
   // in that case skip eviction because pin state is not observable there.
   const tabsContext = useOptionalTabsContext()
   const tabs = tabsContext?.tabs ?? []
@@ -286,7 +287,21 @@ export const useMiniAppPopup = () => {
         return
       }
 
-      const app = toMiniApp(config)
+      const app = toTransientMiniApp(config)
+
+      // A transient app has no database row, so `/app/mini-app/<id>` is unresolvable
+      // anywhere but here. Publish the descriptor to the shared cache so any window —
+      // one this tab is detached into, or this one after the keep-alive LRU evicted the
+      // entry — can still resolve it. Rewritten on every open: the URL carries live
+      // state (the OpenClaw dashboard's gateway token changes per launch).
+      cacheService.setShared(`mini_app.transient_descriptor.${app.appId}` as const, {
+        appId: app.appId,
+        name: app.name,
+        url: app.url,
+        ...(app.logo !== undefined && { logo: app.logo }),
+        ...(app.logoSrc !== undefined && { logoSrc: app.logoSrc })
+      })
+
       const list = keepAliveRef.current
       const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
       if (!wasCached) {
@@ -304,7 +319,11 @@ export const useMiniAppPopup = () => {
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
       // URL, not pool membership. Webview re-use stays correct: when cached we
       // don't recreate the entry or reset `src`, only the tab route activates.
-      openTab(`/app/mini-app/${app.appId}`, { title: app.name, icon: app.logo })
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: app.name,
+        icon: app.logoSrc ?? app.logo
+      })
     },
     [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )

@@ -12,7 +12,7 @@ type LanguageData = {
   extensions?: string[]
 }
 
-const LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/config/languages.ts')
+const LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/codeLanguages.ts')
 
 /**
  * Extracts and filters necessary language data from the linguist-languages package.
@@ -41,12 +41,12 @@ function extractAllLanguageData(): Record<string, LanguageData> {
 }
 
 /**
- * Generates the content for the languages.ts file.
+ * Generates the content for the codeLanguages.ts file.
  * @param languages The language data to include in the file.
  * @returns The generated file content as a string.
  */
 function generateLanguagesFileContent(languages: Record<string, LanguageData>): string {
-  console.log('📝 Generating languages.ts file content...')
+  console.log('📝 Generating codeLanguages.ts file content...')
   const sortedLanguages = Object.fromEntries(Object.entries(languages).sort(([a], [b]) => a.localeCompare(b)))
 
   const languagesObjectString = JSON.stringify(sortedLanguages, null, 2)
@@ -68,7 +68,7 @@ type LanguageData = {
   extensions?: string[];
 };
 
-export const languages: Record<string, LanguageData> = ${languagesObjectString};
+export const codeLanguages: Record<string, LanguageData> = ${languagesObjectString};
 `
   console.log('✅ File content generated.')
   return content
@@ -105,10 +105,10 @@ async function checkTypeScript(filePath: string): Promise<void> {
 }
 
 /**
- * Main function to update the languages.ts file.
+ * Main function to update the codeLanguages.ts file.
  */
 async function updateLanguagesFile(): Promise<void> {
-  console.log('🚀 Starting to update languages.ts...')
+  console.log('🚀 Starting to update codeLanguages.ts...')
   try {
     const extractedLanguages = extractAllLanguageData()
     const fileContent = generateLanguagesFileContent(extractedLanguages)
@@ -119,7 +119,7 @@ async function updateLanguagesFile(): Promise<void> {
     await format(LANGUAGES_FILE_PATH)
     await checkTypeScript(LANGUAGES_FILE_PATH)
 
-    console.log('🎉 Successfully updated languages.ts file!')
+    console.log('🎉 Successfully updated codeLanguages.ts file!')
     console.log(`📊 Contains ${Object.keys(extractedLanguages).length} languages.`)
   } catch (error) {
     console.error('❌ An error occurred during the update process:', (error as Error).message)

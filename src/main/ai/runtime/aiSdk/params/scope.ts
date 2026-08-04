@@ -10,14 +10,15 @@
  */
 
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AppProviderId, AppProviderSettingsMap } from '../../../types'
-import type { AiBaseRequest } from '../../../types/requests'
+import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
+import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
 export type { ToolApplyScope }
@@ -26,6 +27,7 @@ export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerId: T
+  readonly providerOptionsKey: string
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
 }
@@ -40,5 +42,7 @@ export interface RequestScope extends ToolApplyScope {
   readonly sdkConfig: SdkConfig
   readonly endpointType: EndpointType | undefined
   readonly aiSdkProviderId: AppProviderId
+  readonly reasoningProfile: ResolvedReasoningProfile
+  readonly reasoning: ResolvedReasoningInvocation
   readonly requestContext: RequestContext
 }

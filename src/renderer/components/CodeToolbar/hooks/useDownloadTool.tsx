@@ -1,7 +1,7 @@
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import { FilePngIcon, FileSvgIcon } from '@renderer/components/Icons'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import { FilePngIcon, FileSvgIcon } from '@renderer/components/icons/FileIcons'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { Download, FileCode } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,7 @@ export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource
   const { registerTool, removeTool } = useToolManager(setTools)
 
   useEffect(() => {
-    const includePreviewTools = showPreviewTools && previewRef.current !== null
+    const includePreviewTools = showPreviewTools === true
 
     const baseTool = {
       ...TOOL_SPECS.download,

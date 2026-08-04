@@ -2,15 +2,10 @@ import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/file/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-import { canWrite, isPathInside, isUnderInternalStorage } from '../path'
+import { canWrite, isPathInside, isSameOrInside } from '../path'
 
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {
@@ -40,11 +35,8 @@ describe('isPathInside', () => {
   it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
     'matches case-insensitively on darwin / win32 (filesystem default)',
     () => {
-      // Regression guard: previously `path.relative` compared bytes
-      // exactly, letting `/users/me/data/files/x` slip past a check
-      // against `/Users/me/Data/Files` on a default macOS install.
-      // `isUnderInternalStorage` derives from this and was bypassable
-      // for any future Phase 2 caller using it as a permission gate.
+      // Regression guard: a lexical containment check must not treat
+      // differently-cased paths as unrelated on a case-insensitive host.
       expect(isPathInside('/Users/me/Data/Files/x.txt', '/users/me/data/files')).toBe(true)
       expect(isPathInside('/USERS/ME/DATA/FILES/x.txt', '/users/me/data/files')).toBe(true)
     }
@@ -57,18 +49,23 @@ describe('isPathInside', () => {
   })
 })
 
-describe('isUnderInternalStorage', () => {
-  it('returns true for paths inside the feature.files.data dir', () => {
-    expect(isUnderInternalStorage('/mock/feature.files.data/abc.png')).toBe(true)
+describe('isSameOrInside', () => {
+  it('accepts equality and descendants', () => {
+    expect(isSameOrInside('/foo/bar', '/foo/bar')).toBe(true)
+    expect(isSameOrInside('/foo/bar/baz.txt', '/foo/bar')).toBe(true)
   })
 
-  it('returns false for paths outside the feature.files.data dir', () => {
-    expect(isUnderInternalStorage('/etc/passwd')).toBe(false)
+  it('rejects ancestors and siblings', () => {
+    expect(isSameOrInside('/foo', '/foo/bar')).toBe(false)
+    expect(isSameOrInside('/foo/baz', '/foo/bar')).toBe(false)
   })
 
-  it('returns false for the feature.files.data dir itself (only strict descendants count)', () => {
-    expect(isUnderInternalStorage('/mock/feature.files.data')).toBe(false)
-  })
+  it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
+    'matches equality case-insensitively on darwin / win32',
+    () => {
+      expect(isSameOrInside('/Users/me/Data/Files', '/users/me/data/files')).toBe(true)
+    }
+  )
 })
 
 describe('canWrite', () => {
@@ -89,15 +86,15 @@ describe('canWrite', () => {
   })
 
   it('returns true for a freshly-created writable directory', async () => {
-    expect(await canWrite(tmp as FilePath)).toBe(true)
+    expect(await canWrite(tmp as AbsoluteFilePath)).toBe(true)
   })
 
   it('returns false for a non-existent path', async () => {
-    expect(await canWrite(path.join(tmp, 'nope', String(Date.now())) as FilePath)).toBe(false)
+    expect(await canWrite(path.join(tmp, 'nope', String(Date.now())) as AbsoluteFilePath)).toBe(false)
   })
 
   it.skipIf(process.platform === 'win32')('returns false for a chmod-stripped directory (POSIX)', async () => {
     await chmod(tmp, 0o500)
-    expect(await canWrite(tmp as FilePath)).toBe(false)
+    expect(await canWrite(tmp as AbsoluteFilePath)).toBe(false)
   })
 })

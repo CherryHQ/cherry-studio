@@ -1,8 +1,11 @@
+import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
+import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab
@@ -20,7 +23,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   // Create independent router instance per tab (only once)
   const router = useMemo(() => {
     const history = createMemoryHistory({ initialEntries: [tab.url] })
-    return createRouter({ routeTree, history })
+    // defaultErrorComponent contains a route render error to its tab; without it the
+    // error bubbles to the window-level boundary and tears down the whole window.
+    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 
@@ -42,11 +47,28 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     }
   }, [router, tab.url])
 
+  const [tabPortalContainer, setTabPortalContainer] = useState<HTMLElement | null>(null)
+  // Latch the captured node across Activity hide/show: a hidden tab detaches the ref
+  // (node === null) while its DOM node lives on, and clearing the container would
+  // un-scope a still-open overlay/PageSidePanel to a full-window document.body portal.
+  const captureTabPortalContainer = useCallback((node: HTMLElement | null) => {
+    if (node) setTabPortalContainer(node)
+  }, [])
+
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-        <RouterProvider router={router} />
-      </div>
+      <TabIdProvider tabId={tab.id}>
+        {/* This tab's content root is the portal target for overlays and PageSidePanel
+            scoped to the tab (`relative` anchors the scoped panel's absolute layout), so a
+            background tab's still-open surface stays hidden with its owning tab. */}
+        <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+          <PortalContainerProvider container={tabPortalContainer}>
+            <DialogPortalContainerProvider container={tabPortalContainer}>
+              <RouterProvider router={router} />
+            </DialogPortalContainerProvider>
+          </PortalContainerProvider>
+        </div>
+      </TabIdProvider>
     </Activity>
   )
 }

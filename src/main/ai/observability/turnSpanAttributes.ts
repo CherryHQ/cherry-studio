@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
-import { KB } from '@shared/config/constant'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { KB } from '@shared/utils/constants'
 import type { UIMessage } from 'ai'
 
-import type { CherryUIMessage } from '../streamManager/types'
+import type { CherryUIMessage } from '../streamManager'
 
 const logger = loggerService.withContext('turnSpanAttributes')
 

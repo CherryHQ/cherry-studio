@@ -1,12 +1,10 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
-import type { FileEntryId } from '@shared/data/types/file'
-import { knowledgeItemSourceType, tempSessionSourceType } from '@shared/data/types/file/ref'
+import { ErrorCode } from '@shared/data/api/errors'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -28,7 +26,8 @@ const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
-const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
+const KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const OTHER_ENTITY_GROUP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
@@ -57,6 +56,23 @@ describe('KnowledgeBaseService', () => {
     ])
   }
 
+  /** A second embedding model FK target, for tests that switch a base's embeddingModelId. */
+  async function seedSecondEmbeddingModel() {
+    const [embedModel2Key] = generateOrderKeySequence(1)
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'embed-model-2'),
+        providerId: 'openai',
+        modelId: 'embed-model-2',
+        presetModelId: 'embed-model-2',
+        name: 'embed-model-2',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: embedModel2Key
+      }
+    ])
+  }
+
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
       id: KNOWLEDGE_BASE_ID,
@@ -69,24 +85,11 @@ describe('KnowledgeBaseService', () => {
       fileProcessorId: 'processor-1',
       chunkSize: 800,
       chunkOverlap: 120,
-      threshold: 0.55,
       documentCount: 5,
-      searchMode: 'hybrid',
       ...overrides
     }
     await dbh.db.insert(knowledgeBaseTable).values(values)
     return values
-  }
-
-  async function seedFileEntry() {
-    await dbh.db.insert(fileEntryTable).values({
-      id: FILE_ENTRY_ID,
-      origin: 'internal',
-      name: 'source-file',
-      ext: 'md',
-      size: 1,
-      externalPath: null
-    })
   }
 
   async function seedFileKnowledgeItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
@@ -105,23 +108,12 @@ describe('KnowledgeBaseService', () => {
     })
   }
 
-  async function seedKnowledgeItemFileRef(overrides: Partial<typeof fileRefTable.$inferInsert> = {}) {
-    await dbh.db.insert(fileRefTable).values({
-      id: '11111111-1111-4111-8111-123456789abc',
-      fileEntryId: FILE_ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: FILE_ITEM_ID,
-      role: 'source',
-      ...overrides
-    })
-  }
-
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
 
-      const result = await service.list({ page: 2, limit: 1 })
+      const result = service.list({ page: 2, limit: 1 })
 
       expect(result.total).toBe(2)
       expect(result.page).toBe(2)
@@ -133,7 +125,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta Research' })
       await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Operations' })
 
-      const result = await service.list({ page: 1, limit: 1, search: 'Research' })
+      const result = service.list({ page: 1, limit: 1, search: 'Research' })
 
       expect(result.total).toBe(2)
       expect(result.page).toBe(1)
@@ -145,7 +137,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ id: LITERAL_KNOWLEDGE_BASE_ID, name: 'Vector 100%_notes' })
       await seedKnowledgeBase({ id: EXPANDED_KNOWLEDGE_BASE_ID, name: 'Vector 100xxnotes' })
 
-      const result = await service.list({ page: 1, limit: 10, search: '100%_' })
+      const result = service.list({ page: 1, limit: 10, search: '100%_' })
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
@@ -156,7 +148,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 3 })
       await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Newest', createdAt: 2 })
 
-      const result = await service.list({ page: 1, limit: 10 })
+      const result = service.list({ page: 1, limit: 10 })
 
       expect(result.items.map((item) => item.id)).toEqual([
         NEWER_KNOWLEDGE_BASE_ID,
@@ -169,7 +161,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta' })
       await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha' })
 
-      const result = await service.list({ page: 1, limit: 10, sortBy: 'name', sortOrder: 'asc' })
+      const result = service.list({ page: 1, limit: 10, sortBy: 'name', sortOrder: 'asc' })
 
       expect(result.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID])
     })
@@ -183,7 +175,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Research newest', updatedAt: cutoff + 3000 })
       await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 4000 })
 
-      const result = await service.list({
+      const result = service.list({
         page: 1,
         limit: 10,
         search: 'Research',
@@ -227,7 +219,7 @@ describe('KnowledgeBaseService', () => {
         }
       ])
 
-      const result = await service.list({ page: 1, limit: 10 })
+      const result = service.list({ page: 1, limit: 10 })
       const baseWithItems = result.items.find((item) => item.id === KNOWLEDGE_BASE_ID)
       const emptyBase = result.items.find((item) => item.id === SECOND_KNOWLEDGE_BASE_ID)
 
@@ -274,8 +266,8 @@ describe('KnowledgeBaseService', () => {
         }
       ])
 
-      const firstPage = await service.list({ page: 1, limit: 1 })
-      const secondPage = await service.list({ page: 2, limit: 1 })
+      const firstPage = service.list({ page: 1, limit: 1 })
+      const secondPage = service.list({ page: 2, limit: 1 })
 
       expect(firstPage.total).toBe(2)
       expect(firstPage.items).toHaveLength(1)
@@ -301,7 +293,7 @@ describe('KnowledgeBaseService', () => {
       })
       await seedFileKnowledgeItem()
 
-      const result = await service.search({ q: 'Needle', limit: 5 })
+      const result = service.search({ q: 'Needle', limit: 5 })
 
       expect(result).toEqual([
         {
@@ -327,7 +319,7 @@ describe('KnowledgeBaseService', () => {
     it('should return a knowledge base by id', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.getById(KNOWLEDGE_BASE_ID)
+      const result = service.getById(KNOWLEDGE_BASE_ID)
 
       expect(result).toMatchObject({
         id: KNOWLEDGE_BASE_ID,
@@ -336,8 +328,14 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
-    it('should throw NotFound when the knowledge base does not exist', async () => {
-      await expect(service.getById('missing')).rejects.toMatchObject({
+    it('should throw NotFound when the knowledge base does not exist', () => {
+      let err: unknown
+      try {
+        service.getById('missing')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -346,7 +344,13 @@ describe('KnowledgeBaseService', () => {
     it('should reject invalid persisted chunk configuration at the read boundary', async () => {
       await seedKnowledgeBase({ chunkSize: 100, chunkOverlap: 100 })
 
-      await expect(service.getById(KNOWLEDGE_BASE_ID)).rejects.toThrow('Chunk overlap must be smaller than chunk size')
+      expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Chunk overlap must be smaller than chunk size')
+    })
+
+    it('should reject an invalid persisted separator at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkStrategy: 'delimiter', chunkSeparator: '' })
+
+      expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Separator is required when chunk strategy is delimiter')
     })
   })
 
@@ -358,14 +362,13 @@ describe('KnowledgeBaseService', () => {
         embeddingModelId: `  ${createUniqueModelId('openai', 'embed-model')}  `
       }
 
-      const result = await service.create(dto)
+      const result = service.create(dto)
 
       expect(result.name).toBe('New Base')
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
-      expect(result.searchMode).toBe('hybrid')
-      expect(result.hybridAlpha).toBeUndefined()
+      expect(result.threshold).toBeUndefined()
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
 
@@ -379,24 +382,112 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(200)
       expect(row.threshold).toBeNull()
       expect(row.documentCount).toBeNull()
-      expect(row.searchMode).toBe('hybrid')
-      expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
     })
 
-    it('should persist a per-base hybridAlpha when provided', async () => {
-      const result = await service.create({
-        name: 'Hybrid Tuned',
-        dimensions: 1024,
-        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
-        searchMode: 'hybrid',
-        hybridAlpha: 0.8
-      })
+    it('creates a BM25-only base when no embedding model is provided', async () => {
+      const result = service.create({ name: 'Lexical Base' })
 
-      expect(result.hybridAlpha).toBe(0.8)
+      expect(result.embeddingModelId).toBeNull()
+      expect(result.dimensions).toBeNull()
+      expect(result.status).toBe('completed')
+      expect(result.error).toBeNull()
+
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
-      expect(row.hybridAlpha).toBe(0.8)
+      expect(row.embeddingModelId).toBeNull()
+      expect(row.dimensions).toBeNull()
+    })
+
+    it('persists a valid knowledge group', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' })
+
+      const result = service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+
+      expect(result.groupId).toBe(KNOWLEDGE_GROUP_ID)
+    })
+
+    it('rejects a missing knowledge group with a field-scoped validation error', async () => {
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
+    it('rejects a group owned by another entity type', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' })
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: OTHER_ENTITY_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
+    it('rejects an embedding model without positive dimensions instead of a raw constraint violation', () => {
+      // A model without dimensions would insert a row satisfying neither DB CHECK
+      // arm (vector needs both; bm25-only needs neither). The IPC boundary already
+      // blocks this via CreateKnowledgeBaseSchema's refine, so this guards internal
+      // callers (e.g. restoreBase) that build a DTO directly.
+      let err: unknown
+      try {
+        service.create({ name: 'Missing Dimensions', embeddingModelId: createUniqueModelId('openai', 'embed-model') })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            dimensions: ['Embedding model and dimensions must be set together']
+          }
+        }
+      })
+    })
+
+    it.each([
+      ['zero', 0, 'Too small: expected number to be >0'],
+      ['negative', -1, 'Too small: expected number to be >0'],
+      ['non-integer', 1.5, 'Invalid input: expected int, received number']
+    ])('rejects an embedding model with %s dimensions', (_label, dimensions, message) => {
+      let err: unknown
+      try {
+        service.create({
+          name: 'Invalid Dimensions',
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          dimensions
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            dimensions: [message]
+          }
+        }
+      })
     })
 
     it('should create a knowledge base with explicit valid chunk config', async () => {
@@ -408,7 +499,7 @@ describe('KnowledgeBaseService', () => {
         chunkOverlap: 20
       }
 
-      const result = await service.create(dto)
+      const result = service.create(dto)
 
       expect(result.chunkSize).toBe(100)
       expect(result.chunkOverlap).toBe(20)
@@ -418,15 +509,35 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(20)
     })
 
-    it('should reject create when default chunkOverlap does not fit explicit chunkSize', async () => {
-      await expect(
+    it('should create a knowledge base with an explicit threshold', async () => {
+      const dto: CreateKnowledgeBaseDto = {
+        name: 'Reranked Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        threshold: 0.42
+      }
+
+      const result = service.create(dto)
+
+      expect(result.threshold).toBe(0.42)
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.threshold).toBe(0.42)
+    })
+
+    it('should reject create when default chunkOverlap does not fit explicit chunkSize', () => {
+      let err: unknown
+      try {
         service.create({
           name: 'Invalid Small Chunks',
           dimensions: 1024,
           embeddingModelId: createUniqueModelId('openai', 'embed-model'),
           chunkSize: 100
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -435,12 +546,52 @@ describe('KnowledgeBaseService', () => {
         }
       })
     })
+
+    it('should persist an explicit chunk strategy and separator', async () => {
+      const result = service.create({
+        name: 'Delimiter Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject create in delimiter mode when the separator is empty', () => {
+      let err: unknown
+      try {
+        service.create({
+          name: 'Missing Separator',
+          dimensions: 1024,
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
+          }
+        }
+      })
+    })
   })
 
   describe('status constraints', () => {
-    it('does not define a database default for status', async () => {
-      const result = await dbh.client.execute('PRAGMA table_info(`knowledge_base`)')
-      const statusColumn = result.rows.find((row) => row.name === 'status')
+    it('does not define a database default for status', () => {
+      const result = dbh.sqlite.pragma('table_info(`knowledge_base`)') as Array<{ name: string; dflt_value: unknown }>
+      const statusColumn = result.find((row) => row.name === 'status')
 
       expect(statusColumn).toBeDefined()
       expect(statusColumn?.dflt_value).toBeNull()
@@ -464,7 +615,7 @@ describe('KnowledgeBaseService', () => {
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       })
 
-      await expect(service.getById(KNOWLEDGE_BASE_ID)).resolves.toMatchObject({
+      expect(service.getById(KNOWLEDGE_BASE_ID)).toMatchObject({
         dimensions: null,
         embeddingModelId: null,
         status: 'failed',
@@ -472,11 +623,39 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
-    it('rejects invalid persisted knowledge base status combinations', async () => {
+    it('allows a completed BM25-only base with null embedding model and dimensions', async () => {
       await expect(
         seedKnowledgeBase({
           embeddingModelId: null,
           dimensions: null,
+          status: 'completed',
+          error: null
+        })
+      ).resolves.toBeDefined()
+
+      expect(service.getById(KNOWLEDGE_BASE_ID)).toMatchObject({
+        embeddingModelId: null,
+        dimensions: null,
+        status: 'completed'
+      })
+    })
+
+    it('rejects invalid persisted knowledge base status combinations', async () => {
+      // A completed base's embedding model and dimensions must be set together; a
+      // half-set pair is rejected (only both-set or both-null are legal).
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          dimensions: null,
+          status: 'completed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          dimensions: 1536,
           status: 'completed',
           error: null
         })
@@ -506,7 +685,7 @@ describe('KnowledgeBaseService', () => {
     it('should return the existing knowledge base when update is empty', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, {})
+      const result = service.update(KNOWLEDGE_BASE_ID, {})
 
       expect(result.id).toBe(KNOWLEDGE_BASE_ID)
       expect(result.name).toBe('Knowledge Base')
@@ -515,7 +694,7 @@ describe('KnowledgeBaseService', () => {
     it('should update and return the knowledge base', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, {
+      const result = service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
         chunkSize: 1024,
         chunkOverlap: 128
@@ -531,13 +710,38 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(128)
     })
 
+    it('rejects a group owned by another entity type and rolls back the update', async () => {
+      await dbh.db.insert(groupTable).values([
+        { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
+        { id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' }
+      ])
+      await seedKnowledgeBase({ groupId: KNOWLEDGE_GROUP_ID })
+      let err: unknown
+
+      try {
+        service.update(KNOWLEDGE_BASE_ID, {
+          name: 'Updated Base',
+          groupId: OTHER_ENTITY_GROUP_ID
+        })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row).toMatchObject({ name: 'Knowledge Base', groupId: KNOWLEDGE_GROUP_ID })
+    })
+
     it('should clear nullable processor and rerank config fields', async () => {
       await seedKnowledgeBase({
         rerankModelId: createUniqueModelId('openai', 'embed-model'),
         fileProcessorId: 'processor-1'
       })
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, {
+      const result = service.update(KNOWLEDGE_BASE_ID, {
         rerankModelId: null,
         fileProcessorId: null
       })
@@ -550,48 +754,49 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
     })
 
-    it('should update and persist the per-base hybridAlpha', async () => {
-      await seedKnowledgeBase({ searchMode: 'hybrid' })
+    it('should update and persist the relevance threshold', async () => {
+      await seedKnowledgeBase({ threshold: 0.2 })
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, { hybridAlpha: 0.9 })
+      const result = service.update(KNOWLEDGE_BASE_ID, {
+        threshold: 0.7
+      })
 
-      expect(result.hybridAlpha).toBe(0.9)
+      expect(result.threshold).toBe(0.7)
+
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.hybridAlpha).toBe(0.9)
+      expect(row.threshold).toBe(0.7)
     })
 
-    it('should clear stale hybrid config when search mode changes during update', async () => {
+    it('allows renaming or moving a recoverable failed base despite a leftover mismatched embedding/dimensions pair', async () => {
+      // A migration-failed base can carry a leftover embeddingModelId with null
+      // dimensions (or vice versa); the DB CHECK only constrains this pairing for
+      // completed bases, so a plain metadata PATCH must not resurrect that check
+      // (the pairing invariant is still enforced for completed bases — see "rejects
+      // an embedding model without positive dimensions" above).
       await seedKnowledgeBase({
-        chunkSize: 256,
-        chunkOverlap: 120,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.7
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        dimensions: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       })
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, {
-        searchMode: 'vector'
-      })
-
-      expect(result.searchMode).toBe('vector')
-      expect(result.chunkSize).toBe(256)
-      expect(result.chunkOverlap).toBe(120)
-      expect(result.hybridAlpha).toBeUndefined()
-
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.searchMode).toBe('vector')
-      expect(row.chunkSize).toBe(256)
-      expect(row.chunkOverlap).toBe(120)
-      expect(row.hybridAlpha).toBeNull()
+      const result = service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      expect(result.name).toBe('Renamed while failed')
+      expect(result.dimensions).toBeNull()
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
       await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
 
-      await expect(
+      let err: unknown
+      try {
         service.update(KNOWLEDGE_BASE_ID, {
           chunkSize: 100
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -604,11 +809,15 @@ describe('KnowledgeBaseService', () => {
     it('should reject explicitly provided chunkOverlap when it no longer fits the current chunkSize', async () => {
       await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
 
-      await expect(
+      let err: unknown
+      try {
         service.update(KNOWLEDGE_BASE_ID, {
           chunkOverlap: 256
         })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -618,31 +827,213 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
-    it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
+    it('should reject switching to delimiter mode with an empty separator', async () => {
+      await seedKnowledgeBase()
 
-      await expect(
+      let err: unknown
+      try {
         service.update(KNOWLEDGE_BASE_ID, {
-          name: 'Renamed Base'
+          chunkStrategy: 'delimiter',
+          chunkSeparator: ''
         })
-      ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
-    })
-
-    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
-      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
-
-      await expect(
-        service.update(KNOWLEDGE_BASE_ID, {
-          searchMode: 'vector',
-          hybridAlpha: 0.7
-        })
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
           }
         }
+      })
+    })
+
+    it('should persist a switch to delimiter mode with a custom separator', async () => {
+      await seedKnowledgeBase()
+
+      const result = service.update(KNOWLEDGE_BASE_ID, {
+        chunkStrategy: 'delimiter',
+        chunkSeparator: '|'
+      })
+
+      expect(result.chunkStrategy).toBe('delimiter')
+      expect(result.chunkSeparator).toBe('|')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.chunkStrategy).toBe('delimiter')
+      expect(row.chunkSeparator).toBe('|')
+    })
+
+    it('should reject switching to delimiter mode when the persisted separator is already empty', async () => {
+      await seedKnowledgeBase({ chunkSeparator: '' })
+
+      let err: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, {
+          chunkStrategy: 'delimiter'
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkSeparator: ['Separator is required when chunk strategy is delimiter']
+          }
+        }
+      })
+    })
+
+    describe('embeddingModelId', () => {
+      it('allows changing the embedding model and dimensions on a base with no items', async () => {
+        await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+        await seedSecondEmbeddingModel()
+
+        const result = service.update(KNOWLEDGE_BASE_ID, {
+          embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+          dimensions: 768
+        })
+
+        expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        expect(result.dimensions).toBe(768)
+
+        const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+        expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        expect(row.dimensions).toBe(768)
+      })
+
+      it('rejects changing the embedding model on a base that already has items', async () => {
+        await seedKnowledgeBase()
+        await seedSecondEmbeddingModel()
+        await seedFileKnowledgeItem()
+
+        let err: unknown
+        try {
+          service.update(KNOWLEDGE_BASE_ID, {
+            embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+            dimensions: 768
+          })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+            }
+          }
+        })
+
+        const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+        expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+      })
+
+      it('ignores deleting items when deciding whether a base is still empty', async () => {
+        await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+        await seedSecondEmbeddingModel()
+        await seedFileKnowledgeItem({ status: 'deleting', error: null })
+
+        const result = service.update(KNOWLEDGE_BASE_ID, {
+          embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+          dimensions: 768
+        })
+
+        expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+      })
+
+      it('rejects changing dimensions alone on a base that already has items', async () => {
+        await seedKnowledgeBase()
+        await seedFileKnowledgeItem()
+
+        let err: unknown
+        try {
+          service.update(KNOWLEDGE_BASE_ID, { dimensions: 768 })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+            }
+          }
+        })
+      })
+
+      describe('allowEmbeddingModelBackfill', () => {
+        it('allows setting a model in place on a BM25-only base with items when opted in', async () => {
+          await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          const result = service.update(
+            KNOWLEDGE_BASE_ID,
+            { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
+            { allowEmbeddingModelBackfill: true }
+          )
+
+          expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+          expect(result.dimensions).toBe(768)
+
+          const [row] = await dbh.db
+            .select()
+            .from(knowledgeBaseTable)
+            .where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+          expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        })
+
+        it('still rejects switching an already-configured model even when opted in', async () => {
+          await seedKnowledgeBase()
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          let err: unknown
+          try {
+            service.update(
+              KNOWLEDGE_BASE_ID,
+              { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
+              { allowEmbeddingModelBackfill: true }
+            )
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+              }
+            }
+          })
+        })
+
+        it('still rejects a BM25-only base with items when the caller does not opt in', async () => {
+          await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          let err: unknown
+          try {
+            service.update(KNOWLEDGE_BASE_ID, {
+              embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+              dimensions: 768
+            })
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+              }
+            }
+          })
+        })
       })
     })
   })
@@ -651,61 +1042,77 @@ describe('KnowledgeBaseService', () => {
     it('should delete an existing knowledge base', async () => {
       await seedKnowledgeBase()
 
-      await expect(service.delete(KNOWLEDGE_BASE_ID)).resolves.toBeUndefined()
+      expect(service.delete(KNOWLEDGE_BASE_ID)).toBeUndefined()
 
       const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(rows).toHaveLength(0)
     })
 
-    it('should delete knowledge item file refs when deleting a knowledge base', async () => {
+    it('should delete knowledge items when deleting a knowledge base', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Other Base' })
-      await seedFileEntry()
       await seedFileKnowledgeItem()
       await seedFileKnowledgeItem({ id: OTHER_BASE_FILE_ITEM_ID, baseId: SECOND_KNOWLEDGE_BASE_ID })
-      await seedKnowledgeItemFileRef()
-      await seedKnowledgeItemFileRef({
-        id: '22222222-2222-4222-8222-123456789abc',
-        sourceType: tempSessionSourceType,
-        sourceId: FILE_ITEM_ID,
-        role: 'pending'
-      })
-      await seedKnowledgeItemFileRef({
-        id: '33333333-3333-4333-8333-123456789abc',
-        sourceId: OTHER_BASE_FILE_ITEM_ID
-      })
 
-      await service.delete(KNOWLEDGE_BASE_ID)
+      service.delete(KNOWLEDGE_BASE_ID)
 
       const itemRows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, FILE_ITEM_ID))
       const otherItemRows = await dbh.db
         .select()
         .from(knowledgeItemTable)
         .where(eq(knowledgeItemTable.id, OTHER_BASE_FILE_ITEM_ID))
-      const refRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '11111111-1111-4111-8111-123456789abc'))
-      const sameSourceIdOtherTypeRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '22222222-2222-4222-8222-123456789abc'))
-      const otherBaseRefRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '33333333-3333-4333-8333-123456789abc'))
       expect(itemRows).toHaveLength(0)
       expect(otherItemRows).toHaveLength(1)
-      expect(refRows).toHaveLength(0)
-      expect(sameSourceIdOtherTypeRows).toHaveLength(1)
-      expect(otherBaseRefRows).toHaveLength(1)
     })
 
-    it('should throw NotFound when deleting a missing knowledge base', async () => {
-      await expect(service.delete('missing')).rejects.toMatchObject({
+    it('should throw NotFound when deleting a missing knowledge base', () => {
+      let err: unknown
+      try {
+        service.delete('missing')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('embedding model removal guard', () => {
+    const embeddingModelId = createUniqueModelId('openai', 'embed-model')
+
+    it('does not acquire the guard while a knowledge base references the model', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.acquireEmbeddingModelRemovalGuard(embeddingModelId)).toBeUndefined()
+    })
+
+    it('rejects writes that add the model until the removal guard is released', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+      const releaseGuard = service.acquireEmbeddingModelRemovalGuard(embeddingModelId)
+      expect(releaseGuard).toBeTypeOf('function')
+
+      let createError: unknown
+      try {
+        service.create({ name: 'Concurrent Base', embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        createError = error
+      }
+      expect(createError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      let updateError: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        updateError = error
+      }
+      expect(updateError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      releaseGuard?.()
+      expect(service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 }).embeddingModelId).toBe(
+        embeddingModelId
+      )
     })
   })
 })

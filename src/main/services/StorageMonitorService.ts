@@ -2,9 +2,9 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { GB } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { StorageHealth, StorageHealthLevel } from '@shared/types/storageMonitor'
+import { GB } from '@shared/utils/constants'
 import { statfs } from 'fs/promises'
 
 const logger = loggerService.withContext('StorageMonitorService')
@@ -93,7 +93,7 @@ export class StorageMonitorService extends BaseService {
   /**
    * Re-arm the timer at the interval that matches the current free space. Same
    * band => keep the existing timer (no churn); band change => dispose and
-   * re-register at the new interval (mirrors ProxyManager's pattern).
+   * re-register at the new interval (mirrors ProxyService's pattern).
    */
   private scheduleNext(): void {
     const nextMs = intervalForFree(this.health.freeBytes)

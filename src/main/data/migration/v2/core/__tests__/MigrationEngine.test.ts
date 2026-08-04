@@ -1,3 +1,7 @@
+import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
+import { jobScheduleTable } from '@data/db/schemas/job'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
@@ -8,15 +12,40 @@ vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
 }))
 
+// The engine imports the boot-config singleton for skipMigration; keep the real
+// service (and its file I/O) out of these unit tests.
+vi.mock('@main/data/bootConfig', () => ({
+  bootConfigService: { set: vi.fn(), persist: vi.fn() }
+}))
+
+// Let initialize() run without opening a real SQLite file: a bare fake DB whose
+// migration-status read returns no row (so needsMigration hits the fresh-install
+// branch we want to exercise).
+vi.mock('../MigrationDbService', () => ({
+  MigrationDbService: {
+    create: () => ({
+      getDb: () => ({
+        select: () => ({ from: () => ({ where: () => ({ get: () => undefined }) }) })
+      }),
+      close: () => {}
+    })
+  }
+}))
+
 const mockPaths: MigrationPaths = {
   userData: '/tmp/test-userdata',
   cherryHome: '/tmp/test-cherryhome',
-  databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
+  databaseFile: '/tmp/test-userdata/Data/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
   filesDataDir: '/tmp/test-userdata/Data/Files',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
-  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
+  legacyClaudeConfigDir: '/tmp/test-userdata/.claude',
+  legacyClaudeProjectsDir: '/tmp/test-userdata/.claude/projects',
+  agentsDataDir: '/tmp/test-userdata/Data/Agents',
+  claudeConfigDir: '/tmp/test-userdata/Data/Agents/.claude',
+  claudeProjectsDir: '/tmp/test-userdata/Data/Agents/.claude/projects',
+  agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
@@ -147,15 +176,100 @@ describe('MigrationEngine', () => {
     errorSpy.mockRestore()
   })
 
+  it('aborts the whole migration when validate() reports targetCount below sourceCount minus skippedCount', async () => {
+    // The engine reconciliation that KnowledgeVectorMigrator's per-base isolation (C1) depends on:
+    // an uncredited shortfall (a base whose rows counted into sourceCount but produced no target
+    // units and were NOT added to skippedCount) trips `targetCount < sourceCount - skippedCount`
+    // and fails the whole migration.
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge_vector', 1, events)
+    migrator.validate.mockResolvedValueOnce({
+      success: true,
+      errors: [],
+      stats: { sourceCount: 2, targetCount: 1, skippedCount: 0 }
+    } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('count mismatch')
+    expect((engine as any).markFailed).toHaveBeenCalled()
+
+    errorSpy.mockRestore()
+  })
+
+  it('accepts the run when skippedCount credits the shortfall (per-base failure isolation)', async () => {
+    // The flip side: crediting the failed base's expected units to skippedCount (what C1 does in
+    // the per-base catch) drops expectedCount in lockstep with the missing targetCount, so the same
+    // 2-source / 1-target outcome reconciles and the migration succeeds instead of aborting.
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge_vector', 1, events)
+    migrator.validate.mockResolvedValueOnce({
+      success: true,
+      errors: [],
+      stats: { sourceCount: 2, targetCount: 1, skippedCount: 1 }
+    } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(true)
+    expect((engine as any).markFailed).not.toHaveBeenCalled()
+  })
+
+  describe('needsMigration — legacyDataConfirmed flag', () => {
+    it('returns true without markCompleted when legacyDataConfirmed is true (no status row)', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, true)
+      // Isolate the flag: without the OR, an empty electron-store would markCompleted+false.
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(true)
+      expect(markSpy).not.toHaveBeenCalled()
+    })
+
+    it('markCompleted + returns false when not legacyDataConfirmed and no legacy data', async () => {
+      const freshEngine = new MigrationEngine()
+      freshEngine.initialize(mockPaths, false)
+      vi.spyOn(freshEngine as any, 'hasLegacyData').mockReturnValue(false)
+      const markSpy = vi.spyOn(freshEngine as any, 'markCompleted').mockResolvedValue(undefined)
+
+      expect(await freshEngine.needsMigration()).toBe(false)
+      expect(markSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('marks completed after global validation succeeds', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('agents', 1, events)
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
+      events.push('foreign-keys')
+    })
+    vi.mocked((engine as any).markCompleted).mockImplementation(async () => {
+      events.push('completed')
+    })
+    engine.registerMigrators([migrator as any])
+
+    await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
+
+    expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
-    const deleteFn = vi.fn().mockResolvedValue(undefined)
-    const transactionFn = vi.fn(async (fn: (tx: unknown) => Promise<void>) => {
-      await fn({ delete: deleteFn })
+    const runFn = vi.fn()
+    const deleteFn = vi.fn(() => ({ run: runFn, where: vi.fn(() => ({ run: runFn })) }))
+    const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
+      fn({ delete: deleteFn })
     })
     const db = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
-          get: vi.fn().mockResolvedValue({ count: 0 })
+          get: vi.fn(() => ({ count: 0 }))
         }))
       })),
       transaction: transactionFn
@@ -169,7 +283,39 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
+    // Every counted table is deleted, plus the filtered job_schedule delete
+    // (which is not part of the count loop).
+    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length + 1)
     expect(db).not.toHaveProperty('delete')
+  })
+
+  it('includes supporting migration tables in the clear set (retry safety)', async () => {
+    // Migration runs with foreign_keys OFF, so clearing owner / file_entry rows does
+    // NOT cascade to the logo ref rows — they must be cleared explicitly, else a
+    // retry collides with the unique (source_id) index and can never recover.
+    const deletedTables: unknown[] = []
+    const db = {
+      select: vi.fn(() => ({ from: vi.fn(() => ({ get: vi.fn(() => ({ count: 0 })) })) })),
+      transaction: vi.fn((fn: (tx: unknown) => void) =>
+        fn({
+          delete: (table: unknown) => {
+            deletedTables.push(table)
+            const run = vi.fn()
+            return { run, where: vi.fn(() => ({ run })) }
+          }
+        })
+      )
+    }
+    ;(engine as any).migrationDb = { getDb: vi.fn(() => db), close: vi.fn() }
+    vi.mocked((engine as any).verifyAndClearNewTables).mockRestore()
+
+    await (engine as any).verifyAndClearNewTables()
+
+    expect(deletedTables).toContain(providerLogoFileRefTable)
+    expect(deletedTables).toContain(miniAppLogoFileRefTable)
+    expect(deletedTables).toContain(groupTable)
+    expect(deletedTables).toContain(entityTagTable)
+    expect(deletedTables).toContain(tagTable)
+    expect(deletedTables).toContain(jobScheduleTable)
   })
 })

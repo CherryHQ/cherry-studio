@@ -1,4 +1,4 @@
-import { isValidUrl } from '@shared/utils'
+import { isHttpUrl } from '@shared/utils/url'
 
 export const MAX_WEB_SEARCH_INPUTS = 20
 
@@ -28,7 +28,7 @@ export function normalizeWebSearchUrls(urls: string[]): string[] {
     throw new Error(`Web search supports at most ${MAX_WEB_SEARCH_INPUTS} inputs per request`)
   }
 
-  const invalidUrls = normalized.filter((url) => !isValidUrl(url))
+  const invalidUrls = normalized.filter((url) => !isHttpUrl(url))
   if (invalidUrls.length > 0) {
     throw new Error(`Invalid URL format: ${invalidUrls.join(', ')}`)
   }

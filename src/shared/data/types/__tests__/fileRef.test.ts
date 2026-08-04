@@ -2,70 +2,60 @@ import { describe, expect, it } from 'vitest'
 
 import {
   allSourceTypes,
+  chatMessageFileRefSchema,
+  chatMessageSourceType,
   FileRefSchema,
-  knowledgeItemFileRefSchema,
-  knowledgeItemSourceType,
+  jobFileRefSchema,
+  jobSourceType,
+  miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
-  tempSessionFileRefSchema,
-  tempSessionSourceType
-} from '../file/ref'
+  providerLogoRef
+} from '../file'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
-const KB_ITEM_ID = '019606a1-0000-7000-8000-000000000abc' // UUIDv7
+const MESSAGE_ID = '33333333-4444-4555-8666-000000000002' // UUID (legacy chat ids may be v4)
 const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
+const JOB_ID = '019606a0-0000-7000-8000-000000000009' // UUIDv7 (job.id is uuidPrimaryKeyOrdered)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    // Defensive: this assertion locks the currently-registered set.
-    // Adding a new variant must also extend (a) the discriminated union and
-    // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
+    // Defensive: this assertion locks the currently-registered set. Adding a
+    // new variant must also extend the discriminated union and back it with an
+    // FK-constrained association table — see ref/index.ts.
+    // The user avatar deliberately has no variant: it is persisted only in the
+    // `app.user.avatar` preference (no ref table).
+    expect([...allSourceTypes]).toEqual(['chat_message', 'painting', 'job', 'provider_logo', 'mini_app_logo'])
   })
 })
 
-describe('knowledgeItemFileRefSchema', () => {
-  function makeKnowledgeItemRef(overrides: Record<string, unknown> = {}) {
+describe('chatMessageFileRefSchema', () => {
+  function makeChatMessageRef(overrides: Record<string, unknown> = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: KB_ITEM_ID,
-      role: 'source',
+      sourceType: chatMessageSourceType,
+      sourceId: MESSAGE_ID,
+      role: 'attachment',
       createdAt: TS,
       updatedAt: TS,
       ...overrides
     }
   }
 
-  it('accepts a well-formed knowledge_item ref', () => {
-    const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef())
-    expect(parsed.sourceType).toBe('knowledge_item')
-    expect(parsed.sourceId).toBe(KB_ITEM_ID)
-    expect(parsed.role).toBe('source')
+  it('accepts a well-formed chat_message ref', () => {
+    const parsed = chatMessageFileRefSchema.parse(makeChatMessageRef())
+    expect(parsed.sourceType).toBe('chat_message')
+    expect(parsed.sourceId).toBe(MESSAGE_ID)
+    expect(parsed.role).toBe('attachment')
   })
 
-  it('accepts every knowledge_item role', () => {
-    for (const role of ['source', 'processed_artifact']) {
-      const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
-      expect(parsed.role).toBe(role)
+  it('rejects role values outside the chat_message vocabulary', () => {
+    for (const role of ['source', 'preview', 'thumbnail', '']) {
+      expect(() => chatMessageFileRefSchema.parse(makeChatMessageRef({ role }))).toThrow()
     }
-  })
-
-  it('rejects role values outside the knowledge_item enum', () => {
-    for (const role of ['attachment', 'preview', 'thumbnail', '']) {
-      expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
-    }
-  })
-
-  it('rejects a non-UUIDv7 sourceId (knowledge_item.id is v2-native)', () => {
-    expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceId: 'not-a-uuid' }))).toThrow()
-  })
-
-  it('rejects sourceType other than the literal knowledge_item', () => {
-    expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceType: 'temp_session' }))).toThrow()
   })
 })
 
@@ -108,36 +98,87 @@ describe('paintingFileRefSchema', () => {
   })
 
   it('rejects sourceType other than the literal painting', () => {
-    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'knowledge_item' }))).toThrow()
+    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'chat_message' }))).toThrow()
+  })
+})
+
+describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
+  it('accepts a well-formed roleless logo ref (free-string sourceId)', () => {
+    for (const ref of [providerLogoRef, miniAppLogoRef]) {
+      const parsed = ref.schema.parse({
+        id: REF_ID,
+        fileEntryId: ENTRY_ID,
+        sourceType: ref.sourceType,
+        sourceId: 'preset-or-uuid-id',
+        createdAt: TS,
+        updatedAt: TS
+      })
+      expect(parsed.sourceType).toBe(ref.sourceType)
+      // Roleless: the variant has no `role` field (constant, unread downstream).
+      expect('role' in parsed).toBe(false)
+    }
+  })
+
+  it('drops a stray role rather than carrying it (the slot has no role field)', () => {
+    const parsed = providerLogoRef.schema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: providerLogoRef.sourceType,
+      sourceId: 'p1',
+      role: 'logo',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect('role' in parsed).toBe(false)
+  })
+})
+
+describe('jobFileRefSchema', () => {
+  function makeJobRef(overrides: Record<string, unknown> = {}) {
+    return {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: jobSourceType,
+      sourceId: JOB_ID,
+      role: 'input',
+      createdAt: TS,
+      updatedAt: TS,
+      ...overrides
+    }
+  }
+
+  it('accepts both job roles (input/mask)', () => {
+    for (const role of ['input', 'mask']) {
+      const parsed = jobFileRefSchema.parse(makeJobRef({ role }))
+      expect(parsed.role).toBe(role)
+    }
+  })
+
+  it('rejects role values outside the job vocabulary', () => {
+    for (const role of ['output', 'attachment', 'thumbnail', '']) {
+      expect(() => jobFileRefSchema.parse(makeJobRef({ role }))).toThrow()
+    }
+  })
+
+  it('rejects a non-UUID sourceId', () => {
+    expect(() => jobFileRefSchema.parse(makeJobRef({ sourceId: 'not-a-uuid' }))).toThrow()
   })
 })
 
 describe('FileRefSchema discriminated union', () => {
-  it('dispatches to the temp_session variant', () => {
+  it('dispatches to the chat_message variant', () => {
     const parsed = FileRefSchema.parse({
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: tempSessionSourceType,
-      sourceId: 'session-1',
-      role: 'pending',
+      sourceType: chatMessageSourceType,
+      sourceId: MESSAGE_ID,
+      role: 'attachment',
       createdAt: TS,
       updatedAt: TS
     })
-    expect(parsed.sourceType).toBe('temp_session')
-  })
-
-  it('dispatches to the knowledge_item variant', () => {
-    const parsed = FileRefSchema.parse({
-      id: REF_ID,
-      fileEntryId: ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: KB_ITEM_ID,
-      role: 'source',
-      createdAt: TS,
-      updatedAt: TS
-    })
-    expect(parsed.sourceType).toBe('knowledge_item')
-    expect(parsed.role).toBe('source')
+    expect(parsed.sourceType).toBe('chat_message')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'chat_message') expect(parsed.role).toBe('attachment')
   })
 
   it('dispatches to the painting variant', () => {
@@ -153,35 +194,34 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.sourceType).toBe('painting')
   })
 
+  it('dispatches to the job variant', () => {
+    const parsed = FileRefSchema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: jobSourceType,
+      sourceId: JOB_ID,
+      role: 'mask',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.sourceType).toBe('job')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'job') expect(parsed.role).toBe('mask')
+  })
+
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
-    // `note` remains unregistered; it must be rejected so DataApi round-trip
-    // stays consistent. When a new variant lands, update this list alongside
-    // the union.
-    for (const sourceType of ['note']) {
+    for (const sourceType of ['note', 'knowledge_item']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,
           fileEntryId: ENTRY_ID,
           sourceType,
-          sourceId: KB_ITEM_ID,
+          sourceId: MESSAGE_ID,
           role: 'attachment',
           createdAt: TS,
           updatedAt: TS
         })
       ).toThrow()
     }
-  })
-
-  it('roundtrips a valid row via the union', () => {
-    const input = tempSessionFileRefSchema.parse({
-      id: REF_ID,
-      fileEntryId: ENTRY_ID,
-      sourceType: tempSessionSourceType,
-      sourceId: 'session-rt',
-      role: 'pending',
-      createdAt: TS,
-      updatedAt: TS
-    })
-    expect(FileRefSchema.parse(input)).toEqual(input)
   })
 })

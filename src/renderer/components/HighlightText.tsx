@@ -41,9 +41,7 @@ const HighlightText: FC<HighlightTextProps> = ({ text, keyword, caseSensitive = 
     )
   }, [text, keyword, caseSensitive])
 
-  const combinedClassName = className ? `ant-typography ${className}` : 'ant-typography'
-
-  return <span className={combinedClassName}>{highlightedText}</span>
+  return <span className={className}>{highlightedText}</span>
 }
 
 export default memo(HighlightText)
