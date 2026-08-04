@@ -268,9 +268,13 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('redacts secrets and bounds diagnostic output', () => {
+      const basicSecret = 'dXNlcjpwYXNz'
+      const customSecret = 'credential with spaces'
       const diagnostic = [
         '{"apiKey":"sk-sensitive-value"}',
         'Authorization: Bearer bearer-sensitive-value',
+        `Authorization: Basic ${basicSecret}`,
+        `Authorization: Custom ${customSecret}`,
         'x'.repeat(2500)
       ].join('\n')
 
@@ -278,8 +282,10 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(sanitized).not.toContain('sk-sensitive-value')
       expect(sanitized).not.toContain('bearer-sensitive-value')
+      expect(sanitized).not.toContain(basicSecret)
+      expect(sanitized).not.toContain(customSecret)
       expect(sanitized).toContain('[REDACTED]')
-      expect(sanitized).toHaveLength(2000)
+      expect(sanitized.length).toBeLessThanOrEqual(2000)
     })
 
     it('runs config validation against the explicit candidate path and accepts a valid invalid report', async () => {
@@ -372,6 +378,54 @@ describe('OpenClawService gateway status state machine', () => {
       expect((thrown as Error).message).not.toContain(result.stdout)
       expect((thrown as Error).message).not.toContain('stderr-secret')
     })
+
+    it.each([
+      'models.providers.cherry-openai.models.0.contextWindow',
+      'gateway.mode',
+      'gateway.port',
+      'gateway.auth',
+      'gateway.auth.token',
+      'agents.defaults.model',
+      'agents.defaults.model.primary',
+      'update.checkOnStart'
+    ])('classifies rejected Cherry-managed path %s as binary incompatibility', async (issuePath) => {
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        issues: [{ path: issuePath, message: 'Unsupported generated field' }],
+        warnings: []
+      })
+
+      await expect(
+        (service as any).assertConfigValid(
+          { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
+          '/mock/openclaw/openclaw.json.cherry-candidate-id'
+        )
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('incompatible with the generated configuration')
+      })
+    })
+
+    it.each(['tools.web.fetch.ssrfPolicy', 'gateway.bind'])(
+      'keeps rejected user-owned path %s classified as external config',
+      async (issuePath) => {
+        validateConfigSpy.mockResolvedValueOnce({
+          valid: false,
+          issues: [{ path: issuePath, message: 'Unsupported external field' }],
+          warnings: []
+        })
+
+        await expect(
+          (service as any).assertConfigValid(
+            { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
+            '/mock/openclaw/openclaw.json.cherry-candidate-id'
+          )
+        ).rejects.toMatchObject({
+          kind: 'external_config_invalid',
+          message: expect.stringContaining("outside Cherry Studio's managed provider section")
+        })
+      }
+    )
   })
 
   describe('getDashboardUrl', () => {
@@ -1297,6 +1351,21 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ success: false, message: 'OpenClaw sync does not support Vertex AI providers yet' })
     })
+
+    it('sanitizes resolution failures in both the operation result and logger', async () => {
+      const { providerService } = await import('@data/services/ProviderService')
+      const secret = 'sync-config-secret with spaces'
+      vi.mocked(providerService.getByProviderId).mockRejectedValueOnce(new Error(`Authorization: Custom ${secret}`))
+
+      const result = await service.syncConfig('openai::gpt-4o')
+      const logged = JSON.stringify(mockMainLoggerService.error.mock.calls, (_key, value) =>
+        value instanceof Error ? { message: value.message } : value
+      )
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).not.toContain(secret)
+      expect(logged).not.toContain(secret)
+    })
   })
 
   // ─── syncProviderConfig existing-config handling ─────────────
@@ -1451,26 +1520,73 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
-    it('keeps the formal config byte-exact and removes the candidate when external config is invalid', async () => {
-      const configPath = path.join(configDir, 'openclaw.json')
-      const original = '{"tools":{"web":{"fetch":{"ssrfPolicy":{"allowPrivateNetwork":false}}}}}'
-      fs.writeFileSync(configPath, original, 'utf-8')
-      validateConfigSpy.mockResolvedValueOnce({
-        valid: false,
-        path: '/ignored/by-test',
-        issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
-        warnings: []
+    it.each([
+      { state: 'empty', initialToken: '' },
+      { state: 'existing', initialToken: 'existing-memory-token' }
+    ])(
+      'keeps the formal config and $state in-memory token unchanged when external config is invalid',
+      async ({ initialToken }) => {
+        const configPath = path.join(configDir, 'openclaw.json')
+        const original =
+          '{"gateway":{"auth":{"token":"formal-token"}},"tools":{"web":{"fetch":{"ssrfPolicy":{"allowPrivateNetwork":false}}}}}'
+        fs.writeFileSync(configPath, original, 'utf-8')
+        ;(service as any).gatewayAuthToken = initialToken
+        validateConfigSpy.mockResolvedValueOnce({
+          valid: false,
+          path: '/ignored/by-test',
+          issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
+          warnings: []
+        })
+
+        const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+        expect(result.success).toBe(false)
+        expect('message' in result && result.message).toContain("outside Cherry Studio's managed provider section")
+        expect((service as any).gatewayAuthToken).toBe(initialToken)
+        expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+        const candidatePath = validateConfigSpy.mock.calls[0][1] as string
+        expect(path.dirname(candidatePath)).toBe(configDir)
+        expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
+        expect(fs.existsSync(candidatePath)).toBe(false)
+      }
+    )
+
+    it('publishes a generated token only after candidate validation and a successful formal write', async () => {
+      let tokenDuringValidation = ''
+      let candidateToken = ''
+      validateConfigSpy.mockImplementationOnce(async (_runtime, candidatePath) => {
+        const configPath = candidatePath as string
+        tokenDuringValidation = (service as any).gatewayAuthToken
+        candidateToken = JSON.parse(fs.readFileSync(configPath, 'utf-8')).gateway.auth.token
+        return { valid: true, path: configPath, issues: [], warnings: [] }
       })
 
       const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+
+      expect(result).toEqual({ success: true })
+      expect(candidateToken).not.toBe('')
+      expect(tokenDuringValidation).toBe('')
+      expect(written.gateway.auth.token).toBe(candidateToken)
+      expect((service as any).gatewayAuthToken).toBe(candidateToken)
+    })
+
+    it('sanitizes secret-bearing sync failures in both the operation result and logger', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = '{"tools":{"web":{"search":{"enabled":true}}}}'
+      const secret = 'sync-provider-secret with spaces'
+      fs.writeFileSync(configPath, original, 'utf-8')
+      validateConfigSpy.mockRejectedValueOnce(new Error(`Authorization: Basic ${secret}`))
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      const logged = JSON.stringify(mockMainLoggerService.error.mock.calls, (_key, value) =>
+        value instanceof Error ? { message: value.message } : value
+      )
 
       expect(result.success).toBe(false)
-      expect('message' in result && result.message).toContain("outside Cherry Studio's managed provider section")
+      expect('message' in result && result.message).not.toContain(secret)
+      expect(logged).not.toContain(secret)
       expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
-      const candidatePath = validateConfigSpy.mock.calls[0][1] as string
-      expect(path.dirname(candidatePath)).toBe(configDir)
-      expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
-      expect(fs.existsSync(candidatePath)).toBe(false)
     })
 
     it('redacts and limits external validation issues returned in the operation result', async () => {

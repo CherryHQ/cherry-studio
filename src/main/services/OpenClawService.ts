@@ -45,6 +45,15 @@ const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
 const OPENCLAW_VISIBLE_ISSUE_LIMIT = 3
 const OPENCLAW_CONFIG_FILE_MODE = 0o600
+const OPENCLAW_CHERRY_MANAGED_PATHS = new Set([
+  'gateway.mode',
+  'gateway.port',
+  'gateway.auth',
+  'gateway.auth.token',
+  'agents.defaults.model',
+  'agents.defaults.model.primary',
+  'update.checkOnStart'
+])
 
 type OpenClawPreflightFailureKind = 'binary_incompatible' | 'external_config_invalid' | 'preflight_failed'
 
@@ -76,13 +85,17 @@ interface OpenClawValidationReport {
 }
 
 function sanitizeOpenClawDiagnostic(diagnostic: string): string {
-  const withoutBearerTokens = diagnostic.replace(/\bBearer\s+[^\s"',;}\]]+/gi, 'Bearer [REDACTED]')
-  return withoutBearerTokens
-    .replace(
-      /(["']?)(api_?key|token|auth|authorization|secret|password)\1(\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}\]]+)/gi,
-      (_match, quote: string, key: string, separator: string) => `${quote}${key}${quote}${separator}[REDACTED]`
-    )
+  const withoutSensitiveValues = diagnostic.replace(
+    /(["']?)(api_?key|token|auth|authorization|secret|password)\1(\s*[:=]\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\r\n,;}\]]+)/gi,
+    (_match, quote: string, key: string, separator: string) => `${quote}${key}${quote}${separator}[REDACTED]`
+  )
+  return withoutSensitiveValues
+    .replace(/\b(Bearer|Basic)\s+[^\s"',;}\]]+/gi, (_match, scheme: string) => `${scheme} [REDACTED]`)
     .slice(0, OPENCLAW_DIAGNOSTIC_LIMIT)
+}
+
+function isCherryManagedConfigPath(configPath: string): boolean {
+  return configPath.startsWith('models.providers.cherry-') || OPENCLAW_CHERRY_MANAGED_PATHS.has(configPath)
 }
 
 class OpenClawPreflightError extends Error {
@@ -423,7 +436,7 @@ export class OpenClawService extends BaseService {
       return
     }
 
-    const kind = report.issues.some((issue) => issue.path.startsWith('models.providers.cherry-'))
+    const kind = report.issues.some((issue) => isCherryManagedConfigPath(issue.path))
       ? 'binary_incompatible'
       : 'external_config_invalid'
     const details = this.formatValidationDetails(report.issues)
@@ -812,7 +825,8 @@ export class OpenClawService extends BaseService {
         }
       }
     } catch (error) {
-      logger.warn('Failed to load auth token from config file', error as Error)
+      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.warn('Failed to load auth token from config file', { summary })
     }
   }
 
@@ -838,9 +852,9 @@ export class OpenClawService extends BaseService {
       const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to resolve OpenClaw sync config:', error as Error)
-      return { success: false, message: errorMessage }
+      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.error('Failed to resolve OpenClaw sync config:', new Error(summary))
+      return { success: false, message: summary }
     }
   }
 
@@ -1051,7 +1065,8 @@ export class OpenClawService extends BaseService {
             }
           })
         } catch (err) {
-          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err as Error)
+          const summary = this.sanitizeDiagnostic(err instanceof Error ? err.message : String(err))
+          logger.warn('Failed to get VertexAI access token, using provider apiKey:', { summary })
         }
       }
 
@@ -1094,10 +1109,10 @@ export class OpenClawService extends BaseService {
       config.gateway = config.gateway || {}
       config.gateway.mode = 'local'
       config.gateway.port = this.gatewayPort
-      // Auto-generate auth token if not already set, and store it for API calls
+      // Auto-generate auth token if not already set. Publish it in memory only after
+      // the candidate is valid and the formal config write succeeds.
       const token = this.gatewayAuthToken || this.generateAuthToken()
       config.gateway.auth = { token }
-      this.gatewayAuthToken = token
 
       // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
       // BinaryManager installed and version-tracks; the hint has no env kill switch
@@ -1127,6 +1142,7 @@ export class OpenClawService extends BaseService {
         await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
         await this.assertConfigValid(runtime, candidatePath)
         await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
+        this.gatewayAuthToken = token
       } finally {
         await remove(candidatePath).catch((cleanupError) => {
           const summary = this.sanitizeDiagnostic(
@@ -1139,9 +1155,9 @@ export class OpenClawService extends BaseService {
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to sync provider config:', error as Error)
-      return { success: false, message: errorMessage }
+      const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
+      logger.error('Failed to sync provider config:', new Error(summary))
+      return { success: false, message: summary }
     }
   }
 
