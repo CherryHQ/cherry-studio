@@ -1,5 +1,4 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
-import MarqueeText from '@renderer/components/MarqueeText'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -331,8 +330,8 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
             <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
               <ImportItemStatusIcon status={item.status} />
               <div className="min-w-0 flex-1">
-                <div className="min-w-0 text-foreground" title={displayName}>
-                  <MarqueeText>{displayName}</MarqueeText>
+                <div className="truncate text-foreground" title={displayName}>
+                  {displayName}
                 </div>
                 {item.status !== 'success' ? (
                   <div

@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { PropsWithChildren } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const installFromZip = vi.fn()
@@ -43,10 +42,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useSkills', () => ({
   useSkillInstall: () => ({ installFromZip, installFromDirectory })
-}))
-
-vi.mock('@renderer/components/MarqueeText', () => ({
-  default: ({ children }: PropsWithChildren) => <div data-testid="marquee-text">{children}</div>
 }))
 
 import { toast } from '@renderer/services/toast'
@@ -173,7 +168,7 @@ describe('ImportSkillDialog', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('uses a hover marquee for a long import name and wraps a long error', async () => {
+  it('truncates a long import name and wraps a long error while preserving their titles', async () => {
     const user = userEvent.setup()
     const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
     const localizedError = `settings.skills.installFailed:${longName}`
@@ -184,13 +179,12 @@ describe('ImportSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    expect(await screen.findByTitle(longName)).toHaveTextContent(longName)
+    const fileName = await screen.findByTitle(longName)
+    expect(fileName).toHaveTextContent(longName)
+    expect(fileName).toHaveClass('truncate')
     const errorMessage = screen.getByTitle(localizedError)
     expect(errorMessage).toHaveTextContent(localizedError)
     expect(errorMessage).toHaveClass('whitespace-normal', 'break-words', '[overflow-wrap:anywhere]')
-    const marquees = screen.getAllByTestId('marquee-text')
-    expect(marquees).toHaveLength(1)
-    expect(marquees[0]).toHaveTextContent(longName)
   })
 
   it('uses the marketplace success toast without a duplicate success banner', async () => {
