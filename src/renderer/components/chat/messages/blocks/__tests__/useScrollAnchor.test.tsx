@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ScrollOwnershipProvider, useRequestScrollFollowRecovery } from '../ScrollOwnershipContext'
+import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
 import { useScrollAnchor } from '../useScrollAnchor'
 
 /**
@@ -48,33 +48,22 @@ function setupScroller({
   return { scroller, anchorEl, scrollTopWrites, rectSpy }
 }
 
-function renderScrollAnchor({ runtimeScroller }: { runtimeScroller?: HTMLElement }) {
+function renderScrollAnchor({
+  runtimeScroller,
+  requestReadingControl
+}: {
+  runtimeScroller?: HTMLElement
+  requestReadingControl?: (anchor: HTMLElement | null) => void
+}) {
   const scrollContainerRef = { current: runtimeScroller ?? null }
   const wrapper = runtimeScroller
     ? ({ children }: { children: ReactNode }) => (
-        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef}>{children}</ScrollOwnershipProvider>
+        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} requestReadingControl={requestReadingControl}>
+          {children}
+        </ScrollOwnershipProvider>
       )
     : undefined
   return renderHook(() => useScrollAnchor<HTMLDivElement>(), { wrapper })
-}
-
-function renderFollowRecovery({
-  anchorEl,
-  runtimeScroller,
-  requestFollowRecovery
-}: {
-  anchorEl?: HTMLDivElement
-  runtimeScroller: HTMLElement
-  requestFollowRecovery: () => void
-}) {
-  const anchorRef = anchorEl ? { current: anchorEl } : undefined
-  const scrollContainerRef = { current: runtimeScroller }
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} requestFollowRecovery={requestFollowRecovery}>
-      {children}
-    </ScrollOwnershipProvider>
-  )
-  return renderHook(() => useRequestScrollFollowRecovery(anchorRef), { wrapper })
 }
 
 describe('useScrollAnchor', () => {
@@ -107,6 +96,41 @@ describe('useScrollAnchor', () => {
     expect(update).toHaveBeenCalledOnce()
     expect(scrollTopWrites).toEqual([])
     expect(rectSpy).not.toHaveBeenCalled()
+  })
+
+  it('hands an explicitly opened disclosure to the runtime without writing scrollTop locally', () => {
+    const { scroller, anchorEl, scrollTopWrites } = setupScroller()
+    const requestReadingControl = vi.fn()
+    const { result } = renderScrollAnchor({ runtimeScroller: scroller, requestReadingControl })
+    result.current.anchorRef.current = anchorEl
+
+    act(() => result.current.withScrollAnchor(vi.fn(), { enterReadingMode: true }))
+
+    expect(requestReadingControl).toHaveBeenCalledWith(anchorEl)
+    expect(scrollTopWrites).toEqual([])
+  })
+
+  it('hands an explicit disclosure to the runtime even before anything overflows', () => {
+    // A short conversation: the runtime scroller exists but has no overflow yet,
+    // so findScrollParent cannot resolve it. The expand itself creates the first
+    // overflow — reading ownership must not depend on pre-existing overflow.
+    const scroller = document.createElement('div')
+    scroller.style.overflowY = 'auto'
+    Object.defineProperty(scroller, 'scrollHeight', { value: 500, configurable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 500, configurable: true })
+    const anchorEl = document.createElement('div')
+    scroller.appendChild(anchorEl)
+    document.body.appendChild(scroller)
+
+    const requestReadingControl = vi.fn()
+    const { result } = renderScrollAnchor({ runtimeScroller: scroller, requestReadingControl })
+    result.current.anchorRef.current = anchorEl
+
+    const update = vi.fn()
+    act(() => result.current.withScrollAnchor(update, { enterReadingMode: true }))
+
+    expect(requestReadingControl).toHaveBeenCalledWith(anchorEl)
+    expect(update).toHaveBeenCalledOnce()
   })
 
   it('restores scrollTop after a toggle when standalone (no provider)', () => {
@@ -179,47 +203,5 @@ describe('useScrollAnchor', () => {
 
     expect(portal.scrollTopWrites).toEqual([170])
     expect(runtime.scrollTopWrites).toEqual([])
-  })
-
-  it('requests follow recovery only for DOM content inside the runtime scroller', () => {
-    const runtime = setupScroller()
-    const nested = setupScroller()
-    const portal = setupScroller()
-    runtime.scroller.appendChild(nested.scroller)
-    const requestFollowRecovery = vi.fn()
-    const owned = renderFollowRecovery({
-      anchorEl: runtime.anchorEl,
-      runtimeScroller: runtime.scroller,
-      requestFollowRecovery
-    })
-    const nestedContent = renderFollowRecovery({
-      anchorEl: nested.anchorEl,
-      runtimeScroller: runtime.scroller,
-      requestFollowRecovery
-    })
-    const separate = renderFollowRecovery({
-      anchorEl: portal.anchorEl,
-      runtimeScroller: runtime.scroller,
-      requestFollowRecovery
-    })
-
-    act(() => owned.result.current())
-    act(() => nestedContent.result.current())
-    act(() => separate.result.current())
-
-    expect(requestFollowRecovery).toHaveBeenCalledTimes(2)
-  })
-
-  it('preserves context-only recovery for lifecycle transitions without a local anchor', () => {
-    const runtime = setupScroller()
-    const requestFollowRecovery = vi.fn()
-    const lifecycleRecovery = renderFollowRecovery({
-      runtimeScroller: runtime.scroller,
-      requestFollowRecovery
-    })
-
-    act(() => lifecycleRecovery.result.current())
-
-    expect(requestFollowRecovery).toHaveBeenCalledOnce()
   })
 })
