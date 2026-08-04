@@ -307,7 +307,7 @@ Public icon-only buttons should use the shared `Button` primitive first: `varian
 
 **Color hierarchy — ask one question first: is this icon the user's primary reason to be on this page?**
 
-- **Yes** → use the Button ghost variant's default text color (no `text-*` override). The icon *is* the action. (The ghost variant currently renders `text-neutral-900 dark:text-neutral-100`.)
+- **Yes** → use the Button ghost variant's default text color (no `text-*` override). The icon *is* the action. (The ghost variant currently renders `text-primary`.)
 - **No, it's a utility shortcut** → mute it with `text-muted-foreground hover:text-foreground` so it recedes at rest and surfaces on hover.
 
 | Case | Color | Example |

@@ -118,6 +118,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   className?: string
   popoverClassName?: string
   popoverAlign?: React.ComponentProps<typeof PopoverContent>['align']
+  popoverSide?: React.ComponentProps<typeof PopoverContent>['side']
   portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
   width?: string | number
@@ -153,6 +154,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   className,
   popoverClassName,
   popoverAlign,
+  popoverSide,
   portalContainer,
   triggerStyle,
   width,
@@ -543,6 +545,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           popoverClassName
         )}
         align={popoverAlign}
+        side={popoverSide}
         portalContainer={portalContainer}
         style={{ width: popoverWidth }}
         onFocusOutside={onFocusOutside}

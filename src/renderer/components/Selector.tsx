@@ -148,6 +148,7 @@ const Selector = <V extends string | number>({
         aria-label={accessibleLabel || undefined}
         placeholder={placeholder}
         popoverAlign={popoverPlacement.align}
+        popoverSide={popoverPlacement.side}
         triggerStyle={triggerStyle}
         renderOption={(item) => item.option.label}
         renderValue={() => (

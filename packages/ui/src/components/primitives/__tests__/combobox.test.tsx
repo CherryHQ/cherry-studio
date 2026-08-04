@@ -270,4 +270,12 @@ describe('Combobox', () => {
       })
     })
   })
+
+  it('honors the requested popover side', async () => {
+    render(<Combobox open options={options} popoverSide="top" placeholder="Pick one" />)
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-content"]')).toHaveAttribute('data-side', 'top')
+    })
+  })
 })

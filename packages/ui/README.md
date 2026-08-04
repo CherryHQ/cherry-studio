@@ -319,7 +319,7 @@ A button component with multiple variants and sizes.
 
 **Props:**
 
-- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
+- `variant`: `default` | `destructive` | `destructiveSubtle` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
 - `size`: `default` | `sm` | `lg` | `icon` | `icon-sm` | `icon-lg` | `icon-navbar`
 - `loading`, `loadingIcon`, `loadingIconClassName`: loading-state controls
 - `asChild`: render through Radix `Slot`
@@ -334,6 +334,18 @@ The Shadcn-compatible native input primitive.
 - accepts standard React input props, including native `type`, `value`, and event-based `onChange`
 - use `aria-invalid` for invalid-state styling
 - use `className` for supported layout composition
+
+### ColorPicker
+
+A controlled color picker composed from `ColorPicker`, `ColorPickerTrigger`, `ColorPickerContent`,
+`ColorPickerArea`, `ColorPickerHueSlider`, `ColorPickerAlphaSlider`, `ColorPickerSwatch`, and
+`ColorPickerFormatSelect`.
+
+**Props:**
+
+- pass the current CSS color through `value` and receive changes through `onValueChange`
+- use `disabled` to disable the complete picker composition
+- compose only the trigger, controls, sliders, swatches, and format selector required by the product surface
 
 ## Hooks
 
