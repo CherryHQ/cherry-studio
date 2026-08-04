@@ -11,6 +11,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import type { CompactionSink } from '@shared/ai/compaction'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -89,6 +90,8 @@ export interface BuildAgentParamsInput {
   extraFeatures?: readonly RequestFeature[]
   /** Late-bound request usage middleware for nested tool-repair calls. */
   getRepairUsagePlugins?: () => AiPlugin[]
+  /** Reports compaction progress to the UI; absent when there is no live stream. */
+  compactionSink?: CompactionSink
 }
 
 export interface BuiltAgentParams {
@@ -107,7 +110,7 @@ export interface BuiltAgentParams {
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
-  const { request, signal, provider, model, assistant, extraFeatures } = input
+  const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
@@ -197,6 +200,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     mcpToolIds,
     contextSettings,
     compressionModel,
+    compactionSink,
     hasFileAttachments,
     knowledgeBaseIds
   }

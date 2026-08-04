@@ -21,6 +21,7 @@ import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import { COMPACTION_ANCHOR_CHUNK_ID, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
@@ -33,7 +34,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage, UIMessage } from 'ai'
+import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
@@ -58,6 +59,21 @@ import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerCon
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
+
+/**
+ * Adapt a turn subscriber into a {@link CompactionSink}.
+ *
+ * Turn-start compaction is a full summarize round-trip that runs BEFORE the
+ * model stream opens, so without this the UI sits on an idle placeholder for
+ * however long the summarizer takes. The subscriber is already live here (it is
+ * `prepareDispatch`'s first argument), so the anchor part can stream ahead of
+ * the assistant's own content. Both writes share one id, so the `done` event
+ * replaces the spinner rather than appending a second anchor.
+ */
+function toCompactionSink(subscriber: StreamListener): CompactionSink {
+  return (data) =>
+    subscriber.onChunk({ type: 'data-compaction-anchor', id: COMPACTION_ANCHOR_CHUNK_ID, data } as UIMessageChunk)
+}
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
 function resolveAssistantIdentity(assistantId: string | undefined) {
@@ -352,7 +368,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
-        contextSettingsOverride
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -458,7 +475,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         anchor.id,
         req.topicId,
         [model],
-        contextSettingsOverride
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
       )
       return {
         topicId: req.topicId,
@@ -556,7 +574,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.userMessageId,
         req.topicId,
         [model],
-        contextSettingsOverride
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
       )
       const history = withSteerReminder(compactedHistory)
       return {
@@ -643,7 +662,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[],
-    assistantContextOverride?: ContextSettingsOverride | null
+    assistantContextOverride?: ContextSettingsOverride | null,
+    /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
+    compactionSink?: CompactionSink
   ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
@@ -703,6 +724,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const boundary = recent[keepIdx - 1] // real row before the kept user row
 
     const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
+    // Declared before the try so the catch can settle the anchor it opened:
+    // this summarize call runs BEFORE the model stream, so without an explicit
+    // clear a failed fold would leave "compacting…" pinned on a live turn.
+    const startedAt = new Date().toISOString()
+    const preTokens = this.estimateContext(effective)
     try {
       // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
       // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
@@ -723,6 +749,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // otherwise be handed a 128k-derived budget and overflow immediately.
       const compressionWindow = compressionModel.contextWindow ?? minContextWindow
       const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      compactionSink?.({ status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
         maxInputTokens: Math.max(
@@ -730,15 +757,34 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
         )
       })
+      // Every exit below clears the spinner — a fold that produced nothing and a
+      // fold that threw both continue with un-compacted history, so leaving
+      // "compacting…" on screen would misreport a turn that is really running.
+      const settle = (extra?: Partial<CompactionAnchorData>) => {
+        const completedAt = new Date().toISOString()
+        compactionSink?.({
+          status: 'done',
+          phase: 'turn-start',
+          startedAt,
+          completedAt,
+          durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+          preTokens,
+          ...extra
+        })
+      }
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
+        settle()
         return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
-      return serve([summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)])
+      const served = [summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)]
+      settle({ postTokens: this.estimateContext(served), foldedCount: keepIdx })
+      return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      compactionSink?.({ status: 'done', phase: 'turn-start', startedAt, completedAt: new Date().toISOString() })
       return serve(effective)
     }
   }

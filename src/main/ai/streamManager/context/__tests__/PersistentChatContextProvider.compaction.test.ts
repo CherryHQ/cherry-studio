@@ -199,8 +199,18 @@ function compressionOn(compressionModel: unknown = { languageModel: {}, contextW
   })
 }
 
+/** Chunks the provider streamed this test (compaction anchors ride here). */
+let capturedChunks: Array<{ type: string; id?: string; data: { status: string; phase: string } }> = []
+
 function makeSubscriber() {
-  return { id: 'wc:1', onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
+  return {
+    id: 'wc:1',
+    onChunk: vi.fn((chunk) => capturedChunks.push(chunk)),
+    onDone: vi.fn(),
+    onPaused: vi.fn(),
+    onError: vi.fn(),
+    isAlive: () => true
+  }
 }
 
 /** Call prepareDispatch with a submit-message trigger pointing to the given anchorId.
@@ -236,6 +246,7 @@ async function makeHistory(
 describe('PersistentChatContextProvider — durable compaction integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
     // Default: no assistant reachable (matches assistantId=undefined in most tests).
     mockGetAssistantById.mockImplementation(() => {
@@ -425,6 +436,46 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
     const opts = mockSummarizeModelMessages.mock.calls[0][2]
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
+  })
+
+  // Turn-start compaction runs BEFORE the model stream opens, so without a
+  // progress event the turn looks stalled for the whole summarize round-trip.
+  // It must also settle on every exit, or the spinner outlives the work.
+  it('2h. brackets the turn-start fold with compacting → done anchor chunks', async () => {
+    const BIG = 'token '.repeat(700)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn()
+
+    const { prepared } = await makeHistory('u3')
+    void prepared
+    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
+    // One id → the done event REPLACES the spinner instead of stacking anchors.
+    expect(new Set(anchors.map((c) => c.id)).size).toBe(1)
+    expect(anchors.every((c) => c.data.phase === 'turn-start')).toBe(true)
+  })
+
+  it('2i. settles the anchor when the summarizer returns nothing', async () => {
+    const BIG = 'token '.repeat(700)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ])
+    compressionOn()
+    mockSummarizeModelMessages.mockResolvedValueOnce('')
+
+    await makeHistory('u3')
+    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {
@@ -732,6 +783,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
     // Default: the compactor returns a DISTINCT compacted array (so the hook would emit an
     // override IF it fired). Assertion A asserts it is never called regardless.

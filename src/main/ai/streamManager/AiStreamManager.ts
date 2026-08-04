@@ -10,6 +10,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import { COMPACTION_ANCHOR_CHUNK_ID } from '@shared/ai/compaction'
 import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
@@ -1425,7 +1426,17 @@ export class AiStreamManager extends BaseService {
       rawStream = await aiService.streamText({
         ...request,
         requestOptions: { ...request.requestOptions, signal },
-        runtimeTimingSink: exec.runtimeTiming.sink
+        runtimeTimingSink: exec.runtimeTiming.sink,
+        // Compaction runs deep inside param-build / the tool loop, where the
+        // turn's chunk sink isn't reachable; hand it down as a closure (same
+        // shape as runtimeTimingSink) so the UI can show "compacting".
+        compactionSink: (data) =>
+          this.onChunk(
+            topicId,
+            modelId,
+            { type: 'data-compaction-anchor', id: COMPACTION_ANCHOR_CHUNK_ID, data } as UIMessageChunk,
+            exec
+          )
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })

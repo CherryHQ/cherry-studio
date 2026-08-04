@@ -1416,6 +1416,10 @@
         "placeholder": "搜索"
       }
     },
+    "compaction": {
+      "compacted": "已压缩上下文，节省约 {{count}} tokens",
+      "compacting": "正在压缩上下文…"
+    },
     "conversation": {
       "new": "新对话"
     },

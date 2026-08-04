@@ -189,6 +189,11 @@ export const inLoopCompactionFeature: RequestFeature = {
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
         const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        // Summarizing is a full model round-trip in the middle of a tool loop —
+        // seconds of apparent silence. Announce it so the UI can say so; the
+        // same part id is replaced by the `done` event below.
+        const startedAt = new Date().toISOString()
+        scope.compactionSink?.({ status: 'compacting', phase: 'in-loop', startedAt })
         let compacted: ModelMessage[]
         try {
           compacted = await compactModelMessages(candidate, model, {
@@ -211,8 +216,22 @@ export const inLoopCompactionFeature: RequestFeature = {
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)
           })
+          // Clear the spinner: the turn continues (un-compacted), so leaving a
+          // permanent "compacting…" on screen would misreport the state.
+          scope.compactionSink?.({ status: 'done', phase: 'in-loop', startedAt, completedAt: new Date().toISOString() })
           return foldCache ? { messages: candidate } : undefined
         }
+        const completedAt = new Date().toISOString()
+        scope.compactionSink?.({
+          status: 'done',
+          phase: 'in-loop',
+          startedAt,
+          completedAt,
+          durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+          preTokens: estimate,
+          postTokens: estimateModelMessages(compacted),
+          foldedCount: Math.max(0, candidate.length - compacted.length)
+        })
         if (compacted === candidate) {
           return foldCache ? { messages: candidate } : undefined
         }

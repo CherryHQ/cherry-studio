@@ -1416,6 +1416,10 @@
         "placeholder": "Search"
       }
     },
+    "compaction": {
+      "compacted": "Context compacted, ~{{count}} tokens saved",
+      "compacting": "Compacting context…"
+    },
     "conversation": {
       "new": "New Chat"
     },

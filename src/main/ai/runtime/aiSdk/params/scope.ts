@@ -12,6 +12,7 @@
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -53,4 +54,6 @@ export interface RequestScope extends ToolApplyScope {
   /** Pre-resolved compression model (explicit pick, else current request
    *  model). null when compression is disabled or resolution failed. */
   readonly compressionModel: CompressionModelDescriptor | null
+  /** Reports compaction progress to the UI (see CompactionSink). */
+  readonly compactionSink?: CompactionSink
 }

@@ -197,6 +197,42 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
+  // Compaction is a full summarize round-trip mid tool-loop — seconds of
+  // apparent silence. It reports through the sink so the UI can say so, and
+  // MUST settle on every exit or the spinner outlives the work.
+  describe('compaction progress events', () => {
+    const withSink = () => {
+      const events: Array<{ status: string; phase: string }> = []
+      const s = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW })
+      ;(s as { compactionSink?: unknown }).compactionSink = (d: { status: string; phase: string }) => events.push(d)
+      return { events, prepareStep: getPrepareStep(s) }
+    }
+
+    it('brackets a successful fold with compacting → done', async () => {
+      compactModelMessages.mockClear()
+      compactModelMessages.mockResolvedValue([userMessage(10)])
+      const { events, prepareStep } = withSink()
+      await prepareStep({ messages: [userMessage(90_000)] } as any)
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'done'])
+      expect(events.every((e) => e.phase === 'in-loop')).toBe(true)
+    })
+
+    it('settles even when the compressor fails (no stuck spinner)', async () => {
+      compactModelMessages.mockClear()
+      compactModelMessages.mockRejectedValue(new Error('429 rate limited'))
+      const { events, prepareStep } = withSink()
+      await prepareStep({ messages: [userMessage(90_000)] } as any)
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'done'])
+    })
+
+    it('emits nothing when the prompt is under the trigger', async () => {
+      compactModelMessages.mockClear()
+      const { events, prepareStep } = withSink()
+      await prepareStep({ messages: [userMessage(100)] } as any)
+      expect(events).toEqual([])
+    })
+  })
+
   it('still propagates a user abort — that IS the turn ending', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
