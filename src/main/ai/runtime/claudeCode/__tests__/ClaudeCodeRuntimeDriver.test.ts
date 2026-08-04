@@ -1,3 +1,4 @@
+import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -501,6 +502,51 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this archive' },
+            {
+              type: 'file',
+              url: 'file:///tmp/BUNDLE.ZIP',
+              mediaType: 'application/zip',
+              filename: 'BUNDLE.ZIP',
+              providerMetadata: { cherry: { fileEntryId: 'entry-archive' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP'
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
   it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -745,6 +791,88 @@ describe('ClaudeCodeRuntimeDriver', () => {
       isToolCapable: false
     })
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('adds opaque attachment handles only when the Cherry Assistant file server is enabled', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: [
+          { type: 'text', text: 'summarize this' },
+          { type: 'text', text: 'Attached file contents' }
+        ]
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'summarize this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-secret' } }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/BUNDLE.ZIP',
+              mediaType: 'application/zip',
+              filename: 'BUNDLE.ZIP',
+              providerMetadata: { cherry: { fileEntryId: 'entry-archive-secret' } }
+            }
+          ]
+        }
+      }
+    })
+
+    const handle = createAssistantFileAttachmentHandle('entry-secret')
+    const archiveHandle = createAssistantFileAttachmentHandle('entry-archive-secret')
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: `summarize this\nAttached file contents\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [
+        { fileEntryId: 'entry-secret', handle, displayName: 'spec.pdf' },
+        { fileEntryId: 'entry-archive-secret', handle: archiveHandle, displayName: 'BUNDLE.ZIP' }
+      ],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    const serializedInput = JSON.stringify(await nextInput)
+    expect(serializedInput).not.toContain('entry-secret')
+    expect(serializedInput).not.toContain('entry-archive-secret')
     void connection.close()
   })
 
