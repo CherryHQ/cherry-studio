@@ -136,6 +136,26 @@ export const BACKUP_DEGRADATION_CODES = [
 
 export type BackupDegradationCode = (typeof BACKUP_DEGRADATION_CODES)[number]
 
+/**
+ * The places a backup can be sent. A NAME, never a configuration: main reads the
+ * host, the bucket and the secret from Preference itself, so no credential is
+ * ever an IPC argument and no renderer can redirect a backup somewhere the user
+ * did not set up.
+ */
+export const BACKUP_DESTINATION_IDS = ['webdav', 's3', 'nutstore', 'local'] as const
+
+export type BackupDestinationId = (typeof BACKUP_DESTINATION_IDS)[number]
+
+const DestinationSchema = z.strictObject({ destination: z.enum(BACKUP_DESTINATION_IDS) })
+
+/** One archive already sitting at a destination. */
+const RemoteArchiveSchema = z.strictObject({
+  name: z.string().min(1),
+  /** Epoch millis, so the renderer sorts and formats without parsing per-destination date shapes. */
+  modifiedAt: z.number().int().nonnegative(),
+  size: z.number().int().nonnegative()
+})
+
 /** Localizable, bounded presentation of what export/restore reduced (§4). */
 const DegradationSchema = z.strictObject({
   code: z.enum(BACKUP_DEGRADATION_CODES),
@@ -259,5 +279,43 @@ export const backupRequestSchemas = {
   'backup.acknowledge_restore': defineRoute({
     input: z.strictObject({ knowledgeRebuild: z.enum(['require-complete', 'abandon']) }),
     output: AcknowledgeResultSchema
+  }),
+
+  // ── Destinations: the same export and restore, aimed somewhere configured ──
+  /**
+   * Export and upload in one operation. No path crosses the boundary in either
+   * direction: main exports to its own temp area, uploads, and prunes the
+   * destination down to the configured limit — but only after the upload lands,
+   * so a failure can never leave the user with fewer backups than they started.
+   */
+  'backup.export_to_destination': defineRoute({
+    input: DestinationSchema,
+    output: z.discriminatedUnion('status', [
+      z.strictObject({ status: z.literal('canceled') }),
+      z.strictObject({
+        status: z.literal('exported'),
+        /** The archive's name at the destination; never a local path. */
+        name: z.string().min(1),
+        degradations: z.array(DegradationSchema)
+      })
+    ])
+  }),
+  /** Download `name` from the destination and stage it, exactly like a local file. */
+  'backup.prepare_restore_from_destination': defineRoute({
+    input: DestinationSchema.extend({ name: z.string().min(1) }),
+    output: PrepareOutcomeSchema
+  }),
+  'backup.list_destination_backups': defineRoute({
+    input: DestinationSchema,
+    output: z.array(RemoteArchiveSchema)
+  }),
+  'backup.delete_destination_backup': defineRoute({
+    input: DestinationSchema.extend({ name: z.string().min(1) }),
+    output: z.void()
+  }),
+  /** Are the stored settings usable? False for wrong credentials, not an error. */
+  'backup.check_destination': defineRoute({
+    input: DestinationSchema,
+    output: z.strictObject({ reachable: z.boolean() })
   })
 }

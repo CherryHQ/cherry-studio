@@ -11,6 +11,7 @@ import {
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
   CeilingExceededError,
+  DestinationNotConfiguredError,
   DiskFullError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
@@ -285,6 +286,9 @@ function mapBackupError(error: unknown): unknown {
   if (error instanceof ResourceInstallPlanError) {
     return ipcError(backupErrorCodes.RESTORE_RESOURCES, { reason: error.code })
   }
+  if (error instanceof DestinationNotConfiguredError) {
+    return ipcError(backupErrorCodes.DESTINATION_NOT_CONFIGURED, { destination: error.destination })
+  }
   if (error instanceof IpcError) return error
   // An unpredicted fault is the most dangerous one to forward: a raw `ENOENT`
   // carries the user's absolute path, and `IpcError.from()` would publish it
@@ -409,5 +413,56 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.acknowledge_restore': async (input, ctx) => {
     requireManagedWindow(ctx)
     return mapped(() => application.get('BackupService').acknowledgeRestore(input.knowledgeRebuild))
+  },
+
+  'backup.export_to_destination': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    const result = await cancellable(() => application.get('BackupService').exportToDestination(input.destination))
+    if (result === null) {
+      return { status: 'canceled' as const }
+    }
+    return {
+      status: 'exported' as const,
+      name: result.name,
+      degradations: presentDegradations(result.degradations)
+    }
+  },
+
+  'backup.prepare_restore_from_destination': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    const preview = await cancellable(() =>
+      application.get('BackupService').prepareRestoreFromDestination(input.destination, input.name)
+    )
+    if (preview === null) {
+      return { status: 'canceled' as const }
+    }
+    return {
+      status: 'prepared' as const,
+      preview: {
+        restoreId: preview.restoreId,
+        coverage: { ...preview.coverage },
+        resources: { ...preview.resources },
+        degradations: presentDegradations(preview.degradations),
+        knowledge: { ...preview.knowledge },
+        migratedForward: preview.migratedForward
+      }
+    }
+  },
+
+  'backup.list_destination_backups': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    return mapped(() => application.get('BackupService').listDestinationBackups(input.destination))
+  },
+
+  'backup.delete_destination_backup': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    await mapped(() => application.get('BackupService').deleteDestinationBackup(input.destination, input.name))
+  },
+
+  'backup.check_destination': async (input, ctx) => {
+    requireManagedWindow(ctx)
+    return mapped(async () => ({
+      reachable: await application.get('BackupService').checkDestination(input.destination)
+    }))
   }
 }

@@ -128,6 +128,24 @@ export class HardLinkUnsupportedError extends Error {
 }
 
 /**
+ * Thrown when a backup destination is selected but its settings are missing or
+ * incomplete — no host, no bucket, no directory, no Nutstore token.
+ *
+ * Distinct from a transport failure on purpose: "you have not set this up" and
+ * "the server refused you" need different words, and a scheduled backup must be
+ * able to tell them apart to decide whether reporting the failure is useful at
+ * all.
+ */
+export class DestinationNotConfiguredError extends Error {
+  readonly destination: string
+  constructor(destination: string, missing: string) {
+    super(`backup destination ${destination} is not configured: ${missing}`)
+    this.name = 'DestinationNotConfiguredError'
+    this.destination = destination
+  }
+}
+
+/**
  * Thrown before writing when the staged DB payload is not a regular file or its
  * size / SHA-256 does not match what the manifest declares — the archive must
  * carry the exact DB it advertises.

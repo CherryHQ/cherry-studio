@@ -82,6 +82,17 @@ export default class WebDav {
     }
   }
 
+  /**
+   * Stream a remote file. Downloads go through this rather than
+   * {@link getFileContents} so a profile-sized archive never has to fit in heap.
+   */
+  public createReadStream = (filename: string): Stream.Readable => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+    return this.instance.createReadStream(path.posix.join(this.webdavPath, filename))
+  }
+
   public getDirectoryContents = async () => {
     if (!this.instance) {
       throw new Error('WebDAV client not initialized')
