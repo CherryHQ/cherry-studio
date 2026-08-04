@@ -270,7 +270,7 @@ export function PromptRuntimeContextToggle({
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="whitespace-nowrap text-foreground-secondary text-xs">{label}</span>
+      <span className="whitespace-nowrap text-muted-foreground text-xs">{label}</span>
       <Popover>
         <NormalTooltip content={configureLabel} delayDuration={300}>
           <PopoverTrigger asChild>
@@ -279,7 +279,7 @@ export function PromptRuntimeContextToggle({
               variant="ghost"
               size="icon-sm"
               aria-label={configureLabel}
-              className="size-5 min-h-0 text-foreground-muted hover:text-foreground focus-visible:ring-0">
+              className="size-5 min-h-0 text-muted-foreground hover:text-foreground focus-visible:ring-0">
               <SlidersHorizontal className="size-3.5" />
             </Button>
           </PopoverTrigger>
@@ -293,7 +293,7 @@ export function PromptRuntimeContextToggle({
           <div className="flex flex-col gap-3">
             <div className="space-y-1">
               <div className="font-medium text-foreground text-xs">{label}</div>
-              <div className="text-foreground-secondary text-xs leading-relaxed">{description}</div>
+              <div className="text-muted-foreground text-xs leading-relaxed">{description}</div>
             </div>
             <div className="relative">
               <NormalTooltip content={t('library.config.prompt.runtime_context.reset')}>
@@ -304,7 +304,7 @@ export function PromptRuntimeContextToggle({
                   aria-label={t('library.config.prompt.runtime_context.reset')}
                   disabled={!prompt}
                   onClick={() => onPromptChange('')}
-                  className="absolute top-2 right-2 z-10 text-foreground-muted hover:text-foreground">
+                  className="absolute top-2 right-2 z-10 text-muted-foreground hover:text-foreground">
                   <RotateCcw className="size-3.5" />
                 </Button>
               </NormalTooltip>

@@ -173,7 +173,7 @@ export function PromptPolishActions({
             aria-label={t('common.undo')}
             aria-disabled={undoDisabled}
             onClick={handleUndo}
-            className="text-foreground-muted hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+            className="text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
             <Undo2 className="size-4" />
           </Button>
         </Tooltip>
@@ -186,7 +186,7 @@ export function PromptPolishActions({
           aria-label={actionLabel}
           aria-disabled={actionDisabled}
           onClick={() => void handlePolish()}
-          className="text-foreground-muted hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+          className="text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
           {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
         </Button>
       </Tooltip>
