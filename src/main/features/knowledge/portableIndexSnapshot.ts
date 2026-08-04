@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
 
 import type {
@@ -8,6 +9,8 @@ import type {
   KnowledgeIndexSnapshotResult
 } from './pipeline/vectorstore/KnowledgeVectorStoreService'
 import { collectKnowledgeIndexRequirements, type KnowledgeIndexRequirement } from './portableProfilePolicy'
+
+const logger = loggerService.withContext('Knowledge:PortableIndexSnapshot')
 
 class PortableIndexValidationError extends Error {
   constructor(readonly reason: Extract<KnowledgeIndexSnapshotFailure, 'material-mismatch' | 'embedding-missing'>) {
@@ -162,6 +165,10 @@ export async function capturePortableKnowledgeIndex(input: {
 }): Promise<KnowledgeIndexSnapshotResult> {
   const requirement = readDetachedRequirement(input.detachedDbPath, input.baseId)
   if (!requirement || requirement.materials === null) {
+    logger.warn('Knowledge index snapshot does not match the detached database; raw material will be rebuilt', {
+      baseId: input.baseId,
+      reason: 'material-mismatch'
+    })
     return { status: 'rebuild', reason: 'material-mismatch' }
   }
 
@@ -180,9 +187,15 @@ export async function capturePortableKnowledgeIndex(input: {
   } catch (error) {
     await fs.rm(input.destination, { force: true }).catch(() => {})
     if (input.signal?.aborted || ['ENOSPC', 'EDQUOT'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+    const reason = error instanceof PortableIndexValidationError ? error.reason : 'material-mismatch'
+    logger.warn(
+      'Knowledge index snapshot failed detached-database reconciliation; raw material will be rebuilt',
+      error instanceof Error ? error : new Error(String(error)),
+      { baseId: input.baseId, reason }
+    )
     return {
       status: 'rebuild',
-      reason: error instanceof PortableIndexValidationError ? error.reason : 'material-mismatch'
+      reason
     }
   }
 }

@@ -1025,6 +1025,19 @@ describe('KnowledgeService', () => {
       expect(enqueueMock).not.toHaveBeenCalled()
     })
 
+    it('treats a failed restored base as complete instead of retrying an index store it cannot open', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(
+        createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+      )
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(listMock).not.toHaveBeenCalled()
+      expect(knowledgeItemGetItemsByBaseIdMock).not.toHaveBeenCalled()
+      expect(getIndexStoreMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
     it('waits for active restore jobs instead of rescanning and re-enqueueing the whole base', async () => {
       const service = new KnowledgeService()
       knowledgeBaseGetByIdMock.mockReturnValue(createBase())

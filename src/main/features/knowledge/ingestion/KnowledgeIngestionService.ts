@@ -13,6 +13,7 @@ import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
   type CreateKnowledgeItemDto,
   DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
+  isCompletedKnowledgeBase,
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
@@ -254,6 +255,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return 'completed'
       throw error
+    }
+
+    // A failed base cannot open an index store, and retrying it on every Backup
+    // pass can never make it ready. Keep its durable failure for the normal
+    // Knowledge repair flow, but stop holding the restore acknowledgement open.
+    if (!isCompletedKnowledgeBase(base)) {
+      logger.warn('Skipping restored index rebuild for a non-ready Knowledge base', {
+        baseId,
+        restoreId,
+        status: base.status,
+        error: base.error
+      })
+      return 'completed'
     }
 
     if ((await this.listActiveRestoreIndexJobs(baseId, restoreId)).length > 0) return 'pending'

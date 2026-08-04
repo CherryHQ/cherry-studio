@@ -112,17 +112,13 @@ export class KnowledgeVectorStoreService extends BaseService {
     try {
       const source = await fs.promises.lstat(sourcePath)
       if (source.isSymbolicLink() || !source.isFile()) {
-        return { status: 'rebuild', reason: 'snapshot-failed' }
+        return this.reportPortableSnapshotFallback(baseId, 'snapshot-failed')
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { status: 'rebuild', reason: 'missing' }
+        return this.reportPortableSnapshotFallback(baseId, 'missing')
       }
-      logger.warn('Could not inspect Knowledge index for portable snapshot; raw material will remain rebuildable', {
-        baseId,
-        error
-      })
-      return { status: 'rebuild', reason: 'snapshot-failed' }
+      return this.reportPortableSnapshotFallback(baseId, 'snapshot-failed', error)
     }
 
     await fs.promises.mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
@@ -148,17 +144,13 @@ export class KnowledgeVectorStoreService extends BaseService {
       const failure = this.validatePortableSnapshot(destination, baseId)
       if (failure) {
         await fs.promises.rm(destination, { force: true })
-        return { status: 'rebuild', reason: failure }
+        return this.reportPortableSnapshotFallback(baseId, failure.reason, failure.error)
       }
       return { status: 'ready', stagedPath: destination }
     } catch (error) {
       await fs.promises.rm(destination, { force: true }).catch(() => {})
       if (signal?.aborted || ['ENOSPC', 'EDQUOT'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
-      logger.warn('Could not snapshot Knowledge index; raw material will remain rebuildable', {
-        baseId,
-        error
-      })
-      return { status: 'rebuild', reason: 'snapshot-failed' }
+      return this.reportPortableSnapshotFallback(baseId, 'snapshot-failed', error)
     }
   }
 
@@ -252,22 +244,47 @@ export class KnowledgeVectorStoreService extends BaseService {
   private validatePortableSnapshot(
     snapshotPath: string,
     baseId: string
-  ): Exclude<KnowledgeIndexSnapshotFailure, 'missing' | 'snapshot-failed'> | undefined {
+  ):
+    | {
+        reason: Exclude<KnowledgeIndexSnapshotFailure, 'missing' | 'snapshot-failed'>
+        error?: unknown
+      }
+    | undefined {
     const snapshot = new Database(snapshotPath, { fileMustExist: true, readonly: true })
     try {
       const quickCheck = snapshot.pragma('quick_check') as Array<Record<string, unknown>>
-      if (quickCheck.length !== 1 || Object.values(quickCheck[0])[0] !== 'ok') return 'integrity-check-failed'
+      if (quickCheck.length !== 1 || Object.values(quickCheck[0])[0] !== 'ok') {
+        return { reason: 'integrity-check-failed' }
+      }
       const meta = snapshot
         .prepare('SELECT base_id AS baseId, schema_version AS schemaVersion FROM meta WHERE id = 1')
         .get() as { baseId?: unknown; schemaVersion?: unknown } | undefined
-      if (meta?.baseId !== baseId) return 'base-id-mismatch'
-      if (meta.schemaVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) return 'schema-version-mismatch'
+      if (meta?.baseId !== baseId) return { reason: 'base-id-mismatch' }
+      if (meta.schemaVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) return { reason: 'schema-version-mismatch' }
       return undefined
-    } catch {
-      return 'integrity-check-failed'
+    } catch (error) {
+      return { reason: 'integrity-check-failed', error }
     } finally {
       snapshot.close()
     }
+  }
+
+  private reportPortableSnapshotFallback(
+    baseId: string,
+    reason: KnowledgeIndexSnapshotFailure,
+    error?: unknown
+  ): KnowledgeIndexSnapshotResult {
+    const context = { baseId, reason }
+    if (error === undefined) {
+      logger.warn('Knowledge index cannot be transported safely; raw material will remain rebuildable', context)
+    } else {
+      logger.warn(
+        'Knowledge index cannot be transported safely; raw material will remain rebuildable',
+        error instanceof Error ? error : new Error(String(error)),
+        context
+      )
+    }
+    return { status: 'rebuild', reason }
   }
 
   private closeStoreInstance(store: KnowledgeIndexStore | undefined): void {

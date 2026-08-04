@@ -8,6 +8,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { BaseService } from '@main/core/lifecycle'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +30,7 @@ describe('portable Knowledge index snapshot', () => {
   let getSpy: { mockRestore(): void }
 
   beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
     tempDir = mkdtempSync(path.join(tmpdir(), 'cs-portable-knowledge-index-'))
     knowledgeRoot = path.join(tempDir, 'KnowledgeBase')
     BaseService.resetInstances()
@@ -143,6 +145,27 @@ describe('portable Knowledge index snapshot', () => {
       })
     ).resolves.toEqual({ status: 'rebuild', reason: 'material-mismatch' })
     expect(existsSync(destination)).toBe(false)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Knowledge index snapshot failed detached-database reconciliation; raw material will be rebuilt',
+      expect.any(Error),
+      { baseId: BASE_ID, reason: 'material-mismatch' }
+    )
+  })
+
+  it('logs the exact fallback reason when no portable index exists', async () => {
+    const destination = path.join(tempDir, 'missing', 'index.sqlite')
+
+    await expect(
+      capturePortableKnowledgeIndex({
+        baseId: BASE_ID,
+        detachedDbPath: await detachedMainDb(),
+        destination
+      })
+    ).resolves.toEqual({ status: 'rebuild', reason: 'missing' })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Knowledge index cannot be transported safely; raw material will remain rebuildable',
+      { baseId: BASE_ID, reason: 'missing' }
+    )
   })
 
   it('falls back to rebuild when a vector base has a search unit without its embedding', async () => {

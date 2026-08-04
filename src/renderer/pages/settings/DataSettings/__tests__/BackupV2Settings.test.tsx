@@ -211,6 +211,26 @@ describe('BackupV2Settings', () => {
     expect(screen.getByText('settings.data.backup_v2.outcome.degradation.resource_unavailable')).toBeInTheDocument()
   })
 
+  it('warns about embedding quota both before and during confirmation', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.prepare_restore'
+        ? { status: 'prepared', preview: { ...preview, knowledge: { ready: 0, rebuild: 2 } } }
+        : { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' } }
+    )
+    await renderSettings()
+
+    click('settings.general.restore.button')
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup_v2.preview.knowledge_rebuild_cost')).toBeInTheDocument()
+    )
+
+    click('settings.data.backup_v2.restore.arm_button')
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
+    expect(screen.getAllByText('settings.data.backup_v2.preview.knowledge_rebuild_cost')).toHaveLength(2)
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.preview.knowledge_rebuild_cost', { count: 2 })
+  })
+
   it('never arms a restore that the user did not confirm', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.prepare_restore'
@@ -706,7 +726,7 @@ describe('BackupV2Settings', () => {
 
       click(EXPORT_BUTTON)
 
-      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toHaveAttribute('aria-busy'))
       // The compact export action becomes cancel in place; restore is disabled
       // while the service owns the one-operation lock.
       expect(screen.queryByRole('button', { name: EXPORT_BUTTON })).not.toBeInTheDocument()

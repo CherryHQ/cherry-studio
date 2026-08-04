@@ -6019,7 +6019,8 @@
           "degradations": "创建该备份时有 {{count}} 项未被包含。",
           "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
           "knowledge_ready": "有 {{count}} 个知识库搜索索引已包含，恢复后可立即使用。",
-          "knowledge_rebuild": "有 {{count}} 个知识库搜索索引需要在恢复后重建。"
+          "knowledge_rebuild": "有 {{count}} 个知识库搜索索引需要在恢复后重建。",
+          "knowledge_rebuild_cost": "恢复后将重建 {{count}} 个知识库搜索索引。重建可能调用已配置的嵌入模型服务并消耗 API 配额；应用重启后可以停止重建。"
         },
         "restore": {
           "arm_button": "恢复并重启",
