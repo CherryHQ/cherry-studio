@@ -1076,6 +1076,7 @@ describe('useChatVirtualizerRuntime', () => {
       value: () => ({ top: 190, bottom: 210, left: 0, right: 100, width: 100, height: 20, x: 0, y: 190 })
     })
 
+    act(() => handle!.scrollToBottom())
     expect(handle!.isFollowing()).toBe(true)
     act(() => handle!.scrollToRange(range))
     expect(scrollTop).toBe(1000)
