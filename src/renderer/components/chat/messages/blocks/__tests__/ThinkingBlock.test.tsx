@@ -184,6 +184,19 @@ describe('ThinkingBlock', () => {
       expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
     })
 
+    it('should wait for a following character before treating trailing ASCII punctuation as complete', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'First line\nVersion 3.' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+
+      rerender(<ThinkingBlock id={block.id} content={'First line\nVersion 3.1 is still streaming'} isStreaming />)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+    })
+
     it('should keep consecutive CJK sentence endings with the completed segment', () => {
       const block = createThinkingBlock({ status: 'streaming', content: '真的吗？！还要继续思考' })
       renderThinkingBlock(block)
