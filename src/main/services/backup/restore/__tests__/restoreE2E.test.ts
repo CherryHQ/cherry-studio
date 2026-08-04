@@ -46,7 +46,7 @@ import { encodeClaudeProjectDir } from '@main/ai/runtime/claudeCode'
 import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/vectorstore/indexStore/createIndexStore'
 
 import { ArchiveAdmissionError } from '../../errors'
-import { exportArchive } from '../../exportArchive'
+import { exportArchive } from '../../export/exportArchive'
 import { driftHooks } from '../../sourceDrift'
 import { acknowledgeRestore } from '../acknowledgeRestore'
 import { presentJournalDegradations } from '../degradationReport'

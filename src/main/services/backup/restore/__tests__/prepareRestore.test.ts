@@ -25,7 +25,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 
-import { exportArchive } from '../../exportArchive'
+import { exportArchive } from '../../export/exportArchive'
 import { presentDegradations } from '../degradationReport'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
 import { restoreStagingDurability } from '../stagingDurability'
