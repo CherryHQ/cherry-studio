@@ -37,7 +37,6 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
-import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BackupService } from '@main/services/backup'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
@@ -175,7 +174,6 @@ export const services = {
   MiniAppRuntimeService,
   ApiGatewayService,
   AppUpdaterService,
-  AutoBackupService,
   BackupService,
   ProviderRegistryUpdaterService,
   SchedulerService,

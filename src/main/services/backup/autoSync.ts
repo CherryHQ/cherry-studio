@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 import { triggersEqual } from '@shared/data/api/schemas/jobs'
@@ -73,6 +74,46 @@ function desiredFor(destination: BackupDestinationId): DesiredSchedule {
   // A zero interval is how the settings UI spells "off" — it must not become a
   // zero-delay timer.
   return { enabled: enabled && minutes > 0, intervalMs: minutes * 60_000 }
+}
+
+/** What the settings pages show about a destination's scheduled backup. */
+export interface AutoSyncStatus {
+  readonly destination: BackupDestinationId
+  readonly enabled: boolean
+  /** Epoch millis, or null when this destination has never run one. */
+  readonly lastRun: number | null
+  readonly nextRun: number | null
+  /** The last attempt failed. Absent once a later attempt succeeds. */
+  readonly lastError?: string
+}
+
+/**
+ * Scheduled-backup status per destination, read from the durable schedule rows.
+ *
+ * This is why the status survives a restart at all: the renderer used to keep it
+ * in a module variable, so every reload reported "never synced" no matter how
+ * many backups had run.
+ */
+export function readAutoSyncStatus(): AutoSyncStatus[] {
+  const jobManager = application.get('JobManager')
+
+  return BACKUP_DESTINATION_IDS.map((destination) => {
+    const schedule = jobManager.getJobSchedule(AUTO_SYNC_JOB_TYPE, destination)
+    if (!schedule) {
+      return { destination, enabled: false, lastRun: null, nextRun: null }
+    }
+
+    const [latest] = jobService.listRecentTerminalByScheduleId(schedule.id, 1)
+    return {
+      destination,
+      enabled: schedule.enabled,
+      lastRun: schedule.lastRun ? Date.parse(schedule.lastRun) : null,
+      nextRun: schedule.nextRun ? Date.parse(schedule.nextRun) : null,
+      // A code, not the message: the underlying text is written for a main log
+      // and can carry a host name or a bucket path.
+      ...(latest?.status === 'failed' && latest.error ? { lastError: latest.error.code } : {})
+    }
+  })
 }
 
 /**

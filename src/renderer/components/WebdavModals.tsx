@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
-import { backupToWebdav } from '@renderer/services/BackupService'
+import { type BackupDestinationId, backupToDestination } from '@renderer/services/backupDestination'
 import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 
 interface WebdavModalProps {
@@ -18,7 +18,7 @@ interface WebdavModalProps {
   }
 }
 
-export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof backupToWebdav } = {}) {
+export function useWebdavBackupModal({ destination }: { destination: BackupDestinationId }) {
   const [customFileName, setCustomFileName] = useState('')
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [backuping, setBackuping] = useState(false)
@@ -26,7 +26,7 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await (backupMethod ?? backupToWebdav)({ customFileName })
+      await backupToDestination(destination, { showMessage: true, name: customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)

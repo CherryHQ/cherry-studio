@@ -4,7 +4,7 @@ import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
-import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
+import type { AutoBackupEvent } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
@@ -515,9 +515,6 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  */
 export type MainPersistCacheSchema = {
   'browser.favicons': Record<string, string>
-  // Last completed automatic-backup attempt (or manual backup) per backend.
-  // AutoBackupService owns this restart-safe scheduling baseline.
-  'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -530,7 +527,6 @@ export type MainPersistCacheSchema = {
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
-  'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }
