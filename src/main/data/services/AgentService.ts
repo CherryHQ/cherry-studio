@@ -5,7 +5,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionService, notifyAgentTaskReadModelChange } from '@data/services/AgentSessionService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
@@ -689,6 +689,7 @@ export class AgentService {
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
     let deletedSessionIds: string[] | undefined
+    let affectedTaskScheduleIds: string[] = []
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -701,7 +702,12 @@ export class AgentService {
           if (!agent) return { rowsAffected: 0 }
 
           if (options.deleteSessions === true) {
+            affectedTaskScheduleIds = agentSessionService.getTaskScheduleIdsForAgentTx(tx, id)
             deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+          } else {
+            // Agent FK deletion would otherwise leave a task bound to an orphan
+            // session. Clear the relation before that implicit detach.
+            affectedTaskScheduleIds = agentSessionService.clearTaskSchedulesForAgentTx(tx, id)
           }
 
           return this.deleteAgentTx(tx, id)
@@ -711,6 +717,7 @@ export class AgentService {
 
     const deleted = result.rowsAffected > 0
     if (deleted) {
+      notifyAgentTaskReadModelChange(affectedTaskScheduleIds)
       this._onAgentDeleted.fire({ agentId: id })
     }
     return { deleted, deletedSessionIds }

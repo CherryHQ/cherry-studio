@@ -1,7 +1,7 @@
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService, notifyAgentTaskReadModelChange } from '@data/services/AgentSessionService'
 import {
   agentTaskService,
   normalizeTaskSessionReuseRevision,
@@ -33,15 +33,6 @@ type AgentTaskJobInputTemplate = {
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
   reuseRevision: number
-}
-
-function publishTaskReadModelChange(taskId: string): void {
-  notifyDataApiDataChange([
-    { endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: [taskId] },
-    { endpoint: '/agents/:agentId/tasks', kind: 'projection' as const, entityIds: [taskId] },
-    { endpoint: '/agent-tasks/:taskId', entityIds: [taskId] },
-    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [taskId] }
-  ])
 }
 
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
@@ -100,11 +91,10 @@ export class AgentJobsService extends BaseService {
           workspace: form.workspace,
           reuseRevision: 0
         },
-        // Reuse state lives in `metadata`, never in the template — see
-        // `TaskSessionReuse`. A fresh schedule has no session bound yet.
+        // Reuse configuration lives in metadata; the sticky session itself is
+        // a constrained relation owned by AgentSessionService.
         metadata: writeTaskSessionReuse(undefined, {
           enabled: form.reuseSession === true,
-          sessionId: null,
           revision: 0
         }),
         catchUpPolicy: { kind: 'skip-missed' }
@@ -153,18 +143,19 @@ export class AgentJobsService extends BaseService {
     const reuseConfigChanged = reuseChanged || workspaceChanged
 
     const jobManager = application.get('JobManager')
+    let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, taskId)
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
       const reuseRevision = currentReuse.revision + (reuseConfigChanged ? 1 : 0)
       if (reuseConfigChanged) {
         // Read-merge-write inside the tx: `updateTx` replaces `metadata`
-        // wholesale, and a fire may be writing `reuse.sessionId` concurrently.
+        // wholesale, so preserve unrelated schedule state.
         schedulePatch.metadata = writeTaskSessionReuse(snapshot?.metadata, {
           enabled: nextReuseEnabled,
-          sessionId: null,
           revision: reuseRevision
         })
+        bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
       }
       if (templateChanged || reuseConfigChanged) {
         // The armed callback re-reads the row before each fire, so a template
@@ -185,7 +176,7 @@ export class AgentJobsService extends BaseService {
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
-    if (reuseConfigChanged) publishTaskReadModelChange(taskId)
+    if (reuseConfigChanged || bindingCleared) notifyAgentTaskReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
     return agentTaskService.getTask(agentId, taskId)
@@ -234,8 +225,8 @@ export class AgentJobsService extends BaseService {
 
   /**
    * Atomically bind a newly created sticky session only when the queued job's
-   * captured reuse configuration is still current. Internal callers must not
-   * mutate task schedule metadata directly.
+   * captured reuse configuration is still current. AgentSessionService owns
+   * the constrained relation; this command service only validates task state.
    */
   bindTaskSessionReuse(params: {
     scheduleId: string
@@ -259,12 +250,13 @@ export class AgentJobsService extends BaseService {
       ) {
         return false
       }
-      application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
-        metadata: writeTaskSessionReuse(snapshot.metadata, { ...reuse, sessionId: params.sessionId })
+      return agentSessionService.bindTaskScheduleTx(tx, {
+        sessionId: params.sessionId,
+        taskScheduleId: params.scheduleId,
+        expectedAgentId: params.agentId
       })
-      return true
     })
-    if (bound) publishTaskReadModelChange(params.scheduleId)
+    if (bound) notifyAgentTaskReadModelChange([params.scheduleId])
     return bound
   }
 

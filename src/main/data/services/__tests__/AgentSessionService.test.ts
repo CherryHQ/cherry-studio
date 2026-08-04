@@ -5,13 +5,18 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
@@ -35,6 +40,7 @@ describe('AgentSessionService', () => {
 
   beforeEach(async () => {
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
+    notifyDataApiDataChangeMock.mockClear()
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -74,6 +80,25 @@ describe('AgentSessionService', () => {
       data: { parts: [{ type: 'text', text: 'hello' }] },
       searchableText: 'hello',
       status: 'success'
+    })
+  }
+
+  function createTaskSchedule(agentId = 'agent-session-test') {
+    return jobScheduleService.create({
+      type: 'agent.task',
+      name: `task-${crypto.randomUUID()}`,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: { agentId, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+      catchUpPolicy: { kind: 'skip-missed' },
+      metadata: { reuse: { enabled: true, revision: 0 } }
+    })
+  }
+
+  function bindTaskSession(sessionId: string, taskScheduleId: string, agentId = 'agent-session-test'): void {
+    dbh.db.transaction((tx) => {
+      expect(agentSessionService.bindTaskScheduleTx(tx, { sessionId, taskScheduleId, expectedAgentId: agentId })).toBe(
+        true
+      )
     })
   }
 
@@ -583,6 +608,138 @@ describe('AgentSessionService', () => {
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
+  })
+
+  it('clears a paused task projection immediately when its bound session is deleted', async () => {
+    const task = createTaskSchedule()
+    jobScheduleService.setEnabled(task.id, false)
+    const session = await createSession('Bound paused task')
+    bindTaskSession(session.id, task.id)
+
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({
+      reuseSessionId: session.id,
+      status: 'paused',
+      nextRun: null
+    })
+
+    agentSessionService.delete(session.id)
+
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({
+      reuseSessionId: null,
+      status: 'paused',
+      nextRun: null
+    })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+    ])
+  })
+
+  it('binds only an existing session owned by the expected agent and keeps the internal column private', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Validated task binding')
+
+    expect(
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: task.id,
+          expectedAgentId: 'other-agent'
+        })
+      )
+    ).toBe(false)
+    expect(
+      captureError(() =>
+        dbh.db.transaction((tx) =>
+          agentSessionService.bindTaskScheduleTx(tx, {
+            sessionId: 'missing-session',
+            taskScheduleId: task.id,
+            expectedAgentId: 'agent-session-test'
+          })
+        )
+      )
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    bindTaskSession(session.id, task.id)
+    expect(
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: task.id,
+          expectedAgentId: 'agent-session-test'
+        })
+      )
+    ).toBe(false)
+    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
+  })
+
+  it('clears the task relation atomically when a session is reassigned', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-reassigned',
+      type: 'claude-code',
+      name: 'Reassigned Agent',
+      instructions: '',
+      orderKey: 'z0'
+    })
+    const task = createTaskSchedule()
+    const session = await createSession('Bound reassigned task')
+    bindTaskSession(session.id, task.id)
+
+    agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
+
+    expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Rollback bound task')
+    bindTaskSession(session.id, task.id)
+
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        agentSessionService.deleteTx(tx, session.id)
+        throw new Error('rollback')
+      })
+    ).toThrow('rollback')
+
+    expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBe(session.id)
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('clears bindings for bulk, workspace, and agent session deletion paths', async () => {
+    const bulkTask = createTaskSchedule()
+    const bulkSession = await createSession('Bulk bound task')
+    bindTaskSession(bulkSession.id, bulkTask.id)
+    agentSessionService.deleteByIds([bulkSession.id])
+
+    const workspace = await createWorkspace('workspace-bound-task')
+    const workspaceTask = createTaskSchedule()
+    const workspaceSession = await createSession('Workspace bound task', workspace.id)
+    bindTaskSession(workspaceSession.id, workspaceTask.id)
+    agentSessionService.deleteWorkspaceCascade(workspace.id)
+
+    const agentTask = createTaskSchedule()
+    const agentSession = await createSession('Agent bound task')
+    bindTaskSession(agentSession.id, agentTask.id)
+    agentSessionService.deleteByAgentId('agent-session-test')
+
+    expect(agentTaskService.getTaskById(bulkTask.id)?.reuseSessionId).toBeNull()
+    expect(agentTaskService.getTaskById(workspaceTask.id)?.reuseSessionId).toBeNull()
+    expect(agentTaskService.getTaskById(agentTask.id)?.reuseSessionId).toBeNull()
+  })
+
+  it('sets the internal relation null when its task schedule is deleted', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Task deletion FK')
+    bindTaskSession(session.id, task.id)
+
+    jobScheduleService.delete(task.id)
+
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
   })
 
   it('leaves a user workspace and sibling sessions intact when deleting one session', async () => {

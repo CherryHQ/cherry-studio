@@ -7,8 +7,8 @@
  * window with stale state. Persistent agent memory belongs in workspace files
  * (`heartbeat.md`, agent memory) instead of session history.
  *
- * A task may opt into `reuseSession`, which binds one sticky session on the
- * schedule (`metadata.reuse`, see `TaskSessionReuse`) and continues it on every
+ * A task may opt into `reuseSession`, which binds one sticky session through a
+ * constrained session→schedule relation and continues it on every
  * fire. That session grows unbounded by design — reset it by disabling and
  * saving, then enabling and saving. Rotate automatically only if unbounded
  * growth turns out to bite in practice.
@@ -18,8 +18,8 @@
  * Admission is enforced under the stream manager's per-topic dispatch lock.
  *
  * Either way the session used by a fire is recorded in `job.output.sessionId`
- * for the run log; the reuse pointer is read from the schedule, never from
- * there (job rows are GC'd).
+ * for the run log; the reuse pointer is read from the constrained relation,
+ * never from there (job rows are GC'd).
  */
 
 import { application } from '@application'
@@ -90,18 +90,14 @@ function makeRunSignal(
  * treat `null` as "rebind a fresh one" rather than an error: a user deleting
  * the session must not break the schedule.
  */
-function loadReusableSession(sessionId: string, agentId: string) {
-  try {
-    const session = agentSessionService.getById(sessionId)
-    if (session.agentId !== agentId) {
-      logger.warn('Reuse session belongs to another agent — rebinding', { sessionId, agentId })
-      return null
-    }
-    return session
-  } catch (error) {
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
-    throw error
+function loadReusableSession(taskScheduleId: string, agentId: string) {
+  const session = agentSessionService.getByTaskScheduleId(taskScheduleId)
+  if (!session) return null
+  if (session.agentId !== agentId) {
+    logger.warn('Reuse session belongs to another agent — rebinding', { taskScheduleId, agentId })
+    return null
   }
+  return session
 }
 
 /**
@@ -122,14 +118,13 @@ function resolveTaskSession(params: {
 }): ReturnType<typeof agentSessionService.create> {
   const { reuse, reuseBinding, agentId, name, workspace } = params
 
-  if (reuse.enabled && reuse.sessionId) {
-    const existing = loadReusableSession(reuse.sessionId, agentId)
+  if (reuse.enabled && reuseBinding) {
+    const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
     if (existing) {
       return existing
     }
     logger.info('Reuse session unavailable — creating a new one', {
-      scheduleId: reuseBinding?.scheduleId,
-      sessionId: reuse.sessionId
+      scheduleId: reuseBinding?.scheduleId
     })
   }
 
@@ -227,7 +222,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     scheduleSnapshot?.type === 'agent.task' && currentReuse.enabled && currentReuse.revision === expectedReuseRevision
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
   let session = resolveTaskSession({
-    reuse: reuseIsCurrent ? currentReuse : { enabled: false, sessionId: null, revision: expectedReuseRevision },
+    reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
     reuseBinding,
     agentId,
     name: taskName ?? 'Scheduled task',

@@ -6,6 +6,7 @@
  */
 
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -46,14 +47,11 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
  * Session-reuse state for an `agent.task` schedule. Lives in the schedule row's
  * generic `metadata` JSON column (not `jobInputTemplate`) for two reasons: it is
  * schedule state rather than handler input, so it stays clear of
- * `AgentJobsService.updateTask`'s template diff / re-arm logic; and `sessionId`
- * is bound by AgentJobsService after a fire, while queued job inputs remain
- * command-owned snapshots.
+ * `AgentJobsService.updateTask`'s template diff / re-arm logic; while the
+ * sticky session pointer is a constrained relation owned by AgentSessionService.
  */
 export type TaskSessionReuse = {
   enabled: boolean
-  /** Sticky session bound on the first fire after `enabled` flips on. */
-  sessionId: string | null
   /** Monotonic config epoch captured by each queued job. */
   revision: number
 }
@@ -71,15 +69,10 @@ export function normalizeTaskSessionReuseRevision(value: unknown): number {
 
 export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
   const raw = metadata?.[TASK_REUSE_METADATA_KEY]
-  if (!isPlainRecord(raw)) return { enabled: false, sessionId: null, revision: 0 }
+  if (!isPlainRecord(raw)) return { enabled: false, revision: 0 }
   const reuse = raw as Partial<TaskSessionReuse>
   const enabled = reuse.enabled === true
-  // Normalize rather than mirror: `ScheduledTaskEntity` promises a null
-  // `reuseSessionId` whenever reuse is off, so a corrupt or hand-edited row
-  // must not surface a pointer the UI would then present as bound.
-  const sessionId =
-    enabled && typeof reuse.sessionId === 'string' && reuse.sessionId.length > 0 ? reuse.sessionId : null
-  return { enabled, sessionId, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
+  return { enabled, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
 }
 
 /**
@@ -105,7 +98,7 @@ export class AgentTaskService {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
-    return this.toScheduledTaskEntity(snapshot)
+    return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
   /**
@@ -158,8 +151,9 @@ export class AgentTaskService {
           : sorted.slice(0, limit)
         : sorted
 
+    const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
-      tasks: sliced.map((s) => this.toScheduledTaskEntity(s)),
+      tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
   }
@@ -184,7 +178,7 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot): ScheduledTaskEntity {
+  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot, reuseSessionId: string | null): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
@@ -203,7 +197,7 @@ export class AgentTaskService {
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
       reuseSession: reuse.enabled,
-      reuseSessionId: reuse.sessionId,
+      reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,
