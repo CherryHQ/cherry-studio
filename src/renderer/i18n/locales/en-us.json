@@ -1418,6 +1418,7 @@
     },
     "compaction": {
       "compacted": "Context compacted, ~{{count}} tokens saved",
+      "compacted_plain": "Context compacted",
       "compacting": "Compacting context…"
     },
     "conversation": {

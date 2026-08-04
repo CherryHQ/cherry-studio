@@ -1418,6 +1418,7 @@
     },
     "compaction": {
       "compacted": "已压缩上下文，节省约 {{count}} tokens",
+      "compacted_plain": "已压缩上下文",
       "compacting": "正在压缩上下文…"
     },
     "conversation": {

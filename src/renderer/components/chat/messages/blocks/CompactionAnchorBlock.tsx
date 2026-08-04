@@ -23,6 +23,38 @@ interface Props {
 const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   const { t } = useTranslation()
 
+  /** Tokens the fold reclaimed, when the path could measure both ends. */
+  const saved =
+    data?.preTokens !== undefined && data?.postTokens !== undefined && data.preTokens > data.postTokens
+      ? data.preTokens - data.postTokens
+      : undefined
+
+  // An in-loop fold happens between tool calls of one continuous loop, so it
+  // renders as a row INSIDE the process group (like a tool entry) rather than a
+  // full-width rule that would cut the group in half.
+  if (data?.phase === 'in-loop') {
+    const compacting = data.status === 'compacting'
+    return (
+      <div
+        className="flex items-center gap-2 py-0.5 text-muted-foreground text-xs"
+        role={compacting ? 'status' : undefined}
+        aria-live={compacting ? 'polite' : undefined}>
+        {compacting ? (
+          <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+        ) : (
+          <span className="size-1.5 shrink-0 rounded-full bg-border" aria-hidden />
+        )}
+        <span>
+          {compacting
+            ? t('chat.compaction.compacting')
+            : saved === undefined
+              ? t('chat.compaction.compacted_plain')
+              : t('chat.compaction.compacted', { count: saved })}
+        </span>
+      </div>
+    )
+  }
+
   if (data?.status === 'compacting') {
     return (
       <div
@@ -36,11 +68,6 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
       </div>
     )
   }
-
-  const saved =
-    data?.preTokens !== undefined && data?.postTokens !== undefined && data.preTokens > data.postTokens
-      ? data.preTokens - data.postTokens
-      : undefined
 
   return (
     <div className="my-3 flex w-full items-center gap-3 text-muted-foreground" role="separator">
