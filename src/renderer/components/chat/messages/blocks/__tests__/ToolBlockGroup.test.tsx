@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
 import { PartsProvider, usePartsMap } from '../MessagePartsContext'
-import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
 import { ToolBlockGroup, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
@@ -249,29 +248,6 @@ describe('ToolBlockGroup', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
-  })
-
-  it('requests bottom-follow recovery when an expanded tool group collapses', () => {
-    const requestFollowRecovery = vi.fn()
-    const scrollContainerRef = { current: null as HTMLDivElement | null }
-    render(
-      <div
-        ref={(node) => {
-          scrollContainerRef.current = node
-        }}>
-        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} requestFollowRecovery={requestFollowRecovery}>
-          <ToolBlockGroup items={[readDoneItem]} />
-        </ScrollOwnershipProvider>
-      </div>
-    )
-
-    const trigger = screen.getByRole('button', { name: 'Project checks' })
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).not.toHaveBeenCalled()
-
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).toHaveBeenCalledOnce()
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shields completed tool content from unrelated parts-map updates', () => {

@@ -19,7 +19,6 @@ const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const scrollToElement = vi.fn()
-const captureLocalSendScrollEligibility = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -181,7 +180,6 @@ vi.mock('../list/MessageVirtualList', async () => {
       handleRef,
       items,
       keepMountedKeys,
-      localSendGeneration,
       onScrollContainerReady,
       renderItem,
       scrollToBottomButtonBottomOffset,
@@ -195,8 +193,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToTop,
           scrollToKey,
           scrollToElement,
-          captureLocalSendScrollEligibility,
-          isAtBottom: () => false,
+          isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
         []
@@ -217,7 +214,6 @@ vi.mock('../list/MessageVirtualList', async () => {
       return (
         <div
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
-          data-local-send-generation={localSendGeneration ?? ''}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
           data-testid="virtual-list"
@@ -278,7 +274,6 @@ describe('MessageList', () => {
     scrollToTop.mockClear()
     scrollToKey.mockClear()
     scrollToElement.mockClear()
-    captureLocalSendScrollEligibility.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -464,27 +459,6 @@ describe('MessageList', () => {
     expect(messageGroupMountCounts.get('user-history')).toBe(1)
   })
 
-  it('forwards the explicit local-send generation independently of message topology', () => {
-    const user = createMessage('user-1', 'user')
-    const assistant = createMessage('assistant-1', 'assistant')
-    const view = render(
-      <MessageListProvider value={createValue([user], { localSendGeneration: 1 })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '1')
-
-    view.rerender(
-      <MessageListProvider
-        value={createValue([createMessage('older', 'assistant'), user, assistant, createMessage('user-2', 'user')], {
-          localSendGeneration: 2
-        })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '2')
-  })
-
   it('keeps the latest pending assistant group mounted', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
 
@@ -604,10 +578,8 @@ describe('MessageList', () => {
     expect(bindRuntime).toHaveBeenCalledTimes(1)
 
     runtime?.locateMessage(nextMessage.id)
-    runtime?.captureLocalSendScrollEligibility()
 
     expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
   })
 
   it('does not register the message outline scroll listener while outline is disabled', () => {

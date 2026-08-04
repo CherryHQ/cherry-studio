@@ -344,7 +344,9 @@ export class ProviderModelMigrator extends BaseMigrator {
     if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
 
     const hasExplicitCapabilitySelection =
-      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
     if (!presetProvider) {
       return {
         ...row,

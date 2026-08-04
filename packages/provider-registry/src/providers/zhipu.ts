@@ -34,6 +34,10 @@ export default openaiCompatible({
     wire: thinkingWire
   },
   anthropic: 'https://open.bigmodel.cn/api/anthropic',
+  // BigModel chat web_search tool (docs.bigmodel.cn/cn/guide/tools/web-search),
+  // delivered by the zhipu transformRequestBody. `vendors` keeps other hosted
+  // families (if any appear) from routing to a tool BigModel serves for GLM.
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['zhipu'] }],
   website: {
     apiKey: 'https://open.bigmodel.cn/apikey/platform',
     docs: 'https://docs.bigmodel.cn/',
@@ -41,7 +45,8 @@ export default openaiCompatible({
     official: 'https://open.bigmodel.cn/'
   },
   overrides: [
-    ...['glm-5-2', 'glm-5-2-fast'].map((modelId) => ({
+    // BigModel serves these with a dotted version; generation derives the canonical key + apiModelId.
+    ...['glm-5.2', 'glm-5.2-fast'].map((modelId) => ({
       modelId,
       reasoningContracts: {
         'openai-chat-completions': {
