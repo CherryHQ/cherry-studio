@@ -8,10 +8,10 @@ interface Props {
 // These fixed animation endpoints stay owner-local because no shared role preserves them across both themes.
 const spinnerVariants = {
   defaultColor: {
-    color: '#2a2a2a'
+    color: 'var(--foreground)'
   },
   dimmed: {
-    color: '#8C9296'
+    color: 'var(--foreground-secondary)'
   }
 }
 

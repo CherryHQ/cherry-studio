@@ -11,10 +11,10 @@ import * as React from 'react'
 
 const textareaVariants = cva(
   cn(
-    'flex field-sizing-content min-h-16 w-full border bg-transparent px-4 py-3 text-lg transition-[color,box-shadow] outline-none resize-y',
-    'rounded-md',
+    'flex field-sizing-content min-h-16 w-full resize-y border bg-transparent px-2.5 py-2 text-lg outline-none transition-[color,box-shadow]',
+    'rounded-lg',
     'border-input text-foreground placeholder:text-muted-foreground',
-    'focus-visible:border-primary',
+    'focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/35',
     'disabled:cursor-not-allowed disabled:opacity-50',
     'md:text-sm'
   ),

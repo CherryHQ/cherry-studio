@@ -57,7 +57,7 @@ const CircularProgress = ({
           strokeWidth={resolvedCircleWidth}
           strokeDasharray={circumference}
           strokeDashoffset="0"
-          className={cn('stroke-primary/25', className)}
+          className={cn('stroke-control-accent/25', className)}
         />
         <circle
           r={radius}
@@ -68,7 +68,7 @@ const CircularProgress = ({
           strokeDashoffset={offset}
           fill="transparent"
           strokeDasharray={circumference}
-          className={cn('stroke-primary', progressClassName)}
+          className={cn('stroke-control-accent', progressClassName)}
         />
       </svg>
       {showLabel && (

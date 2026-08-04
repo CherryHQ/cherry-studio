@@ -62,14 +62,14 @@ function Calendar({
         ),
         selected: cn(
           defaultClassNames.selected,
-          'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
+          'bg-control-accent text-control-accent-foreground hover:bg-control-accent hover:text-control-accent-foreground focus:bg-control-accent focus:text-control-accent-foreground'
         ),
         today: cn(defaultClassNames.today, 'bg-accent text-accent-foreground'),
         outside: cn(defaultClassNames.outside, 'text-muted-foreground opacity-50'),
         disabled: cn(defaultClassNames.disabled, 'text-muted-foreground opacity-40'),
         range_middle: cn(defaultClassNames.range_middle, 'rounded-none bg-accent text-accent-foreground'),
-        range_start: cn(defaultClassNames.range_start, 'rounded-l-md bg-primary text-primary-foreground'),
-        range_end: cn(defaultClassNames.range_end, 'rounded-r-md bg-primary text-primary-foreground'),
+        range_start: cn(defaultClassNames.range_start, 'rounded-l-md bg-control-accent text-control-accent-foreground'),
+        range_end: cn(defaultClassNames.range_end, 'rounded-r-md bg-control-accent text-control-accent-foreground'),
         hidden: cn(defaultClassNames.hidden, 'invisible'),
         ...classNames
       }}

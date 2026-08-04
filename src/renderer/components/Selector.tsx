@@ -1,8 +1,17 @@
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import {
+  Combobox,
+  type ComboboxOption,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Check, ChevronDown } from 'lucide-react'
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
-import { isValidElement, useMemo, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { isValidElement, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SelectorOption<V = string | number> {
@@ -55,8 +64,6 @@ const placementMap: Record<
   bottom: { side: 'bottom', align: 'center' }
 }
 
-const isSameValue = <V extends string | number>(left: V, right: V) => left === right || String(left) === String(right)
-
 const getNodeText = (node: ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') {
     return String(node)
@@ -76,149 +83,144 @@ const getNodeText = (node: ReactNode): string => {
   return ''
 }
 
+const isGroupOption = <V extends string | number>(option: SelectorOption<V>) =>
+  option.type === 'group' || Boolean(option.options?.length)
+
+interface FlatSelectorOption<V extends string | number> {
+  encodedValue: string
+  option: SelectorOption<V>
+}
+
+const flattenOptions = <V extends string | number>(options: SelectorOption<V>[]): FlatSelectorOption<V>[] =>
+  options.flatMap((option) =>
+    isGroupOption(option) ? flattenOptions(option.options ?? []) : [{ encodedValue: String(option.value), option }]
+  )
+
 const Selector = <V extends string | number>({
   options,
   value,
-  onChange = () => {},
+  onChange,
   placement = 'bottomRight',
-  size = 13,
+  size,
   placeholder,
   style,
   disabled = false,
   multiple = false
 }: SelectorProps<V>) => {
-  const [open, setOpen] = useState(false)
   const { t } = useTranslation()
   const popoverPlacement = placementMap[placement]
+  const flatOptions = useMemo(() => flattenOptions(options), [options])
+  const optionTextLabels = useMemo(
+    () => [...new Set(flatOptions.map(({ option }) => getNodeText(option.label)).filter(Boolean))],
+    [flatOptions]
+  )
+  const selectedValues = multiple ? ((value as V[] | undefined) ?? []) : value !== undefined ? [value as V] : []
+  const selectedOptions = flatOptions.filter(({ option }) =>
+    selectedValues.some((selectedValue) => String(selectedValue) === String(option.value))
+  )
+  const displayValue =
+    selectedOptions.length === 0
+      ? placeholder
+      : selectedOptions.length === 1
+        ? selectedOptions[0].option.label
+        : t('common.selectedItems', { count: selectedOptions.length })
+  const accessibleLabel = getNodeText(displayValue)
+  const triggerStyle = { fontSize: size, ...style }
 
-  const selectedValues = useMemo(() => {
-    if (multiple) {
-      return (value as V[]) || []
-    }
-    return value !== undefined ? [value as V] : []
-  }, [value, multiple])
+  if (multiple) {
+    const comboboxOptions: ComboboxOption<{ option: SelectorOption<V> }>[] = flatOptions.map(
+      ({ encodedValue, option }) => ({
+        value: encodedValue,
+        label: getNodeText(option.label) || encodedValue,
+        disabled: option.disabled,
+        option
+      })
+    )
 
-  const label = useMemo(() => {
-    if (selectedValues.length > 0) {
-      const findLabels = (opts: SelectorOption<V>[]): (string | ReactNode)[] => {
-        const labels: (string | ReactNode)[] = []
-        for (const opt of opts) {
-          if (selectedValues.some((v) => isSameValue(v, opt.value))) {
-            labels.push(opt.label)
-          }
-          if (opt.options) {
-            labels.push(...findLabels(opt.options))
-          }
-        }
-        return labels
-      }
-      const labels = findLabels(options)
-      if (labels.length === 0) return placeholder
-      if (labels.length === 1) return labels[0]
-      return t('common.selectedItems', { count: labels.length })
-    }
-    return placeholder
-  }, [selectedValues, placeholder, options, t])
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (disabled) return
-    setOpen(nextOpen)
+    return (
+      <Combobox
+        multiple
+        searchable={false}
+        size="sm"
+        options={comboboxOptions}
+        value={selectedValues.map(String)}
+        disabled={disabled}
+        aria-label={accessibleLabel || undefined}
+        placeholder={placeholder}
+        popoverAlign={popoverPlacement.align}
+        triggerStyle={triggerStyle}
+        renderOption={(item) => item.option.label}
+        renderValue={() => (
+          <span className={cn('min-w-0 flex-1 truncate text-left', !displayValue && 'text-muted-foreground')}>
+            {displayValue}
+          </span>
+        )}
+        onChange={(nextValue) => {
+          const encodedValues = Array.isArray(nextValue) ? nextValue : [nextValue]
+          const nextOptions = encodedValues.flatMap((encodedValue) => {
+            const match = flatOptions.find((option) => option.encodedValue === encodedValue)
+            return match ? [match.option.value] : []
+          })
+          ;(onChange as MultipleSelectorProps<V>['onChange'])(nextOptions)
+        }}
+      />
+    )
   }
 
-  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled) return
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      setOpen((currentOpen) => !currentOpen)
-    }
-  }
-
-  const handleOptionSelect = (option: SelectorOption<V>) => {
-    if (disabled || option.disabled) return
-
-    if (multiple) {
-      const isSelected = selectedValues.some((selectedValue) => isSameValue(selectedValue, option.value))
-      const newValues = isSelected
-        ? selectedValues.filter((selectedValue) => !isSameValue(selectedValue, option.value))
-        : [...selectedValues, option.value]
-      ;(onChange as MultipleSelectorProps<V>['onChange'])(newValues)
-      return
-    }
-
-    ;(onChange as SingleSelectorProps<V>['onChange'])(option.value)
-    setOpen(false)
-  }
-
-  const renderOptions = (opts: SelectorOption<V>[], level = 0) =>
-    opts.map((option) => {
-      const isGroup = option.type === 'group' || Boolean(option.options?.length)
-      const isSelected = selectedValues.some((selectedValue) => isSameValue(selectedValue, option.value))
-
-      if (isGroup) {
+  const renderOptions = (items: SelectorOption<V>[]): ReactNode =>
+    items.map((option) => {
+      if (isGroupOption(option)) {
         return (
-          <div key={String(option.value)} className="py-1">
-            <div className="px-2 py-1 font-medium text-muted-foreground text-xs">{option.label}</div>
-            <div className={cn(level > 0 && 'pl-2')}>{renderOptions(option.options || [], level + 1)}</div>
-          </div>
+          <SelectGroup key={String(option.value)}>
+            <SelectLabel>{option.label}</SelectLabel>
+            {renderOptions(option.options ?? [])}
+          </SelectGroup>
         )
       }
 
       return (
-        <button
-          key={String(option.value)}
-          type="button"
-          role="option"
-          aria-selected={isSelected}
-          disabled={disabled || option.disabled}
-          className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
-            'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
-            'disabled:pointer-events-none disabled:opacity-50',
-            level > 0 && 'pl-4'
-          )}
-          onClick={() => handleOptionSelect(option)}>
-          <span className="min-w-0 flex-1 truncate">{option.label}</span>
-          <span className="flex w-5 shrink-0 items-center justify-end">{isSelected && <Check size={14} />}</span>
-        </button>
+        <SelectItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
+          {option.label}
+        </SelectItem>
       )
     })
 
-  const isPlaceholder = Boolean(placeholder && label === placeholder)
-  const accessibleLabel = getNodeText(label)
-
   return (
-    <Popover open={open && !disabled} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="secondary"
-          size="sm"
-          role="combobox"
-          aria-label={accessibleLabel || undefined}
-          aria-expanded={open && !disabled}
-          aria-disabled={disabled || undefined}
-          tabIndex={disabled ? -1 : 0}
-          className={cn(
-            'min-w-0 text-left leading-none',
-            open && !disabled && 'bg-secondary-active',
-            disabled && 'cursor-not-allowed opacity-60',
-            isPlaceholder && 'text-muted-foreground'
-          )}
-          onKeyDown={handleTriggerKeyDown}
-          style={{ fontSize: size, ...style }}>
-          <span className="min-w-0 truncate">{label}</span>
-          <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
+    <Select
+      value={value === undefined ? '' : String(value)}
+      onValueChange={(nextValue) => {
+        const match = flatOptions.find((option) => option.encodedValue === nextValue)
+        if (match) {
+          ;(onChange as SingleSelectorProps<V>['onChange'])(match.option.value)
+        }
+      }}>
+      <SelectTrigger
+        size="sm"
+        disabled={disabled}
+        aria-label={accessibleLabel || undefined}
+        style={triggerStyle}
+        className="min-w-0">
+        <span className="grid min-w-0 items-center text-left">
+          <span className="col-start-1 row-start-1 min-w-0 truncate">
+            <SelectValue placeholder={placeholder} />
+          </span>
+          {optionTextLabels.map((text) => (
+            <span
+              key={text}
+              aria-hidden="true"
+              className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden whitespace-nowrap pr-4">
+              {text}
+            </span>
+          ))}
+        </span>
+      </SelectTrigger>
+      <SelectContent
         align={popoverPlacement.align}
         side={popoverPlacement.side}
-        className="max-h-80 w-auto min-w-(--radix-popover-trigger-width) overflow-y-auto p-1">
-        <div role="listbox" aria-multiselectable={multiple || undefined}>
-          {renderOptions(options)}
-        </div>
-      </PopoverContent>
-    </Popover>
+        className="max-h-80 w-(--radix-select-trigger-width)">
+        {renderOptions(options)}
+      </SelectContent>
+    </Select>
   )
 }
 

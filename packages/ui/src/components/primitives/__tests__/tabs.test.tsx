@@ -12,6 +12,23 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('Tabs default variant', () => {
+  it('uses the compact shared control geometry and selected surface', () => {
+    render(
+      <Tabs defaultValue="first">
+        <TabsList>
+          <TabsTrigger value="first">First</TabsTrigger>
+          <TabsTrigger value="second">Second</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    )
+
+    expect(screen.getByRole('tablist')).toHaveClass('h-7', 'rounded-lg', 'p-0.5')
+    expect(screen.getByRole('tab', { name: 'First' })).toHaveClass('px-2', 'text-xs', 'font-normal')
+    expect(screen.getByRole('tab', { name: 'First' }).className).toContain('data-[state=active]:bg-background')
+  })
+})
+
 describe('Tabs workflow variant', () => {
   it('marks the active trigger with bold + underline styles', () => {
     render(

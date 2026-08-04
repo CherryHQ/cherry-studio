@@ -11,8 +11,10 @@ const badgeVariants = cva(
         default: 'border-transparent bg-background-subtle text-secondary-foreground [a&]:hover:bg-primary/90',
         secondary: 'border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90',
         destructive:
-          'border-transparent text-destructive bg-[red]/10 [a&]:hover:bg-destructive/90 focus-visible:border-destructive dark:bg-destructive/60',
-        outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground'
+          'border-transparent bg-destructive/10 text-destructive [a&]:hover:bg-destructive/20 focus-visible:border-destructive dark:bg-destructive/20',
+        outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
+        highlight:
+          'rounded-[5px] border-[var(--badge-highlight-border)] bg-[var(--badge-highlight-surface)] px-1 py-px text-[10px] font-bold tracking-[0.02em] text-[var(--badge-highlight-foreground)] [--badge-highlight-border:#8fd944] [--badge-highlight-foreground:#2e4d18] [--badge-highlight-surface:#c2ec80] [&>svg]:size-2.5 dark:[--badge-highlight-border:#a0d958] dark:[--badge-highlight-foreground:#c0ec7c] dark:[--badge-highlight-surface:#2a4514]'
       }
     },
     defaultVariants: {

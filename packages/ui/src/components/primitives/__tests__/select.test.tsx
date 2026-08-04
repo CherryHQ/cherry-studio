@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 describe('SelectContent', () => {
-  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
+  it('uses a compact outlined trigger with a transparent resting surface', () => {
     render(
       <Select defaultValue="alpha">
         <SelectTrigger aria-label="Mode">
@@ -43,7 +43,16 @@ describe('SelectContent', () => {
     )
 
     const trigger = screen.getByRole('combobox', { name: 'Mode' })
-    expect(trigger).toHaveClass('focus-visible:border-primary')
+    expect(trigger).toHaveClass(
+      'h-8',
+      'rounded-lg',
+      'border',
+      'border-input',
+      'bg-transparent',
+      'aria-expanded:bg-transparent'
+    )
+    expect(trigger).not.toHaveClass('bg-muted/50', 'hover:bg-accent', 'aria-expanded:bg-accent')
+    expect(trigger.className).not.toContain('focus-visible:ring')
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
   })
 

@@ -26,7 +26,7 @@ const CopyButton: FC<CopyButtonProps> = ({
   textToCopy,
   label,
   color = 'var(--muted-foreground)',
-  hoverColor = 'var(--primary)',
+  hoverColor = 'var(--control-accent)',
   size = 14,
   successFeedback = 'toast',
   className,
