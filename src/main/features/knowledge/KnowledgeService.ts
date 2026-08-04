@@ -1,10 +1,6 @@
 import { application } from '@application'
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
   CreateKnowledgeBaseDto,
@@ -23,8 +19,6 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
-import { isIndexableKnowledgeItem, toMaterialRelativePath } from './items'
-import { probeKnowledgeFile } from './pathStorage'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -38,18 +32,10 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
-import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import {
-  KNOWLEDGE_ACTIVE_JOB_STATUSES,
-  knowledgeQueueName,
-  knowledgeRestoreIndexIdempotencyKey,
   type KnowledgeBaseDiscoveryOptions,
-  type KnowledgeBaseDiscoveryPage,
-  toKnowledgeBaseId,
-  toKnowledgeItemId
+  type KnowledgeBaseDiscoveryPage
 } from './types'
-
-const logger = loggerService.withContext('KnowledgeService')
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -140,98 +126,14 @@ export class KnowledgeService extends BaseService {
     await this.ingestionService.reindexItems(baseId, itemIds)
   }
 
-  /**
-   * Reconcile the derived index for a base installed by Backup v2. This path is
-   * intentionally narrower than user reindex: it reads only material files
-   * already transported under the managed base directory and never follows a
-   * directory item's original `data.source`, fetches a URL, or scans an external
-   * folder. Completion means every completed leaf has a material row, not merely
-   * that `index.sqlite` exists.
-   */
+  /** Rebuild only derived index rows from material installed by Backup v2. */
   async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
-    let base: KnowledgeBase
-    try {
-      base = knowledgeBaseService.getById(baseId)
-    } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        return 'completed'
-      }
-      throw error
-    }
-
-    if ((await this.listActiveRestoreIndexJobs(baseId, restoreId)).length > 0) return 'pending'
-
-    const items = knowledgeItemService
-      .getItemsByBaseId(baseId)
-      .filter(isIndexableKnowledgeItem)
-      .filter((item) => item.status === 'completed')
-    const expected = items.map((item) => ({ item, relativePath: toMaterialRelativePath(item) }))
-
-    for (const { item, relativePath } of expected) {
-      const readability = await probeKnowledgeFile(baseId, relativePath)
-      if (readability !== 'readable') {
-        throw new Error(
-          `Restored knowledge material is ${readability}: base=${baseId} item=${item.id} path=${relativePath}`
-        )
-      }
-    }
-
-    if (expected.length === 0) return 'completed'
-    const store = application.get('KnowledgeVectorStoreService').getIndexStore(base)
-    const missing: typeof expected = []
-    for (const entry of expected) {
-      if (!store.getMaterialByRelativePath(entry.relativePath)) missing.push(entry)
-    }
-    if (missing.length === 0) return 'completed'
-
-    const jobManager = application.get('JobManager')
-    const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    for (const { item } of missing) {
-      const itemId = toKnowledgeItemId(item.id)
-      jobManager.enqueue(
-        'knowledge.index-documents',
-        { baseId, itemId, restoreId },
-        {
-          idempotencyKey: knowledgeRestoreIndexIdempotencyKey(knowledgeBaseId, itemId, restoreId),
-          queue: knowledgeQueueName(knowledgeBaseId)
-        }
-      )
-    }
-    return 'pending'
+    return this.ingestionService.reconcileRestoredBaseFromMaterial(baseId, restoreId)
   }
 
-  /** Stop every still-active indexing job created by one restore-specific rebuild. */
+  /** Stop every active indexing job created by one abandoned restore rebuild. */
   async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
-    const jobManager = application.get('JobManager')
-    const jobs = await jobManager.list({
-      type: 'knowledge.index-documents',
-      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
-    })
-    const matching = jobs.filter((job) => {
-      const narrowed = narrowKnowledgeJobInput(job)
-      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
-    })
-    const results = await Promise.all(
-      matching.map((job) => jobManager.cancel(job.id, 'backup-restore-rebuild-abandoned'))
-    )
-    const timedOut = results.filter((result) => result.outcome === 'timed-out').length
-    if (timedOut > 0) {
-      logger.warn('Some abandoned restore indexing jobs did not stop within the cancellation grace period', {
-        restoreId,
-        timedOut
-      })
-    }
-  }
-
-  private async listActiveRestoreIndexJobs(baseId: string, restoreId: string) {
-    const jobs = await application.get('JobManager').list({
-      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
-      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
-    })
-    return jobs.filter((job) => {
-      const narrowed = narrowKnowledgeJobInput(job)
-      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
-    })
+    await this.ingestionService.cancelRestoredMaterialRebuild(restoreId)
   }
 
   /**

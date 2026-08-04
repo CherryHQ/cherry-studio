@@ -3774,6 +3774,7 @@
   "settings.data.backup_v2.preview.destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
   "settings.data.backup_v2.preview.knowledge_ready": "有 {{count}} 个知识库搜索索引已包含，恢复后可立即使用。",
   "settings.data.backup_v2.preview.knowledge_rebuild": "有 {{count}} 个知识库搜索索引需要在恢复后重建。",
+  "settings.data.backup_v2.preview.knowledge_rebuild_cost": "恢复后将重建 {{count}} 个知识库搜索索引。重建可能调用已配置的嵌入模型服务并消耗 API 配额；应用重启后可以停止重建。",
   "settings.data.backup_v2.restore.arm_button": "恢复并重启",
   "settings.data.backup_v2.restore.choose_button": "选择备份文件…",
   "settings.data.backup_v2.restore.choose_title": "从备份文件恢复",
