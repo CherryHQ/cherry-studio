@@ -3845,6 +3845,7 @@
       "pasted_text": "Text lipit"
     },
     "backup": {
+      "cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",
       "failed": "Backup eșuat",
       "start": {
         "success": "Backup început"

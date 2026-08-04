@@ -17,7 +17,7 @@ import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
+import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
@@ -25,8 +25,6 @@ import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
-
-const backupManager = new LegacyBackupManager()
 
 export async function registerIpc() {
   void backupManager.cleanupStaleTempArtifacts()

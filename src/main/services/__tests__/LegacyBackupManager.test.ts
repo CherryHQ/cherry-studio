@@ -296,7 +296,7 @@ import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
-import BackupManager from '../LegacyBackupManager'
+import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
@@ -813,7 +813,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const backupPath = '/mock/temp/backup/backup.zip'
     const uploadStream = Readable.from(Buffer.from('backup'))
     const putFileContents = vi.fn().mockResolvedValue({})
-    vi.spyOn(backupManager as any, 'backup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents })
     vi.mocked(fs.stat).mockResolvedValue(createStats('file', 6) as never)
     vi.mocked(fs.createReadStream).mockReturnValue(uploadStream as never)
@@ -830,8 +830,88 @@ describe('BackupManager direct v2 data compatibility', () => {
       maxBackups: 1
     })
 
-    expect(putFileContents).toHaveBeenCalledWith('backup.zip', uploadStream, 6)
+    expect(putFileContents).toHaveBeenCalledWith(
+      'backup.zip',
+      uploadStream,
+      6,
+      expect.objectContaining({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) })
+    )
     expect(fs.promises.readFile).not.toHaveBeenCalled()
+  })
+
+  it('keeps an automatic backup out of a manual remote backup workflow', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    let finishManualUpload: (value: boolean) => void = () => {}
+    const putWebdavFile = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishManualUpload = resolve
+        })
+    )
+    const putS3File = vi.fn().mockResolvedValue({})
+    vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents: putWebdavFile })
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents: putS3File })
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+    const manualBackup = backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
+      webdavHost: 'https://example.com',
+      fileName: 'backup.zip',
+      disableStream: true
+    })
+    await vi.waitFor(() => expect(putWebdavFile).toHaveBeenCalledOnce())
+
+    await expect(
+      backupManager.backupToS3(null, {
+        endpoint: 'https://s3.example.com',
+        region: 'test',
+        bucket: 'backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+        fileName: 'backup.zip',
+        autoSync: true,
+        syncInterval: 1,
+        maxBackups: 1
+      })
+    ).rejects.toBeInstanceOf(BackupOperationBusyError)
+    expect(putS3File).not.toHaveBeenCalled()
+
+    finishManualUpload(true)
+    await manualBackup
+  })
+
+  it('aborts a stalled WebDAV upload after the idle timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const backupPath = '/mock/temp/backup/backup.zip'
+      let uploadStarted: () => void = () => {}
+      const started = new Promise<void>((resolve) => {
+        uploadStarted = resolve
+      })
+      const putFileContents = vi.fn(
+        (_fileName: string, _data: Buffer, options: { signal: AbortSignal }) =>
+          new Promise<boolean>((_resolve, reject) => {
+            uploadStarted()
+            options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+          })
+      )
+      vi.spyOn(backupManager as any, 'createBackup').mockResolvedValue(backupPath)
+      vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents })
+      vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+      const backup = backupManager.backupToWebdav(null, {
+        webdavHost: 'https://example.com',
+        fileName: 'backup.zip',
+        disableStream: true
+      })
+      await started
+      const rejection = expect(backup).rejects.toMatchObject({ name: 'TimeoutError' })
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+      await rejection
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores complete-Data version 7 archives without reading standalone SQLite or .claude resources', async () => {

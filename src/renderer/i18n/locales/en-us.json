@@ -3849,6 +3849,7 @@
       "pasted_text": "Pasted Text"
     },
     "backup": {
+      "cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
       "failed": "Backup failed",
       "start": {
         "success": "Backup started"

@@ -14,7 +14,6 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { autoBackupService } from '@renderer/services/AutoBackupService'
 import {
   backupToNutstore,
   checkConnection,
@@ -96,7 +95,6 @@ const NutstoreSettings: FC = () => {
       void setNutstoreToken('')
       void setNutstorePath('')
       await setNutstoreAutoSync(false)
-      autoBackupService.stop('nutstore')
       setNutstoreUsername('')
     }
   }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
@@ -128,10 +126,8 @@ const NutstoreSettings: FC = () => {
     await setNutstoreSyncInterval(value)
     if (value === 0) {
       await setNutstoreAutoSync(false)
-      autoBackupService.stop('nutstore')
     } else {
       await setNutstoreAutoSync(true)
-      void autoBackupService.start(false, 'nutstore')
     }
   }
 

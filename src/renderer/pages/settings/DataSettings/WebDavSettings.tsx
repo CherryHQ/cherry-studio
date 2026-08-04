@@ -12,7 +12,6 @@ import {
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { autoBackupService } from '@renderer/services/AutoBackupService'
 import { getBackupSyncState } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
@@ -47,10 +46,8 @@ const WebDavSettings: FC = () => {
     await setWebdavSyncInterval(value)
     if (value === 0) {
       await setWebdavAutoSync(false)
-      autoBackupService.stop('webdav')
     } else {
       await setWebdavAutoSync(true)
-      void autoBackupService.start(false, 'webdav')
     }
   }
 

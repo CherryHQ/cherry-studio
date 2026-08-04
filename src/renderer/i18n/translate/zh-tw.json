@@ -3845,6 +3845,7 @@
       "pasted_text": "剪貼簿檔案"
     },
     "backup": {
+      "cleanup_failed": "備份已完成，但無法清理舊備份。",
       "failed": "備份失敗",
       "start": {
         "success": "開始備份"

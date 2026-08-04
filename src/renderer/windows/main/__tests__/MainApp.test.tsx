@@ -5,11 +5,6 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAutoBackupDispose, mockAutoBackupInitialize } = vi.hoisted(() => ({
-  mockAutoBackupDispose: vi.fn(),
-  mockAutoBackupInitialize: vi.fn().mockResolvedValue(undefined)
-}))
-
 vi.mock('../onboarding/OnboardingPage', () => ({
   default: () => <div data-testid="onboarding-page">onboarding</div>
 }))
@@ -29,17 +24,11 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useMainWindowNavigation: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
+vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
-vi.mock('@renderer/services/AutoBackupService', () => ({
-  autoBackupService: {
-    dispose: mockAutoBackupDispose,
-    initialize: mockAutoBackupInitialize
-  }
-}))
-
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
     throw new Error('theme provider boom')
@@ -57,8 +46,6 @@ function appendBootSpinner() {
 describe('MainWindowContent', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
-    mockAutoBackupDispose.mockClear()
-    mockAutoBackupInitialize.mockClear()
   })
 
   afterEach(() => {
@@ -86,16 +73,6 @@ describe('MainWindowContent', () => {
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
-  })
-
-  it('owns the automatic backup scheduler for the main-window lifetime', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-
-    const { unmount } = render(<MainWindowContent />)
-
-    expect(mockAutoBackupInitialize).toHaveBeenCalledOnce()
-    unmount()
-    expect(mockAutoBackupDispose).toHaveBeenCalledOnce()
   })
 })
 

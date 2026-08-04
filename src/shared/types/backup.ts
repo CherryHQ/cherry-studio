@@ -28,4 +28,13 @@ export type S3Config = {
   maxBackups: number
 }
 
+export type AutoBackupType = 'webdav' | 's3' | 'local' | 'nutstore'
+
+export type AutoBackupEvent =
+  | { type: AutoBackupType; status: 'running' }
+  | { type: AutoBackupType; status: 'stopped' }
+  | { type: AutoBackupType; status: 'succeeded'; timestamp: number }
+  | { type: AutoBackupType; status: 'warning'; timestamp: number; reason: 'cleanup_failed' }
+  | { type: AutoBackupType; status: 'failed'; timestamp: number; errorMessage: string }
+
 export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'

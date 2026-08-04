@@ -16,6 +16,11 @@ const logger = loggerService.withContext('S3Storage')
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
+interface S3UploadOptions {
+  signal?: AbortSignal
+  onProgress?: () => void
+}
+
 /**
  * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
  */
@@ -75,12 +80,26 @@ export default class S3Storage {
     return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
   }
 
-  async putFileContents(key: string, data: Buffer | string | Readable, contentLength?: number) {
+  async putFileContents(
+    key: string,
+    data: Buffer | string | Readable,
+    contentLength?: number,
+    options: S3UploadOptions = {}
+  ) {
+    options.signal?.throwIfAborted()
+    const abortController = new AbortController()
+    const forwardAbort = () => abortController.abort(options.signal?.reason)
+
+    options.signal?.addEventListener('abort', forwardAbort, { once: true })
+    if (options.signal?.aborted) {
+      forwardAbort()
+    }
+
     try {
       const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
-
-      return await new Upload({
+      const upload = new Upload({
         client: this.client,
+        abortController,
         params: {
           Bucket: this.bucket,
           Key: this.buildKey(key),
@@ -88,10 +107,20 @@ export default class S3Storage {
           ContentType: contentType,
           ContentLength: contentLength
         }
-      }).done()
+      })
+      if (options.onProgress) upload.on('httpUploadProgress', options.onProgress)
+
+      try {
+        return await upload.done()
+      } finally {
+        if (options.onProgress) upload.off('httpUploadProgress', options.onProgress)
+      }
     } catch (error) {
       logger.error('[S3Storage] Error putting object:', error as Error)
       throw error
+    } finally {
+      options.signal?.removeEventListener('abort', forwardAbort)
+      if (data instanceof Readable && !data.destroyed) data.destroy()
     }
   }
 

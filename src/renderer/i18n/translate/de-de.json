@@ -3845,6 +3845,7 @@
       "pasted_text": "Datei aus Zwischenablage"
     },
     "backup": {
+      "cleanup_failed": "Die Sicherung wurde abgeschlossen, aber alte Sicherungen konnten nicht bereinigt werden.",
       "failed": "Backup fehlgeschlagen",
       "start": {
         "success": "Backup gestartet"

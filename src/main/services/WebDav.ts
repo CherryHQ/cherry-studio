@@ -49,9 +49,10 @@ export default class WebDav {
     }
 
     try {
-      if (!(await this.instance.exists(this.webdavPath))) {
+      if (!(await this.instance.exists(this.webdavPath, { signal: options?.signal }))) {
         await this.instance.createDirectory(this.webdavPath, {
-          recursive: true
+          recursive: true,
+          signal: options?.signal
         })
       }
     } catch (error) {

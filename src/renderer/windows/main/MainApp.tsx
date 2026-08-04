@@ -12,10 +12,10 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { autoBackupService } from '@renderer/services/AutoBackupService'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
@@ -26,7 +26,7 @@ const logger = loggerService.withContext('MainApp')
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification / useTopicNamingErrorNotification are
 // intentionally main-only (update events only reach the main window; the storage warning and
 // topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
 // they depend on React-visible
@@ -50,15 +50,8 @@ function MainWindowRuntime(): null {
     console.timeEnd('init')
   }, [])
 
-  // The main window is the single renderer owner for automatic backup scheduling.
-  useEffect(() => {
-    void autoBackupService
-      .initialize()
-      .catch((error) => logger.error('Failed to initialize automatic backup scheduling', error as Error))
-    return () => autoBackupService.dispose()
-  }, [])
-
   useAppUpdateHandler()
+  useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
 

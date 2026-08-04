@@ -3,13 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { preferenceService } from '@data/PreferenceService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { autoBackupService } from '../../services/AutoBackupService'
 import { backupToNutstore, restoreFromNutstore } from '../../services/NutstoreService'
 import { WebdavBackupManager } from '../WebdavBackupManager'
 
@@ -123,11 +121,6 @@ describe('WebdavBackupManager', () => {
     })
   })
 
-  afterEach(() => {
-    autoBackupService.dispose()
-    vi.useRealTimers()
-  })
-
   it('shows only the localized failure toast when a Nutstore restore fails', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -189,22 +182,5 @@ describe('WebdavBackupManager', () => {
     expect(mocks.backupToWebdav.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.deleteWebdavFile.mock.invocationCallOrder[0]
     )
-  })
-
-  it('shows one failure toast after Nutstore automatic backup retries are exhausted', async () => {
-    vi.useFakeTimers()
-    mocks.backupToWebdav.mockRejectedValue(
-      new Error(`${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
-    )
-
-    await autoBackupService.initialize()
-    await vi.advanceTimersByTimeAsync(60_000)
-    await vi.advanceTimersByTimeAsync(7_000)
-    await vi.advanceTimersByTimeAsync(17_000)
-    await vi.advanceTimersByTimeAsync(37_000)
-
-    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
-    expect(toast.error).toHaveBeenCalledExactlyOnceWith('backup.error.active_data_writers')
-    expect(popup.error).not.toHaveBeenCalled()
   })
 })

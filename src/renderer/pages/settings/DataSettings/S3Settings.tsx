@@ -14,7 +14,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { autoBackupService } from '@renderer/services/AutoBackupService'
 import { getBackupSyncState } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
@@ -49,10 +48,8 @@ const S3Settings: FC = () => {
     await setS3SyncInterval(value)
     if (value === 0) {
       await setS3AutoSync(false)
-      autoBackupService.stop('s3')
     } else {
       await setS3AutoSync(true)
-      void autoBackupService.start(false, 's3')
     }
   }
 

@@ -3849,6 +3849,7 @@
       "pasted_text": "剪切板文件"
     },
     "backup": {
+      "cleanup_failed": "备份已完成，但旧备份清理失败。",
       "failed": "备份失败",
       "start": {
         "success": "开始备份"

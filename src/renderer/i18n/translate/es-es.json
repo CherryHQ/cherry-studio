@@ -3845,6 +3845,7 @@
       "pasted_text": "Archivo del portapapeles"
     },
     "backup": {
+      "cleanup_failed": "La copia de seguridad se completó, pero no se pudieron limpiar las copias antiguas.",
       "failed": "Backup fallido",
       "start": {
         "success": "Inicio de backup"
