@@ -89,10 +89,10 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-input bg-transparent px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-transparent hover:text-foreground focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent',
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">

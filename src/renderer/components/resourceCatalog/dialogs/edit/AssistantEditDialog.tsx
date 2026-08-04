@@ -477,7 +477,7 @@ function AssistantBasicFields({
         onModelChange={handleAssistantModelChange}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
       />
       <FormField
         control={form.control}
@@ -493,7 +493,7 @@ function AssistantBasicFields({
               error={groupsError}
               portalContainer={portalContainer}
               onCreateGroup={onCreateGroup}
-              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
             />
             <FormMessage className="col-start-2" />
           </FormItem>
@@ -739,7 +739,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -801,7 +801,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(

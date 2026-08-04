@@ -168,6 +168,19 @@ describe('ModelSelectorDetailCard', () => {
     expect(screen.queryByText('/')).not.toBeInTheDocument()
   })
 
+  it('uses the compact v2 hierarchy without section dividers', () => {
+    const model = makeModel()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(screen.getAllByText('GPT-4o mini').at(-1)).toHaveClass('text-xs')
+    expect(screen.getByText('Provider').closest('dl')).not.toHaveClass('border-t', 'pt-3')
+  })
+
   it('constrains the hover card to Radix available space', () => {
     const model = makeModel()
 

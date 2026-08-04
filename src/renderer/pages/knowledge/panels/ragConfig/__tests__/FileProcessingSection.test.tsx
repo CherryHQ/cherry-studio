@@ -70,9 +70,9 @@ describe('FileProcessingSection', () => {
     // Select triggers must not add border or outer-ring feedback when expanded.
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(trigger).not.toHaveClass(
-      'aria-expanded:border-primary',
+      'aria-expanded:border-control-accent',
       'aria-expanded:ring-3',
-      'aria-expanded:ring-primary/20'
+      'aria-expanded:ring-control-accent/20'
     )
     expect(screen.getByText('Not configured')).toBeInTheDocument()
     expect(screen.getByTestId('processor-icon-paddleocr').querySelector('svg')).toBeInTheDocument()

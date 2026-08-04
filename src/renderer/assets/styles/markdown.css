@@ -155,7 +155,7 @@
   width: 1em;
   height: 1em;
   margin: 0;
-  accent-color: var(--primary);
+  accent-color: var(--control-accent);
   opacity: 1;
 }
 
@@ -299,7 +299,7 @@
   margin: 1em 0;
   padding: 0.75em 1em;
   background-color: var(--markdown-content-background);
-  border-left: 2px solid var(--primary);
+  border-left: 2px solid var(--control-accent);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   color: var(--muted-foreground);
   font-style: normal;
@@ -353,7 +353,7 @@
 }
 
 .markdown .markdown-alert-important {
-  border-left-color: var(--primary);
+  border-left-color: var(--control-accent);
 }
 
 .markdown .markdown-alert-important .markdown-alert-title {

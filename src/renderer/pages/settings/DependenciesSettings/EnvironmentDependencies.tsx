@@ -75,6 +75,7 @@ import {
   NPM_REGISTRY_PRESETS,
   PIP_INDEX_PRESETS
 } from './binaryInstallPresets'
+import DependencyCard from './DependencyCard'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
@@ -532,57 +533,65 @@ const BinaryToolPresetCard: FC<{
     (applicationStatus === 'absent' && source === 'none') || applicationStatus === 'unknown' || broken || failedInstall
 
   return (
-    <div
-      role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
-      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-xl',
-              present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-            )}>
-            <ToolIcon icon={tool.icon} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
-              {tool.displayName !== tool.name && (
-                <span className="text-foreground-tertiary text-xs">({tool.name})</span>
-              )}
-            </div>
-            {present && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                {installedVersion && (
-                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
-                    v{installedVersion}
-                  </Badge>
-                )}
-                {latestVersion && (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
-                    <ArrowBigUp className="size-2.5" />v{latestVersion}
-                  </Badge>
-                )}
-                {isBundled && (
-                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
-                    {t('settings.dependencies.source.bundled')}
-                  </Badge>
-                )}
-                {isSystem && (
-                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
-                    {t('settings.dependencies.source.system')}
-                  </Badge>
-                )}
-              </div>
+    <DependencyCard
+      icon={<ToolIcon icon={tool.icon} />}
+      available={present}
+      title={tool.displayName}
+      titleAccessory={
+        tool.displayName !== tool.name ? (
+          <span className="shrink-0 text-foreground-tertiary text-xs">({tool.name})</span>
+        ) : undefined
+      }
+      subtitle={<span title={description}>{description}</span>}
+      badges={
+        present ? (
+          <>
+            {installedVersion && (
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                v{installedVersion}
+              </Badge>
             )}
-          </div>
-        </div>
-
-        {backendControllable && (
-          <div className="flex shrink-0 items-center gap-1">
+            {latestVersion && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
+                <ArrowBigUp className="size-2.5" />v{latestVersion}
+              </Badge>
+            )}
+            {isBundled && (
+              <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                {t('settings.dependencies.source.bundled')}
+              </Badge>
+            )}
+            {isSystem && (
+              <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
+                {t('settings.dependencies.source.system')}
+              </Badge>
+            )}
+          </>
+        ) : undefined
+      }
+      actions={
+        canInstall || backendControllable ? (
+          <>
+            {canInstall && !failedRemove && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-28 shrink-0 gap-1 font-medium text-xs"
+                onClick={onInstall}
+                disabled={busy}
+                loading={installing}>
+                {!installing && <Download className="size-3.5 shrink-0" />}
+                <span className="truncate">
+                  {installing
+                    ? t('settings.dependencies.installing')
+                    : failedInstall || broken || applicationStatus === 'unknown'
+                      ? t('common.retry')
+                      : t('settings.mcp.install')}
+                </span>
+              </Button>
+            )}
             {applied && (
               <Button
                 variant="ghost"
@@ -595,24 +604,21 @@ const BinaryToolPresetCard: FC<{
                 <RefreshCw className="size-3.5" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={onRemove}
-              disabled={busy}
-              aria-label={t('settings.dependencies.uninstall')}
-              title={t('settings.dependencies.uninstall')}>
-              {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
-        {description}
-      </p>
-
+            {backendControllable && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={onRemove}
+                disabled={busy}
+                aria-label={t('settings.dependencies.uninstall')}
+                title={t('settings.dependencies.uninstall')}>
+                {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
+              </Button>
+            )}
+          </>
+        ) : undefined
+      }>
       <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -645,27 +651,8 @@ const BinaryToolPresetCard: FC<{
       {(failedInstall || failedRemove) && !busy && (
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
-
-      {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 text-xs"
-            onClick={onInstall}
-            disabled={busy}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : failedInstall || broken || applicationStatus === 'unknown'
-                ? t('common.retry')
-                : t('settings.mcp.install')}
-          </Button>
-          {installing && <BinaryInstallingHint />}
-        </div>
-      )}
-    </div>
+      {installing && <BinaryInstallingHint />}
+    </DependencyCard>
   )
 }
 
@@ -718,55 +705,62 @@ const CustomToolCard: FC<{
     failedInstall
 
   return (
-    <div
-      role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
-      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-xl',
-              installed ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-            )}>
-            <ToolIcon />
-          </div>
-          <div className="min-w-0">
-            <span className="text-foreground text-sm leading-5">{tool.name}</span>
-            <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
-            {installed && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                {installedVersion && (
-                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
-                    v{installedVersion}
-                  </Badge>
-                )}
-                {systemPath && (
-                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
-                    {t('settings.dependencies.source.system')}
-                  </Badge>
-                )}
-                {runtime && (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 px-1.5 py-0 text-[11px] leading-4"
-                    title={t('settings.dependencies.runtimeDependencyHint')}>
-                    {t('settings.dependencies.runtimeDependency')}
-                  </Badge>
-                )}
-                {latestVersion && (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
-                    <ArrowBigUp className="size-2.5" />v{latestVersion}
-                  </Badge>
-                )}
-              </div>
+    <DependencyCard
+      icon={<ToolIcon />}
+      available={installed}
+      title={tool.name}
+      subtitle={toolSpec}
+      badges={
+        installed ? (
+          <>
+            {installedVersion && (
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                v{installedVersion}
+              </Badge>
             )}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1">
+            {systemPath && (
+              <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
+                {t('settings.dependencies.source.system')}
+              </Badge>
+            )}
+            {runtime && (
+              <Badge
+                variant="outline"
+                className="gap-1 px-1.5 py-0 text-[11px] leading-4"
+                title={t('settings.dependencies.runtimeDependencyHint')}>
+                {t('settings.dependencies.runtimeDependency')}
+              </Badge>
+            )}
+            {latestVersion && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-success-border bg-success-subtle px-1.5 py-0 text-[11px] text-success-subtle-foreground leading-4">
+                <ArrowBigUp className="size-2.5" />v{latestVersion}
+              </Badge>
+            )}
+          </>
+        ) : undefined
+      }
+      actions={
+        <>
+          {canInstall && !failedRemove && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-28 shrink-0 gap-1 font-medium text-xs"
+              onClick={onInstall}
+              disabled={busy}
+              loading={installing}>
+              {!installing && <Download className="size-3.5 shrink-0" />}
+              <span className="truncate">
+                {installing
+                  ? t('settings.dependencies.installing')
+                  : failedInstall || applicationStatus === 'broken' || applicationStatus === 'unknown'
+                    ? t('common.retry')
+                    : t('settings.mcp.install')}
+              </span>
+            </Button>
+          )}
           {canUpdate && (
             <Button
               variant="ghost"
@@ -800,33 +794,13 @@ const CustomToolCard: FC<{
             disabled={busy}>
             {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
           </Button>
-        </div>
-      </div>
-
+        </>
+      }>
       {(failedInstall || failedRemove) && !busy && (
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
-
-      {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 text-xs"
-            onClick={onInstall}
-            disabled={busy}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : failedInstall || applicationStatus === 'broken' || applicationStatus === 'unknown'
-                ? t('common.retry')
-                : t('settings.mcp.install')}
-          </Button>
-          {installing && <BinaryInstallingHint />}
-        </div>
-      )}
-    </div>
+      {installing && <BinaryInstallingHint />}
+    </DependencyCard>
   )
 }
 

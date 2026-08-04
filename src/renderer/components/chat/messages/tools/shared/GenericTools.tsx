@@ -209,8 +209,9 @@ const TOOL_STATUS_ERROR_COLOR = 'var(--muted-foreground)'
 function getStatusColor(color: StatusColor): string {
   switch (color) {
     case 'primary':
+      return 'var(--control-accent)'
     case 'success':
-      return 'var(--primary)'
+      return 'var(--success)'
     case 'warning':
       return 'var(--warning)'
     case 'error':

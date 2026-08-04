@@ -1,21 +1,30 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   commandHandlers: new Map<string, () => void>(),
+  focusState: { value: true },
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
   platformState: { isMac: false },
+  transparentState: { value: false },
   tabBarProps: undefined as Record<string, unknown> | undefined,
   showSearchPopup: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
-  default: () => false
+  default: () => mocks.transparentState.value
+}))
+
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => mocks.focusState.value
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -100,17 +109,44 @@ vi.mock('../TabRouter', () => ({
 
 import { AppShell } from '../AppShell'
 
+const appShellCss = readFileSync(join(process.cwd(), 'src/renderer/components/layout/AppShell.css'), 'utf-8')
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.commandHandlers.clear()
   mocks.ipcHandlers.clear()
   mocks.ipcRequest.mockResolvedValue(false)
+  mocks.focusState.value = true
   mocks.platformState.isMac = false
+  mocks.transparentState.value = false
   mocks.tabBarProps = undefined
 })
 
 describe('AppShell', () => {
+  it('keeps the opaque and glass shell palette mode-aware', () => {
+    expect(appShellCss).toContain('--app-shell-frame-border: #eaebe8')
+    expect(appShellCss).toContain('--app-shell-frame-border-glass: #dadcd6')
+    expect(appShellCss).toContain('--app-shell-selected-surface: #f0f0ef')
+    expect(appShellCss).toContain('--app-shell-selected-border: #eaebe8')
+    expect(appShellCss).toContain('--app-shell-frame-border: #32332c')
+    expect(appShellCss).toContain('--app-shell-frame-border-glass: #3c3d35')
+    expect(appShellCss).toContain('--app-shell-selected-surface: #1f201d')
+    expect(appShellCss).toContain('--app-shell-selected-border: #343531')
+  })
+
+  it('activates glass only for a focused transparent window', () => {
+    mocks.transparentState.value = true
+    mocks.focusState.value = true
+
+    const { container, rerender } = render(<AppShell />)
+    expect(container.firstElementChild).toHaveAttribute('data-glass-active', 'true')
+
+    mocks.focusState.value = false
+    rerender(<AppShell />)
+    expect(container.firstElementChild).toHaveAttribute('data-glass-active', 'false')
+  })
+
   it('owns the resource source provider at the route host boundary', () => {
     render(<AppShell />)
 

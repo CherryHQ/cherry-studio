@@ -144,10 +144,10 @@ interface UsageHeatmapProps {
 
 const intensityClassNames: Record<0 | 1 | 2 | 3 | 4, string> = {
   0: 'bg-muted/70',
-  1: 'bg-primary/25',
-  2: 'bg-primary/45',
-  3: 'bg-primary/70',
-  4: 'bg-primary'
+  1: 'bg-control-accent/25',
+  2: 'bg-control-accent/45',
+  3: 'bg-control-accent/70',
+  4: 'bg-control-accent'
 }
 
 export default function UsageHeatmap({
@@ -287,8 +287,8 @@ export default function UsageHeatmap({
                             'rounded-[3px] border border-transparent transition-colors',
                             intensityClassNames[intensity],
                             day.isFuture && 'cursor-default opacity-30',
-                            !day.isFuture && 'hover:border-primary/70',
-                            selectedDate === day.key && 'border-primary ring-2 ring-primary/30'
+                            !day.isFuture && 'hover:border-control-accent/70',
+                            selectedDate === day.key && 'border-control-accent ring-2 ring-control-accent/30'
                           )}
                           style={{ height: CELL_SIZE, width: CELL_SIZE }}
                         />

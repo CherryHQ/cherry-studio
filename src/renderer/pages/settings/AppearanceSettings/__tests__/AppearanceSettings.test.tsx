@@ -318,6 +318,17 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
   })
 
+  it('keeps font comboboxes on the shared trigger appearance', () => {
+    render(<AppearanceSettings />)
+
+    const fontComboboxes = screen.getAllByRole('combobox').filter((element) => element.tagName === 'SELECT')
+
+    expect(fontComboboxes).toHaveLength(2)
+    for (const combobox of fontComboboxes) {
+      expect(combobox).not.toHaveClass('bg-transparent', 'rounded-md', 'border-border', 'dark:bg-input/30')
+    }
+  })
+
   it('shows every theme as a visual choice and switches from the preview', async () => {
     render(<AppearanceSettings />)
 
@@ -331,7 +342,7 @@ describe('AppearanceSettings selectors', () => {
 
     expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
     expect(lightThemePreview).toHaveClass(
-      'border-primary',
+      'border-control-accent',
       'ring-2',
       'group-focus-visible:border-ring',
       'group-focus-visible:bg-accent'

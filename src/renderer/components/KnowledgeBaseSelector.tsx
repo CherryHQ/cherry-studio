@@ -81,7 +81,7 @@ export const KnowledgeBaseSelector = ({
           aria-label={ariaLabel}
           aria-invalid={invalid || undefined}
           className={cn(
-            'h-9 w-full min-w-0 justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+            'h-9 w-full min-w-0 justify-between gap-2 rounded-md border-input bg-transparent px-3 font-normal text-sm shadow-none hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent',
             selectedOption ? 'text-foreground' : 'text-muted-foreground',
             invalid && 'aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40'
           )}>

@@ -21,7 +21,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
 
       return (
         <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-primary text-xs">
+          <span className="truncate rounded bg-control-accent/10 px-2 py-0.5 text-control-accent text-xs">
             {firstOption?.label ?? firstValue}
           </span>
           {selectedValues.length > 1 && (

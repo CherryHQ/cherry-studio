@@ -95,7 +95,7 @@
 }
 
 .tiptap blockquote {
-  border-left: 4px solid var(--primary);
+  border-left: 4px solid var(--control-accent);
   margin: 1.5rem 0;
   padding-left: 1rem;
 }
@@ -249,7 +249,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border: 0 solid var(--primary);
+  border: 0 solid var(--control-accent);
   border-radius: 0;
 }
 
@@ -270,7 +270,7 @@
 }
 
 .tiptap .column-resize-handle {
-  background-color: var(--primary);
+  background-color: var(--control-accent);
   bottom: -2px;
   pointer-events: none;
   position: absolute;
@@ -363,9 +363,9 @@
 
 .tiptap .tableWrapper .add-row-button:hover,
 .tiptap .tableWrapper .add-column-button:hover {
-  background: var(--primary);
+  background: var(--control-accent);
   color: var(--primary-foreground);
-  border-color: var(--primary);
+  border-color: var(--control-accent);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -416,9 +416,9 @@
   position: absolute;
   height: 20px;
   border-radius: 8px;
-  background: var(--primary);
+  background: var(--control-accent);
   color: var(--primary-foreground);
-  border: 1px solid var(--primary);
+  border: 1px solid var(--control-accent);
   display: none;
   align-items: center;
   justify-content: center;
@@ -505,9 +505,9 @@
 
 /* Use primary color for checked checkbox */
 .tiptap ul[data-type='taskList'] input[type='checkbox']:checked {
-  accent-color: var(--primary);
-  background-color: var(--primary);
-  border-color: var(--primary);
+  accent-color: var(--control-accent);
+  background-color: var(--control-accent);
+  border-color: var(--control-accent);
 }
 
 .tiptap ul[data-type='taskList'] ul[data-type='taskList'] {

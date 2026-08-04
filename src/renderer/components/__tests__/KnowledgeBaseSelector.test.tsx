@@ -43,18 +43,28 @@ describe('KnowledgeBaseSelector', () => {
     renderSelector()
 
     const trigger = screen.getByRole('button', { name: 'Select knowledge base' })
+    expect(trigger).toHaveClass(
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:bg-transparent',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
     fireEvent.click(trigger)
 
     expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({
       width: 'var(--radix-popover-trigger-width)',
       height: '156px'
     })
-    // Select triggers must not add border or outer-ring feedback when expanded.
+    // Select triggers stay transparent and do not add an outer ring when expanded.
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(trigger).not.toHaveClass(
-      'aria-expanded:border-primary',
+      'aria-expanded:border-control-accent',
       'aria-expanded:ring-3',
-      'aria-expanded:ring-primary/20'
+      'aria-expanded:ring-control-accent/20'
     )
     expect(screen.getByRole('option', { name: 'Alpha Knowledge' })).toBeInTheDocument()
 

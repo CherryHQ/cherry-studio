@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
+import { SIDEBAR_ICON_WIDTH } from '../../Sidebar/constants'
 
 type FakeTab = {
   id: string
@@ -43,7 +44,7 @@ const mocks = vi.hoisted(() => ({
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
-  sidebarWidth: 50,
+  sidebarWidth: 44,
   tabs: [] as FakeTab[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
@@ -181,7 +182,8 @@ vi.mock('../../Sidebar', async () => {
       user,
       actions,
       width,
-      onResizePreview
+      onResizePreview,
+      onResizingChange
     }: {
       isFloating?: boolean
       isFloatingClosing?: boolean
@@ -193,6 +195,7 @@ vi.mock('../../Sidebar', async () => {
       actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
       width?: number
       onResizePreview?: (width: number | null) => void
+      onResizingChange?: (resizing: boolean) => void
       onDismiss?: () => void
       onHoverChange?: (hovering: boolean) => void
       onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
@@ -210,6 +213,8 @@ vi.mock('../../Sidebar', async () => {
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
+          <button type="button" data-testid="floating-resize-start" onClick={() => onResizingChange?.(true)} />
+          <button type="button" data-testid="floating-resize-stop" onClick={() => onResizingChange?.(false)} />
         </div>
       ) : (
         <>
@@ -328,7 +333,7 @@ afterEach(() => {
   mocks.allApps = []
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
-  mocks.sidebarWidth = 50
+  mocks.sidebarWidth = SIDEBAR_ICON_WIDTH
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
@@ -738,31 +743,46 @@ describe('app Sidebar', () => {
 
     const { rerender } = render(<Sidebar />)
 
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(SIDEBAR_ICON_WIDTH)
     expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
 
     rerender(<Sidebar />)
 
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(SIDEBAR_ICON_WIDTH)
     expect(mocks.setSidebarWidth).toHaveBeenCalledTimes(1)
   })
 
   it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
     render(<Sidebar />)
 
-    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', String(SIDEBAR_ICON_WIDTH))
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe(`${SIDEBAR_ICON_WIDTH}px`)
 
     fireEvent.click(screen.getByTestId('preview-80'))
 
     expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
     expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
-    expect(mocks.sidebarWidth).toBe(50)
+    expect(mocks.sidebarWidth).toBe(SIDEBAR_ICON_WIDTH)
     expect(mocks.setSidebarWidth).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('preview-null'))
 
-    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', String(SIDEBAR_ICON_WIDTH))
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe(`${SIDEBAR_ICON_WIDTH}px`)
+  })
+
+  it('keeps the floating sidebar mounted while its resize crosses into a visible layout', () => {
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'reveal' }))
+    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
+
+    mocks.sidebarWidth = 120
+    fireEvent.click(screen.getByTestId('floating-resize-start'))
+    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('floating-resize-stop'))
+    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
   })
 })

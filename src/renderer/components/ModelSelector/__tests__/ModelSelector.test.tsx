@@ -492,7 +492,7 @@ describe('ModelSelector', () => {
     expect(screen.getByText('models.no_matches')).toBeInTheDocument()
   })
 
-  it('keeps model filters on one horizontally scrollable row', () => {
+  it('renders model filters in the shared horizontal scroll container', () => {
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
         availableTags: ['free'],
@@ -502,6 +502,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-filter-tags')).toHaveClass('flex-nowrap', 'overflow-x-auto')
+    const filterTags = screen.getByTestId('model-selector-filter-tags')
+    expect(filterTags).toHaveClass('flex', 'min-w-0', 'flex-1')
+    expect(filterTags.querySelector('[style*="overflow-x"]')).toBeInTheDocument()
   })
 })

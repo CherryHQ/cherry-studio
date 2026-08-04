@@ -85,6 +85,7 @@ interface MockBrowserWindow extends EventEmitter {
   isDestroyed: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
+  setMinimumSize: ReturnType<typeof vi.fn>
   setContentBounds: ReturnType<typeof vi.fn>
   setPosition: ReturnType<typeof vi.fn>
   setOpacity: ReturnType<typeof vi.fn>
@@ -102,6 +103,7 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.isDestroyed = vi.fn(() => false)
   win.isVisible = vi.fn(() => true)
   win.show = vi.fn()
+  win.setMinimumSize = vi.fn()
   win.setContentBounds = vi.fn()
   win.setPosition = vi.fn()
   win.setOpacity = vi.fn()
@@ -335,13 +337,24 @@ describe('SubWindowService', () => {
       expect(win.show).toHaveBeenCalledTimes(1)
     })
 
-    it('does not show here when an initial position was provided (Tab_MoveWindow shows it)', () => {
+    it('positions at rounded coordinates and shows immediately when an initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
-      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
+      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10.6, y: 10.2 })
 
-      expect(win.show).not.toHaveBeenCalled()
+      expect(win.setPosition).toHaveBeenCalledWith(11, 10)
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('applies the settings minimum size before showing a pooled window', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-settings', url: '/settings/provider' })
+
+      expect(win.setMinimumSize).toHaveBeenCalledWith(760, 560)
+      expect(win.show).toHaveBeenCalledTimes(1)
     })
 
     it('shows a reused (already-loaded) standby immediately — no dependence on isLoadingMainFrame', () => {

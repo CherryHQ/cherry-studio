@@ -42,7 +42,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
       tabIndex={disabled ? -1 : 0}
       style={{
         cursor: disabled ? 'not-allowed' : 'pointer',
-        color: disabled ? 'var(--foreground-disabled)' : 'var(--primary)',
+        color: disabled ? 'var(--foreground-disabled)' : 'var(--control-accent)',
         fontSize: 22,
         transition: 'all 0.2s',
         marginTop: 1,

@@ -74,7 +74,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
             <button
               type="button"
               aria-label={name}
-              className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-muted/50 transition-all hover:scale-105 hover:border-primary hover:bg-muted"
+              className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-muted/50 transition-all hover:scale-105 hover:border-control-accent hover:bg-muted"
               onClick={(event) => handleProviderClick(event, id)}>
               <ProviderAvatarPrimitive
                 providerId={id}

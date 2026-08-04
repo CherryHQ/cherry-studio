@@ -556,6 +556,12 @@ export class WindowManager extends BaseService {
     return managed.window.isFullScreen()
   }
 
+  public isFocused(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isFocused()
+  }
+
   public restore(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
@@ -1592,6 +1598,15 @@ export class WindowManager extends BaseService {
     })
     window.on('leave-full-screen', () => {
       application.get('IpcApiService').send(windowId, 'window.fullscreen_changed', false)
+    })
+    // DOM focus changes when an embedded webview takes focus, even though the
+    // BrowserWindow is still key. Relay the native state so translucent shells
+    // can respond only to real window activation changes.
+    window.on('focus', () => {
+      application.get('IpcApiService').send(windowId, 'window.focus_changed', true)
+    })
+    window.on('blur', () => {
+      application.get('IpcApiService').send(windowId, 'window.focus_changed', false)
     })
 
     // Intercept native close for warmup-tracked windows — hide and return to

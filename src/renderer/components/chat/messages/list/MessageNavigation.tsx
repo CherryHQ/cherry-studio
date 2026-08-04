@@ -348,7 +348,7 @@ const ButtonGroup = ({
 const NavigationButton = ({ className, ...props }: ComponentPropsWithoutRef<typeof Button>) => (
   <Button
     className={[
-      'flex h-7 w-7 items-center justify-center rounded-none border-none text-foreground transition-all duration-200 ease-in-out hover:bg-accent hover:text-primary [&_svg]:size-3.5',
+      'flex h-7 w-7 items-center justify-center rounded-none border-none text-foreground transition-all duration-200 ease-in-out hover:bg-accent hover:text-control-accent [&_svg]:size-3.5',
       className
     ]
       .filter(Boolean)

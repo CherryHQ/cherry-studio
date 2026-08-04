@@ -57,9 +57,9 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
         </div>
       </div>
       {answer && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span className="text-primary text-sm">{answer}</span>
+        <div className="flex items-center gap-2 rounded-lg border border-control-accent/30 bg-control-accent/10 p-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-control-accent" />
+          <span className="text-control-accent text-sm">{answer}</span>
         </div>
       )}
     </div>

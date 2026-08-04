@@ -1,0 +1,38 @@
+.app-shell-theme {
+  --app-shell-sidebar-glass: color-mix(in srgb, var(--sidebar) 70%, transparent);
+  --app-shell-frame-border: #eaebe8;
+  --app-shell-frame-border-glass: #dadcd6;
+  --app-shell-tab-glass-surface: rgba(255, 255, 255, 0.6);
+  --app-shell-tab-glass-border: rgba(0, 0, 0, 0.08);
+  --app-shell-tab-glass-hover: rgba(0, 0, 0, 0.06);
+  --app-shell-tab-glass-highlight: rgba(255, 255, 255, 0.28);
+  --app-shell-selected-surface: #f0f0ef;
+  --app-shell-selected-border: #eaebe8;
+  --app-shell-selected-outline: inset 0 0 0 0.5px var(--app-shell-selected-border);
+
+  background: var(--sidebar);
+  transition: background-color 200ms ease;
+}
+
+.dark .app-shell-theme {
+  --app-shell-frame-border: #32332c;
+  --app-shell-frame-border-glass: #3c3d35;
+  --app-shell-tab-glass-surface: rgba(255, 255, 255, 0.12);
+  --app-shell-tab-glass-border: transparent;
+  --app-shell-tab-glass-hover: rgba(255, 255, 255, 0.06);
+  --app-shell-tab-glass-highlight: rgba(255, 255, 255, 0.1);
+  --app-shell-selected-surface: #1f201d;
+  --app-shell-selected-border: #343531;
+}
+
+.app-shell-theme[data-glass-active='true'] {
+  background: var(--app-shell-sidebar-glass);
+}
+
+.app-shell-content-frame {
+  border-color: var(--app-shell-frame-border);
+}
+
+.app-shell-theme[data-glass-active='true'] .app-shell-content-frame {
+  border-color: var(--app-shell-frame-border-glass);
+}

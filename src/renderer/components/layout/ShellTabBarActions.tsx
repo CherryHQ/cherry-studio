@@ -65,8 +65,8 @@ export function ShellTabBarActions() {
               size="icon"
               aria-label={t('settings.title')}
               onClick={handleSettingsClick}
-              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-              <Settings size={16} strokeWidth={1.8} />
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:text-current">
+              <Settings size={16} />
             </Button>
           </CommandTooltip>
         )}
@@ -77,8 +77,8 @@ export function ShellTabBarActions() {
             size="icon"
             aria-label={t('globalSearch.open')}
             onClick={handleSearchClick}
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-            <Search size={16} strokeWidth={1.8} />
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:text-current">
+            <Search size={16} />
           </Button>
         </CommandTooltip>
       </div>
@@ -106,8 +106,8 @@ export function SidebarShellActions({
           size="icon"
           aria-label={t('settings.title')}
           onClick={onSettingsClick}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
-          <Settings size={18} strokeWidth={1.6} />
+          className="flex h-9 w-9 items-center justify-center rounded-full text-sidebar-foreground transition-colors hover:bg-accent/60 [&_svg]:text-current">
+          <Settings size={16} />
         </Button>
       </CommandTooltip>
     )
@@ -119,8 +119,8 @@ export function SidebarShellActions({
       variant="ghost"
       aria-label={t('settings.title')}
       onClick={onSettingsClick}
-      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
-      <Settings size={16} strokeWidth={1.6} />
+      className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-sidebar-foreground text-sm transition-colors hover:bg-accent/60 [&_svg]:text-current">
+      <Settings size={16} />
       <span>{t('settings.title')}</span>
     </Button>
   )

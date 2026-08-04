@@ -1,3 +1,5 @@
+import '@renderer/components/layout/AppShell.css'
+
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
@@ -5,6 +7,8 @@ import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
@@ -32,6 +36,9 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -71,6 +78,8 @@ export const SubWindowAppShell = () => {
   }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+  const showFallbackTitleBar =
+    !!activeTab && !isPageTitledRoute(activeTab.url) && !activeTab.url.startsWith('/settings')
 
   // Conversation pages switch topics/sessions inside their existing tab and
   // publish the current instance through metadata. Keep the tab URL canonical
@@ -94,37 +103,52 @@ export const SubWindowAppShell = () => {
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div
         data-ui="app.detached-window"
-        className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
+        className={cn(
+          'relative flex h-screen w-screen flex-col overflow-hidden text-foreground',
+          showFallbackTitleBar ? 'app-shell-theme' : isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+        )}
+        data-glass-active={isGlassActive}
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
-        <SubWindowTitleBar />
+        {showFallbackTitleBar && <SubWindowTitleBar />}
         {/* Content Area - Multi MemoryRouter Architecture */}
-        <main className="relative flex-1 overflow-hidden bg-background">
-          {/* Route Tabs: Only render non-dormant tabs */}
-          <ResourceViewSourceProvider>
+        <main
+          className={cn(
+            'relative min-h-0 flex-1 overflow-hidden',
+            showFallbackTitleBar ? 'px-1.5 pb-1.5' : isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+          )}>
+          <div
+            className={cn(
+              'relative h-full w-full',
+              showFallbackTitleBar &&
+                'app-shell-content-frame overflow-hidden rounded-[16px] border-[0.5px] bg-background'
+            )}>
+            {/* Route Tabs: Only render non-dormant tabs */}
+            <ResourceViewSourceProvider>
+              {tabs
+                .filter((t) => t.type === 'route' && !t.isDormant)
+                .map((tab) => (
+                  <TabRouter
+                    key={tab.id}
+                    tab={tab}
+                    isActive={tab.id === activeTabId}
+                    onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                  />
+                ))}
+            </ResourceViewSourceProvider>
+
+            {/* Webview Tabs: Only render non-dormant tabs */}
             {tabs
-              .filter((t) => t.type === 'route' && !t.isDormant)
+              .filter((t) => t.type === 'webview' && !t.isDormant)
               .map((tab) => (
-                <TabRouter
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === activeTabId}
-                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
-                />
+                <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
               ))}
-          </ResourceViewSourceProvider>
 
-          {/* Webview Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'webview' && !t.isDormant)
-            .map((tab) => (
-              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-            ))}
-
-          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
+            {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
               route tabs, same as the main AppShell. The cache backing the pool
               is per-window (Memory tier) so this sub-window manages its own
               list independently of the main window. */}
-          <MiniAppTabsPool />
+            <MiniAppTabsPool />
+          </div>
         </main>
 
         {/* OS window controls overlay — flush in the corner, above the title bar (z-[9999]),

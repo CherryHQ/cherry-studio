@@ -216,6 +216,15 @@ describe('mergeWindowOptions', () => {
   })
 })
 
+describe('glass shell registry', () => {
+  it.each([WindowType.Main, WindowType.SubWindow])('%s follows the native window focus state', (type) => {
+    expect(WINDOW_TYPE_REGISTRY[type]?.windowOptions).toMatchObject({
+      vibrancy: 'menu',
+      visualEffectState: 'followWindow'
+    })
+  })
+})
+
 // Regression guard (couples to the REAL Main entry on purpose, unlike the
 // fixture-based suite above). The v1→v2 migration (commit bafed0d0e) collapsed
 // v1's `frame: isLinux && pref` into `...(isLinux && { frame })`, silently

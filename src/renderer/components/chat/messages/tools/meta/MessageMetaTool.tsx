@@ -328,7 +328,7 @@ const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof 
   <ToolDisclosure
     variant="light"
     className={[
-      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
+      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--control-accent)] [--status-color-success:var(--success)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)

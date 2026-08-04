@@ -301,7 +301,7 @@ registerToolbarAction({
   id: 'copy',
   commandId: 'message.copy',
   label: ({ t }) => t('common.copy'),
-  icon: ({ copied }) => (copied ? <Check size={15} color="var(--primary)" /> : <CopyIcon size={15} />),
+  icon: ({ copied }) => (copied ? <Check size={15} color="var(--control-accent)" /> : <CopyIcon size={15} />),
   availability: toolbarAvailability('copy', ({ actions }) => !!actions.copyText)
 })
 
@@ -357,7 +357,11 @@ registerToolbarAction({
   commandId: 'message.useful',
   label: ({ t }) => t('chat.message.useful.label'),
   icon: ({ isSelectedForContext }) =>
-    isSelectedForContext ? <ThumbsUp size={17.5} fill="var(--primary)" strokeWidth={0} /> : <ThumbsUp size={15} />,
+    isSelectedForContext ? (
+      <ThumbsUp size={17.5} fill="var(--control-accent)" strokeWidth={0} />
+    ) : (
+      <ThumbsUp size={15} />
+    ),
   availability: toolbarAvailability(
     'useful',
     ({ actions, isAssistantMessage, isGrouped }) => isAssistantMessage && !!isGrouped && !!actions.setActiveBranch

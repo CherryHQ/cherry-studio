@@ -21,16 +21,26 @@ const updateTab = vi.fn()
 async function renderSubWindowAppShell({
   init = null,
   isPageTitledRoute = () => false,
-  tabs = defaultTabs
+  tabs = defaultTabs,
+  transparent = false,
+  focused = true
 }: {
   init?: SubWindowInitData | null
   isPageTitledRoute?: (url: string) => boolean
   tabs?: ShellTab[]
+  transparent?: boolean
+  focused?: boolean
 } = {}) {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
+  }))
+  vi.doMock('@renderer/hooks/useMacTransparentWindow', () => ({
+    default: () => transparent
+  }))
+  vi.doMock('@renderer/hooks/useWindowFocus', () => ({
+    default: () => focused
   }))
   vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
@@ -79,7 +89,7 @@ async function renderSubWindowAppShell({
   }))
 
   const { SubWindowAppShell } = await import('../SubWindowAppShell')
-  render(<SubWindowAppShell />)
+  return render(<SubWindowAppShell />)
 }
 
 afterEach(() => {
@@ -89,6 +99,14 @@ afterEach(() => {
 })
 
 describe('SubWindowAppShell', () => {
+  it('activates glass only while a transparent sub-window is focused', async () => {
+    await renderSubWindowAppShell({ transparent: true, focused: true })
+
+    const root = screen.getByTestId('sub-window-title-bar').parentElement
+    expect(root).toHaveAttribute('data-glass-active', 'true')
+    expect(root?.querySelector('.app-shell-content-frame')).toBeInTheDocument()
+  })
+
   it('renders the title bar and tab router', async () => {
     await renderSubWindowAppShell()
 
@@ -98,6 +116,25 @@ describe('SubWindowAppShell', () => {
     expect(provider).toContainElement(screen.getByTestId('tab-router'))
     expect(provider).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
     expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
+  })
+
+  it('lets conversation pages own their window chrome', async () => {
+    await renderSubWindowAppShell({
+      isPageTitledRoute: (url) => url.startsWith('/app/chat'),
+      tabs: [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
+    })
+
+    expect(screen.queryByTestId('sub-window-title-bar')).not.toBeInTheDocument()
+    expect(document.querySelector('.app-shell-content-frame')).not.toBeInTheDocument()
+  })
+
+  it('lets detached settings own their responsive frame', async () => {
+    await renderSubWindowAppShell({
+      tabs: [{ id: 'home', type: 'route', url: '/settings/provider', title: 'Settings' }]
+    })
+
+    expect(screen.queryByTestId('sub-window-title-bar')).not.toBeInTheDocument()
+    expect(document.querySelector('.app-shell-content-frame')).not.toBeInTheDocument()
   })
 
   it('opens the detached tab from WindowManager init data', async () => {

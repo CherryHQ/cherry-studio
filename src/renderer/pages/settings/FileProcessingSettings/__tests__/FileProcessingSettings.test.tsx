@@ -731,7 +731,7 @@ describe('processing settings pages', () => {
       }
     }
 
-    const { rerender } = render(<OcrSettings />)
+    const { unmount } = render(<OcrSettings />)
 
     await waitFor(() => {
       expect(
@@ -741,7 +741,10 @@ describe('processing settings pages', () => {
       ).toHaveTextContent('PP-OCRv5')
     })
 
-    rerender(<DocumentProcessingSettings />)
+    // These are separate routed pages in production. Remount here as routing
+    // does so ProcessorPanel does not retain the OCR page's local draft state.
+    unmount()
+    render(<DocumentProcessingSettings />)
     await waitFor(() => {
       expect(
         screen.getByRole('button', {

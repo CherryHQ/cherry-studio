@@ -130,7 +130,7 @@ const MessageHeader: FC<Props> = memo(
             )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
-                <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
+                <Sparkle className="shrink-0" fill="var(--control-accent)" strokeWidth={0} size={16} />
               </Tooltip>
             )}
             <div

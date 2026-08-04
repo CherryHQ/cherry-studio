@@ -139,7 +139,7 @@ export function AssistantConversationPickerDialog({
             size={15}
             className={cn(
               'shrink-0',
-              activeTab ? 'text-primary!' : 'text-muted-foreground group-hover:text-foreground'
+              activeTab ? 'text-control-accent!' : 'text-muted-foreground group-hover:text-foreground'
             )}
           />
         </button>

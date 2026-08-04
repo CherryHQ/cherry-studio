@@ -543,7 +543,7 @@ function AgentBasicFields({
         onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
       />
       <CompactModelField
         form={form}
@@ -557,7 +557,7 @@ function AgentBasicFields({
         onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
       />
       <CompactModelField
         form={form}
@@ -571,7 +571,7 @@ function AgentBasicFields({
         onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
       />
       <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       <HeartbeatSettingsField

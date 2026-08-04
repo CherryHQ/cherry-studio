@@ -68,7 +68,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
           <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
           {isStreaming ? (
             <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
-              <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+              <span className="size-1.5 animate-pulse rounded-full bg-control-accent" />
               {t('html_artifacts.generating', 'Generating content...')}
             </span>
           ) : (

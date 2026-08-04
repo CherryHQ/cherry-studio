@@ -10,12 +10,12 @@ const logger = loggerService.withContext('AIDiagnosisSection')
 const AI_DIAGNOSIS_RESULT_COLOR = 'var(--muted-foreground)'
 
 const diagPanelStyle: React.CSSProperties = {
-  border: '1px solid color-mix(in srgb, var(--primary) 15%, transparent)',
-  background: 'color-mix(in srgb, var(--primary) 3%, transparent)'
+  border: '1px solid color-mix(in srgb, var(--control-accent) 15%, transparent)',
+  background: 'color-mix(in srgb, var(--control-accent) 3%, transparent)'
 }
 
 const stepBgStyle: React.CSSProperties = {
-  background: 'color-mix(in srgb, var(--primary) 4%, transparent)'
+  background: 'color-mix(in srgb, var(--control-accent) 4%, transparent)'
 }
 
 export interface AiDiagnosisSectionHandle {
@@ -91,7 +91,7 @@ const AiDiagnosisSectionWithStatus = memo(
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--control-accent)' }}>
             <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
           </div>
@@ -112,7 +112,9 @@ const AiDiagnosisSectionWithStatus = memo(
         )}
         {status === 'done' && result && (
           <>
-            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+            <div
+              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
+              style={{ color: 'var(--control-accent)' }}>
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
@@ -127,8 +129,8 @@ const AiDiagnosisSectionWithStatus = memo(
                     className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
                     style={stepBgStyle}>
                     <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-primary-foreground"
-                      style={{ background: 'var(--primary)' }}>
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-control-accent-foreground"
+                      style={{ background: 'var(--control-accent)' }}>
                       {i + 1}
                     </span>
                     <span>{step.text}</span>

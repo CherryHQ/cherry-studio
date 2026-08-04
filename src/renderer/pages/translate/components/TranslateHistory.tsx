@@ -306,7 +306,7 @@ const HistoryRow: FC<{
           {item._sourceEmoji} {item._sourceLabel}
         </span>
         <ArrowRight size={8} className="text-foreground-tertiary" />
-        <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
+        <span className="rounded bg-control-accent/10 px-1 py-px text-control-accent text-sm">
           {item._targetEmoji} {item._targetLabel}
         </span>
         <span className="ml-auto text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
@@ -360,7 +360,7 @@ const HistoryDetail: FC<{
             {item._sourceEmoji} {item._sourceLabel}
           </span>
           <ArrowRight size={10} className="text-foreground-tertiary" />
-          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-sm">
+          <span className="rounded-sm bg-control-accent/10 px-1.5 py-0.5 text-control-accent text-sm">
             {item._targetEmoji} {item._targetLabel}
           </span>
           <span className="flex-1" />

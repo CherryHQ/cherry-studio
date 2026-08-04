@@ -89,11 +89,11 @@ export function FileTreeRow(props: FileTreeRowProps) {
           : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/60 text-accent-foreground',
         isDragging && 'opacity-50',
-        dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
+        dragPosition === 'inside' && 'bg-control-accent/15 ring-1 ring-control-accent/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-control-accent before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-control-accent after:content-['']"
       )}>
       {isFolder ? (
         <Button

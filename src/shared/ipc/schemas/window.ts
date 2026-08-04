@@ -32,6 +32,7 @@ export const windowRequestSchemas = {
   // Queries whose result the caller reads.
   'window.is_maximized': defineRoute({ input: z.void(), output: z.boolean() }),
   'window.is_full_screen': defineRoute({ input: z.void(), output: z.boolean() }),
+  'window.is_focused': defineRoute({ input: z.void(), output: z.boolean() }),
   // The init data WindowManager stored for the caller window; its shape varies per
   // window type, so it is opaque (unknown) and the consumer casts (see useWindowInitData).
   'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() }),
@@ -52,11 +53,12 @@ export const windowRequestSchemas = {
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
-// All three are sent *directed* to the affected window (IpcApiService.send), never
+// All events are sent *directed* to the affected window (IpcApiService.send), never
 // broadcast — a window only cares about its own state transitions.
 export type WindowEventSchemas = {
   'window.maximized_changed': boolean
   'window.fullscreen_changed': boolean
+  'window.focus_changed': boolean
   // Payload = the initData passed to open()/pushInitData(); opaque, consumer casts.
   'window.reused': unknown
 }

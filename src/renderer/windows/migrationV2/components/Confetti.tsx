@@ -8,7 +8,7 @@
 
 import React, { useMemo } from 'react'
 
-const COLOR_CLASSES = ['bg-primary', 'bg-green-500', 'bg-blue-500', 'bg-amber-500', 'bg-pink-500', 'bg-sky-500']
+const COLOR_CLASSES = ['bg-control-accent', 'bg-green-500', 'bg-blue-500', 'bg-amber-500', 'bg-pink-500', 'bg-sky-500']
 
 const PIECE_COUNT = 60
 

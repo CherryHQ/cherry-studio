@@ -1139,7 +1139,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                       disabled={saving || isEditing}
                       aria-label={t('agent.channels.bindAgent')}
                       aria-invalid={(submitted && !agentId) || undefined}
-                      aria-busy={saving || undefined}>
+                      aria-busy={saving || undefined}
+                      className="border-input bg-transparent hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent">
                       <Bot size={14} />
                       <span>{selectedAgent?.name ?? t('agent.channels.selectAgent')}</span>
                       <ChevronDown size={14} />

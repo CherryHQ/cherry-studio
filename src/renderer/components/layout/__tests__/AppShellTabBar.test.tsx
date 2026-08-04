@@ -10,6 +10,7 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
+  focusState: { value: true },
   macTransparentState: { value: false },
   platformState: { isMac: false },
   showSearchPopup: vi.fn()
@@ -31,6 +32,10 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => mocks.macTransparentState.value
+}))
+
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => mocks.focusState.value
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -158,6 +163,7 @@ const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.focusState.value = true
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
 })
@@ -189,6 +195,25 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('uses the glass selected treatment only while the transparent window is focused', () => {
+    mocks.macTransparentState.value = true
+    mocks.focusState.value = true
+
+    renderTabBar()
+
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('bg-[var(--app-shell-tab-glass-surface)]')
+  })
+
+  it('uses the opaque selected treatment when a transparent window is inactive', () => {
+    mocks.macTransparentState.value = true
+    mocks.focusState.value = false
+
+    renderTabBar()
+
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('bg-[var(--app-shell-selected-surface)]')
+  })
+
   it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
     const openTab = vi.fn()

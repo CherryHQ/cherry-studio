@@ -241,6 +241,23 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
   })
 
+  it('renders install actions in the shared dependency card action area', async () => {
+    setSnapshots({
+      fd: {
+        name: 'fd',
+        availability: { source: 'none' },
+        application: { status: 'absent' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+    const installButton = within(card).getByText('settings.mcp.install').closest('button') as HTMLButtonElement
+
+    expect(card).toHaveAttribute('data-slot', 'dependency-card')
+    expect(installButton.closest('[data-slot="dependency-card-actions"]')).toBeInTheDocument()
+  })
+
   it('gives the public icon-only dependency actions accessible names', async () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByLabelText('settings.dependencies.checkUpdates')).toBeInTheDocument()
@@ -363,8 +380,11 @@ describe('EnvironmentDependencies', () => {
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    const installButton = within(card).getByText('settings.mcp.install').closest('button') as HTMLButtonElement
+
+    expect(card).toHaveAttribute('data-slot', 'dependency-card')
+    expect(installButton.closest('[data-slot="dependency-card-actions"]')).toBeInTheDocument()
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
-    expect(within(card).getByText('settings.mcp.install')).toBeInTheDocument()
   })
 
   it('never renders an install retry after a custom tool removal failed', async () => {

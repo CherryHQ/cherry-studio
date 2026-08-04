@@ -65,7 +65,7 @@ export const WebCitationCard: React.FC<{
             <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>
           )}
 
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-control-accent/15 text-[10px] text-control-accent leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}

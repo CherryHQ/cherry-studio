@@ -42,7 +42,9 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
       <McpDetailList>
         {resource.mimeType && (
           <McpDetailItem label={t('settings.mcp.resources.mimeType') || 'MIME Type'}>
-            <Badge className="border-primary/30 bg-primary/10 text-primary">{resource.mimeType}</Badge>
+            <Badge className="border-control-accent/30 bg-control-accent/10 text-control-accent">
+              {resource.mimeType}
+            </Badge>
           </McpDetailItem>
         )}
         {resource.size !== undefined && (

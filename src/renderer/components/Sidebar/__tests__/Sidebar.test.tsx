@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
@@ -121,7 +124,7 @@ const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
   label: item.label,
   renderIcon: (size) => {
     const Icon = item.icon
-    return <Icon size={size} strokeWidth={1.6} />
+    return <Icon size={size} />
   },
   isActive: (active) => active.activeItem === item.id,
   onOpen: () => {},
@@ -149,6 +152,7 @@ const items: AppItem[] = [
 const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
+const sidebarCss = readFileSync(join(process.cwd(), 'src/renderer/components/Sidebar/Sidebar.css'), 'utf-8')
 
 afterEach(() => {
   uiMocks.sortableCalls.length = 0
@@ -293,6 +297,37 @@ describe('Sidebar resize handle', () => {
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
+  it('keeps a resize hit zone on the floating sidebar edge', () => {
+    const setWidth = vi.fn()
+    const onResizingChange = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={setWidth}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onResizingChange={onResizingChange}
+      />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2')
+    const resizeHandle = panel?.querySelector('[data-sidebar-resize-handle]')
+
+    expect(resizeHandle).toBeInTheDocument()
+    expect(resizeHandle).toHaveClass('absolute', 'inset-y-0', 'right-0', 'z-50', 'w-2')
+    expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+
+    fireEvent.mouseDown(resizeHandle as HTMLElement, { clientX: 174 })
+    expect(onResizingChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.mouseMove(document, { clientX: 180 })
+    expect(setWidth).toHaveBeenLastCalledWith(180)
+
+    fireEvent.mouseUp(document)
+    expect(onResizingChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('restores a hidden sidebar by dragging wider from the hot zone', () => {
     const { setWidth, onResizePreview, onHoverChange } = dragResizeFrom(
       SIDEBAR_HIDDEN_THRESHOLD - 10,
@@ -312,6 +347,21 @@ describe('Sidebar resize handle', () => {
 
     expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
     expect(getByText('Chat')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('sidebar-entry')
+  })
+
+  it('owns full-row hover and active glass styles outside MenuItem utility ordering', () => {
+    expect(sidebarCss).toContain('--sidebar-active-bg: var(--app-shell-selected-surface, var(--sidebar-accent))')
+    expect(sidebarCss).toContain('--sidebar-active-border: var(--app-shell-selected-border, var(--sidebar-border))')
+    expect(sidebarCss).toContain('--sidebar-floating-shadow: rgba(0, 0, 0, 0.25)')
+    expect(sidebarCss).toContain('.sidebar-theme .sidebar-entry:hover')
+    expect(sidebarCss).toContain('background: var(--sidebar-hover-bg)')
+    expect(sidebarCss).toContain(".sidebar-theme .sidebar-entry[data-active='true']")
+    expect(sidebarCss).toContain('background: var(--sidebar-active-bg)')
+    expect(sidebarCss).toContain('border-color: var(--sidebar-active-border)')
+    expect(sidebarCss).toContain('box-shadow: var(--sidebar-active-shadow)')
+    expect(sidebarCss).toContain(".app-shell-theme[data-glass-active='true'] .sidebar-entry[data-active='true']")
+    expect(sidebarCss).toContain('backdrop-filter: blur(4px)')
   })
 
   it('wires context menu actions for sidebar app items', () => {
@@ -420,8 +470,8 @@ describe('Sidebar resize handle', () => {
     const dockedMiniAppButton = miniAppLogo?.closest('button')
 
     expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
-    expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
-    expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
+    expect(dockedMiniAppButton).toHaveClass('h-8', 'w-8')
+    expect(dockedMiniAppButton).toHaveClass('text-sidebar-foreground', 'hover:bg-accent/60')
   })
 
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
@@ -539,7 +589,7 @@ describe('Sidebar resize handle', () => {
     expect(document.body).not.toHaveTextContent('theme-icon')
   })
 
-  it('uses a solid sidebar background for the floating hidden-state panel', () => {
+  it('uses the owner-scoped glass surface for the floating hidden-state panel', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
@@ -552,7 +602,7 @@ describe('Sidebar resize handle', () => {
 
     const panel = container.querySelector('.slide-in-from-left-2')
 
-    expect(panel).toHaveClass('bg-sidebar')
-    expect(panel).not.toHaveClass('bg-sidebar/70')
+    expect(panel).toHaveClass('sidebar-theme', 'bg-[var(--sidebar-floating-bg)]', 'backdrop-blur-2xl')
+    expect(panel).not.toHaveClass('bg-sidebar')
   })
 })

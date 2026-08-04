@@ -45,6 +45,7 @@
 
   .lucide:not(.lucide-custom) {
     color: var(--muted-foreground);
+    stroke-width: var(--icon-stroke);
   }
 }
 

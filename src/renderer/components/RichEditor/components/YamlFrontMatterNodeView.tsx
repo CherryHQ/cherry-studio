@@ -350,7 +350,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           ) : (
             <button
               type="button"
-              className="inline-flex size-5 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground transition-colors hover:border-control-accent hover:bg-control-accent/5 hover:text-control-accent"
               onClick={() => setShowArrayInput((prev) => ({ ...prev, [property.key]: true }))}>
               <Plus size={12} />
             </button>

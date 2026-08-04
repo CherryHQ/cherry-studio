@@ -10,7 +10,7 @@ export const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full
 export const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-foreground shadow-none hover:bg-accent active:bg-accent disabled:bg-transparent disabled:text-foreground-disabled [&_svg]:text-muted-foreground hover:[&_svg]:text-foreground'
 export const COMPOSER_SEND_ACCESSORY_BUTTON_CLASS =
-  'size-7.5 shrink-0 rounded-full text-muted-foreground! duration-150 ease-in-out hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-accent data-[active=true]:text-primary! data-[active=true]:hover:text-primary! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:!size-[18px]'
+  'size-7.5 shrink-0 rounded-full text-muted-foreground! duration-150 ease-in-out hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-accent data-[active=true]:text-control-accent! data-[active=true]:hover:text-control-accent! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:!size-[18px]'
 export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 

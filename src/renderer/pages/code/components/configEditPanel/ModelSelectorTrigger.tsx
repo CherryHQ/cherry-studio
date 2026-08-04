@@ -30,7 +30,7 @@ export const ModelSelectorTrigger = ({
       size="sm"
       {...props}
       className={cn(
-        'group h-7.5 w-full min-w-0 justify-between rounded-lg border-border bg-muted/30 px-2.5 text-[13px] shadow-none hover:bg-muted/50',
+        'group h-7.5 w-full min-w-0 justify-between rounded-lg border-input bg-transparent px-2.5 text-[13px] shadow-none hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent',
         className
       )}>
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">

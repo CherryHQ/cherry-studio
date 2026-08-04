@@ -77,8 +77,8 @@ export function PageSidebar({
               label: t('common.resize_panel'),
               onResize: setPaneWidth
             })}
-            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
+            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:bg-control-accent/40 focus-visible:outline-none">
+            <div className="absolute top-0 left-0 h-full w-0.5 bg-control-accent/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-control-accent/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>
       )}
