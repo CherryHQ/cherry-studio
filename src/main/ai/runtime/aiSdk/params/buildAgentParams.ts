@@ -145,6 +145,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const capabilities = assistant
     ? resolveCapabilities(model, provider, assistant, {
         webToolRoutes: finalWebToolRoutes,
+        runtimeProviderId: sdkConfig.providerId,
         serving: sdkConfig.providerSettings
       })
     : undefined

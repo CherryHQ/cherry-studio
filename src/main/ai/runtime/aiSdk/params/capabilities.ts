@@ -50,6 +50,14 @@ export interface ResolveCapabilitiesOptions {
    * rotation single-shot and stays correct with several providers of the same preset.
    */
   serving?: KimiFormulaCredentials
+  /**
+   * The id the runtime actually instantiates. `config.ts` may override the registry's adapter family
+   * (moonshot and cherryin resolve to `openai-compatible` there but run under their own extension),
+   * and `providerToolPlugin` reads its config by THAT id — so the config has to be built under it,
+   * not under the registry's. Keying it off the adapter family handed the Kimi factory an empty
+   * config, i.e. an empty api key.
+   */
+  runtimeProviderId?: AppProviderId
 }
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
@@ -89,7 +97,7 @@ export function resolveCapabilities(
       maxResults: preferenceService.get('chat.web_search.max_results'),
       excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
     }
-    const aiSdkProviderId = getAiSdkProviderId(provider, model)
+    const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
         aiSdkProviderId,
