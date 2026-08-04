@@ -60,7 +60,7 @@ function cellNoise(index: number, salt: number): number {
 }
 
 function createGrid(width: number, height: number): Grid {
-  const compact = Math.min(width, height) <= COMPACT_SURFACE_MAX_SIZE
+  const compact = Math.max(width, height) <= COMPACT_SURFACE_MAX_SIZE
   const cellSize = compact ? COMPACT_CELL_SIZE : DEFAULT_CELL_SIZE
   const baseGap = compact ? COMPACT_CELL_GAP : DEFAULT_CELL_GAP
   let pitch = cellSize + baseGap

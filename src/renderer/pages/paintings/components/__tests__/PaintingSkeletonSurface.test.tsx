@@ -148,6 +148,16 @@ describe('PaintingSkeletonSurface', () => {
     expect(cells[15].style.top).toBe('37px')
   })
 
+  it('keeps default-sized dots for a wide, short surface', () => {
+    size = { width: 1000, height: 44 }
+    const { container } = render(<PaintingSkeletonSurface />)
+    const cells = container.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
+
+    expect(cells.length).toBeLessThanOrEqual(256)
+    expect(cells[0].style.width).toBe('14px')
+    expect(cells[0].style.height).toBe('14px')
+  })
+
   it('remeasures the grid when its surface size changes', () => {
     const { container } = render(<PaintingSkeletonSurface />)
     const initialGrid = getSlot(container, 'painting-skeleton-grid')!
