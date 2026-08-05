@@ -44,8 +44,8 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
-  /** Irrecoverable legacy IndexedDB data skipped so the remaining migration could complete. */
-  dexieRecovery?: DexieRecoveryReport[]
+  /** Non-empty reports for irrecoverable legacy IndexedDB data skipped during export. */
+  dexieRecoveryReports?: DexieRecoveryReport[]
   /**
    * Resolved v1 data directory to surface on the introduction screen, seeded
    * only when the migration gate auto-recovered a non-default custom userData
@@ -117,13 +117,25 @@ export interface MigrationResult {
 
 export type DexieRecoveryReport =
   | {
+      /** Individual records were skipped after a page read failed. */
       scope: 'records'
+      /** Legacy Dexie object store containing the damaged records. */
       table: string
+      /** Total records skipped from this table during the export. */
       skippedRecords: number
+      /** At most 10 primary keys for logs and diagnostics; never rendered in the migration UI. */
       samplePrimaryKeys: string[]
     }
-  | { scope: 'table'; table: string }
-  | { scope: 'database' }
+  | {
+      /** The table was exported as empty because its primary keys could not be enumerated. */
+      scope: 'table'
+      /** Legacy Dexie object store exported as empty. */
+      table: string
+    }
+  | {
+      /** Every supported Dexie table was exported as empty because the database could not be inspected. */
+      scope: 'database'
+    }
 
 // Migration status stored in app_state table
 export interface MigrationStatusValue {
@@ -144,7 +156,14 @@ export interface StartMigrationPayload {
   reduxData: Record<string, unknown>
   dexieExportPath: string
   localStorageExportPath?: string
-  dexieRecovery?: DexieRecoveryReport[]
+  /** Present only when the Dexie export returned one or more recovery reports. */
+  dexieRecoveryReports?: DexieRecoveryReport[]
+}
+
+export interface MigrationErrorReportPayload {
+  message: string
+  /** Present only when Dexie recovery completed before a later renderer-side migration step failed. */
+  dexieRecoveryReports?: DexieRecoveryReport[]
 }
 
 export type MigrationDiagnosticSaveResult =

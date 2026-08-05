@@ -102,6 +102,42 @@ describe('saveMigrationDiagnosticBundle', () => {
     expect(JSON.stringify(metadata)).not.toMatch(/"(?:error|stack|cause|path|processId|runId)"\s*:/)
   })
 
+  it('writes the terminal error and Dexie recovery reports into diagnostic metadata', async () => {
+    await writeLog(`app.${LOG_DATE}.log`, 'migration failed')
+
+    expect(
+      await saveMigrationDiagnosticBundle({
+        destination: destination(),
+        stage: 'error',
+        logDate: LOG_DATE,
+        error: 'Validation failed after degraded IndexedDB export',
+        dexieRecoveryReports: [
+          {
+            scope: 'records',
+            table: 'message_blocks',
+            skippedRecords: 1,
+            samplePrimaryKeys: ['block-2']
+          }
+        ]
+      })
+    ).toBe('included')
+
+    const zip = await readZip(destination())
+    const metadata = JSON.parse(zip.contents['migration-diagnostics.json'].toString())
+    expect(metadata.migration).toEqual({
+      stage: 'error',
+      error: 'Validation failed after degraded IndexedDB export',
+      dexieRecoveryReports: [
+        {
+          scope: 'records',
+          table: 'message_blocks',
+          skippedRecords: 1,
+          samplePrimaryKeys: ['block-2']
+        }
+      ]
+    })
+  })
+
   it('uses the failure-page log date even when a newer date exists', async () => {
     await Promise.all([
       writeLog(`app.${LOG_DATE}.log`, 'base'),

@@ -6,8 +6,10 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import {
+  type DexieRecoveryReport,
   type MigrationDiagnosticSavePayload,
   type MigrationDiagnosticSaveResult,
+  type MigrationErrorReportPayload,
   type MigrationExportFileWriteMode,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -47,6 +49,9 @@ let currentProgress: MigrationProgress = {
 // Held separately from currentProgress so it survives Retry (which rebuilds the
 // introduction progress from scratch) instead of vanishing after a failed run.
 let dataLocationNotice: string | null = null
+// Preserve observed legacy data loss for this main-process migration session; a clean retry cannot restore a
+// record Chromium removed.
+let retainedDexieRecoveryReports: DexieRecoveryReport[] = []
 
 function assertMigrationWindowSender(event: IpcMainInvokeEvent): void {
   if (!validateSender(event)) throw new Error('Unauthorized migration IPC sender.')
@@ -153,6 +158,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
       const { dialogTitle, logDate } = parsedPayload.data
       const stage = currentProgress.stage
+      const error = currentProgress.error
+      const dexieRecoveryReports = retainedDexieRecoveryReports.length ? retainedDexieRecoveryReports : undefined
       if (stage !== 'error' && stage !== 'version_incompatible') {
         throw new Error('Invalid migration diagnostic stage.')
       }
@@ -172,7 +179,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           const logs = await saveMigrationDiagnosticBundle({
             destination: filePath,
             stage,
-            logDate
+            logDate,
+            ...(error !== undefined ? { error } : {}),
+            ...(dexieRecoveryReports ? { dexieRecoveryReports } : {})
           })
           if (!logs) return { status: 'failed' }
           lastSavedDiagnosticBundlePath = filePath
@@ -228,7 +237,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
-      const { reduxData, dexieExportPath, localStorageExportPath, dexieRecovery } = payload
+      const { reduxData, dexieExportPath, localStorageExportPath, dexieRecoveryReports } = payload
+      retainDexieRecoveryReports(dexieRecoveryReports)
 
       if (!reduxData || !dexieExportPath) {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
@@ -268,15 +278,17 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           })),
           warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
           summary: createMigrationSummary(result, currentProgress),
-          ...(dexieRecovery?.length ? { dexieRecovery } : {})
+          ...(retainedDexieRecoveryReports.length ? { dexieRecoveryReports: retainedDexieRecoveryReports } : {})
         })
       } else {
+        const errorMessage = result.error || 'Migration failed'
         updateProgress({
           stage: 'error',
           overallProgress: currentProgress.overallProgress,
-          currentMessage: result.error || 'Migration failed',
+          currentMessage: errorMessage,
           migrators: currentProgress.migrators,
-          error: result.error
+          error: errorMessage,
+          ...(retainedDexieRecoveryReports.length ? { dexieRecoveryReports: retainedDexieRecoveryReports } : {})
         })
       }
 
@@ -294,7 +306,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         overallProgress: currentProgress.overallProgress,
         currentMessage: errorMessage,
         migrators: currentProgress.migrators,
-        error: errorMessage
+        error: errorMessage,
+        ...(retainedDexieRecoveryReports.length ? { dexieRecoveryReports: retainedDexieRecoveryReports } : {})
       })
 
       throw error
@@ -306,13 +319,16 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, payload: MigrationErrorReportPayload) => {
+    const { message, dexieRecoveryReports } = payload
+    retainDexieRecoveryReports(dexieRecoveryReports)
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
       currentMessage: message,
       migrators: currentProgress.migrators,
-      error: message
+      error: message,
+      ...(retainedDexieRecoveryReports.length ? { dexieRecoveryReports: retainedDexieRecoveryReports } : {})
     })
     return true
   })
@@ -481,6 +497,7 @@ export function resetMigrationData(): void {
   inFlightDiagnosticSave = null
   quitScheduled = false
   dataLocationNotice = null
+  retainedDexieRecoveryReports = []
   lastSavedDiagnosticBundlePath = null
   currentProgress = {
     stage: 'introduction',
@@ -488,6 +505,12 @@ export function resetMigrationData(): void {
     currentMessage: 'Ready to start data migration',
     migrators: []
   }
+}
+
+function retainDexieRecoveryReports(reports: DexieRecoveryReport[] | undefined): void {
+  if (!reports?.length) return
+  retainedDexieRecoveryReports = reports
+  logger.warn('Migration received IndexedDB recovery reports', { dexieRecoveryReports: reports })
 }
 
 /**

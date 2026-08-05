@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -106,7 +107,7 @@ describe('MigrationIpcHandler', () => {
 
   describe('diagnostic bundle actions', () => {
     beforeEach(() => {
-      invoke(MigrationIpcChannels.ReportError, 'diagnostic test failure')
+      invoke(MigrationIpcChannels.ReportError, { message: 'diagnostic test failure' })
     })
 
     it('rejects save requests outside the error and version-incompatible stages', async () => {
@@ -204,7 +205,8 @@ describe('MigrationIpcHandler', () => {
       expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
         destination: '/chosen/diagnostics.zip',
         stage: 'error',
-        logDate: '2026-07-23'
+        logDate: '2026-07-23',
+        error: 'diagnostic test failure'
       })
     })
 
@@ -216,7 +218,8 @@ describe('MigrationIpcHandler', () => {
       expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
         destination: '/chosen/diagnostics.data',
         stage: 'error',
-        logDate: '2026-07-23'
+        logDate: '2026-07-23',
+        error: 'diagnostic test failure'
       })
     })
 
@@ -248,7 +251,7 @@ describe('MigrationIpcHandler', () => {
       const firstSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
       await vi.waitFor(() => expect(diagnosticMocks.saveBundle).toHaveBeenCalledOnce())
       await invoke(MigrationIpcChannels.Retry)
-      invoke(MigrationIpcChannels.ReportError, 'second diagnostic test failure')
+      invoke(MigrationIpcChannels.ReportError, { message: 'second diagnostic test failure' })
 
       await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)).resolves.toEqual({
         status: 'failed'
@@ -448,7 +451,7 @@ describe('MigrationIpcHandler', () => {
     await invoke(MigrationIpcChannels.StartMigration, {
       reduxData: {},
       dexieExportPath: '/dexie',
-      dexieRecovery: [
+      dexieRecoveryReports: [
         {
           scope: 'records',
           table: 'message_blocks',
@@ -467,7 +470,7 @@ describe('MigrationIpcHandler', () => {
       durationMs: 4200
     })
     expect(progress.warnings).toEqual(['w1'])
-    expect(progress.dexieRecovery).toEqual([
+    expect(progress.dexieRecoveryReports).toEqual([
       {
         scope: 'records',
         table: 'message_blocks',
@@ -573,6 +576,15 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('migration failure', () => {
+    const dexieRecoveryReports = [
+      {
+        scope: 'records' as const,
+        table: 'message_blocks',
+        skippedRecords: 1,
+        samplePrimaryKeys: ['block-2']
+      }
+    ]
+
     it('does not clean staged v1 agent files when a later migrator fails and the user skips migration', async () => {
       engineMock.run.mockResolvedValue({
         success: false,
@@ -613,6 +625,41 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
 
+    it('preserves recovery reports when the run reports failure and includes them in diagnostics', async () => {
+      engineMock.run.mockResolvedValue({
+        success: false,
+        error: 'Validation failed',
+        totalDuration: 1200,
+        migratorResults: []
+      })
+
+      await invoke(MigrationIpcChannels.StartMigration, {
+        reduxData: {},
+        dexieExportPath: '/dexie',
+        dexieRecoveryReports
+      })
+
+      expect(lastProgress()).toMatchObject({
+        stage: 'error',
+        error: 'Validation failed',
+        dexieRecoveryReports
+      })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Migration received IndexedDB recovery reports', {
+        dexieRecoveryReports
+      })
+
+      choosePath('/chosen/diagnostics.zip')
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
+
+      expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
+        destination: '/chosen/diagnostics.zip',
+        stage: 'error',
+        logDate: '2026-07-23',
+        error: 'Validation failed',
+        dexieRecoveryReports
+      })
+    })
+
     it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
@@ -632,8 +679,26 @@ describe('MigrationIpcHandler', () => {
       expect(lastProgress().stage).toBe('completed')
     })
 
+    it('preserves recovery reports when the run rejects', async () => {
+      engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
+
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, {
+          reduxData: {},
+          dexieExportPath: '/dexie',
+          dexieRecoveryReports
+        })
+      ).rejects.toThrow('Engine exploded')
+
+      expect(lastProgress()).toMatchObject({
+        stage: 'error',
+        error: 'Engine exploded',
+        dexieRecoveryReports
+      })
+    })
+
     it('transitions main to the terminal error stage when the renderer reports a pre-handoff failure', async () => {
-      const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      const result = await invoke(MigrationIpcChannels.ReportError, { message: 'Dexie export failed' })
 
       expect(result).toBe(true)
       const progress = lastProgress()
@@ -641,6 +706,56 @@ describe('MigrationIpcHandler', () => {
       expect(progress.error).toBe('Dexie export failed')
       expect(progress.currentMessage).toBe('Dexie export failed')
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
+    })
+
+    it('preserves recovery reports from a renderer-side post-Dexie failure', async () => {
+      const result = await invoke(MigrationIpcChannels.ReportError, {
+        message: 'localStorage export failed',
+        dexieRecoveryReports
+      })
+
+      expect(result).toBe(true)
+      expect(lastProgress()).toMatchObject({
+        stage: 'error',
+        error: 'localStorage export failed',
+        dexieRecoveryReports
+      })
+    })
+
+    it('retains prior recovery reports when a clean retry completes', async () => {
+      engineMock.run
+        .mockResolvedValueOnce({ success: false, error: 'First run failed', totalDuration: 1, migratorResults: [] })
+        .mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
+
+      await invoke(MigrationIpcChannels.StartMigration, {
+        reduxData: {},
+        dexieExportPath: '/dexie',
+        dexieRecoveryReports
+      })
+      await invoke(MigrationIpcChannels.Retry)
+      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      expect(lastProgress()).toMatchObject({
+        stage: 'completed',
+        dexieRecoveryReports
+      })
+    })
+
+    it('clears retained recovery reports when migration data is reset', async () => {
+      engineMock.run
+        .mockResolvedValueOnce({ success: false, error: 'First run failed', totalDuration: 1, migratorResults: [] })
+        .mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
+
+      await invoke(MigrationIpcChannels.StartMigration, {
+        reduxData: {},
+        dexieExportPath: '/dexie',
+        dexieRecoveryReports
+      })
+      resetMigrationData()
+      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      expect(lastProgress().stage).toBe('completed')
+      expect(lastProgress().dexieRecoveryReports).toBeUndefined()
     })
   })
 
@@ -699,7 +814,7 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('pushes the live stage to the window manager on progress updates', async () => {
-      await invoke(MigrationIpcChannels.ReportError, 'boom')
+      await invoke(MigrationIpcChannels.ReportError, { message: 'boom' })
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
   })

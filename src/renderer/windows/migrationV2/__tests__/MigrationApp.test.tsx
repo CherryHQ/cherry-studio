@@ -38,7 +38,7 @@ const migrationHookMock = vi.hoisted(() => ({
   } as {
     currentMessage: string
     dataLocation?: string
-    dexieRecovery?: DexieRecoveryReport[]
+    dexieRecoveryReports?: DexieRecoveryReport[]
     i18nMessage?: { key: string; params?: Record<string, string | number> }
     migrators: unknown[]
     overallProgress: number
@@ -488,7 +488,7 @@ describe('MigrationApp', () => {
         ({
           exportAll: vi.fn().mockResolvedValue({
             exportPath: '/tmp/userData/migration_temp/dexie_export',
-            recovery: []
+            recoveryReports: []
           })
         }) as unknown as DexieExporter
     )
@@ -523,7 +523,7 @@ describe('MigrationApp', () => {
         ({
           exportAll: vi.fn().mockResolvedValue({
             exportPath: '/tmp/userData/migration_temp/dexie_export',
-            recovery: [
+            recoveryReports: [
               {
                 scope: 'records',
                 table: 'message_blocks',
@@ -553,7 +553,7 @@ describe('MigrationApp', () => {
       reduxData: {},
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json',
-      dexieRecovery: [
+      dexieRecoveryReports: [
         {
           scope: 'records',
           table: 'message_blocks',
@@ -591,7 +591,48 @@ describe('MigrationApp', () => {
     expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'migration.buttons.more_options' })).toHaveLength(1)
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, { message: 'Dexie export failed' })
+  })
+
+  it('reports Dexie recovery details when a later renderer-side export rejects', async () => {
+    const dexieRecoveryReports = [
+      {
+        scope: 'records' as const,
+        table: 'message_blocks',
+        skippedRecords: 1,
+        samplePrimaryKeys: ['block-2']
+      }
+    ]
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () =>
+        ({
+          exportAll: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/dexie_export',
+            recoveryReports: dexieRecoveryReports
+          })
+        }) as unknown as DexieExporter
+    )
+    vi.mocked(LocalStorageExporter).mockImplementation(
+      () =>
+        ({
+          export: vi.fn().mockRejectedValue(new Error('localStorage export failed')),
+          getEntryCount: vi.fn(() => 0)
+        }) as unknown as LocalStorageExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
+
+    render(<MigrationApp />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    expect(await screen.findByText(/localStorage export failed/)).toBeInTheDocument()
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+      message: 'localStorage export failed',
+      dexieRecoveryReports
+    })
   })
 
   it('does not claim all data is unchanged when skipping fails', () => {
@@ -614,7 +655,7 @@ describe('MigrationApp', () => {
         ({
           exportAll: vi.fn().mockResolvedValue({
             exportPath: '/tmp/userData/migration_temp/dexie_export',
-            recovery: []
+            recoveryReports: []
           })
         }) as unknown as DexieExporter
     )
@@ -634,7 +675,7 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'StartMigration failed')
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, { message: 'StartMigration failed' })
   })
 
   it('clears the local error latch when main later drives a non-error stage', async () => {
@@ -718,7 +759,7 @@ describe('MigrationApp', () => {
       overallProgress: 100,
       stage: 'completed',
       warnings: ['Existing migration notice'],
-      dexieRecovery: [
+      dexieRecoveryReports: [
         {
           scope: 'records',
           table: 'topics',

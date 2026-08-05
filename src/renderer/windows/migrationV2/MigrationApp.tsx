@@ -25,7 +25,7 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import { type DexieRecoveryReport, MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
@@ -455,6 +455,7 @@ const MigrationApp: React.FC = () => {
     startGuardRef.current = true
     setIsLoading(true)
     setLocalMigrationError(null)
+    let dexieRecoveryReports: DexieRecoveryReport[] = []
     try {
       logger.info('Starting migration process...')
 
@@ -475,6 +476,7 @@ const MigrationApp: React.FC = () => {
       const dexieResult = await dexieExporter.exportAll((p) => {
         logger.info('Dexie export progress', p)
       })
+      dexieRecoveryReports = dexieResult.recoveryReports
 
       logger.info('Dexie data exported', { exportPath: dexieResult.exportPath })
 
@@ -492,13 +494,16 @@ const MigrationApp: React.FC = () => {
         reduxData: reduxResult.data,
         dexieExportPath: dexieResult.exportPath,
         localStorageExportPath: localStorageFilePath,
-        ...(dexieResult.recovery.length > 0 ? { dexieRecovery: dexieResult.recovery } : {})
+        ...(dexieRecoveryReports.length > 0 ? { dexieRecoveryReports } : {})
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
       const message = errorMessage(error)
       setLocalMigrationError(message)
-      void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)
+      void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, {
+        message,
+        ...(dexieRecoveryReports.length > 0 ? { dexieRecoveryReports } : {})
+      })
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
@@ -656,7 +661,7 @@ const MigrationApp: React.FC = () => {
 
       case 'completed': {
         const summary = progress.summary
-        const recoveryIssues = progress.dexieRecovery ?? []
+        const recoveryIssues = progress.dexieRecoveryReports ?? []
         const isDegraded = recoveryIssues.length > 0
         const recoveryWarnings = recoveryIssues.map((issue) => {
           if (issue.scope === 'database') {

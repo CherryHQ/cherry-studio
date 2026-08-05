@@ -61,12 +61,13 @@ and **MUST NOT** be added to `MigrationPaths`. No broader migration filesystem a
 ## Migration Diagnostic Bundle
 
 Only Renderer error/version-incompatible pages can request a bundle; there is no native preboot entry. A bundle
-contains minimal system information plus a stable snapshot for one log date: prefer the failure panel's
-mount-time local date, otherwise choose the latest eligible date, and never mix dates. If a complete snapshot
-cannot be formed, publish metadata only and disclose that result in the UI only when the destination can still be
-proven safe. If destination or source identity cannot be established, saving fails without replacing the existing
-file. Metadata excludes failure stacks, paths, and run/process fields. Logs may be sensitive and must not be shared
-publicly or outside Cherry Studio support.
+contains minimal system information, the terminal migration error when present, any bounded Dexie recovery
+reports, plus a stable snapshot for one log date: prefer the failure panel's mount-time local date, otherwise choose
+the latest eligible date, and never mix dates. If a complete snapshot cannot be formed, publish metadata only and
+disclose that result in the UI only when the destination can still be proven safe. If destination or source identity
+cannot be established, saving fails without replacing the existing file. Metadata adds no stack, cause, dedicated
+path, or run/process fields; the user-visible error text may itself contain diagnostic details such as a path. Logs
+and error text may be sensitive and must not be shared publicly or outside Cherry Studio support.
 
 ## Version Compatibility Gate
 

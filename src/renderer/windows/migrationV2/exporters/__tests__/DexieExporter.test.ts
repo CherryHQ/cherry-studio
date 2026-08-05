@@ -1,4 +1,5 @@
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface LegacyRecord {
@@ -13,6 +14,7 @@ const dexieMock = vi.hoisted(() => ({
   table: vi.fn(),
   tableNames: [] as string[]
 }))
+const loggerWarn = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => undefined)
 
 vi.mock('dexie', () => ({
   Dexie: class MockDexie {
@@ -205,7 +207,7 @@ describe('DexieExporter', () => {
     expect(JSON.parse(exportedText())).toEqual([{ id: 'block-1' }, { id: 'block-3' }])
     expect(result).toEqual({
       exportPath: '/export',
-      recovery: [
+      recoveryReports: [
         {
           scope: 'records',
           table: 'message_blocks',
@@ -214,6 +216,66 @@ describe('DexieExporter', () => {
         }
       ]
     })
+    expect(loggerWarn).toHaveBeenCalledWith(
+      'Recovering from irrecoverable IndexedDB read error',
+      expect.objectContaining({
+        errorMessage: 'Dexie read failed',
+        errorName: 'Error',
+        operation: 'bulkGet',
+        scope: 'records',
+        tableName: 'message_blocks',
+        wrappedErrors: [
+          expect.objectContaining({
+            errorMessage: 'Data lost due to missing file. Affected record should be considered irrecoverable',
+            errorName: 'NotReadableError'
+          })
+        ]
+      })
+    )
+  })
+
+  it('skips an irrecoverable fallback record that disappeared before get', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    const dataLoss = new DOMException(
+      'Data lost due to missing file. Affected record should be considered irrecoverable',
+      'NotReadableError'
+    )
+    table.bulkGet.mockRejectedValueOnce(dataLoss)
+    table.get.mockImplementation(async (key) => (key === 'block-2' ? undefined : rows.find((row) => row.id === key)))
+    dexieMock.table.mockReturnValue(table)
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual([{ id: 'block-1' }, { id: 'block-3' }])
+    expect(result.recoveryReports).toEqual([
+      {
+        scope: 'records',
+        table: 'message_blocks',
+        skippedRecords: 1,
+        samplePrimaryKeys: ['block-2']
+      }
+    ])
+  })
+
+  it('keeps non-matching fallback get errors fatal', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }]
+    const table = createTableMock(rows)
+    table.bulkGet.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+    table.get.mockImplementation(async (key) => {
+      if (key === 'block-2') throw new Error('transient read failure')
+      return rows.find((row) => row.id === key)
+    })
+    dexieMock.table.mockReturnValue(table)
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow(
+      'Failed to export Dexie table "message_blocks" at primary key "block-2": transient read failure'
+    )
   })
 
   it('exports an empty table when its primary keys cannot be read', async () => {
@@ -231,8 +293,34 @@ describe('DexieExporter', () => {
     expect(exportedText()).toBe('[]')
     expect(result).toEqual({
       exportPath: '/export',
-      recovery: [{ scope: 'table', table: 'message_blocks' }]
+      recoveryReports: [{ scope: 'table', table: 'message_blocks' }]
     })
+  })
+
+  it('overwrites earlier pages when primary-key enumeration fails mid-table', async () => {
+    const rows = Array.from({ length: 105 }, (_, index) => ({ id: `block-${String(index).padStart(3, '0')}` }))
+    const table = createTableMock(rows)
+    table.primaryKeys
+      .mockResolvedValueOnce(rows.slice(0, 100).map((row) => row.id))
+      .mockRejectedValueOnce(
+        new DOMException(
+          'Data lost due to missing file. Affected record should be considered irrecoverable',
+          'NotReadableError'
+        )
+      )
+    dexieMock.table.mockReturnValue(table)
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(exportedText()).toBe('[]')
+    expect(result.recoveryReports).toEqual([{ scope: 'table', table: 'message_blocks' }])
+    expect(invoke.mock.calls).toContainEqual([
+      MigrationIpcChannels.WriteExportFile,
+      '/export',
+      'message_blocks',
+      '[]',
+      'overwrite'
+    ])
   })
 
   it('exports every supported table as empty when the database cannot be inspected', async () => {
@@ -262,7 +350,7 @@ describe('DexieExporter', () => {
     )
     expect(result).toEqual({
       exportPath: '/export',
-      recovery: [{ scope: 'database' }]
+      recoveryReports: [{ scope: 'database' }]
     })
   })
 
@@ -279,7 +367,7 @@ describe('DexieExporter', () => {
 
     const result = await new DexieExporter('/export').exportAll()
 
-    expect(result.recovery).toEqual([{ scope: 'database' }])
+    expect(result.recoveryReports).toEqual([{ scope: 'database' }])
   })
 
   it('closes the failed database handle before recovering from an open error', async () => {
@@ -292,8 +380,17 @@ describe('DexieExporter', () => {
 
     const result = await new DexieExporter('/export').exportAll()
 
-    expect(result.recovery).toEqual([{ scope: 'database' }])
+    expect(result.recoveryReports).toEqual([{ scope: 'database' }])
     expect(dexieMock.close).toHaveBeenCalledOnce()
+  })
+
+  it('closes the failed database handle and rejects a non-matching open error', async () => {
+    dexieMock.open.mockRejectedValueOnce(new DOMException('Database is temporarily unavailable', 'NotReadableError'))
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow('Database is temporarily unavailable')
+
+    expect(dexieMock.close).toHaveBeenCalledOnce()
+    expect(invoke).not.toHaveBeenCalled()
   })
 
   it('aggregates skipped records across pages and caps primary-key samples', async () => {
@@ -322,7 +419,7 @@ describe('DexieExporter', () => {
     const exported = JSON.parse(exportedText()) as LegacyRecord[]
     expect(exported).toHaveLength(93)
     expect(exported.some((row) => badIds.has(row.id))).toBe(false)
-    expect(result.recovery).toEqual([
+    expect(result.recoveryReports).toEqual([
       {
         scope: 'records',
         table: 'message_blocks',

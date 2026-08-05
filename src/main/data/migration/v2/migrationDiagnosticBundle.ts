@@ -6,7 +6,7 @@ import { type Readable, Transform } from 'node:stream'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createAtomicWriteStream } from '@main/utils/file'
-import type { MigrationStage } from '@shared/data/migration/v2/types'
+import type { DexieRecoveryReport, MigrationStage } from '@shared/data/migration/v2/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 import { app } from 'electron'
@@ -20,6 +20,8 @@ interface SaveMigrationDiagnosticBundleInput {
   destination: string
   stage: MigrationStage
   logDate: string
+  error?: string
+  dexieRecoveryReports?: DexieRecoveryReport[]
 }
 
 interface MigrationDiagnosticBundleDependencies {
@@ -241,7 +243,11 @@ export async function saveMigrationDiagnosticBundle(
   const metadata = JSON.stringify({
     application: { version: app.getVersion() },
     system: { platform: process.platform, arch: process.arch, release: release() },
-    migration: { stage: input.stage }
+    migration: {
+      stage: input.stage,
+      ...(input.error !== undefined ? { error: input.error } : {}),
+      ...(input.dexieRecoveryReports?.length ? { dexieRecoveryReports: input.dexieRecoveryReports } : {})
+    }
   })
   const handles: FileHandle[] = []
   const sourceIdentities: PresentFileIdentity[] = []
