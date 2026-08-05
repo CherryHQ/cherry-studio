@@ -174,6 +174,22 @@ describe('useMiniAppPopup', () => {
       expect(after).toBe(seeded)
     })
 
+    it('should replace a changed app at the tail without recreating its keep-alive entry', async () => {
+      const stale = createMiniApp('openclaw-dashboard', { url: 'http://127.0.0.1:18790#token=stale' })
+      const fresh = { ...stale, url: 'http://127.0.0.1:18790#token=fresh' }
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [stale])
+
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniApp(fresh, true)
+      })
+
+      expect(getKeepAlive()).toEqual([fresh])
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('openclaw-dashboard', false)
+      expect(mockClearWebviewState).not.toHaveBeenCalled()
+    })
+
     it('should reorder when the existing app is not at the tail (LRU touch still works for genuine switches)', async () => {
       // Sanity counterpart to the above: clicking back to a mini-app that's
       // currently mid-list should still promote it to the tail so it is the

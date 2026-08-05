@@ -40,9 +40,8 @@ const MiniAppPage: FC = () => {
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
 
-  // Last-resort source for a transient app (no database row, opened via openSmartMiniApp):
-  // shared across windows and independent of any window's keep-alive LRU, so it survives
-  // both detaching this tab into a new window and eviction in the window it came from.
+  // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
+  // Every window's keep-alive entry is only a local snapshot of this cross-window value.
   const transientDescriptor = useSharedCacheValue(`mini_app.transient_descriptor.${appId ?? ''}` as const)
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
@@ -50,10 +49,11 @@ const MiniAppPage: FC = () => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
     if (found) return found
-    // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
+    // Prefer the shared transient descriptor over a window-local keep-alive snapshot.
+    // Reopening OpenClaw republishes its live URL; detached windows must observe it too.
+    if (transientDescriptor) return toTransientMiniApp(transientDescriptor)
     const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
-    if (cached) return cached
-    return transientDescriptor ? toTransientMiniApp(transientDescriptor) : null
+    return cached ?? null
   }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {

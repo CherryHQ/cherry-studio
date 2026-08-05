@@ -8,6 +8,7 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
@@ -180,10 +181,15 @@ export const useMiniAppPopup = () => {
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive) {
         const list = keepAliveRef.current
-        const exists = list.some((item) => item.appId === app.appId)
-        if (exists) {
-          const tail = list[list.length - 1]
-          if (tail?.appId !== app.appId) {
+        const cachedIndex = list.findIndex((item) => item.appId === app.appId)
+        if (cachedIndex !== -1) {
+          const cached = list[cachedIndex]
+          const isTail = cachedIndex === list.length - 1
+          const changed = !isEqual(cached, app)
+          if (!isTail || changed) {
+            if (changed && cached.url !== app.url) {
+              setWebviewLoaded(app.appId, false)
+            }
             const reordered = [...list.filter((item) => item.appId !== app.appId), app]
             setOpenedKeepAliveMiniApps(reordered)
           }

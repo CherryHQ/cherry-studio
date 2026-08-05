@@ -54,8 +54,8 @@ export function useOpenClawGatewayController({
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
     const url = new URL(dashboardUrl)
-    // Changing the URL triggers WebviewContainer's OpenClaw-only navigation,
-    // which reloads with Electron's HTTP cache bypass after the document commits.
+    // The URL is the revision carried by the cross-window transient descriptor.
+    // Change it on every open so each window replaces its local keep-alive snapshot.
     url.searchParams.set('cherry_cache_bust', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',
