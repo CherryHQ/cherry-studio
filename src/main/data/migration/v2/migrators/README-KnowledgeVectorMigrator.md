@@ -78,20 +78,24 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## Memory Contract
 
-At most ONE ITEM's chunks/vectors are ever resident. `prepare()` streams each base's legacy rows
-once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists, counts, per-reason
-skip tallies (capped samples — never one message per rejected row) and each url/note item's
-reserved snapshot path, derived by point-reading that one item's rows back after the scan
-(`PreparedBasePlan` deliberately holds no vectors or chunk text); `execute()` point-reads one
-item's planned rows back at a time (`loadRowsByRowids`) right before writing that material —
-url/note snapshot files are written during that item's turn, never buffered base-wide — and
-decoded vectors stay `Float32Array` end to end (half the resident size of `number[]`).
-The OOM history behind this: retaining every base's materials across
+At most ONE ITEM's text plus ONE BATCH of vectors is ever resident. `prepare()` streams each
+base's legacy rows once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists,
+counts, per-reason skip tallies (capped samples — never one message per rejected row) and each
+url/note item's reserved snapshot path, derived by point-reading that one item's rows back after
+the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text). `execute()` re-reads
+one item at a time: its text whole through the vector-free column projection
+(`loadTextRowsByRowids` — the content schema stores one text row per material, so the joined text
+is irreducible without a schema change), and its vectors in fixed ≤500-rowid point-read batches
+(`loadRowsByRowids`) pulled lazily by `rebuildMaterial`'s `Iterable` embeddings input inside its
+write transaction. url/note snapshot files are written during that item's turn, never buffered
+base-wide, and decoded vectors stay `Float32Array` end to end (half the resident size of
+`number[]`). The OOM history behind this: retaining every base's materials across
 prepare→execute peaked at the sum of all bases' vectors (a 28-base corpus exhausted the V8 heap),
 and the follow-up per-base re-read still loaded a whole base at once — which one large base (six
 figures of chunks × high dimensions) could exhaust on its own, crash-looping the migration since it
 restarts from scratch on every relaunch. The OOM regression guard test pins the exact
-`PreparedBasePlan` key set and each phase's read shape (prepare streams, execute point-reads).
+`PreparedBasePlan` key set and each phase's read shape (prepare streams; execute reads text via
+the projection and vectors in ≤500-rowid batches — a 501-chunk item must arrive as 500 + 1).
 
 ## File-Safety Contract
 

@@ -17,6 +17,12 @@ export interface LegacyKnowledgeVectorRow {
   vector: LegacyKnowledgeVectorDecodeResult
 }
 
+/** A projection of just the text columns — no vector BLOB read or decoded. */
+export interface LegacyKnowledgeVectorTextRow {
+  rowid: number
+  pageContent: string
+}
+
 /**
  * A projection of just the two columns a `uniqueLoaderId → source` map needs. Used by callers
  * (directory expansion in KnowledgeMigrator) that must not pay to read + float32-decode the
@@ -145,6 +151,29 @@ export class LegacyKnowledgeVectorBaseReader {
       )
       for (const raw of statement.all(...batch) as Array<Record<string, unknown>>) {
         rows.push(toLegacyVectorRow(raw))
+      }
+    }
+    rows.sort((a, b) => a.rowid - b.rowid)
+    return rows
+  }
+
+  /**
+   * Point-read only the text columns of a row set, in rowid order. The column projection means
+   * the vector BLOBs are never read off disk or decoded — this is what lets the migrator
+   * assemble an item's full content text (needed whole: the content schema stores one text row
+   * per material) without also holding the item's full vector set, which it instead streams in
+   * batches via {@link loadRowsByRowids}.
+   */
+  loadTextRowsByRowids(rowids: number[]): LegacyKnowledgeVectorTextRow[] {
+    const rows: LegacyKnowledgeVectorTextRow[] = []
+    for (let offset = 0; offset < rowids.length; offset += ROWID_BATCH_SIZE) {
+      const batch = rowids.slice(offset, offset + ROWID_BATCH_SIZE)
+      const placeholders = batch.map(() => '?').join(', ')
+      const statement = this.db.prepare(
+        `SELECT rowid, pageContent FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE rowid IN (${placeholders})`
+      )
+      for (const raw of statement.all(...batch) as Array<Record<string, unknown>>) {
+        rows.push({ rowid: Number(raw.rowid), pageContent: String(raw.pageContent ?? '') })
       }
     }
     rows.sort((a, b) => a.rowid - b.rowid)

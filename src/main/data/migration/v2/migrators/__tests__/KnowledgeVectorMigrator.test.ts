@@ -2802,20 +2802,26 @@ describe('KnowledgeVectorMigrator', () => {
       // re-read fix still loaded a whole base at once via loadBase(), which a single large base
       // (six figures of chunks × high dimensions) could exhaust on its own. Now prepare() STREAMS
       // each base's rows (iterateRows), retaining only per-item rowid lists and counts, and
-      // execute() point-reads one item's rows back at a time (loadRowsByRowids) — so at most one
-      // item's vectors are ever resident, never a whole base's.
+      // execute() re-reads one item at a time: its text whole via the vector-free column
+      // projection (loadTextRowsByRowids), its vectors in ≤500-rowid batches (loadRowsByRowids)
+      // pulled lazily by rebuildMaterial — so at most one item's text plus one vector batch is
+      // ever resident, never a whole item's vector set, let alone a whole base's.
       const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
       const MIGRATED_FILE_B_ITEM_ID = '0198f3f2-7f30-7abc-8def-123456789abc'
 
-      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-        {
-          id: 'legacy-a-0',
-          pageContent: 'base a chunk',
+      // 501 chunks under one item cross the 500-rowid vector batch boundary, so a migrator that
+      // regressed to one whole-item vector read would show up as a single 501-rowid point-read.
+      const BASE_A_CHUNK_COUNT = 501
+      await createLegacyVectorDb(
+        path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+        Array.from({ length: BASE_A_CHUNK_COUNT }, (_, i) => ({
+          id: `legacy-a-${i}`,
+          pageContent: `base a chunk ${String(i).padStart(3, '0')}`,
           uniqueLoaderId: 'loader-a',
           source: '/docs-a/file.md',
           vector: [1, 2]
-        }
-      ])
+        }))
+      )
       await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-2'), [
         {
           id: 'legacy-b-0',
@@ -2828,22 +2834,29 @@ describe('KnowledgeVectorMigrator', () => {
 
       const knowledgeVectorSource = new KnowledgeVectorSourceReader(knowledgeBaseDir)
       // Wrap openBase to spy on how each phase actually reads rows: prepare() must stream
-      // (iterateRows) and execute() must point-read (loadRowsByRowids) — never the reverse.
+      // (iterateRows), and execute() must read text via the vector-free projection and vectors
+      // only in bounded point-read batches — never a whole-base stream or a whole-item read.
       const realOpenBase = knowledgeVectorSource.openBase.bind(knowledgeVectorSource)
       const iterateCalls: string[] = []
-      const pointReadCalls: string[] = []
+      const pointReadCalls: Array<{ baseId: string; rowidCount: number }> = []
+      const textReadCalls: string[] = []
       const openBaseSpy = vi.spyOn(knowledgeVectorSource, 'openBase').mockImplementation((baseId: string) => {
         const result = realOpenBase(baseId)
         if (result.status === 'ok') {
           const realIterate = result.reader.iterateRows.bind(result.reader)
           const realPointRead = result.reader.loadRowsByRowids.bind(result.reader)
+          const realTextRead = result.reader.loadTextRowsByRowids.bind(result.reader)
           result.reader.iterateRows = () => {
             iterateCalls.push(baseId)
             return realIterate()
           }
           result.reader.loadRowsByRowids = (rowids: number[]) => {
-            pointReadCalls.push(baseId)
+            pointReadCalls.push({ baseId, rowidCount: rowids.length })
             return realPointRead(rowids)
+          }
+          result.reader.loadTextRowsByRowids = (rowids: number[]) => {
+            textReadCalls.push(baseId)
+            return realTextRead(rowids)
           }
         }
         return result
@@ -2896,6 +2909,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(openBaseSpy).toHaveBeenCalledTimes(2)
       expect(iterateCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
       expect(pointReadCalls).toEqual([])
+      expect(textReadCalls).toEqual([])
 
       // ...but the plan it retains for the whole migration carries ONLY lightweight counts/ids —
       // pinning the exact shape so a future change can't quietly reintroduce a `materials` /
@@ -2927,15 +2941,26 @@ describe('KnowledgeVectorMigrator', () => {
       iterateCalls.length = 0
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
-      // execute() re-opens each base and POINT-READS one item's planned rows at a time (never a
-      // whole-base stream). This bounded re-read (not a reuse of anything prepare() cached) is the
-      // mechanism that caps peak memory at a single item's vectors.
+      // execute() re-opens each base, reads each item's TEXT once through the vector-free
+      // projection, and pulls its VECTORS only in ≤500-rowid batches (never a whole-base stream,
+      // never a single whole-item read). This bounded re-read (not a reuse of anything prepare()
+      // cached) is the mechanism that caps peak memory at one item's text plus one vector batch:
+      // base A's 501 chunks must arrive as two batches (500 + 1).
       expect(openBaseSpy).toHaveBeenCalledTimes(2)
-      expect(pointReadCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
       expect(iterateCalls).toEqual([])
+      expect(textReadCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
+      expect(pointReadCalls.every((call) => call.rowidCount <= 500)).toBe(true)
+      expect(
+        pointReadCalls.filter((call) => call.baseId === LEGACY_KNOWLEDGE_BASE_ID).map((c) => c.rowidCount)
+      ).toEqual([500, 1])
+      expect(pointReadCalls.filter((call) => call.baseId === 'kb-2').map((c) => c.rowidCount)).toEqual([1])
 
       const storeA = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
-      expect(storeA.content.map((c) => String(c.text))).toEqual(['base a chunk'])
+      expect(storeA.searchUnit).toHaveLength(BASE_A_CHUNK_COUNT)
+      expect(storeA.embedding).toHaveLength(BASE_A_CHUNK_COUNT)
+      const storeAText = String(storeA.content[0].text)
+      expect(storeAText.startsWith('base a chunk 000\n\nbase a chunk 001')).toBe(true)
+      expect(storeAText.endsWith('base a chunk 500')).toBe(true)
       const storeB = await readStore(MIGRATED_BASE_B_ID)
       expect(storeB.content.map((c) => String(c.text))).toEqual(['base b chunk'])
     })

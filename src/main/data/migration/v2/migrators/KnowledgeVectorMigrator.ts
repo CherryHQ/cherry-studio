@@ -12,6 +12,7 @@ import {
   DOCUMENT_SEPARATOR,
   hashEmbeddingText,
   type MaterialFieldSource,
+  type RebuildMaterialEmbeddingInput,
   type RebuildMaterialInput,
   reserveImportedFileRelativePath,
   toMaterialRelativePath
@@ -75,6 +76,11 @@ const DEGRADE_UPDATE_CHUNK = 500
 // six-figure-row base does not freeze the migration UI for the whole scan.
 const STREAM_ROW_YIELD_INTERVAL = 1024
 
+// One vector point-read per pull of the streaming rebuild iterable: bounds execute()'s vector
+// residency to a constant batch instead of a whole item's vector set. Sized to the reader's
+// IN-clause batch (ROWID_BATCH_SIZE) so each pull is exactly one indexed SELECT.
+const VECTOR_STREAM_BATCH_SIZE = 500
+
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -119,12 +125,6 @@ interface MigratedKnowledgeItemForVector {
   data: KnowledgeItemData
 }
 
-/** One legacy chunk pinned to a migrated item, in legacy read order. */
-interface MigratedChunk {
-  pageContent: string
-  embedding: Float32Array
-}
-
 /**
  * A migrated url/note item whose snapshot file execute() already wrote under the base's `raw/`
  * material root during the build (so its full fileText is never retained past that item's turn);
@@ -142,8 +142,9 @@ interface PlannedMaterialSnapshotPin {
  * between prepare() and execute() (the legacy base id to re-open, and each url/note item's
  * resolved snapshot path, whose reservation must happen exactly once). prepare() streams each
  * base's legacy rows once (never materializing them) plus one bounded point-read per url/note
- * item to derive its snapshot slug, and execute() point-reads one item's rows back at a time
- * right before writing that material — so at most ONE ITEM's chunks/vectors are ever resident.
+ * item to derive its snapshot slug, and execute() re-reads one item at a time — its text whole,
+ * its vectors streamed in fixed batches through rebuildMaterial's lazy embeddings iterable — so
+ * at most ONE ITEM's text plus ONE BATCH of vectors is ever resident.
  * (The OOM history this guards against: first every base's vectors were retained
  * from prepare() to execute() — a 28-base corpus exhausted the V8 heap; the per-base re-read fix
  * still loaded a whole base at once, which a single large base — six figures of chunks × high
@@ -195,52 +196,61 @@ function toMaterialFieldSource(item: MigratedKnowledgeItemForVector): MaterialFi
   return { id: item.id, type: item.type, data: item.data } as MaterialFieldSource
 }
 
-/** The canonical content text of a migrated material: legacy chunk bodies joined by {@link DOCUMENT_SEPARATOR}. */
-function joinMigratedChunkText(chunks: MigratedChunk[]): string {
-  return chunks.map((chunk) => chunk.pageContent).join(DOCUMENT_SEPARATOR)
-}
-
 /**
- * Assemble one material rebuild input from a migrated item's preserved legacy
- * chunks (Route A — keep the v1 split). The canonical content text is the chunk
- * bodies joined by {@link DOCUMENT_SEPARATOR}; each unit's offsets span its body
- * exactly, so the store's `content.text.slice(charStart, charEnd) === body`
- * invariant holds by construction. Vectors are reused verbatim (no re-embedding)
- * and deduped by embedding-text hash, matching the index store's hash-keyed
- * embedding table. The material's `relativePath` is resolved by the caller (a file
- * uses its stored path; a url/note uses the snapshot it materializes this run).
+ * Derive the migrated units from an item's legacy chunk bodies (Route A — keep the v1 split).
+ * The canonical content text is the bodies joined by {@link DOCUMENT_SEPARATOR}; each unit's
+ * offsets span its body exactly, so the store's `content.text.slice(charStart, charEnd) === body`
+ * invariant holds by construction.
  */
-function buildMigratedRebuildInput(chunks: MigratedChunk[], relativePath: string): RebuildMaterialInput {
+function buildMigratedUnits(pageContents: string[]): RebuildMaterialInput['units'] {
   const units: RebuildMaterialInput['units'] = []
-  const embeddingByHash = new Map<string, Float32Array>()
   let cursor = 0
 
-  chunks.forEach((chunk, index) => {
+  pageContents.forEach((pageContent, index) => {
     if (index > 0) {
       cursor += DOCUMENT_SEPARATOR.length
     }
     const charStart = cursor
-    const charEnd = cursor + chunk.pageContent.length
+    const charEnd = cursor + pageContent.length
     cursor = charEnd
     units.push({ unitType: 'chunk', unitIndex: index, charStart, charEnd })
-
-    const embeddingTextHash = hashEmbeddingText(chunk.pageContent)
-    if (!embeddingByHash.has(embeddingTextHash)) {
-      embeddingByHash.set(embeddingTextHash, chunk.embedding)
-    }
   })
 
-  return {
-    material: {
-      relativePath
-    },
-    content: {
-      text: joinMigratedChunkText(chunks)
-    },
-    units,
-    // v1 bases always carried embeddings, so a migrated base is a vector base.
-    usesEmbeddings: true,
-    embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
+  return units
+}
+
+/**
+ * Stream one item's legacy vectors as batch-sized point-reads, reused verbatim (no re-embedding).
+ * rebuildMaterial consumes this lazily inside its write transaction — synchronous by contract, so
+ * each pull is a synchronous indexed SELECT and at most one batch of vectors is ever resident.
+ * Duplicate chunk bodies need no pre-dedup: the store's hash-keyed embedding INSERT OR IGNOREs.
+ * Drift stays fail-closed: row count / decode / dimension mismatches throw (aborting the
+ * transaction), and a pageContent changed since the text pass yields a hash no unit derives,
+ * which the store's embedding coverage check turns into a rollback.
+ */
+function* iterateLegacyEmbeddingBatches(
+  reader: LegacyKnowledgeVectorBaseReader,
+  baseId: string,
+  itemId: string,
+  rowids: number[],
+  dimensions: number
+): Generator<RebuildMaterialEmbeddingInput> {
+  for (let offset = 0; offset < rowids.length; offset += VECTOR_STREAM_BATCH_SIZE) {
+    const batch = rowids.slice(offset, offset + VECTOR_STREAM_BATCH_SIZE)
+    const rows = reader.loadRowsByRowids(batch)
+    if (rows.length !== batch.length) {
+      throw new Error(
+        `Knowledge vector base ${baseId}: legacy vector rows for item '${itemId}' changed since prepare (expected ${batch.length}, got ${rows.length})`
+      )
+    }
+    for (const row of rows) {
+      if (row.vector.status !== 'decoded' || row.vector.value.length !== dimensions) {
+        throw new Error(
+          `Knowledge vector base ${baseId}: legacy vector for item '${itemId}' changed since prepare (rowid ${row.rowid})`
+        )
+      }
+      yield { embeddingTextHash: hashEmbeddingText(row.pageContent), vector: row.vector.value }
+    }
   }
 }
 
@@ -821,8 +831,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // a file already has a real base path, while a url/note materializes a snapshot this run
           // and pins the row to it (so toMaterialRelativePath never falls back). The slug derives
           // from the item's FULL joined content text (firstHeadingOrLine prefers a heading on any
-          // line), so point-read that one item's rows back — the same one-item bound execute()
-          // holds to — instead of buffering every url/note item's text through the scan above.
+          // line), so point-read that one item's rows back through the vector-free text projection
+          // — instead of buffering every url/note item's text through the scan above.
           // A re-run after a partial migration may find the row already pinned (and that path
           // already reserved below); reuse it instead of minting a `name-1.md` twin.
           //
@@ -838,7 +848,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             if (materialItem.type !== 'url' && materialItem.type !== 'note') {
               continue
             }
-            const rows = reader.loadRowsByRowids(rowidsByItemId.get(itemId) ?? [])
+            const rows = reader.loadTextRowsByRowids(rowidsByItemId.get(itemId) ?? [])
             const contentText = rows.map((row) => row.pageContent).join(DOCUMENT_SEPARATOR)
             // buildUrlSnapshotFile is the same OKF-frontmatter + slug derivation the runtime's
             // captureUrlSnapshotFile uses, so a migrated url snapshot is byte-identical to a natively
@@ -1018,11 +1028,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       let reader: LegacyKnowledgeVectorBaseReader | null = null
 
       try {
-        // Rebuild THIS base's materials by re-reading its legacy vectors ITEM BY ITEM — prepare()
-        // intentionally retained only each item's rowids (see PreparedBasePlan). Each item's
-        // chunks/vectors and rebuild input live only for its own turn of the loop below, so at
-        // most one item's vectors are ever resident, instead of a whole base's (whose one-shot
-        // load OOM'd on a single large base even after the per-base re-read fix).
+        // Rebuild THIS base's materials by re-reading the legacy rows ITEM BY ITEM — prepare()
+        // intentionally retained only each item's rowids (see PreparedBasePlan). Each item's turn
+        // reads its text whole (the content schema stores one text row per material) but streams
+        // its vectors in fixed batches through rebuildMaterial, so peak residency is one item's
+        // text + one vector batch — never a whole item's vector set, let alone a whole base's
+        // (whose one-shot load OOM'd on a single large base even after the per-base re-read fix).
         const baseMigratedItems =
           this.migratedItemsByBaseId.get(plan.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
 
@@ -1074,24 +1085,20 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
               throw new Error(`Knowledge vector base ${plan.baseId}: migrated item '${itemId}' missing at execute time`)
             }
 
-            // Point-read exactly the rows prepare() planned for this item. Any drift from the
-            // planned shape (rows gone, vector no longer decodable, dimension changed) means the
-            // legacy DB changed since prepare() — fail the base closed rather than write a store
-            // validate() would reject.
-            const rows = reader.loadRowsByRowids(rowids)
-            if (rows.length !== rowids.length) {
+            // Text pass: point-read only the text columns of exactly the rows prepare() planned
+            // for this item — the content schema stores one whole text row per material, so the
+            // joined text is needed in full, but the vectors are NOT read here (they stream in
+            // batches inside rebuildMaterial below). A row-count drift from the planned shape
+            // means the legacy DB changed since prepare() — fail the base closed rather than
+            // write a store validate() would reject.
+            const textRows = reader.loadTextRowsByRowids(rowids)
+            if (textRows.length !== rowids.length) {
               throw new Error(
-                `Knowledge vector base ${plan.baseId}: legacy vector rows for item '${itemId}' changed since prepare (expected ${rowids.length}, got ${rows.length})`
+                `Knowledge vector base ${plan.baseId}: legacy vector rows for item '${itemId}' changed since prepare (expected ${rowids.length}, got ${textRows.length})`
               )
             }
-            const chunks: MigratedChunk[] = rows.map((row) => {
-              if (row.vector.status !== 'decoded' || row.vector.value.length !== plan.dimensions) {
-                throw new Error(
-                  `Knowledge vector base ${plan.baseId}: legacy vector for item '${itemId}' changed since prepare (rowid ${row.rowid})`
-                )
-              }
-              return { pageContent: row.pageContent, embedding: row.vector.value }
-            })
+            const pageContents = textRows.map((row) => row.pageContent)
+            const contentText = pageContents.join(DOCUMENT_SEPARATOR)
 
             let relativePath: string
             if (materialItem.type === 'url' || materialItem.type === 'note') {
@@ -1105,7 +1112,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
                 )
               }
               relativePath = plannedRelativePath
-              const contentText = joinMigratedChunkText(chunks)
               const fileText =
                 materialItem.type === 'url'
                   ? buildUrlSnapshotFile(materialItem.data.url, contentText, this.capturedAt).fileText
@@ -1133,7 +1139,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
               relativePath = toMaterialRelativePath(materialItem)
             }
 
-            store.rebuildMaterial(itemId, buildMigratedRebuildInput(chunks, relativePath))
+            // Vector pass runs INSIDE the store's write transaction: rebuildMaterial pulls the
+            // iterable batch by batch, so peak vector residency is one VECTOR_STREAM_BATCH_SIZE
+            // point-read, never the item's whole vector set. v1 bases always carried embeddings,
+            // so a migrated base is a vector base.
+            store.rebuildMaterial(itemId, {
+              material: { relativePath },
+              content: { text: contentText },
+              units: buildMigratedUnits(pageContents),
+              usesEmbeddings: true,
+              embeddings: iterateLegacyEmbeddingBatches(reader, plan.baseId, itemId, rowids, plan.dimensions)
+            })
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()

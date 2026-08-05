@@ -180,6 +180,28 @@ describe('KnowledgeVectorSourceReader', () => {
     }
   })
 
+  it('point-reads text rows without touching the vector column', async () => {
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+    const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+    // A vector payload sqlite would store but the decoder cannot read: irrelevant here, because
+    // the text projection must never read (let alone decode) the vector column — that column
+    // projection is what keeps the migrator's text pass free of the item's vector set.
+    await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-float32-blob')
+
+    const opened = reader.openBase('kb-1')
+    expect(opened.status).toBe('ok')
+    if (opened.status !== 'ok') {
+      return
+    }
+    try {
+      expect(opened.reader.loadTextRowsByRowids([1])).toEqual([{ rowid: 1, pageContent: 'hello vector' }])
+      expect(opened.reader.loadTextRowsByRowids([])).toEqual([])
+    } finally {
+      opened.reader.close()
+    }
+  })
+
   it('marks null legacy vector payloads as missing', async () => {
     const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
