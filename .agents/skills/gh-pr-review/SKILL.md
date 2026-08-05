@@ -1,6 +1,6 @@
 ---
 name: gh-pr-review
-description: Automated Cherry Studio review for local branches, PRs, commits, files, architecture docs, and repository skills. Use for code or documentation reviews that need project-specific naming, main/renderer/shared placement and dependency rules, IpcApi and DataApi boundaries, lifecycle/service ownership, renderer hooks, React/UI conventions, and tests. Review depth adapts to diff size and runtime subagent capability (single-agent or multi-agent reviewer-verifier). Report-only by default; code fixes and GitHub submission each require explicit invocation-time authorization (`fix` / `submit`); only the interactive Product Demand gate may prompt mid-review. To diagnose gaps in the skill after a review session, run `/gh-pr-review diag`.
+description: Automated Cherry Studio review for local branches, PRs, commits, files, architecture docs, and repository skills. Use for code or documentation reviews that need project-specific naming, main/renderer/shared placement and dependency rules, IpcApi and DataApi boundaries, lifecycle/service ownership, renderer hooks, React/UI conventions, and tests. Review depth adapts to diff size and runtime subagent capability (single-agent or multi-agent reviewer-verifier). Report-only by default; code fixes and GitHub submission each require explicit invocation-time authorization (`fix` / `submit`). Normal-review prompts and safe interruption behavior follow the interaction contract below. To diagnose gaps in the skill after a review session, run `/gh-pr-review diag`.
 ---
 
 <!-- Based on https://github.com/Tencent/tgfx/tree/main/.codebuddy/skills/cr -->
@@ -25,10 +25,33 @@ checks without relying on memory. That reference also defines which internal
 docs, internal skills, external skills, and official websites to consult for
 each changed area; load only the relevant subset.
 
-All user-facing text matches the user's language. Reviews never pause to ask
-the user procedural questions: no mode selection, no fix confirmation, no
-submission preview. The Product Demand gate below is the one exception — a
-product decision the skill cannot derive — and only in interactive sessions.
+All user-facing text matches the user's language.
+
+## Interaction and interruption contract
+
+Apart from the declared categories below, normal review is prompt-free: never
+ask for mode selection, fix confirmation, finding selection, or submission
+preview. A leaf flow may request input only when it explicitly declares one of
+these categories:
+
+- **Product decision** — in an interactive session, the Product Demand gate may
+  ask the current user for a decision the review cannot derive. In an automated
+  session, record the impact and open decision without deciding for the user.
+- **Safety or environment blocker** — continuing would require destructive
+  action, new authority, or missing external configuration. Declared examples
+  are a dirty/mismatched review worktree, a missing canonical remote, cleanup
+  of unexplained changes, and removal of a failed fix patch. In an interactive
+  session, preserve state and ask only for the decision needed to proceed.
+- **Explicit maintenance mode** — `diag` and separately requested checklist
+  maintenance are interactive selection flows outside normal review. They may
+  ask for the declared edit selection or persistent checkout/branch target.
+
+An automated session never waits for user input. At a product decision it
+continues record-only as specified below. At a safety/environment blocker it
+preserves state, stops the affected flow safely, and reports the exact blocker
+and required decision. In an explicit maintenance mode it reports candidates
+or missing destination information, applies no selection-dependent edits, and
+stops safely. No leaf flow may introduce another prompt category.
 
 ## Review Stages
 

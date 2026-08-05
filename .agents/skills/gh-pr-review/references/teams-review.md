@@ -6,20 +6,23 @@ directly. Read code only for arbitration, diagnosis, and fix verification.
 
 Independent subagent capability is a hard prerequisite. Before entering this
 flow, confirm the runtime can launch at least one reviewer and then a fresh
-verifier with isolated context. Parallel execution is optional. If it has no
+verifier in a separate session with no shared conversation history. Parallel
+execution is optional. If it has no
 subagent capability, stop following this file and route to `local-review.md`
 with `LIMITED_SINGLE_AGENT = true`; coordinator self-verification cannot
 replace the reviewer–verifier mechanism.
 
-Never pause to ask the user anything — the flow runs start to finish and ends
-with Report, except when the interactive Product Demand gate requires a product
-decision. Fixing happens only when the invocation explicitly authorized it
+Follow `SKILL.md` § Interaction and interruption contract. This flow introduces
+no additional prompt category beyond its declared failed-fix cleanup safety
+blocker. Fixing happens only when the invocation explicitly authorized it
 (`AUTHORIZED_FIX`); all other invocations are report-only.
 
 The reviewer–verifier adversarial pair is the core quality mechanism: reviewers
-find issues, verifiers challenge them. This two-party check significantly reduces
-false positives. Reviewers and verifiers MUST NOT see each other's output or
-share conversation history.
+find issues, verifiers challenge them. They run in separate sessions and share
+no conversation history. The verifier receives only normalized findings and the
+minimum scope/evidence needed to test them. Do not pass reviewer conversation
+history, scratch artifact files, or incidental/raw tool output unless a specific
+artifact or excerpt is explicitly required as evidence.
 
 ## Input from SKILL.md
 
@@ -100,17 +103,17 @@ If diff is empty → show usage examples and exit:
 `/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
 `/gh-pr-review https://github.com/.../pull/123`.
 
-### Associated PR comments
+### Associated PR conversation
 
 If `gh` is available, check whether the current branch has an open PR:
 ```
 gh pr view --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null
 ```
-If an open PR exists, fetch its line-level review comments:
-```
-gh api repos/{owner}/{repo}/pulls/{number}/comments
-```
-Store as `PR_COMMENTS` for verification in the review step.
+If an open PR exists, collect the complete accessible conversation state using
+`pr-review.md` Step 2: `PR_REVIEWS`, `PR_CONVERSATION_COMMENTS`, whole
+`REVIEW_THREADS`, and the current reviewer's pending draft. Preserve their state
+and visibility boundaries. When this engine was entered through `pr-review.md`,
+reuse the wrapper's already collected data.
 
 Also inspect its CI checks with `gh pr checks`. Record failing, pending, and
 successful checks as review evidence. Do not run local lint, test, or format
@@ -162,11 +165,14 @@ has:
 Launch agents with the coordination tools exposed by the current runtime:
 
 - One independent reviewer per module.
-- One fresh independent **verifier**, launched after all reviewers complete.
+- One fresh independent **verifier** in a separate session, launched after all
+  reviewers complete.
 
 Do not prescribe tool names, agent types, or parameters the runtime does not
-expose. Keep reviewer and verifier contexts separate; pass tasks through the
-runtime's spawn/delegate interface and collect their returned reports.
+expose. Keep reviewer and verifier conversation histories separate; pass tasks
+through the runtime's spawn/delegate interface and collect their returned
+reports. The coordinator, not the verifier, normalizes reviewer output for the
+handoff below.
 
 Launch reviewers concurrently when the runtime supports parallel subagents.
 If it cannot run subagents in parallel, launch the same agents sequentially —
@@ -209,9 +215,11 @@ Each reviewer receives:
   or file search before reporting.
 - **Output format**: `[file:line] [A/B/C] — [description] — [key lines]`
 
-**PR comment reviewer** (when `PR_COMMENTS` exist): one additional agent to
-verify PR review comments against current code. Same output format, same
-verification pipeline.
+**PR conversation reviewer** (when prior review threads exist): one additional
+agent to verify each whole thread's current conclusion against current code,
+using its root, all replies, and resolved/outdated state together. Review
+summaries and ordinary conversation comments are separate context. Same output
+format, same verification pipeline.
 
 ### Verification
 
@@ -222,9 +230,13 @@ verification itself. **Exception**: if every reviewer explicitly reports zero
 issues (LGTM / no issues found), skip verification and proceed directly to
 Phase 3.
 
-After all reviewer agents complete, collect their findings. Launch a single
-verifier agent with ALL findings combined. Include the following verbatim in
-the verifier's prompt:
+After all reviewer agents complete, normalize every finding to its issue claim,
+current `file:line` citation and snippet, reviewer reasoning, and the minimum
+module scope or evidence needed to test it. Launch a single verifier agent in a
+fresh session with that normalized list. Do not include reviewer conversation
+history, full reports, scratch artifact files, or incidental/raw tool output;
+include a specifically identified artifact or excerpt only when it is required
+to verify a finding. Include the following verbatim in the verifier's prompt:
 
 ```
 You are a code review verifier. Your stance is adversarial — default to doubting the
@@ -385,8 +397,10 @@ resulting CI before claiming them fully validated.
 - **Verification passes** → mark issues `fixed`, with CI pending when
   the fix is not yet published.
 - **Verification fails** → retry via a correction agent with failure
-  details (max 2 retries). If still unresolved, mark the issue `failed` and ask
-  before removing its exact patch; never reset, checkout, or otherwise discard
+  details (max 2 retries). If still unresolved, mark the issue `failed` and
+  treat removal of its exact patch as a safety blocker: in an interactive
+  session ask before removing it; in an automated session leave it in place and
+  report the required decision. Never reset, checkout, or otherwise discard
   unrelated or pre-existing changes.
 
 ### After validation
@@ -413,7 +427,7 @@ Summary:
 - Rolled-back issues and reasons
 - Associated PR CI status, or "unavailable" when there is no PR
 - Unpushed fixes: CI pending until published
-- Issues from PR comments (when `PR_COMMENTS` existed)
+- Issues from prior PR review threads (when they existed)
 - Note: "To verify fix quality, run `/gh-pr-review` again."
 
 ### Checklist evolution

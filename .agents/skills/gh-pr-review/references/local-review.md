@@ -4,8 +4,8 @@ Single-agent review for small changes, or as the explicit fallback when a
 runtime cannot launch independent subagents. The canonical size calculation
 lives in `SKILL.md` § Route. Reviews the diff and reports confirmed issues with
 fix guidance; edits code only when the invocation explicitly authorized fixing.
-The interactive Product Demand gate is the only point that may ask the user a
-question.
+Follow `SKILL.md` § Interaction and interruption contract; this flow introduces
+no additional prompt category.
 
 ## Input from SKILL.md
 
@@ -113,7 +113,9 @@ but ruled out.
 Consult `judgment-matrix.md` for risk level assessment, worth-fixing criteria,
 and special rules. Discard issues that are not worth reporting.
 
-If no issues remain after filtering → report "no issues found" and exit.
+If no issues remain after filtering, keep an empty issue list and continue to
+Step 4 so every mandatory disclosure is still reported. Step 5 may be skipped
+because there are no confirmed issues to evolve into checklist candidates.
 
 ---
 
@@ -130,8 +132,8 @@ Do not ask the user which issues to fix.
   reviewer recommendation — multiple reasonable implementations must be
   surfaced, never silently chosen.
 
-Present a summary of what was reviewed, the issues fixed (authorized fix
-only), and the reported issues with their fix guidance. If
+Present a summary of what was reviewed and either the issues fixed/reported
+with their fix guidance or "no issues found". If
 `LIMITED_SINGLE_AGENT = true`, explicitly state that the scope was non-small
 but the runtime had no subagent capability, so the review was single-agent and
 did not include independent adversarial verification. In an automated session

@@ -5,6 +5,12 @@ suggestion with durable repository knowledge. Goal: keep checklists minimal
 and high-signal — each item should direct AI attention to a distinct class of
 real issues, not catalog every possible bug pattern.
 
+Regular reviews use only Step 1 and never prompt. Steps 2–4 are an explicit
+maintenance mode under `SKILL.md` § Interaction and interruption contract.
+Interactive maintenance may request the declared selection or destination;
+automated maintenance reports candidates or missing destination information,
+applies no selection-dependent edits, and stops safely.
+
 ## State model
 
 - **Proposed**: a valid candidate drafted from a recurring uncovered pattern
@@ -48,13 +54,15 @@ there: do not prompt for selection, edit a checklist, or claim persistence.
 ## Step 2: Accept in an explicit maintenance flow
 
 Continue past Step 1 only when the user explicitly requests checklist
-maintenance or asks to adopt proposed candidates. Present the candidates for
-selection. Unselected candidates remain proposed or are discarded; selected
-candidates become **Accepted**.
+maintenance or asks to adopt proposed candidates. In an interactive run,
+present the candidates for selection. Unselected candidates remain proposed or
+are discarded; selected candidates become **Accepted**. In an automated run,
+report the candidates and stop before acceptance.
 
 Acceptance does not authorize writing into a temporary PR review worktree. The
 maintenance flow must identify a user-designated persistent checkout and
-target branch. If either is unclear, ask before editing rather than guessing.
+target branch. If either is unclear, an interactive run asks before editing; an
+automated run reports the missing destination and stops. Never guess.
 
 ## Step 3: Write accepted rules
 

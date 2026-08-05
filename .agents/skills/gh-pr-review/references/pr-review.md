@@ -36,8 +36,8 @@ Validate PR target:
 gh repo view --json nameWithOwner --jq .nameWithOwner
 gh pr view {number} --json headRefName,baseRefName,headRefOid,state,body
 ```
-Record `OWNER_REPO`. Extract: `PR_BRANCH`, `BASE_BRANCH`, `HEAD_SHA`, `STATE`,
-`PR_BODY`.
+Record `OWNER_REPO` and split it into `OWNER` and `REPO`. Extract: `PR_BRANCH`,
+`BASE_BRANCH`, `HEAD_SHA`, `STATE`, `PR_BODY`.
 If either command fails, inform the user and abort.
 If `$ARGUMENTS` is a URL containing `{owner}/{repo}`, verify it matches
 `OWNER_REPO`. If not, inform the user that cross-repo PR review is not
@@ -55,8 +55,10 @@ or `cd` persisting across tool calls.
 
 Before adding, check whether that exact path is already registered with
 `git worktree list --porcelain`. If it exists, reuse it only when it points to
-`HEAD_SHA` and `git -C {REVIEW_DIR} status --porcelain` is empty. Never remove
-or overwrite a dirty, mismatched, or unrelated worktree without user approval.
+`HEAD_SHA` and `git -C {REVIEW_DIR} status --porcelain` is empty. Treat a dirty,
+mismatched, or unrelated worktree as a safety blocker: never remove or
+overwrite it. In an interactive session request approval for the exact action;
+in an automated session preserve it, abort, and report the required decision.
 Otherwise create it:
 ```bash
 git fetch origin pull/{number}/head
@@ -73,8 +75,10 @@ git remote -v
 git fetch upstream pull/{number}/head
 git worktree add --detach "{REVIEW_DIR}" "{HEAD_SHA}"
 ```
-If `upstream` is not configured, ask the user for the canonical remote URL
-before retrying. Do not guess.
+If `upstream` is not configured, treat the missing canonical remote as an
+environment blocker. In an interactive session ask for its URL before retrying;
+in an automated session abort and report the missing configuration. Do not
+guess.
 
 If worktree creation fails for any other reason, inform the user and abort.
 
@@ -104,10 +108,53 @@ avoid output truncation.
 
 If diff is empty → clean up worktree and exit.
 
-Fetch existing PR review comments for de-duplication:
+Collect the complete accessible PR conversation and keep these four sources
+separate; they have different state and visibility semantics:
+
+1. Review summaries and states (`PR_REVIEWS`):
 ```bash
-gh api repos/{OWNER_REPO}/pulls/{number}/comments
+gh api --paginate "repos/{OWNER_REPO}/pulls/{number}/reviews?per_page=100"
 ```
+2. Ordinary PR conversation comments (`PR_CONVERSATION_COMMENTS`):
+```bash
+gh api --paginate "repos/{OWNER_REPO}/issues/{number}/comments?per_page=100"
+```
+3. Review threads (`REVIEW_THREADS`) with thread state and every root/reply
+   review-comment node:
+```bash
+gh api graphql --paginate \
+  -f owner="{OWNER}" -f repo="{REPO}" -F number={number} \
+  -f query='query($owner:String!, $repo:String!, $number:Int!, $endCursor:String) {
+    repository(owner:$owner, name:$repo) { pullRequest(number:$number) {
+      reviewThreads(first:100, after:$endCursor) {
+        nodes { id isResolved isOutdated path line originalLine
+          comments(first:100) { nodes {
+            id databaseId url body createdAt updatedAt author { login }
+            replyTo { id databaseId }
+            pullRequestReview { id databaseId state author { login } }
+          } pageInfo { hasNextPage endCursor } }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    } }
+  }'
+```
+   Paginate `reviewThreads` and each nested `comments` connection until its
+   `hasNextPage` is false; for a truncated nested connection, query its thread
+   `node(id: ...)` with the returned comment cursor until complete. Replies are
+   review-comment nodes linked by `replyTo`, not issue comments; preserve each
+   root and all replies in order.
+4. The current reviewer's pending draft (`CURRENT_REVIEWER_PENDING_REVIEWS` and
+   `CURRENT_REVIEWER_PENDING_COMMENTS`): get the viewer login with `gh api user
+   --jq .login`, select that viewer's `PENDING` entries from `PR_REVIEWS`, and
+   fetch each draft's comments with:
+```bash
+gh api --paginate \
+  "repos/{OWNER_REPO}/pulls/{number}/reviews/{review_id}/comments?per_page=100"
+```
+Pending reviews/comments may be visible only to their author. Preserve the
+current reviewer's accessible draft separately from submitted review summaries
+and threads; an absent draft is not evidence that another reviewer has none.
 
 Inspect CI with:
 ```bash
@@ -116,11 +163,11 @@ gh pr checks {number} --repo {OWNER_REPO}
 Record failing, pending, and successful checks as the review's validation
 signal. Do not replace CI with local lint, test, or format runs.
 
-Only after the worktree, `PR_BODY`, existing review comments, and CI state have
-all been collected, calculate `CHANGED_LINES`, `CHANGED_FILES`, binary status,
-and `SMALL_SCOPE` from the complete merge-base diff using the canonical
-definition in `SKILL.md` § Route. Do not use GitHub's summary counts or a
-module-merge heuristic as a substitute.
+Only after the worktree, `PR_BODY`, complete accessible conversation state, and
+CI state have all been collected, calculate `CHANGED_LINES`, `CHANGED_FILES`,
+binary status, and `SMALL_SCOPE` from the complete merge-base diff using the
+canonical definition in `SKILL.md` § Route. Do not use GitHub's summary counts
+or a module-merge heuristic as a substitute.
 
 ---
 
@@ -163,11 +210,18 @@ Coordinator duties around the selected engine:
 2. Apply the selected engine's checklist and reference-loading rules, including
    `cherry-review-guidance.md` and mandatory baseline docs read from the
    worktree, reviewing architecture-first.
-3. When `PR_COMMENTS` exist, verify whether previously raised issues have been
-   fixed. In teams-review this uses its additional PR-comment reviewer; in
-   local-review the single reviewer performs the check directly.
-4. After verification, de-duplicate confirmed issues against existing PR
-   comments.
+3. Treat a review thread, not an individual comment, as the unit for prior-issue
+   verification. Read its root and every reply together, preserve
+   `isResolved`/`isOutdated`, then verify the thread's current conclusion against
+   the exact code. Review summaries and ordinary conversation comments remain
+   contextual inputs with their own authors, bodies, and states. In teams-review
+   this uses its additional PR-conversation reviewer; in local-review the single
+   reviewer performs the check directly.
+4. After verification, de-duplicate each confirmed issue semantically against
+   whole existing threads. Never treat a reply as a separate prior issue. Also
+   compare against the current reviewer's pending draft to avoid adding a second
+   draft comment, but never describe that draft as submitted or visible to
+   others.
 
 **Output rule**: only present the final confirmed issues to the user. Do not
 output analysis process, exclusion reasoning, or issues that were considered
@@ -187,7 +241,9 @@ git -C "{MAIN_REPO_DIR}" worktree remove "{REVIEW_DIR}"
 > review result is still valid — do not block on cleanup. From the main
 > repo, run `git worktree prune` to clear stale worktree references; the
 > directory can be removed manually afterward. Never force-remove a worktree
-> containing unexplained changes; inspect it and request approval first.
+> containing unexplained changes. Treat that as a safety blocker: inspect and,
+> in an interactive session, request approval for the exact cleanup; in an
+> automated session leave it intact and report the required decision.
 
 Present results to user:
 - Summary: one paragraph describing the purpose and scope of the change.
