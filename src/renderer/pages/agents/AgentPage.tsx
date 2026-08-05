@@ -19,7 +19,7 @@ import {
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { prefetch, useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -37,7 +37,6 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
-import { useModelById } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -53,6 +52,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
@@ -181,6 +181,8 @@ const AgentPage = () => {
   const navigate = useNavigate()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
+  const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
@@ -266,6 +268,10 @@ const AgentPage = () => {
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
+  const initialActiveSession = useMemo(
+    () => (activeSessionId ? agentSessions.find((session) => session.id === activeSessionId) : undefined),
+    [activeSessionId, agentSessions]
+  )
   const {
     session: activeSession,
     isLoading: isActiveSessionLoading,
@@ -277,15 +283,28 @@ const AgentPage = () => {
     setPendingSession
   } = useActiveSession({
     activeSessionId,
-    setActiveSessionId
+    setActiveSessionId,
+    initialSession: initialActiveSession
   })
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
+  const { agent: visibleAgent, isLoading: isVisibleAgentLoading } = useAgent(visibleSession?.agentId ?? null)
   const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
-  // Start the managed model query before agent details resolve; AgentChat shares the same SWR request.
-  useModelById(visibleAgentFromList?.model)
+  const visibleAgentListModelId = visibleAgentFromList?.model
+  // The list entity is sufficient to reveal the model key. Warm model + provider caches without
+  // subscribing AgentPage to either response; AgentChat and the composer remain the canonical
+  // reactive consumers once the independently revalidated agent detail resolves.
+  useEffect(() => {
+    if (!isActiveTab || !visibleAgentListModelId) return
+
+    const { providerId } = parseUniqueModelId(visibleAgentListModelId)
+    void Promise.allSettled([
+      prefetch('/models/:uniqueModelId*', { params: { uniqueModelId: visibleAgentListModelId } }),
+      prefetch('/providers/:providerId', { params: { providerId } })
+    ])
+  }, [isActiveTab, visibleAgentListModelId])
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -329,9 +348,6 @@ const AgentPage = () => {
   })
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
-  const isActiveTab = useIsActiveTab()
-  const currentTabId = useCurrentTabId()
-
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {
       setSessionRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
@@ -368,7 +384,6 @@ const AgentPage = () => {
   }, [currentTabId])
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
-  const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
   const tabInstanceSessionId = !isMessageOnlyView
     ? (visibleSession?.id ?? routeActiveSessionId ?? undefined)
     : undefined
@@ -1144,6 +1159,8 @@ const AgentPage = () => {
           activeSession={visibleSession}
           activeSessionLoading={isActiveSessionLoading}
           activeSessionSource={activeSessionSource}
+          resolvedAgent={visibleAgent}
+          resolvedAgentLoading={isVisibleAgentLoading}
           pane={pane}
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}

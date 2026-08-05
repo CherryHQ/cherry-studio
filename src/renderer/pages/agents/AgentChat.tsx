@@ -85,6 +85,9 @@ interface AgentChatProps {
   activeSession?: AgentSessionEntity | null
   activeSessionLoading?: boolean
   activeSessionSource?: AgentSessionSource
+  /** Page-owned canonical agent query; omitted by isolated consumers/tests that let AgentChat query itself. */
+  resolvedAgent?: GetAgentResponse
+  resolvedAgentLoading?: boolean
   lockedSession?: AgentSessionEntity | null
   lockedSessionLoading?: boolean
   showResourceListControls?: boolean
@@ -149,6 +152,8 @@ const AgentChat = ({
   activeSession,
   activeSessionLoading = false,
   activeSessionSource = 'none',
+  resolvedAgent,
+  resolvedAgentLoading,
   lockedSession,
   lockedSessionLoading = false,
   showResourceListControls = true,
@@ -193,7 +198,10 @@ const AgentChat = ({
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const { agent: activeAgent, isLoading: isActiveAgentLoading } = useAgent(visibleAgentId)
+  const hasResolvedAgentQuery = resolvedAgentLoading !== undefined
+  const { agent: localAgent, isLoading: isLocalAgentLoading } = useAgent(hasResolvedAgentQuery ? null : visibleAgentId)
+  const activeAgent = hasResolvedAgentQuery ? resolvedAgent : localAgent
+  const isActiveAgentLoading = hasResolvedAgentQuery ? resolvedAgentLoading : isLocalAgentLoading
   const { model: activeModel, isLoading: isActiveModelLoading } = useModelById(activeAgent?.model)
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()

@@ -408,6 +408,7 @@ const Sessions = ({
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
+  const [renamingSession, setRenamingSession] = useState<AgentSessionEntity | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
@@ -466,6 +467,9 @@ const Sessions = ({
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
   )
+  // Display sorting needs the derived `pinned` field, but SessionItem should receive the original
+  // entity reference. Otherwise a pin-map update recreates every row object and defeats memo().
+  const sessionEntityById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const requestFileNavigation = useOptionalAgentFileNavigation()
@@ -784,6 +788,13 @@ const Sessions = ({
       }
     },
     [sessionItems, t, updateSession]
+  )
+  const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
+    setRenamingSession(session)
+  }, [])
+  const handleRenameSessionFromDialog = useCallback(
+    (name: string) => (renamingSession ? handleRenameSession(renamingSession.id, name) : undefined),
+    [handleRenameSession, renamingSession]
   )
 
   const handleAutoRenameSession = useCallback(
@@ -1882,16 +1893,27 @@ const Sessions = ({
         onDeleteSession={handleDeleteSession}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
+        onOpenRenameDialog={handleOpenRenameSessionDialog}
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
         onTogglePin={togglePin}
         panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+        sessionEntityById={sessionEntityById}
         sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
       />
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
         <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">{t('common.loading')}</div>
       )}
+      <EditNameDialog
+        open={!!renamingSession}
+        title={t('agent.session.edit.title')}
+        initialName={renamingSession?.name ?? ''}
+        onSubmit={handleRenameSessionFromDialog}
+        onOpenChange={(open) => {
+          if (!open) setRenamingSession(null)
+        }}
+      />
       <EditNameDialog
         open={!!renamingWorkspaceGroup}
         title={t('agent.session.workdir.rename.title')}
@@ -1934,10 +1956,12 @@ interface SessionListBodyProps {
   onDeleteSession: (id: string) => Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
+  onOpenRenameDialog: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
   panePosition?: TopicTabPosition
+  sessionEntityById: ReadonlyMap<string, AgentSessionEntity>
   sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
@@ -1954,10 +1978,12 @@ function SessionListBody({
   onDeleteSession,
   onOpenInNewTab,
   onOpenInNewWindow,
+  onOpenRenameDialog,
   onRetry,
   onSetPanePosition,
   onTogglePin,
   panePosition,
+  sessionEntityById,
   sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
@@ -1967,7 +1993,7 @@ function SessionListBody({
     (session: SessionListItem) => (
       <SessionItem
         key={session.id}
-        session={session}
+        session={sessionEntityById.get(session.id) ?? session}
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
@@ -1978,6 +2004,7 @@ function SessionListBody({
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
+        onOpenRenameDialog={onOpenRenameDialog}
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
         onPress={setActiveSessionId}
@@ -1991,9 +2018,11 @@ function SessionListBody({
       onDeleteSession,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onOpenRenameDialog,
       onSetPanePosition,
       onTogglePin,
       panePosition,
+      sessionEntityById,
       sessionMenuActions,
       setActiveSessionId
     ]

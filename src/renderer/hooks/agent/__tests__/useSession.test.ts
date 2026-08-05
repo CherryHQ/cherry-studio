@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
@@ -128,6 +129,59 @@ describe('useActiveSession', () => {
     expect(result.current.session).toBe(pendingSession)
     expect(result.current.sessionSource).toBe('pending')
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('uses a matching initial session that arrives after mount', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      isLoading: true
+    })
+
+    const { result, rerender } = renderHook(
+      ({ session }) => useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession: session }),
+      { initialProps: { session: null as AgentSessionEntity | null } }
+    )
+
+    expect(result.current.session).toBeUndefined()
+
+    rerender({ session: initialSession })
+
+    expect(result.current.session).toBe(initialSession)
+    expect(result.current.sessionSource).toBe('pending')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not serve an initial session after the canonical query reports not found', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() =>
+      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession })
+    )
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('keeps an initial session available after a transient query error', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: new Error('temporarily unavailable'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() =>
+      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession })
+    )
+
+    expect(result.current.session).toBe(initialSession)
+    expect(result.current.sessionSource).toBe('pending')
   })
 
   it('prefers matching query data over a pending session', () => {
