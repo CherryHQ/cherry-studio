@@ -233,6 +233,42 @@ describe('AppShell', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
   })
 
+  it('restores the most recently accessed workspace tab when Settings is restored active', () => {
+    const settingsTab = {
+      id: 'settings',
+      isDormant: false,
+      lastAccessTime: 400,
+      title: 'Settings',
+      type: 'route' as const,
+      url: '/settings/provider'
+    }
+    mocks.tabs = [
+      { id: 'home', isDormant: true, lastAccessTime: 300, title: 'Home', type: 'route', url: '/app/chat' },
+      { id: 'files', isDormant: true, lastAccessTime: 100, title: 'Files', type: 'route', url: '/app/files' },
+      settingsTab,
+      {
+        id: 'translate',
+        isDormant: true,
+        lastAccessTime: 200,
+        title: 'Translate',
+        type: 'route',
+        url: '/app/translate'
+      }
+    ]
+    mocks.activeTabId = settingsTab.id
+
+    render(<AppShell />)
+
+    const closeFocusedTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeFocusedTab?.(settingsTab.id)
+    expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'home')
+
+    const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachFocusedTab?.(settingsTab.id)
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+  })
+
   it('blocks and dismisses global search while the Settings tab is focused', () => {
     mocks.tabs = [
       ...mocks.tabs,

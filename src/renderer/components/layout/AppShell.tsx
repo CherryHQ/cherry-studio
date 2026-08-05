@@ -37,6 +37,11 @@ export const AppShell = () => {
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
     previousWorkspaceTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
+    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+      if (isSettingsPath(tab.url)) return latest
+      return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+    }, undefined)?.id
   }
   const tabBarTabs = useMemo(
     () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
