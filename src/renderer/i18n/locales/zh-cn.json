@@ -7356,6 +7356,7 @@
       "topic_naming": {
         "auto": "对话自动重命名",
         "label": "对话命名",
+        "model": "命名模型",
         "prompt": "对话命名提示词"
       },
       "translate_model": "翻译模型",
