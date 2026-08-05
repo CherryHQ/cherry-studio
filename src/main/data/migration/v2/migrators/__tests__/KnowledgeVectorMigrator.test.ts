@@ -2827,8 +2827,9 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      // prepare() opened both legacy stores once each and STREAMED them (no point-reads), to
-      // compute counts/skip decisions...
+      // prepare() opened both legacy stores once each and STREAMED them — file items like these
+      // need no point-reads (only a url/note item gets one bounded point-read, to derive its
+      // snapshot slug from its own rows instead of buffering text through the scan)...
       expect(openBaseSpy).toHaveBeenCalledTimes(2)
       expect(iterateCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
       expect(pointReadCalls).toEqual([])

@@ -213,13 +213,21 @@ export class KnowledgeVectorSourceReader {
       return { status: 'directory', dbPath }
     }
 
+    // Probing a corrupt/locked file makes isEmbedjsDatabase throw; the connection is only owned
+    // by the caller once the probe passes, so close it ourselves on every other exit.
     const db = new Database(dbPath, { readonly: true, fileMustExist: true })
-    if (!this.isEmbedjsDatabase(db)) {
-      db.close()
-      return { status: 'not_embedjs', dbPath }
+    let transferred = false
+    try {
+      if (!this.isEmbedjsDatabase(db)) {
+        return { status: 'not_embedjs', dbPath }
+      }
+      transferred = true
+      return { status: 'ok', dbPath, db }
+    } finally {
+      if (!transferred) {
+        db.close()
+      }
     }
-
-    return { status: 'ok', dbPath, db }
   }
 
   private isEmbedjsDatabase(db: Database.Database): boolean {
