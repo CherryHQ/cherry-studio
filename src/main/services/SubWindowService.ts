@@ -143,12 +143,11 @@ export class SubWindowService extends BaseService {
     icon?: string
     type?: string
     isPinned?: boolean
-    metadata?: Tab['metadata']
     x?: number
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, icon, type, isPinned, metadata, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
 
@@ -158,8 +157,7 @@ export class SubWindowService extends BaseService {
       title,
       ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned,
-      ...(metadata && { metadata })
+      isPinned
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).

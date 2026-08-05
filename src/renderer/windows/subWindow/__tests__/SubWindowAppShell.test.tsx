@@ -97,8 +97,7 @@ describe('SubWindowAppShell', () => {
         url: '/app/chat?topicId=topic-1',
         title: 'Detached topic',
         icon: '🍒',
-        isPinned: true,
-        metadata: { filePreviewRefreshKey: 2 }
+        isPinned: true
       }
     })
 
@@ -109,7 +108,6 @@ describe('SubWindowAppShell', () => {
         icon: '🍒',
         type: 'route',
         isPinned: true,
-        metadata: { filePreviewRefreshKey: 2 },
         forceNew: true
       })
     })

@@ -202,8 +202,7 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true,
-        metadata: { refreshKey: 2 }
+        isPinned: true
       })
 
       const { args } = lastOpenCall()
@@ -212,8 +211,7 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true,
-        metadata: { refreshKey: 2 }
+        isPinned: true
       })
     })
 

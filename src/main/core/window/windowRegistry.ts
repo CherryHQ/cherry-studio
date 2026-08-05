@@ -178,7 +178,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // initial position was provided at Tab_Detach time (drop-at-cursor detach
   // wants the window at that position before show; no-position detach uses a
   // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
-  // isPinned, metadata) flows via initData and useWindowInitData<SubWindowInitData>() in
+  // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
   // the renderer.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,

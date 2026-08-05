@@ -1,4 +1,4 @@
-import type { Tab, TabType } from '../data/cache/cacheValueTypes'
+import type { TabType } from '../data/cache/cacheValueTypes'
 
 /**
  * Initialization payload for a detached SubWindow.
@@ -20,5 +20,4 @@ export type SubWindowInitData = {
   icon?: string
   type?: TabType
   isPinned?: boolean
-  metadata?: Tab['metadata']
 }

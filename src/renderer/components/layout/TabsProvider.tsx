@@ -4,7 +4,6 @@ import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@render
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
-import { migrateLegacyConversationTabs } from '@renderer/utils/tabMigration'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -50,17 +49,16 @@ function routePathOfTab(tab: Tab): string | null {
 }
 
 /**
- * Reconcile persisted pinned tabs: migrate legacy conversation identities into their URLs, drop
+ * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
  * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
  * redirect never produces a second Code pin). `changed` is true when anything was dropped or
  * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
  */
 export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
-  const conversationMigration = migrateLegacyConversationTabs(pinnedTabs)
-  let hasCodePin = conversationMigration.tabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
+  let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
   const tabs: Tab[] = []
-  let changed = conversationMigration.changed
-  for (const tab of conversationMigration.tabs) {
+  let changed = false
+  for (const tab of pinnedTabs) {
     const path = routePathOfTab(tab)
     if (path === LEGACY_LIBRARY_ROUTE_PATH) {
       changed = true
@@ -207,8 +205,6 @@ export function TabsProvider({
   // initial value and written back via effects below — none of the existing setters change.
   const [persistedNormalTabs, setPersistedNormalTabs] = usePersistCache('ui.tab.normal_tabs')
   const [persistedActiveTabId, setPersistedActiveTabId] = usePersistCache('ui.tab.active_tab_id')
-  const restoredNormalTabs = useMemo(() => persistedNormalTabs || [], [persistedNormalTabs])
-  const migratedNormalTabs = useMemo(() => migrateLegacyConversationTabs(restoredNormalTabs), [restoredNormalTabs])
 
   // Compute the restored session once at mount. This relies on the persist cache being hydrated
   // SYNCHRONOUSLY in the CacheService constructor (loadPersistCache reads localStorage on
@@ -224,7 +220,7 @@ export function TabsProvider({
       // Check the active-pinned tab against the migrated set that actually renders, not the raw
       // persisted pins — a pin dropped/redirected by migratePinnedTabs must not resolve as active.
       pinnedTabs: availablePinnedTabs,
-      persistedNormalTabs: migratedNormalTabs.tabs,
+      persistedNormalTabs: persistedNormalTabs ?? [],
       persistedActiveTabId: persistedActiveTabId ?? ''
     })
   }
@@ -248,7 +244,7 @@ export function TabsProvider({
     hasRestoredPinnedTabsRef.current = true
     setPinnedTabs(initialSessionRef.current!.pinnedTabs)
     if (migratedPinnedTabs.changed) {
-      logger.info('Reconciled persisted pinned tabs', {
+      logger.info('Reconciled pinned tabs against removed/relocated routes', {
         before: restoredPinnedTabs.length,
         after: initialSessionRef.current!.pinnedTabs.length
       })
