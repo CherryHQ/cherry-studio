@@ -151,6 +151,40 @@ describe('ExternalAppsService', () => {
     )
   })
 
+  it('opens in the containing directory when the target file does not exist yet', async () => {
+    existsSyncSpy.mockReturnValue(true)
+    // statSync throws (target not found) — the heuristic must still treat the
+    // dotted final segment as a file and fall back to its directory.
+    statSyncSpy.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
+    mockSpawnExit(0)
+
+    await service.open('wt', 'C:\\work\\project\\draft.txt')
+
+    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+      WT_ALIAS_PATH,
+      ['-d', 'C:\\work\\project'],
+      expect.objectContaining({ env: expect.any(Object) })
+    )
+  })
+
+  it('keeps a non-existent extension-less path as-is when opening a terminal', async () => {
+    existsSyncSpy.mockReturnValue(true)
+    statSyncSpy.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
+    mockSpawnExit(0)
+
+    await service.open('wt', 'C:\\work\\brand-new-project')
+
+    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+      WT_ALIAS_PATH,
+      ['-d', 'C:\\work\\brand-new-project'],
+      expect.objectContaining({ env: expect.any(Object) })
+    )
+  })
+
   it('rejects when the requested app is not executable-based', async () => {
     await expect(service.open('vscode', 'C:\\work')).rejects.toThrow('cannot be launched as a process')
     await expect(service.open('unknown' as never, 'C:\\work')).rejects.toThrow('cannot be launched as a process')

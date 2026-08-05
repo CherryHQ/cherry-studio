@@ -80,11 +80,15 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
   }, [availableEditors, selectedTarget])
 
   const openInEditor = useCallback(
-    (app: ExternalAppInfo) => {
-      void openExternalApp(app, openTargetPath)
-      setLastUsedTarget(app.id)
+    async (app: ExternalAppInfo) => {
+      try {
+        await openExternalApp(app, openTargetPath)
+        setLastUsedTarget(app.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('common.open_in', { name: app.name })))
+      }
     },
-    [openTargetPath, setLastUsedTarget]
+    [openTargetPath, setLastUsedTarget, t]
   )
 
   const openFileManager = useCallback(async () => {
@@ -111,7 +115,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
 
   const handlePrimaryClick = useCallback(() => {
     if (selectedEditor) {
-      openInEditor(selectedEditor)
+      void openInEditor(selectedEditor)
       return
     }
     void openFileManager()
@@ -147,7 +151,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
             label={app.name}
             icon={getEditorIcon(app)}
             active={selectedTarget === app.id}
-            onClick={() => openInEditor(app)}
+            onClick={() => void openInEditor(app)}
           />
         ))}
       </MenuList>

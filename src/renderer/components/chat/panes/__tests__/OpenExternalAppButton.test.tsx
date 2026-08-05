@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
-  windowOpen: vi.fn()
+  windowOpen: vi.fn(),
+  openExternalApp: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -108,10 +109,7 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 
 vi.mock('@renderer/utils/editor', () => ({
   buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`,
-  openExternalApp: (app: { id: string }, workdir: string) => {
-    window.open(`editor://${app.id}${workdir}`)
-    return Promise.resolve()
-  }
+  openExternalApp: (app: { id: string }, workdir: string) => mocks.openExternalApp(app, workdir)
 }))
 
 vi.mock('@renderer/components/icons/EditorIcon', () => ({
@@ -178,6 +176,10 @@ describe('OpenExternalAppButton', () => {
       configurable: true,
       value: mocks.windowOpen
     })
+    mocks.openExternalApp.mockReset()
+    mocks.openExternalApp.mockImplementation(async (app: { id: string }, workdir: string) => {
+      window.open(`editor://${app.id}${workdir}`)
+    })
   })
 
   it('opens the workspace in the file manager when no code editor is available', async () => {
@@ -191,24 +193,25 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
   })
 
-  it('opens the selected editor from the primary button', () => {
+  it('opens the selected editor from the primary button', async () => {
     mocks.externalApps = [vscodeApp]
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
 
+    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode'))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace')
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode')
   })
 
-  it('opens targets from a custom workspace trigger', () => {
+  it('opens targets from a custom workspace trigger', async () => {
     mocks.externalApps = [vscodeApp, cursorApp]
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" menuTrigger={<button type="button">Workspace 1</button>} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspace 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
+    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('cursor'))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
   })
 
@@ -224,8 +227,8 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
 
     fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
+    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('cursor'))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('cursor')
   })
 
   it('shows an error toast when opening the file manager fails', async () => {
@@ -257,18 +260,18 @@ describe('OpenExternalAppButton', () => {
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
   })
 
-  it('lists and opens a terminal app from the workspace toolbar', () => {
+  it('lists and opens a terminal app from the workspace toolbar', async () => {
     mocks.externalApps = [windowsTerminalApp]
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open in Windows Terminal' }))
 
+    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('wt'))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://wt/tmp/workspace')
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('wt')
   })
 
-  it('opens a selected file in the selected editor', () => {
+  it('opens a selected file in the selected editor', async () => {
     mocks.externalApps = [vscodeApp]
     mocks.lastUsedTarget = 'vscode'
 
@@ -276,7 +279,19 @@ describe('OpenExternalAppButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
 
+    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode'))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace/report.xlsx')
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode')
+  })
+
+  it('shows an error toast and does not persist the target when opening an editor fails', async () => {
+    mocks.externalApps = [vscodeApp]
+    mocks.openExternalApp.mockRejectedValueOnce(new Error('spawn failed'))
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Open in VS Code: spawn failed'))
+    expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
   })
 })

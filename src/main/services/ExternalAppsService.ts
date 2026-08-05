@@ -121,10 +121,17 @@ class ExternalAppsService {
         // handling deterministic regardless of the host the process runs on.
         return path.win32.dirname(targetPath)
       }
+      return targetPath
     } catch {
-      // Target may not exist yet; fall through and pass it through as-is.
+      // The target does not exist yet (e.g. an unsaved artifact draft). If it
+      // looks like a file path — the final segment contains a dot — open the
+      // terminal in the containing directory instead of passing the file path
+      // to `wt.exe -d` (which would fail).
+      if (path.win32.basename(targetPath).includes('.')) {
+        return path.win32.dirname(targetPath)
+      }
+      return targetPath
     }
-    return targetPath
   }
 }
 
