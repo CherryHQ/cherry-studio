@@ -1,10 +1,11 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { ArrowLeft, PictureInPicture2, Plus, X } from 'lucide-react'
+import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
   isValidElement,
@@ -943,10 +944,6 @@ export const AppShellTabBar = ({
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
                   onClose={(freezeWidth) => {
-                    if (isFocusedTab) {
-                      closeTab(tab.id)
-                      return
-                    }
                     // Non-pointer closes (keyboard) remove immediately — the collapse
                     // animation and width freeze only make sense with a cursor parked
                     // on the strip.
@@ -1064,15 +1061,12 @@ export const AppShellTabBar = ({
                   <Button
                     type="button"
                     variant="ghost"
-                    data-testid="focused-tab-detach"
                     aria-label={t('tab.open_in_new_window')}
                     onClick={() => detachTab(activeTabId)}
-                    className="group size-8 cursor-pointer rounded-[8px] p-0 hover:bg-accent">
-                    <PictureInPicture2
-                      className="lucide-custom text-foreground-tertiary transition-colors group-hover:text-foreground"
+                    className="group size-8 cursor-pointer rounded-[8px] p-0">
+                    <OpenInNewWindowIcon
+                      className="text-foreground-tertiary transition-colors group-hover:text-foreground"
                       size={16}
-                      strokeWidth={1.7}
-                      aria-hidden
                     />
                   </Button>
                 </Tooltip>

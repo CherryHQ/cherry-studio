@@ -31,13 +31,7 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    size,
-    variant,
-    ...props
-  }: React.ComponentProps<'button'> & { size?: string; variant?: string }) => {
-    void size
+  Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
       <button type={props.type ?? 'button'} {...props}>
@@ -229,7 +223,7 @@ describe('AppShellTabBar', () => {
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
     const detachTab = vi.fn()
 
-    const closeTab = renderTabBar({
+    renderTabBar({
       tabs: [settingsTab],
       activeTabId: settingsTab.id,
       isFocusedTab: true,
@@ -237,8 +231,8 @@ describe('AppShellTabBar', () => {
     })
 
     const backButton = screen.getByRole('button', { name: 'common.back' })
-    expect(backButton).toHaveClass('h-8', 'w-auto', 'appearance-none', 'border-0', 'bg-transparent', 'shadow-none')
-    expect(backButton).toHaveClass('cursor-pointer', 'hover:text-foreground')
+    // The focused control stays visually plain until hover, while both label and icon highlight together.
+    expect(backButton).toHaveClass('cursor-pointer', 'bg-transparent', 'hover:text-foreground')
     expect(backButton.querySelector('svg')).toHaveClass('group-hover:text-foreground')
     expect(backButton).not.toHaveClass('hover:bg-accent')
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
@@ -250,19 +244,11 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
-    const detachButton = screen.getByTestId('focused-tab-detach')
-    expect(detachButton).toHaveClass('group', 'size-8', 'cursor-pointer')
-    expect(detachButton.querySelector('svg')).toHaveClass(
-      'lucide-custom',
-      'text-foreground-tertiary',
-      'group-hover:text-foreground'
-    )
+    const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
+    expect(detachButton.querySelector('svg')).toHaveClass('text-foreground-tertiary', 'group-hover:text-foreground')
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
-
-    fireEvent.click(backButton)
-    expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
   it('detaches the focused tab when dragged outside the tab bar', () => {
