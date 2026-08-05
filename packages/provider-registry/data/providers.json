@@ -552,7 +552,7 @@
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "openrouter",
+          "adapterFamily": "anthropic",
           "baseUrl": "https://openrouter.ai/api"
         },
         "openai-chat-completions": {
@@ -1149,6 +1149,10 @@
       "serverTools": [
         {
           "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
           "modelScope": "model-dependent"
         }
       ]
@@ -2063,5 +2067,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "85bbd48d55b3ab5d"
+  "version": "3f210ce4fbae8e68"
 }

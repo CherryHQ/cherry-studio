@@ -33,6 +33,24 @@ const webSearchModelPrefixes = [
   'glm-5'
 ]
 
+// Web-extractor (help.aliyun.com/zh/model-studio/web-extractor) is served for the Qwen Max/Plus/Flash
+// lines only — a subset of the web-search models (no DeepSeek/Kimi/GLM/QwQ/turbo). Extraction rides web
+// search, so eligibility here also gates the chat `agent_max` strategy in getWebSearchParams.
+const webExtractorModelPrefixes = [
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash'
+]
+
 /** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
 const wanxT2iSupports: ImageModeDef['supports'] = {
   addWatermark: { default: false, type: 'switch' },
@@ -323,6 +341,11 @@ export default defineProvider({
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
       modelIds: ['minimax-m2-1']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webExtractorModelPrefixes
     }
   ],
   metadata: {
