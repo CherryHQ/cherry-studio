@@ -971,15 +971,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
    * empty-store state), and unpinned url/note rows keep a `completed` status that makes
    * index-documents skip them, so their snapshots are never captured either. `missing_vector_store`
    * is the same restorable error prepare()'s unreadable-store branch sets, so the UI offers the
-   * restore flow. Best-effort and chunked like flushDirectoryDegradations:
-   * a failed UPDATE is recorded as a warning, never thrown, so it cannot abort the surviving bases.
+   * restore flow. Chunked like flushDirectoryDegradations, and every batch is attempted before any
+   * failure surfaces — but a batch that could not be persisted is FATAL, not best-effort: the
+   * `failed` mark is the only thing standing between the user and a `completed` base with a wiped
+   * store and unpinned rows, so if it cannot be written the migration must not be recorded as
+   * completed either. Throwing here fails the migrator, the engine marks the migration failed
+   * (same app DB, same connection — a persistent write fault stops markCompleted too), and the
+   * next launch re-runs from scratch.
    */
   private async flushBaseFailures(ctx: MigrationContext): Promise<void> {
     if (this.basesToMarkFailed.size === 0) {
       return
     }
     const ids = [...this.basesToMarkFailed]
-    let failedCount = 0
+    const unpersistedBaseIds: string[] = []
+    let lastError: unknown
     for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
       const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
       try {
@@ -987,18 +993,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           .update(knowledgeBaseTable)
           .set({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
           .where(inArray(knowledgeBaseTable.id, batch))
-        failedCount += batch.length
       } catch (error) {
-        // Best-effort per batch: one failed batch must not abort the rest of the pass.
-        this.recordWarning(
-          `Failed to mark ${batch.length} knowledge base(s) failed after vector store promotion failed: ${error instanceof Error ? error.message : String(error)}`
-        )
+        // Keep attempting the remaining batches (each is an independent UPDATE), then fail below.
+        unpersistedBaseIds.push(...batch)
+        lastError = error
       }
     }
     logger.info('Marked knowledge bases failed after vector store promotion failed', {
-      failedCount,
+      failedCount: ids.length - unpersistedBaseIds.length,
       totalCount: ids.length
     })
+    if (unpersistedBaseIds.length > 0) {
+      throw new Error(
+        `Failed to persist the failed status of ${unpersistedBaseIds.length} knowledge base(s) [${unpersistedBaseIds.join(', ')}] after their vector store could not be published: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+      )
+    }
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {

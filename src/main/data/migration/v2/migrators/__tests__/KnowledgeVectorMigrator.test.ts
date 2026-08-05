@@ -2478,6 +2478,63 @@ describe('KnowledgeVectorMigrator', () => {
       expect(failedValidateResult.stats.skippedCount).toBe(failedValidateResult.stats.sourceCount)
     })
 
+    it('fails the whole migration when a failed base cannot even be marked failed', async () => {
+      // Double write fault: the pin transaction throws (base must be marked failed) AND the
+      // knowledge_base UPDATE persisting that failed status throws too. Swallowing the second
+      // failure would let the engine record the migration completed while this base sits
+      // `completed` with a wiped store and unpinned rows — permanently broken, with no restore
+      // badge and no re-run. execute() must throw instead, so the engine marks the migration
+      // failed and the next launch retries from scratch (markCompleted writes to the same app DB,
+      // so a persistent write fault could never have produced a `completed` migration anyway).
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+      // The snapshot-pin transaction throws, putting the base on basesToMarkFailed...
+      migrationCtx.db.transaction = vi.fn(() => {
+        throw new Error('pin update failed')
+      }) as any
+      // ...and the flushBaseFailures UPDATE persisting `failed` throws as well.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn().mockRejectedValue(new Error('disk I/O error'))
+        }))
+      })) as any
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      await expect(migrator.execute(migrationCtx as any)).rejects.toThrow(
+        `Failed to persist the failed status of 1 knowledge base(s) [${MIGRATED_KNOWLEDGE_BASE_ID}]`
+      )
+    })
+
     it('validate fails when a materialized url snapshot file is missing from the material root', async () => {
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {

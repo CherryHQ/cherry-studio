@@ -82,7 +82,15 @@ At most ONE ITEM's text plus ONE BATCH of vectors is ever resident. `prepare()` 
 base's legacy rows once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists,
 counts, per-reason skip tallies (capped samples — never one message per rejected row) and each
 url/note item's reserved snapshot path, derived by point-reading that one item's rows back after
-the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text). `execute()` re-reads
+the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text). The rowid lists are the
+one deliberately retained per-chunk structure, and their bound is verifiable: one JS number per
+chunk in a packed SMI array — measured 10.5 B/chunk at 1M chunks and 8.0 B/chunk at 10M
+(`node --expose-gc`, heap delta around building `Map<string, number[]>`). Each chunk occupies
+≥5 KB in the legacy DB (a 4 KB float32 vector at 1024 dims + ~1 KB text), so the plan is bounded
+by ~1/500 of the legacy file's size on disk: a plan reaching even 100 MB would imply a ~50 GB v1
+vector DB, and exhausting V8's 4 GB old-space would take ~400M chunks (~2 TB source) — far beyond
+what v1's one-chunk-per-embedding-call indexing could ever produce (heaviest observed corpus:
+~75k chunks ≈ 0.7 MB of plan). `execute()` re-reads
 one item at a time: its text whole through the vector-free column projection
 (`loadTextRowsByRowids` — the content schema stores one text row per material, so the joined text
 is irreducible without a schema change), and its vectors in fixed ≤500-rowid point-read batches
