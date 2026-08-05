@@ -11,25 +11,41 @@ interface SelectionContextMenuProps {
 }
 
 /**
- * Extract text content from a Selection, filtering out line numbers in code viewers.
- * Preserves all content including plain text and code blocks, only removing line numbers.
- * This ensures right-click copy in code blocks doesn't include line numbers while preserving indentation.
+ * Extract text content from a Selection, restoring KaTeX formulas to their TeX source and
+ * filtering out line numbers in code viewers.
  */
 function extractSelectedText(selection: Selection): string {
   if (selection.rangeCount === 0 || selection.isCollapsed) {
     return ''
   }
 
-  const range = selection.getRangeAt(0)
+  const range = selection.getRangeAt(0).cloneRange()
+  const startElement =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+  const endElement = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement
+  const startKatex = startElement?.closest('.katex')
+  const endKatex = endElement?.closest('.katex')
+
+  if (startKatex) range.setStartBefore(startKatex)
+  if (endKatex) range.setEndAfter(endKatex)
+
   const fragment = range.cloneContents()
-
   const hasLineNumbers = fragment.querySelectorAll('.line-number').length > 0
+  const katexMathMlElements = fragment.querySelectorAll('.katex-mathml')
+  const hasKatex = katexMathMlElements.length > 0
 
-  if (!hasLineNumbers) {
+  if (!hasLineNumbers && !hasKatex) {
     return selection.toString()
   }
 
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
+  fragment.querySelectorAll('.katex-mathml + .katex-html').forEach((el) => el.remove())
+  katexMathMlElements.forEach((element) => {
+    const texSource = element.querySelector('annotation')?.textContent
+    if (texSource !== null && texSource !== undefined) {
+      element.replaceWith(document.createTextNode(texSource))
+    }
+  })
 
   const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null)
 

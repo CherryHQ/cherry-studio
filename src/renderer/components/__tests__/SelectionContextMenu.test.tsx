@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import katex from 'katex'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -82,11 +83,21 @@ vi.mock('@renderer/components/command', async () => {
 
 function mockSelection(text: string, fragment?: DocumentFragment) {
   const hasSelection = text.length > 0 || !!fragment
-  const selection = {
-    getRangeAt: () => ({
+  const createRange = () => {
+    const boundaryNode = document.createTextNode(text)
+
+    return {
       cloneContents: () =>
-        (fragment?.cloneNode(true) as DocumentFragment | undefined) ?? document.createDocumentFragment()
-    }),
+        (fragment?.cloneNode(true) as DocumentFragment | undefined) ?? document.createDocumentFragment(),
+      cloneRange: createRange,
+      endContainer: boundaryNode,
+      setEndAfter: vi.fn(),
+      setStartBefore: vi.fn(),
+      startContainer: boundaryNode
+    } as unknown as Range
+  }
+  const selection = {
+    getRangeAt: createRange,
     isCollapsed: !hasSelection,
     rangeCount: hasSelection ? 1 : 0,
     toString: () => text
@@ -179,6 +190,33 @@ describe('SelectionContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('    const value = 1\n  return value')
+  })
+
+  it('copies a selected KaTeX formula as its original TeX source', () => {
+    const texSource = String.raw`\boxed{\ker A\subseteq\ker C
+\iff
+\operatorname{Row}(C)\subseteq\operatorname{Row}(A)}`
+    vi.mocked(window.getSelection).mockRestore()
+
+    render(
+      <SelectionContextMenu>
+        <div
+          data-testid="target"
+          dangerouslySetInnerHTML={{ __html: katex.renderToString(texSource, { displayMode: true }) }}
+        />
+      </SelectionContextMenu>
+    )
+
+    const range = document.createRange()
+    range.selectNodeContents(screen.getByRole('math'))
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    fireEvent.contextMenu(screen.getByTestId('target'))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(texSource)
   })
 
   it('keeps whitespace-only code selections actionable', () => {
