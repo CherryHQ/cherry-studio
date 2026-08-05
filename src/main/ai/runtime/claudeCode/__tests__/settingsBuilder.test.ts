@@ -1431,7 +1431,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).not.toContain('AskUserQuestion')
   })
 
-  it('assistant role adds interactive no-responder tools to disallowedTools', async () => {
+  it('does not disable normal interactive tools merely because the Agent is built in', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1448,12 +1448,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.disallowedTools ?? []).toEqual(
+    expect(settings.disallowedTools ?? []).not.toEqual(
       expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'])
     )
   })
 
-  it('loads the private skill plugin for the built-in Assistant while keeping setting sources isolated', async () => {
+  it('loads the private skill plugin for the built-in Assistant without restricting normal setting sources', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1476,7 +1476,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.settingSources).toEqual([])
+    expect(settings.settingSources).toEqual(['user', 'project', 'local'])
     expect(settings.plugins).toContainEqual({
       type: 'local',
       path: '/app/feature.agents.claude.root',
@@ -1543,7 +1543,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
     const handlers = cherryServer.server._requestHandlers
     const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
-    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toContain('cli_list')
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+    )
+    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('exposes CLI management tools to a normal Agent session', async () => {
@@ -1621,7 +1624,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
-  it('reasserts the Cherry Assistant identity and ownership contract on every submitted prompt', async () => {
+  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1638,25 +1641,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const hook = settings.hooks?.UserPromptSubmit?.[0]?.hooks[0]
-    const output = await hook?.(
-      { hook_event_name: 'UserPromptSubmit', prompt: '我的模型和你的模型分别是什么？' } as never,
-      undefined,
-      {} as never
-    )
-
-    expect(output).toMatchObject({
-      continue: true,
-      hookSpecificOutput: {
-        hookEventName: 'UserPromptSubmit',
-        additionalContext: expect.stringContaining("In a user's message, first-person terms refer to the user")
-      }
-    })
-    expect(output).toMatchObject({
-      hookSpecificOutput: {
-        additionalContext: expect.stringContaining("None establishes the user's identity or preferences")
-      }
-    })
+    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -1778,7 +1763,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
-  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
+  it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {
     const preferenceGet = vi.fn((key: string) => {
       if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
@@ -1805,13 +1790,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(typeof settings.systemPrompt).toBe('string')
-    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
-    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
-    expect(proxyLine).not.toContain('user')
-    expect(proxyLine).not.toContain('pass')
-    expect(proxyLine).not.toContain('token=secret')
-    expect(proxyLine).not.toContain('/path')
+    expect(settings.systemPrompt as string).not.toContain('## Current Environment')
+    expect(settings.systemPrompt as string).not.toContain('proxy.example')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

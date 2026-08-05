@@ -794,7 +794,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('adds opaque attachment handles only when the Cherry Assistant file server is enabled', async () => {
+  it('adds attachment handles without removing ordinary Agent archive paths', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -857,7 +857,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `summarize this\nAttached file contents\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+          content: `summarize this\nAttached file contents\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
         }
       },
       done: false

@@ -1104,10 +1104,10 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * Build SDK user content from a message entity. When the model supports vision,
  * supported image attachments (png, jpeg, gif, webp) are materialized into native
  * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. Ordinary Agents forward first-party
- * archives as tool-readable paths, while Cherry Assistant keeps them behind opaque
- * attachment handles. External files and images that cannot be materialized fall back
- * to local paths when available.
+ * shared routing, like first-party non-image files. First-party archives are always
+ * forwarded as tool-readable paths; enabling Assistant attachment handles adds that
+ * interface without taking the ordinary Agent path away. External files and images that
+ * cannot be materialized fall back to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -1117,19 +1117,14 @@ async function materializeUserContent(
   supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
-  const firstPartyArchiveParts = parts.filter(
-    (part): part is FileUIPart =>
-      !supportsAttachmentReads &&
-      part.type === 'file' &&
-      Boolean(readCherryMeta(part)?.fileEntryId) &&
-      isArchiveFilePart(part)
+  const firstPartyFileParts = parts.filter(
+    (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
+  const firstPartyArchiveParts = firstPartyFileParts.filter(isArchiveFilePart)
   const firstPartyParts = parts.filter(
     (part) =>
       part.type === 'text' ||
-      (part.type === 'file' &&
-        Boolean(readCherryMeta(part)?.fileEntryId) &&
-        (supportsAttachmentReads || !isArchiveFilePart(part)))
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && !isArchiveFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -1146,7 +1141,9 @@ async function materializeUserContent(
   if (firstPartyParts.some((part) => part.type === 'file')) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
     const attachments = supportsAttachmentReads
-      ? collectAssistantFileAttachments([userMessage])
+      ? collectAssistantFileAttachments([
+          { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
+        ])
       : collectFileAttachments([userMessage])
     if (supportsAttachmentReads) turnAttachments = attachments
     const [prepared] = await prepareChatMessages([userMessage], {
@@ -1173,8 +1170,6 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     const isArchive = isArchiveFilePart(originalPart)
-    const isFirstPartyArchive = Boolean(readCherryMeta(originalPart)?.fileEntryId) && isArchive
-    if (isFirstPartyArchive && supportsAttachmentReads) continue
     if (isArchive || !supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
