@@ -53,6 +53,7 @@ function createTableMock(inputRows: LegacyRecord[]) {
 
   return {
     bulkGet: vi.fn(async (keys: string[]) => keys.map((key) => rowsById.get(key))),
+    get: vi.fn(async (key: string) => rowsById.get(key)),
     orderBy: vi.fn(() => createCollection()),
     pageQuery,
     toArray: vi.fn(async () => rows),
@@ -78,7 +79,7 @@ describe('DexieExporter', () => {
     }
   })
 
-  it('exports a large table through primary-key pages as one valid JSON array', async () => {
+  it('streams a large table through primary-key pages without materializing a full record page', async () => {
     const rows = Array.from({ length: 205 }, (_, index) => ({
       id: `block-${String(index).padStart(3, '0')}`,
       payload: `payload-${index}`
@@ -90,6 +91,7 @@ describe('DexieExporter', () => {
 
     expect(JSON.parse(exportedText())).toEqual(rows)
     expect(table.toArray).not.toHaveBeenCalled()
+    expect(table.bulkGet).not.toHaveBeenCalled()
     expect(table.pageQuery).toHaveBeenCalledTimes(4)
     const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
     expect(writeCalls[0]?.[4]).toBe('overwrite')
@@ -171,9 +173,9 @@ describe('DexieExporter', () => {
     expect((thrown as Error).message).not.toContain('do-not-leak')
   })
 
-  it('fails instead of silently dropping a record missing from bulkGet', async () => {
+  it('fails instead of silently dropping a record missing from IndexedDB', async () => {
     const table = createTableMock([{ id: 'block-1' }])
-    table.bulkGet.mockResolvedValueOnce([undefined])
+    table.get.mockResolvedValueOnce(undefined)
     dexieMock.table.mockReturnValue(table)
 
     await expect(new DexieExporter('/export').exportAll()).rejects.toThrow(

@@ -90,11 +90,12 @@ export class DexieExporter {
         break
       }
 
-      const records = await table.bulkGet(primaryKeys)
-
       for (let index = 0; index < primaryKeys.length; index++) {
         const primaryKey = primaryKeys[index]
-        const record = records[index]
+        // Keep the renderer's live record set bounded to one item. A page of
+        // topics can contain enough embedded messages to exhaust its heap when
+        // all records are materialized together.
+        const record = await table.get(primaryKey)
 
         if (record === undefined) {
           throw this.createRecordExportError(tableName, primaryKey, new Error('Record missing from IndexedDB page'))
