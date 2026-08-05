@@ -297,12 +297,21 @@ describe('AppShell', () => {
 
     render(<AppShell />)
 
+    const settingsContent = screen.getByTestId('settings-router').closest('main')
+    const settingsTitleBar = screen.getByTestId('settings-title-bar')
+    const backButton = screen.getByRole('button', { name: /Back|返回/ })
+
     expect(screen.getByTestId('workspace-shell')).toHaveClass('hidden')
     expect(screen.getByTestId('settings-shell')).toBeVisible()
     expect(screen.getByTestId('settings-router')).toHaveAttribute('data-url', '/settings/provider')
+    expect(settingsContent?.parentElement).toHaveClass('px-2', 'pb-2')
+    expect(settingsContent).toHaveClass('rounded-[12px]', 'border-[0.5px]', 'border-border')
+    expect(settingsTitleBar).not.toHaveClass('after:h-[0.5px]')
+    expect(backButton).toHaveClass('h-7', 'min-h-7', 'gap-1', 'px-1.5')
+    expect(backButton).not.toHaveClass('h-8')
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(mocks.workspaceRouterProps).toHaveProperty('isActive', false)
-    expect(screen.getByRole('button', { name: /Back|返回/ })).toHaveFocus()
+    expect(backButton).toHaveFocus()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 

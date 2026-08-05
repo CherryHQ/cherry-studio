@@ -67,15 +67,13 @@ function ImmersiveSettingsShell({
         'flex h-screen w-screen flex-col overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Two deliberate offsets keep Back on the traffic lights' line:
-          - the divider is an overlay, not a border, so it does not shrink the content box;
-          - macOS draws the lights from `trafficLightPosition` y=16 (windowRegistry) at ~13.5px, so
-            their centre sits ~0.75px below the centre of the 44px chrome. `pt-[1.5px]` moves the
-            row's centre down by exactly that much. Fullscreen hides the lights, so it drops out. */}
+      {/* macOS draws the lights from `trafficLightPosition` y=16 (windowRegistry) at ~13.5px, so
+          their centre sits ~0.75px below the centre of the 44px chrome. `pt-[1.5px]` moves the
+          row's centre down by exactly that much. Fullscreen hides the lights, so it drops out. */}
       <header
         data-testid="settings-title-bar"
         className={cn(
-          "relative flex h-[var(--app-top-chrome-height)] shrink-0 items-center [-webkit-app-region:drag] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[0.5px] after:bg-border after:content-['']",
+          'relative flex h-[var(--app-top-chrome-height)] shrink-0 items-center [-webkit-app-region:drag]',
           isMac && !isFullscreen && 'pt-[1.5px]'
         )}>
         {isMac && !isFullscreen && (
@@ -92,7 +90,7 @@ function ImmersiveSettingsShell({
             variant="ghost"
             aria-label={t('common.back')}
             onClick={onBack}
-            className="h-8 text-foreground text-sm dark:text-foreground">
+            className="h-7 min-h-7 gap-1 px-1.5 text-foreground text-sm dark:text-foreground">
             <ArrowLeft size={16} />
             <span>{t('common.back')}</span>
           </Button>
@@ -101,11 +99,13 @@ function ImmersiveSettingsShell({
           <WindowControls />
         </div>
       </header>
-      <main className="relative min-h-0 flex-1 overflow-hidden bg-background">
-        <ResourceViewSourceProvider>
-          <TabRouter tab={settingsTab} isActive onUrlChange={onUrlChange} />
-        </ResourceViewSourceProvider>
-      </main>
+      <div className="flex min-h-0 flex-1 flex-col px-2 pb-2">
+        <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+          <ResourceViewSourceProvider>
+            <TabRouter tab={settingsTab} isActive onUrlChange={onUrlChange} />
+          </ResourceViewSourceProvider>
+        </main>
+      </div>
     </section>
   )
 }
