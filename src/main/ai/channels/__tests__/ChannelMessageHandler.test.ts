@@ -38,10 +38,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../security/ExternalContentGuard', () => ({
-  wrapExternalContent: vi.fn((text: string) => text)
-}))
-
 vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
@@ -200,6 +196,35 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  it('passes channel message text to the agent unchanged', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    const text = 'Keep \u200Bzero-width and ＜full-width brackets＞ unchanged.'
+
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+    simulateStream([{ type: 'text-delta', delta: 'Done.' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text
+    })
+
+    expect(mockStartAgentSessionRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userParts: [{ type: 'text', text }]
+      })
+    )
   })
 
   // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
