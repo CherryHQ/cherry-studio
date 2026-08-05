@@ -161,7 +161,7 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 
 describe('adjustAllowedToolsForMcp', () => {
   it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
-    const allowed = adjustAllowedToolsForMcp(false)
+    const allowed = adjustAllowedToolsForMcp(false, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
@@ -169,7 +169,7 @@ describe('adjustAllowedToolsForMcp', () => {
         'mcp__cherry-tools__cron',
         'mcp__cherry-tools__notify',
         'mcp__cherry-tools__config',
-        'mcp__agent-memory__*'
+        'mcp__agent-memory__memory'
       ])
     )
     // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
@@ -182,7 +182,7 @@ describe('adjustAllowedToolsForMcp', () => {
   })
 
   it('auto-approves only read-only Assistant tools', () => {
-    const allowed = adjustAllowedToolsForMcp(true)
+    const allowed = adjustAllowedToolsForMcp(true, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
@@ -202,6 +202,30 @@ describe('adjustAllowedToolsForMcp', () => {
     expect(allowed).toContain('mcp__assistant-files__read_file')
     expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
     expect(allowed).not.toContain('mcp__assistant-files__*')
+  })
+
+  it('removes an exact disabled tool without affecting sibling auto-approvals', () => {
+    const allowed = adjustAllowedToolsForMcp(false, ['mcp__cherry-tools__web_fetch'])
+
+    expect(allowed).not.toContain('mcp__cherry-tools__web_fetch')
+    expect(allowed).toContain('mcp__cherry-tools__web_search')
+  })
+
+  it.each(['mcp__cherry-tools', 'mcp__cherry-tools__*'])('removes server-wide disabled tools for %s', (rule) => {
+    const allowed = adjustAllowedToolsForMcp(false, [rule])
+
+    expect(allowed.some((toolName) => toolName.startsWith('mcp__cherry-tools__'))).toBe(false)
+    expect(allowed).toContain('mcp__agent-memory__memory')
+  })
+
+  it('removes every MCP auto-approval for the global disabled rule', () => {
+    expect(adjustAllowedToolsForMcp(true, ['mcp__*'])).toEqual([])
+  })
+
+  it('does not let the memory auto-approval override an exact disabled tool', () => {
+    const allowed = adjustAllowedToolsForMcp(false, ['mcp__agent-memory__memory'])
+
+    expect(allowed).not.toContain('mcp__agent-memory__memory')
   })
 })
 

@@ -472,7 +472,7 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled)
+  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -1616,16 +1616,27 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
  * sensitive tools (mutating kb_manage, local-data-reading diagnose) are excluded from the SDK
  * pre-approval and routed through per-call approval via canUseTool.
  */
-export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
+function isToolDisallowed(toolName: string, disallowedTools: readonly string[]): boolean {
+  if (disallowedTools.includes(toolName)) return true
+  if (!toolName.startsWith('mcp__')) return false
+
+  const serverSeparator = toolName.indexOf('__', 'mcp__'.length)
+  if (serverSeparator === -1) return false
+
+  const serverRule = toolName.slice(0, serverSeparator)
+  return disallowedTools.some((rule) => rule === 'mcp__*' || rule === serverRule || rule === `${serverRule}__*`)
+}
+
+export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean, disallowedTools: readonly string[]): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  result.push('mcp__agent-memory__*')
+  result.push('mcp__agent-memory__memory')
   // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
   // (clones + installs third-party code), so it deliberately stays on per-call approval.
   result.push('mcp__skills__search_skills')
   if (assistantMcpEnabled) {
     result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
   }
-  return result
+  return result.filter((toolName) => !isToolDisallowed(toolName, disallowedTools))
 }
 
 function getSettingSources(provider: Provider): Array<'user' | 'project' | 'local'> {

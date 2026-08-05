@@ -9,7 +9,6 @@ import type { Model } from '@shared/data/types/model'
 import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useScrollRuntimeNavigation } from '../blocks/ScrollOwnershipContext'
 import MessageItem from '../frame/MessageFrame'
 import {
   useMessageListActions,
@@ -21,6 +20,7 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import { useScrollRuntimeNavigation } from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []

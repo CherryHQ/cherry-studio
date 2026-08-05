@@ -2483,6 +2483,7 @@
       "content": "訊息內容被安全系統攔截，請修改後重試",
       "context_length": "對話內容過長，請清除歷史記錄或開啟新對話",
       "deprecated": "此模型已停用，請切換至其他模型",
+      "free_model_unavailable": "AI診斷暫時無法使用",
       "go_to_settings": "前往設定",
       "knowledge": "知識庫向量化失敗",
       "mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",

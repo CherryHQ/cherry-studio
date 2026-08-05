@@ -2483,6 +2483,7 @@
       "content": "Conținut blocat de sistemul de securitate, modificați și reîncercați",
       "context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
       "deprecated": "Acest model a fost retras, te rugăm să treci la alt model",
+      "free_model_unavailable": "Diagnosticul AI este temporar indisponibil",
       "go_to_settings": "Mergi la setări",
       "knowledge": "Vectorizarea bazei de cunoștințe a eșuat",
       "mcp": "Conexiunea la serverul MCP a eșuat, verificați dacă serviciul rulează",
