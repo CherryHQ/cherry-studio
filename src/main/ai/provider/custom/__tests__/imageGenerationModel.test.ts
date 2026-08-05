@@ -1,11 +1,8 @@
 import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createImageGenerationModel,
-  type ImageGenerationSubmitInput,
-  type ImageGenerationTransport
-} from '../imageGenerationModel'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport, ImageTransportTaskState } from '../imageTransport'
 
 function makeOptions(
   overrides: Partial<Parameters<ReturnType<typeof createImageGenerationModel>['doGenerate']>[0]> = {}
@@ -25,12 +22,37 @@ function makeOptions(
   } as Parameters<ReturnType<typeof createImageGenerationModel>['doGenerate']>[0]
 }
 
-describe('createImageGenerationModel.doGenerate', () => {
-  it('returns urls for a terminal success (async submit → poll)', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
-      poll: vi.fn().mockResolvedValue(['https://img/1.png', 'https://img/2.png'])
+function taskTransport(
+  query: (taskId: string, context: { signal: AbortSignal }) => Promise<ImageTransportTaskState>,
+  cancel: Extract<ImageGenerationTransport<WireVendorBag>['task'], { kind: 'supported' }>['cancel'] = {
+    kind: 'unsupported'
+  }
+): ImageGenerationTransport<WireVendorBag> {
+  return {
+    submit: vi.fn().mockResolvedValue({ kind: 'submitted', taskId: 'task-1' }),
+    supportsInput: () => ({ files: false, mask: false }),
+    task: {
+      kind: 'supported',
+      pollPolicy: {
+        initialDelayMs: 0,
+        maxAttempts: 3,
+        maxElapsedMs: null,
+        maxConsecutiveErrors: 2,
+        getDelayMs: () => 0
+      },
+      query,
+      cancel
     }
+  }
+}
+
+describe('createImageGenerationModel.doGenerate', () => {
+  it('returns urls for an asynchronous task completion', async () => {
+    const query = vi.fn().mockResolvedValue({
+      kind: 'completed',
+      imageUrls: ['https://img/1.png', 'https://img/2.png']
+    })
+    const transport = taskTransport(query)
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
     const result = await model.doGenerate(makeOptions())
@@ -38,12 +60,14 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(result.images).toEqual(['https://img/1.png', 'https://img/2.png'])
     expect(result.warnings).toEqual([])
     expect(result.response.modelId).toBe('m')
-    expect(transport.poll).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: undefined }))
+    expect(query).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 
-  it('returns urls directly for the synchronous (imageUrls) path without requiring polling', async () => {
+  it('returns urls directly for an immediate completion', async () => {
     const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ imageUrls: ['https://img/sync.png'] })
+      submit: vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://img/sync.png'] }),
+      supportsInput: () => ({ files: false, mask: false }),
+      task: { kind: 'unsupported' }
     }
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
@@ -52,21 +76,16 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(result.images).toEqual(['https://img/sync.png'])
   })
 
-  it('rejects when poll rejects (terminal failure)', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
-      poll: vi.fn().mockRejectedValue(new Error('Task failed'))
-    }
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+  it('rejects a terminal task failure without querying again', async () => {
+    const query = vi.fn().mockResolvedValue({ kind: 'failed', message: 'Task failed' })
+    const model = createImageGenerationModel('m', { provider: 'ppio', transport: taskTransport(query) })
 
     await expect(model.doGenerate(makeOptions())).rejects.toThrow('Task failed')
+    expect(query).toHaveBeenCalledTimes(1)
   })
 
-  it('throws AbortError when the signal is already aborted', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn(),
-      poll: vi.fn()
-    }
+  it('throws AbortError before submit when the signal is already aborted', async () => {
+    const transport = taskTransport(vi.fn())
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
     const controller = new AbortController()
     controller.abort()
@@ -77,86 +96,53 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(transport.submit).not.toHaveBeenCalled()
   })
 
-  it('propagates an AbortError raised mid-poll', async () => {
-    const abortError = new Error('Task polling aborted')
-    abortError.name = 'AbortError'
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
-      poll: vi.fn().mockRejectedValue(abortError)
-    }
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
-
-    await expect(model.doGenerate(makeOptions())).rejects.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('cancels the remote async task when aborted after submit', async () => {
+  it('cancels the remote task once when aborted during a query', async () => {
     const controller = new AbortController()
-    const cancel = vi.fn().mockResolvedValue(undefined)
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
-      poll: vi.fn(
-        async (_taskId, opts) =>
-          new Promise<string[]>((_resolve, reject) => {
-            opts.signal?.addEventListener('abort', () => {
-              const error = new Error('Task polling aborted')
-              error.name = 'AbortError'
-              reject(error)
-            })
-          })
-      ),
-      cancel
-    }
+    const cancelRemote = vi.fn().mockResolvedValue(undefined)
+    const query = vi.fn(async () => {
+      controller.abort()
+      throw new DOMException('aborted', 'AbortError')
+    })
+    const transport = taskTransport(query, { kind: 'supported', cancelRemote })
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
-    const promise = model.doGenerate(makeOptions({ abortSignal: controller.signal }))
-    await vi.waitFor(() => expect(transport.poll).toHaveBeenCalled())
-    controller.abort()
-
-    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
-    expect(cancel).toHaveBeenCalledWith('task-1')
+    await expect(model.doGenerate(makeOptions({ abortSignal: controller.signal }))).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(cancelRemote).toHaveBeenCalledTimes(1)
+    expect(cancelRemote).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: undefined }))
   })
 
-  // The bag is the WireProfile engine's JSON body, so it is forwarded verbatim and
-  // carries no callback: the previous version of this test put an `onProgress` function
-  // in `providerOptions` and asserted it reached `poll`, but `buildImageRequest` drops
-  // anything unserializable, so that channel was dead on both ends.
-  it('forwards the wire-named provider params to submit verbatim', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn(async (input: ImageGenerationSubmitInput<WireVendorBag>) => {
-        expect(input.providerParams).toMatchObject({ num_inference_steps: 20 })
-        return { taskId: 'task-1' }
-      }),
-      poll: vi.fn(async () => ['https://img/1.png'])
-    }
+  it('forwards wire provider params and per-call headers to submit and query', async () => {
+    const query = vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://img/1.png'] })
+    const transport = taskTransport(query)
+    const submit = vi.fn(async (input: ImageGenerationSubmitInput<WireVendorBag>) => {
+      expect(input.providerParams).toMatchObject({ num_inference_steps: 20 })
+      expect(input.headers).toEqual({ 'x-request': 'one' })
+      return { kind: 'submitted' as const, taskId: 'task-1' }
+    })
+    transport.submit = submit
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
     const result = await model.doGenerate(
-      makeOptions({ providerOptions: { ppio: { num_inference_steps: 20 } } as never })
+      makeOptions({
+        providerOptions: { ppio: { num_inference_steps: 20 } } as never,
+        headers: { 'x-request': 'one' }
+      })
     )
 
-    expect(transport.submit).toHaveBeenCalled()
     expect(result.images).toEqual(['https://img/1.png'])
+    expect(query).toHaveBeenCalledWith('task-1', expect.objectContaining({ headers: { 'x-request': 'one' } }))
   })
 
-  it('returns empty images when submit yields neither taskId nor imageUrls', async () => {
+  it('rejects a task submission from a transport without task capability', async () => {
     const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({})
-    }
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
-
-    const result = await model.doGenerate(makeOptions())
-
-    expect(result.images).toEqual([])
-  })
-
-  it('rejects when an async task id is returned by a non-polling transport', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
-      submit: vi.fn().mockResolvedValue({ taskId: 'task-1' })
+      submit: vi.fn().mockResolvedValue({ kind: 'submitted', taskId: 'task-1' }),
+      supportsInput: () => ({ files: false, mask: false }),
+      task: { kind: 'unsupported' }
     }
     const model = createImageGenerationModel('m', { provider: 'sync-provider', transport })
 
-    await expect(model.doGenerate(makeOptions())).rejects.toThrow(
-      'sync-provider returned a task id but does not implement polling'
-    )
+    await expect(model.doGenerate(makeOptions())).rejects.toThrow(/does not support task queries/)
   })
 })

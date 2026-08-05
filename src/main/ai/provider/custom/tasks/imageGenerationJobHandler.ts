@@ -2,7 +2,7 @@ import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
-import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
@@ -10,24 +10,20 @@ import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { providerToAiSdkConfig } from '../../config'
-import {
-  type ImageGenerationSubmitInput,
-  type ImageGenerationTransport,
-  warnUnsupportedTransportInputs
-} from '../imageGenerationModel'
+import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
 import { resolveImageTransport } from '../imageTransportRegistry'
-import { createAbortError } from '../transportUtils'
+import { executeImageTransport, resumeImageTransport } from '../imageTransportRuntime'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
 
 /**
- * Async image-generation handler for custom-provider submit/poll transports
- * (ppio / dashscope / modelscope / dmxapi-bespoke). Mirrors
- * `imageGenerationModel.doGenerate` but owns the poll loop so it survives a
- * restart: the remote `taskId` is persisted to job metadata after submit, and
- * recovery (`'retry'`) re-dispatches the job, which then resumes polling the
- * same task instead of re-submitting.
+ * Image-generation handler for custom transports. It owns durable task
+ * metadata, restart recovery, input-file loading and output persistence;
+ * submit/query/poll/cancel execution belongs to the shared transport runtime.
+ * The remote `taskId` is persisted after submit and before the first query, so
+ * recovery (`'retry'`) resumes the same task instead of re-submitting.
  *
  * Secrets are never persisted — the apiKey is re-read from provider config on
  * every attempt via `providerToAiSdkConfig`. Input images / mask are referenced
@@ -71,31 +67,30 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       if (persistedTaskId) {
         // Restart-resume: skip submit, continue polling the persisted remote task.
         logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
-        urls = await pollUntilDone(transport, persistedTaskId, ctx)
+        urls = await resumeImageTransport({
+          transport,
+          taskId: persistedTaskId,
+          context: {
+            signal: ctx.signal,
+            modelDescriptor: input.modelDescriptor,
+            headers: undefined,
+            providerParams: input.providerParams
+          },
+          onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
+          logContext: { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId }
+        })
       } else {
         const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
         warnUnsupportedTransportInputs(transport, submitInput, { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId })
-        const submit = await transport.submit(submitInput)
-        if (submit.imageUrls) {
-          urls = submit.imageUrls
-        } else if (submit.taskId) {
-          // CRITICAL: persist before polling — without this, restart-recovery
-          // re-submits, wasting the user's vendor quota.
-          await ctx.patchMetadata({ taskId: submit.taskId })
-          urls = await pollUntilDone(transport, submit.taskId, ctx)
-        } else {
-          // A malformed submit response (neither URLs nor a task id) must fail the
-          // job rather than silently complete with zero files (a paid no-op).
-          throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
-        }
-      }
-
-      // An empty URL list from a *successful* submit/poll (e.g. content moderation
-      // or a degraded vendor response that still charged) must fail rather than
-      // complete as a silent zero-image "success". Covers both submit.imageUrls === []
-      // and poll() === []; the malformed-submit (neither field) case threw above.
-      if (urls.length === 0) {
-        throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
+        urls = await executeImageTransport({
+          transport,
+          input: submitInput,
+          // CRITICAL: the runtime awaits this before its first query. Without
+          // that ordering, restart recovery re-submits and burns vendor quota.
+          onTaskSubmitted: (taskId) => ctx.patchMetadata({ taskId }),
+          onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
+          logContext: { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId }
+        })
       }
 
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
@@ -129,6 +124,7 @@ async function buildSubmitInput(
     mask,
     modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
+    headers: undefined,
     signal
   }
 }
@@ -138,53 +134,12 @@ async function readImageFile(fileId: string): Promise<ImageModelV3File> {
   return { type: 'file', mediaType: mime, data: content }
 }
 
-/**
- * Run the transport's poll loop, cancelling the remote task on job abort.
- * Mirrors the abort handling in `imageGenerationModel.doGenerate`.
- */
-async function pollUntilDone(
-  transport: ImageGenerationTransport<VendorBag>,
-  taskId: string,
-  ctx: JobContext<ImageGenerationJobPayload>
-): Promise<string[]> {
-  if (!transport.poll) {
-    throw new Error('Image transport returned a task id but does not implement polling')
-  }
-  // Most vendors expose no task-cancel endpoint, so aborting only stops OUR polling —
-  // the remote task keeps running and keeps billing. Nothing surfaced that, which made
-  // "cancel" look free. Log it so an abandoned paid task is at least traceable.
-  const cancelRemote = transport.cancel
-    ? () => void transport.cancel?.(taskId).catch(() => {})
-    : () =>
-        logger.warn('Image generation aborted locally; the remote task keeps running (no cancel endpoint)', {
-          jobId: ctx.jobId,
-          uniqueModelId: ctx.input.uniqueModelId,
-          taskId
-        })
-  if (ctx.signal.aborted) {
-    cancelRemote()
-    throw createAbortError('Image generation aborted')
-  }
-  ctx.signal.addEventListener('abort', cancelRemote, { once: true })
-  try {
-    return await transport.poll(taskId, {
-      signal: ctx.signal,
-      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the persisted descriptor so a restart-resumed poll on a fresh
-      // transport instance rebuilds per-task state (DashScope's response family).
-      modelDescriptor: ctx.input.modelDescriptor
-    })
-  } finally {
-    ctx.signal.removeEventListener('abort', cancelRemote)
-  }
-}
-
 /** Download result URLs (always non-empty — the caller guards) and persist each as an internal FileEntry. */
 async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal): Promise<FileEntry[]> {
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
   for (const url of urls) {
-    if (signal.aborted) throw createAbortError('Image generation aborted')
+    if (signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     const downloaded = await downloadImageAsBase64(url)
     if (!downloaded) continue
     files.push(

@@ -37,7 +37,9 @@ export interface ModelscopeProvider extends ProviderV3 {
 export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createModelscopeTransport({
     apiKey: settings.apiKey ?? '',
-    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL
+    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 

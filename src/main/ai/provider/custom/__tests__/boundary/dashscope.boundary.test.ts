@@ -176,6 +176,45 @@ describe('DashScope request boundary', () => {
     })
   }
 
+  it('uses the injected fetch and gives X-DashScope-Async final precedence', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ output: { task_id: 'task-1' } }), {
+        status: 200
+      })
+    )
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
+    const injectedTransport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      headers: {
+        Authorization: 'Bearer provider',
+        'X-DashScope-Async': 'disabled',
+        'x-provider': 'one'
+      },
+      fetch
+    })
+
+    await injectedTransport.submit({
+      ...CASES[0].input,
+      headers: {
+        Authorization: 'Bearer request',
+        'X-DashScope-Async': 'disabled',
+        'x-request': 'two'
+      }
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(globalFetch).not.toHaveBeenCalled()
+    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
+    expect(requestHeaders).toMatchObject({
+      authorization: 'Bearer request',
+      'x-dashscope-async': 'enable',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
+    globalFetch.mockRestore()
+  })
+
   it.each([
     {
       name: 'cn host',
@@ -230,34 +269,85 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   const succeeded = (output: Record<string, unknown>) =>
     new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', ...output } }), { status: 200 })
 
-  it('uses the persisted modelDescriptor to pick the response family when pendingDescriptors is empty', async () => {
-    // A fresh transport == post-restart: the submit-time pendingDescriptors entry is gone.
+  it('uses the persisted modelDescriptor to pick the response family after restart', async () => {
     const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(succeeded({ image_url: 'https://img.example/x.png' }))
     try {
-      // qwen-mt-image → 'image_url' family. Without the descriptor it would fall back
-      // to 'results' and return [] even though the remote task succeeded.
-      const urls = await transport.poll('task-resumed', {
-        modelDescriptor: descriptor('qwen-mt-image', 'generate')
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      const state = await transport.task.query('task-resumed', {
+        signal: new AbortController().signal,
+        modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+        headers: undefined,
+        providerParams: {}
       })
-      expect(urls).toEqual(['https://img.example/x.png'])
+      expect(state).toEqual({ kind: 'completed', imageUrls: ['https://img.example/x.png'] })
     } finally {
       fetchSpy.mockRestore()
     }
   })
 
-  it('defaults to the results family when no descriptor is available', async () => {
+  it('fails loudly when the persisted descriptor is unavailable', async () => {
     const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(succeeded({ results: [{ url: 'https://img.example/r.png' }] }))
-    try {
-      const urls = await transport.poll('task-resumed', {})
-      expect(urls).toEqual(['https://img.example/r.png'])
-    } finally {
-      fetchSpy.mockRestore()
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+    await expect(
+      transport.task.query('task-resumed', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+    ).rejects.toThrow(/persisted modelDescriptor/)
+  })
+
+  it('rejects a missing or unknown task status instead of assuming pending', async () => {
+    for (const output of [{}, { task_status: 'UNKNOWN' }]) {
+      const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output }), { status: 200 }))
+      const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host, fetch })
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+
+      await expect(
+        transport.task.query('task-resumed', {
+          signal: new AbortController().signal,
+          modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+          headers: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow('Invalid JSON response')
     }
+  })
+
+  it('POSTs the documented remote cancel endpoint with resolved headers', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }))
+    const transport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      headers: { 'x-provider': 'one' },
+      fetch
+    })
+    if (transport.task.kind !== 'supported' || transport.task.cancel.kind !== 'supported') {
+      throw new Error('expected cancellable task transport')
+    }
+
+    // Contract source: https://help.aliyun.com/en/model-studio/manage-asynchronous-tasks
+    // Retrieved 2026-07-27. Only PENDING tasks can be cancelled.
+    await transport.task.cancel.cancelRemote('task-1', {
+      signal: undefined,
+      modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+      headers: { 'x-request': 'two' },
+      providerParams: {}
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${host}/api/v1/tasks/task-1/cancel`,
+      expect.objectContaining({ method: 'POST' })
+    )
+    const init = fetch.mock.calls[0][1] as RequestInit
+    expect(Object.fromEntries(new Headers(init.headers).entries())).toMatchObject({
+      authorization: 'Bearer ds-key',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
   })
 })

@@ -17,7 +17,7 @@ describe('resolveImageTransport', () => {
       const transport = resolveImageTransport(providerId, 'any-model', {})
       expect(transport).not.toBeNull()
       expect(typeof transport?.submit).toBe('function')
-      expect(typeof transport?.poll).toBe('function')
+      expect(transport?.task.kind).toBe('supported')
     }
   })
 
@@ -55,7 +55,7 @@ describe('resolveImageTransport', () => {
       asConcreteProviderId('tokenhub')
     )
     expect(transport).not.toBeNull()
-    expect(typeof transport?.poll).toBe('function')
+    expect(transport?.task.kind).toBe('supported')
     // non-Hunyuan tokenhub models stay on the in-SDK path
     expect(
       resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, asConcreteProviderId('tokenhub'))

@@ -149,7 +149,7 @@ describe('AihubmixImageModel', () => {
 
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/generate')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
+      expect(new Headers(init.headers).get('Api-Key')).toBe('sk-test')
       const form = init.body as FormData
       expect(form).toBeInstanceOf(FormData)
       expect(form.get('prompt')).toBe('a fox')
@@ -238,8 +238,8 @@ describe('AihubmixImageModel', () => {
 
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toBe('https://aihubmix.com/ideogram/generate')
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
+      expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
+      expect(new Headers(init.headers).get('Api-Key')).toBe('sk-test')
       const body = JSON.parse(init.body as string)
       expect(body.image_request).toMatchObject({
         prompt: 'a fox',
@@ -355,7 +355,7 @@ describe('AihubmixImageModel', () => {
     }
 
     it('does NOT delegate non-default ids (V_2) to the inner model', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [] })))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/v2.png' }] })))
       await make('V_2').doGenerate(callOptions())
       expect(innerDoGenerate).not.toHaveBeenCalled()
     })

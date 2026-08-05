@@ -12,6 +12,8 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
  * parses `data[].url`; the V_1/V_2 shared path also accepts the wrapped
  * `output.b64_json[].bytesBase64` form (→ data: URLs); Doubao Seedream parses
  * `data[].url` / `data[].b64_json` / `data[].base64_json` (→ data: URLs).
+ * Contract source: https://docs.aihubmix.com/cn/api/Image-Gen
+ * Retrieved 2026-07-27.
  */
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {

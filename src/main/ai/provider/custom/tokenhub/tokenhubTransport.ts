@@ -1,13 +1,20 @@
-import type { ParamValues } from '@cherrystudio/provider-registry'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportInputSupport
-} from '../imageGenerationModel'
-import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import {
+  ADAPTIVE_IMAGE_POLL_POLICY,
+  completedImageTransportSubmission,
+  completedImageTransportTask,
+  type ImageGenerationTransport,
+  type ImageTransportInputSupport,
+  type ImageTransportTaskContext,
+  type ImageTransportTaskState,
+  submittedImageTransportSubmission,
+  type TaskImageGenerationTransport
+} from '../imageTransport'
+import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
 
 /**
  * TokenHub (Tencent MaaS) Hunyuan image transport.
@@ -37,39 +44,25 @@ const ASPECT_RATIO_RESOLUTIONS: Record<string, string> = {
   '9:16': '720:1280'
 }
 
-export class TokenhubApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number
-  ) {
-    super(message)
-    this.name = 'TokenhubApiError'
-  }
-}
-
-/** Terminal failure reported by the image job's `status`. */
-export class TokenhubTaskFailedError extends Error {
-  constructor(reason: string) {
-    super(reason)
-    this.name = 'TokenhubTaskFailedError'
-  }
-}
-
-interface TokenhubImageData {
-  url?: string
-  revised_prompt?: string
-}
-
-interface TokenhubSubmitResult {
-  id?: string
-  status?: string
-  data?: TokenhubImageData[]
-}
-
-interface TokenhubQueryResult {
-  status?: string
-  data?: TokenhubImageData[]
-}
+const tokenhubImageDataSchema = z.object({ url: z.string().min(1) }).passthrough()
+const tokenhubSubmitResultSchema = z.object({ id: z.string().min(1) }).passthrough()
+const tokenhubSyncResultSchema = z.object({ data: z.array(tokenhubImageDataSchema) }).passthrough()
+const tokenhubQueryResultSchema = z
+  .object({
+    status: z.enum([
+      'queued',
+      'running',
+      'completed',
+      'succeeded',
+      'success',
+      'failed',
+      'error',
+      'cancelled',
+      'canceled'
+    ]),
+    data: z.array(tokenhubImageDataSchema).optional()
+  })
+  .passthrough()
 
 /**
  * The vendor bag as this transport reads it. Derived from {@link ParamValues} so every
@@ -85,68 +78,28 @@ export interface TokenhubTransportSettings {
   apiKey: string
   /** Host origin; the registry `vendorTransport.endpoint` paths are host-absolute. */
   origin?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
 
-class TokenhubTransport implements ImageGenerationTransport<TokenhubProviderParams> {
-  private apiKey: string
-  private origin: string
-  /** taskId → model id, for the query body; a restart-resumed poll on a fresh
-   *  instance falls back to `options.modelDescriptor.id`. */
-  private taskModelIds = new Map<string, string>()
+class TokenhubTransport implements TaskImageGenerationTransport<TokenhubProviderParams> {
+  private readonly apiKey: string
+  private readonly origin: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+
+  readonly task: TaskImageGenerationTransport<TokenhubProviderParams>['task'] = {
+    kind: 'supported' as const,
+    pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
+    query: (taskId: string, context: Parameters<TokenhubTransport['query']>[1]) => this.query(taskId, context),
+    cancel: { kind: 'unsupported' as const }
+  }
 
   constructor(settings: TokenhubTransportSettings) {
     this.apiKey = settings.apiKey
     this.origin = settings.origin || DEFAULT_TOKENHUB_ORIGIN
-  }
-
-  private async request<T>(
-    endpoint: string,
-    body: Record<string, unknown>,
-    requestOptions?: { timeout?: number; signal?: AbortSignal }
-  ): Promise<T> {
-    const timeout = requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const externalSignal = requestOptions?.signal
-    const url = `${this.origin}${endpoint}`
-    const controller = new AbortController()
-    let externallyAborted = false
-
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-    const onExternalAbort = () => {
-      externallyAborted = true
-      controller.abort()
-    }
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      })
-      if (!response.ok) {
-        const errorText = (await response.text().catch(() => '')).slice(0, 500)
-        throw new TokenhubApiError(`TokenHub API error: ${response.status} - ${errorText}`, response.status)
-      }
-      return (await response.json()) as T
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (externallyAborted) throw createAbortError('TokenHub API request aborted')
-        throw new Error(`TokenHub API request timeout after ${timeout / 1000}s`)
-      }
-      throw error
-    } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
-    }
+    this.headers = settings.headers
+    this.fetch = settings.fetch
   }
 
   /** Hunyuan's text-to-image body has no image or mask slot for any model. */
@@ -154,9 +107,7 @@ class TokenhubTransport implements ImageGenerationTransport<TokenhubProviderPara
     return { files: false, mask: false }
   }
 
-  async submit(
-    input: ImageGenerationSubmitInput<TokenhubProviderParams>
-  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<TokenhubProviderParams>) {
     const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Unknown model: ${input.modelId}`)
@@ -175,96 +126,72 @@ class TokenhubTransport implements ImageGenerationTransport<TokenhubProviderPara
 
     if (descriptor.isSync) {
       // hy-image-lite: OpenAI-style synchronous endpoint, finished images in `data`.
-      const result = await this.request<TokenhubSubmitResult>(
-        descriptor.endpoint,
-        { ...body, rsp_img_type: 'url' },
-        { timeout: 120000, signal: input.signal }
+      const url = `${this.origin}${descriptor.endpoint}`
+      const result = await withImageTransportRequestTimeout(
+        { url, timeoutMs: 120_000, signal: input.signal },
+        (signal) =>
+          postJsonToApi({
+            url,
+            headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers),
+            body: { ...body, rsp_img_type: 'url' },
+            abortSignal: signal,
+            fetch: this.fetch,
+            failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
+            successfulResponseHandler: createJsonResponseHandler(tokenhubSyncResultSchema)
+          })
       )
-      return { imageUrls: extractImageUrls(result.data) }
+      return completedImageTransportSubmission(extractImageUrls(result.value.data), 'TokenHub')
     }
 
-    const result = await this.request<TokenhubSubmitResult>(descriptor.endpoint, body, {
-      timeout: 120000,
-      signal: input.signal
-    })
-    if (!result.id) {
-      throw new Error(`TokenHub image submit for '${descriptor.id}' returned no task id`)
-    }
-    this.taskModelIds.set(result.id, descriptor.id)
-    return { taskId: result.id }
+    const url = `${this.origin}${descriptor.endpoint}`
+    const result = await withImageTransportRequestTimeout({ url, timeoutMs: 120_000, signal: input.signal }, (signal) =>
+      postJsonToApi({
+        url,
+        headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers),
+        body,
+        abortSignal: signal,
+        fetch: this.fetch,
+        failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
+        successfulResponseHandler: createJsonResponseHandler(tokenhubSubmitResultSchema)
+      })
+    )
+    return submittedImageTransportSubmission(result.value.id, `TokenHub image submit for '${descriptor.id}'`)
   }
 
-  async poll(
+  private async query(
     taskId: string,
-    options: {
-      signal?: AbortSignal
-      onProgress?: (progress: number) => void
-      modelDescriptor?: { id: string }
-    }
-  ): Promise<string[]> {
-    const { signal } = options
-    const modelId = this.taskModelIds.get(taskId) ?? options.modelDescriptor?.id
+    context: ImageTransportTaskContext<TokenhubProviderParams, AbortSignal>
+  ): Promise<ImageTransportTaskState> {
+    const modelId = context.modelDescriptor?.id
     if (!modelId) {
-      throw new Error('TokenHub poll requires the model id (submit on this instance or a modelDescriptor)')
+      throw new Error('TokenHub task query requires a persisted modelDescriptor')
     }
-
-    const maxAttempts = 120
-    const maxTransientRetries = 10
-    let attempts = 0
-    let transientRetries = 0
-    const startTime = Date.now()
-
-    // The map entry outlives every exit from this loop unless it is cleared here:
-    // failure, abort and timeout all leave `poll` by `throw`, and TokenHub has no
-    // `cancel()` to clean up after them — so a failed task used to pin its model id
-    // for the lifetime of the transport instance.
-    try {
-      while (attempts < maxAttempts) {
-        if (signal?.aborted) {
-          throw createAbortError('Task polling aborted')
-        }
-        try {
-          const result = await this.request<TokenhubQueryResult>(
-            QUERY_ENDPOINT,
-            { model: modelId, id: taskId },
-            { timeout: 10000, signal }
-          )
-          transientRetries = 0
-          const status = result.status?.toLowerCase() ?? ''
-          if (COMPLETED_STATUSES.has(status)) {
-            return extractImageUrls(result.data) ?? []
-          }
-          if (FAILED_STATUSES.has(status)) {
-            throw new TokenhubTaskFailedError(`TokenHub image task ${status}`)
-          }
-          // 'queued' / 'running' / any unknown-but-not-failed status: keep polling.
-        } catch (error) {
-          if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
-            throw createAbortError('Task polling aborted')
-          }
-          if (error instanceof TokenhubTaskFailedError) throw error
-          if (error instanceof TokenhubApiError && isTerminalHttpStatus(error.statusCode)) throw error
-          transientRetries++
-          if (transientRetries >= maxTransientRetries) {
-            throw error instanceof Error ? error : new Error(String(error))
-          }
-        }
-
-        const elapsedTime = Date.now() - startTime
-        await waitWithSignal(elapsedTime < 60000 ? 3000 : 10000, signal)
-        attempts++
-      }
-
-      throw new Error('Task polling timeout')
-    } finally {
-      this.taskModelIds.delete(taskId)
+    const url = `${this.origin}${QUERY_ENDPOINT}`
+    const result = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 10_000, signal: context.signal },
+      (signal) =>
+        postJsonToApi({
+          url,
+          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
+          body: { model: modelId, id: taskId },
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
+          successfulResponseHandler: createJsonResponseHandler(tokenhubQueryResultSchema)
+        })
+    )
+    if (COMPLETED_STATUSES.has(result.value.status)) {
+      return completedImageTransportTask(extractImageUrls(result.value.data ?? []), 'TokenHub task')
     }
+    if (FAILED_STATUSES.has(result.value.status)) {
+      return { kind: 'failed', message: `TokenHub image task ${result.value.status}` }
+    }
+    return { kind: 'pending' }
   }
 }
 
-function extractImageUrls(data: TokenhubImageData[] | undefined): string[] | undefined {
-  if (!data) return undefined
-  return data.map((item) => item.url).filter((url): url is string => typeof url === 'string' && url.length > 0)
+function extractImageUrls(data: Array<{ url: string }>): string[] {
+  return data.map((item) => item.url)
 }
 
 /**
@@ -276,6 +203,8 @@ function extractImageUrls(data: TokenhubImageData[] | undefined): string[] | und
 export function buildTokenhubTransport(settings: {
   apiKey?: string
   baseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }): ImageGenerationTransport<VendorBag> {
   let origin: string | undefined
   try {
@@ -283,5 +212,10 @@ export function buildTokenhubTransport(settings: {
   } catch {
     origin = undefined
   }
-  return new TokenhubTransport({ apiKey: settings.apiKey ?? '', origin })
+  return new TokenhubTransport({
+    apiKey: settings.apiKey ?? '',
+    origin,
+    headers: settings.headers,
+    fetch: settings.fetch
+  })
 }

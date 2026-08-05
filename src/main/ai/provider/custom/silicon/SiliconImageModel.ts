@@ -1,7 +1,9 @@
-import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
-import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
+import type { ImageModelV3, ImageModelV3CallOptions, SharedV3Warning } from '@ai-sdk/provider'
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 
-import { fileToDataUrl } from '../transportUtils'
+import { executeImageTransport } from '../imageTransportRuntime'
+import { createSiliconTransport } from './siliconTransport'
 
 /**
  * SiliconFlow Image Generation model — one class for every SiliconFlow
@@ -21,12 +23,6 @@ export interface SiliconImageModelConfig {
   _internal?: {
     currentDate?: () => Date
   }
-}
-
-type ImageItem = { url?: string; b64_json?: string }
-type ImageResponseBody = {
-  images?: ImageItem[]
-  data?: ImageItem[]
 }
 
 export class SiliconImageModel implements ImageModelV3 {
@@ -60,89 +56,27 @@ export class SiliconImageModel implements ImageModelV3 {
       warnings.push({ type: 'unsupported', feature: 'mask' })
     }
 
-    // `silicon` matches `providerOptionsKey` derived from
-    // `siliconProvider.ts` (`SILICON_PROVIDER_NAME = 'silicon'`).
-    const bag = (providerOptions?.silicon ?? providerOptions?.openai ?? {}) as Record<string, unknown>
-    const body: Record<string, unknown> = {
-      model: this.modelId,
-      prompt: prompt ?? ''
-    }
-    if (size) body.image_size = size
-    if (typeof n === 'number' && n > 1) body.batch_size = n
-
-    if (typeof seed === 'number') body.seed = seed
-    else if (typeof bag.seed === 'number') body.seed = bag.seed
-    else if (typeof bag.seed === 'string' && /^-?\d+$/.test(bag.seed.trim())) body.seed = Number(bag.seed.trim())
-
-    for (const key of [
-      'negative_prompt',
-      'num_inference_steps',
-      'guidance_scale',
-      'cfg',
-      'prompt_enhancement'
-    ] as const) {
-      const value = bag[key]
-      if (value !== undefined && value !== '' && value !== null) body[key] = value
-    }
-
-    // Qwen-Image-Edit-2509 takes up to 3 input images as `image` / `image2` / `image3`.
-    // For models that only accept `image`, sending the extras is harmless — the
-    // vendor ignores unknown fields. We don't try to gate per-model here.
-    if (files && files.length > 0) {
-      const slots = ['image', 'image2', 'image3'] as const
-      for (let i = 0; i < Math.min(files.length, slots.length); i++) {
-        body[slots[i]] = fileToDataUrl(files[i])
-      }
-    }
-
-    const url = this.config.url({ path: '/images/generations', modelId: this.modelId })
-    const fetchFn = this.config.fetch ?? globalThis.fetch
-    const response = await fetchFn(url, {
-      method: 'POST',
-      headers: removeUndefinedEntries(
-        combineHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' })
-      ),
-      body: JSON.stringify(body),
-      signal: abortSignal
-    })
-
-    const responseHeaders: Record<string, string> = {}
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value
-    })
-    const responseBody = await response.text()
-
-    if (!response.ok) {
-      throw new APICallError({
-        message: responseBody || response.statusText,
-        url,
-        requestBodyValues: body,
-        statusCode: response.status,
-        responseHeaders,
-        responseBody
-      })
-    }
-
-    let parsed: ImageResponseBody
-    try {
-      parsed = JSON.parse(responseBody) as ImageResponseBody
-    } catch (cause) {
-      throw new APICallError({
-        message: 'Invalid JSON response from SiliconFlow',
-        cause,
-        url,
-        requestBodyValues: body,
-        statusCode: response.status,
-        responseHeaders,
-        responseBody
-      })
-    }
-
-    const items = parsed.images ?? parsed.data ?? []
-    const images: string[] = items.flatMap((item) => {
-      if (typeof item.b64_json === 'string') return [item.b64_json]
-      if (typeof item.url === 'string') return [item.url]
-      return []
+    // `silicon` is the providerOptions key produced by the WireProfile engine.
+    const providerParams: WireVendorBag = providerOptions?.silicon ?? {}
+    const transport = createSiliconTransport(this.config)
+    const images = await executeImageTransport({
+      transport,
+      input: {
+        modelId: this.modelId,
+        prompt,
+        n,
+        size,
+        aspectRatio,
+        seed,
+        files,
+        mask,
+        providerParams,
+        headers,
+        signal: abortSignal
+      },
+      onTaskSubmitted: async () => {},
+      onProgress: () => {},
+      logContext: { provider: this.provider, modelId: this.modelId }
     })
 
     return {
@@ -151,7 +85,7 @@ export class SiliconImageModel implements ImageModelV3 {
       response: {
         timestamp: this.config._internal?.currentDate?.() ?? new Date(),
         modelId: this.modelId,
-        headers: responseHeaders
+        headers: {}
       }
     }
   }

@@ -1,12 +1,15 @@
-import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { Agent } from 'undici'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportInputSupport
-} from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import {
+  completedImageTransportSubmission,
+  type ImageTransportInputSupport,
+  type ImmediateImageGenerationTransport
+} from '../imageTransport'
+import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
 /**
  * Ollama single-shot image transport. POSTs `${baseURL}/generate` — the same
@@ -34,6 +37,9 @@ const longRunningDispatcher = new Agent({
   headersTimeout: IMAGE_GENERATION_TIMEOUT_MS,
   bodyTimeout: IMAGE_GENERATION_TIMEOUT_MS
 })
+const ollamaImageResponseSchema = z.object({ image: z.string().min(1) }).passthrough()
+const longRunningFetch: FetchFunction = (url, init) =>
+  fetch(url, { ...init, dispatcher: longRunningDispatcher } as RequestInit)
 
 export interface OllamaTransportSettings {
   /** Already carries the `/api` suffix, matching `ollama-ai-provider-v2`'s own baseURL convention. */
@@ -43,15 +49,17 @@ export interface OllamaTransportSettings {
   fetch?: FetchFunction
 }
 
-class OllamaTransport implements ImageGenerationTransport<WireVendorBag> {
-  private baseURL: string
-  private headers: Record<string, string>
-  private fetch?: FetchFunction
+class OllamaTransport implements ImmediateImageGenerationTransport<WireVendorBag> {
+  private readonly baseURL: string
+  private readonly headers: Record<string, string>
+  private readonly fetch: FetchFunction
+
+  readonly task = { kind: 'unsupported' as const }
 
   constructor(settings: OllamaTransportSettings) {
     this.baseURL = settings.baseURL
     this.headers = settings.headers ?? {}
-    this.fetch = settings.fetch
+    this.fetch = settings.fetch ?? longRunningFetch
   }
 
   /** `/api/generate` takes a prompt only — Ollama's image models are text-to-image. */
@@ -59,40 +67,31 @@ class OllamaTransport implements ImageGenerationTransport<WireVendorBag> {
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput<WireVendorBag>): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<WireVendorBag>) {
     const [width, height] = input.size?.split('x').map(Number) ?? []
     const steps = input.providerParams.steps
-    const fetchImpl = this.fetch ?? fetch
-    const response = await fetchImpl(`${this.baseURL}/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.headers },
-      body: JSON.stringify({
+    const response = await postJsonToApi({
+      url: `${this.baseURL}/generate`,
+      headers: combineHeaders(this.headers, input.headers),
+      body: {
         model: input.modelId,
         prompt: input.prompt ?? '',
         stream: false,
         ...(width !== undefined && height !== undefined && { width, height }),
         ...(typeof steps === 'number' && { steps }),
         ...(input.seed !== undefined && { options: { seed: input.seed } })
-      }),
-      signal: input.signal,
-      ...(this.fetch ? {} : { dispatcher: longRunningDispatcher })
-    } as RequestInit)
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
-      throw new Error(errorData.error || 'Image generation failed')
-    }
-
-    const data = await response.json()
-    if (!data.image) {
-      return { imageUrls: [] }
-    }
+      },
+      abortSignal: input.signal,
+      fetch: this.fetch,
+      failedResponseHandler: createImageTransportErrorResponseHandler(),
+      successfulResponseHandler: createJsonResponseHandler(ollamaImageResponseSchema)
+    })
     // Return the bare base64 payload, not a `data:` URI: the patched `ai` SDK's
     // generateImage() only auto-downloads strings starting with `http(s)://`;
     // anything else is passed straight through as `GeneratedFile.data` verbatim
     // and later base64-decoded as-is, so a `data:image/png;base64,` prefix here
     // would corrupt the decode with non-base64 characters (`:`, `;`, `,`).
-    return { imageUrls: [data.image] }
+    return completedImageTransportSubmission([response.value.image], 'Ollama')
   }
 }
 

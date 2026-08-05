@@ -1,6 +1,10 @@
 import { vi } from 'vitest'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportSubmission
+} from '../../imageTransport'
 
 export interface CapturedRequest {
   url: string
@@ -45,8 +49,8 @@ function makeCapturingFetch() {
 }
 
 /**
- * Capture the outbound request of a `submit`-based transport. Transports call
- * the global `fetch` directly, so the global is mocked for the call.
+ * Capture the outbound request of a `submit`-based transport using its default
+ * fetch path. Dedicated boundary tests separately prove injected fetch wins.
  */
 export async function captureImageRequest<P>(
   transport: ImageGenerationTransport<P>,
@@ -66,13 +70,13 @@ export async function captureImageRequest<P>(
 
 /**
  * Inbound boundary: run a `submit`-based transport against a canned vendor
- * response (global `fetch` mocked) and return the parsed `{ imageUrls | taskId }`.
+ * response and return its normalized submission.
  */
 export async function submitWithResponse<P>(
   transport: ImageGenerationTransport<P>,
   input: ImageGenerationSubmitInput<P>,
   responseBody: unknown
-): Promise<{ taskId?: string; imageUrls?: string[] }> {
+): Promise<ImageTransportSubmission> {
   const spy = vi
     .spyOn(globalThis, 'fetch')
     .mockResolvedValue(new Response(JSON.stringify(responseBody), { status: 200 }))

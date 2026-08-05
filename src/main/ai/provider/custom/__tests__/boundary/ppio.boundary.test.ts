@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
@@ -210,4 +210,32 @@ describe('PPIO request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it('uses the injected fetch and merges provider then request headers', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task_id: 'task-1' }), { status: 200 }))
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
+    const injectedTransport = createPpioTransport({
+      apiKey: 'ppio-key',
+      baseURL: host,
+      headers: { Authorization: 'Bearer provider', 'x-provider': 'one' },
+      fetch
+    })
+
+    // Contract source: https://ppio.com/docs/models/reference-create-async-task
+    // Retrieved 2026-07-27.
+    await injectedTransport.submit({
+      ...CASES[0].input,
+      headers: { Authorization: 'Bearer request', 'x-request': 'two' }
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(globalFetch).not.toHaveBeenCalled()
+    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
+    expect(requestHeaders).toMatchObject({
+      authorization: 'Bearer request',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
+    globalFetch.mockRestore()
+  })
 })

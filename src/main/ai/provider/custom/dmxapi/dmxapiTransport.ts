@@ -1,14 +1,17 @@
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import { APICallError } from '@ai-sdk/provider'
+import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportInputSupport
-} from '../imageGenerationModel'
-import { readErrorMessage } from '../readErrorMessage'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import {
+  completedImageTransportSubmission,
+  type ImageTransportInputSupport,
+  type ImmediateImageGenerationTransport
+} from '../imageTransport'
+import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
@@ -45,6 +48,8 @@ export type DmxapiProviderParams = Pick<
 export interface DmxapiTransportSettings {
   apiKey: string
   baseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
 
 export type DmxapiFamily =
@@ -86,13 +91,49 @@ function extractUrlsFromText(text: string): string[] {
   return Array.from(urls)
 }
 
-class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> {
-  private apiKey: string
-  private baseURL: string
+const dmxapiAsyncResultSchema = z
+  .object({
+    extra: z
+      .object({
+        output: z.object({ results: z.array(z.object({ url: z.string().min(1) }).passthrough()) }).passthrough()
+      })
+      .passthrough()
+  })
+  .passthrough()
+const responseContentSchema = z
+  .object({ text: z.string().optional(), image: z.string().min(1).optional(), type: z.string().optional() })
+  .passthrough()
+const responseOutputSchema = z
+  .object({
+    content: z.array(responseContentSchema).optional(),
+    message: z
+      .object({ content: z.array(responseContentSchema).optional() })
+      .passthrough()
+      .optional()
+  })
+  .passthrough()
+const dmxapiResponsesSchema = z
+  .object({ output: z.union([responseOutputSchema, z.array(responseOutputSchema)]) })
+  .passthrough()
+const dmxapiOpenAIResultSchema = z
+  .object({
+    data: z.array(z.object({ url: z.string().min(1).optional(), b64_json: z.string().min(1).optional() }).passthrough())
+  })
+  .passthrough()
+
+class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProviderParams> {
+  private readonly apiKey: string
+  private readonly baseURL: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+
+  readonly task = { kind: 'unsupported' as const }
 
   constructor(settings: DmxapiTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_DMXAPI_BASE_URL
+    this.headers = settings.headers
+    this.fetch = settings.fetch
   }
 
   /** Only the `responses-messages` family (Wan) puts images in its message content;
@@ -102,9 +143,7 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
     return { files: resolveDmxapiFamily(input.modelId) === 'responses-messages', mask: false }
   }
 
-  async submit(
-    input: ImageGenerationSubmitInput<DmxapiProviderParams>
-  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<DmxapiProviderParams>) {
     const params = input.providerParams
     const normalized: NormalizedInput = {
       modelId: input.modelId,
@@ -129,9 +168,9 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
    *  in `extra.output.{task_status, results[].url}`. DMXAPI returns SUCCEEDED
    *  on the single call (gateway handles polling upstream). */
   private async submitAsyncOpenAIFlat(
-    input: ImageGenerationSubmitInput,
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>,
     normalized: NormalizedInput
-  ): Promise<{ imageUrls?: string[] }> {
+  ) {
     const body: Record<string, unknown> = {
       model: normalized.modelId,
       prompt: normalized.prompt,
@@ -139,18 +178,18 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
     }
     if (normalized.size) body.size = normalized.size
 
-    const data = await this.requestJson('/v1/images/generations', body, input.signal)
-    return { imageUrls: parseDmxapiAsyncResults(data) }
+    const data = await this.requestJson('/v1/images/generations', body, dmxapiAsyncResultSchema, input)
+    return completedImageTransportSubmission(parseDmxapiAsyncResults(data), 'DMXAPI async image')
   }
 
   /** Responses API with `input` as a prompt string (doubao-seedream family).
    *  Response carries markdown-encoded image URLs inside
    *  `output[0].content[0].text`. */
   private async submitResponsesStringInput(
-    input: ImageGenerationSubmitInput,
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>,
     normalized: NormalizedInput,
     params: DmxapiProviderParams
-  ): Promise<{ imageUrls?: string[] }> {
+  ) {
     const body: Record<string, unknown> = {
       model: normalized.modelId,
       input: normalized.prompt,
@@ -167,16 +206,16 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
     if (params.outputFormat) body.output_format = params.outputFormat
     if (params.addWatermark !== undefined) body.watermark = params.addWatermark
 
-    const data = await this.requestJson('/v1/responses', body, input.signal)
-    return { imageUrls: parseResponsesApiOutput(data) }
+    const data = await this.requestJson('/v1/responses', body, dmxapiResponsesSchema, input)
+    return completedImageTransportSubmission(parseResponsesApiOutput(data), 'DMXAPI responses image')
   }
 
   /** Responses API with DashScope-style `input.messages` (alibaba wan family). */
   private async submitResponsesMessages(
-    input: ImageGenerationSubmitInput,
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>,
     normalized: NormalizedInput,
     params: DmxapiProviderParams
-  ): Promise<{ imageUrls?: string[] }> {
+  ) {
     const content: Array<{ text?: string; image?: string }> = []
     if (normalized.prompt) content.push({ text: normalized.prompt })
     for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
@@ -195,8 +234,8 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
       ...(Object.keys(parameters).length > 0 && { parameters })
     }
 
-    const data = await this.requestJson('/v1/responses', body, input.signal)
-    return { imageUrls: parseResponsesApiOutput(data) }
+    const data = await this.requestJson('/v1/responses', body, dmxapiResponsesSchema, input)
+    return completedImageTransportSubmission(parseResponsesApiOutput(data), 'DMXAPI responses image')
   }
 
   /** Safety-net OpenAI-flat call for unrecognized models that somehow bypass
@@ -204,9 +243,9 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
    *  shape so DMXAPI's gateway can translate to whatever upstream it routes
    *  to. Response is parsed as the standard OpenAI `data[].url|b64_json`. */
   private async submitOpenAIFlatFallback(
-    input: ImageGenerationSubmitInput,
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>,
     normalized: NormalizedInput
-  ): Promise<{ imageUrls?: string[] }> {
+  ) {
     const body: Record<string, unknown> = {
       model: normalized.modelId,
       prompt: normalized.prompt,
@@ -215,39 +254,46 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
     }
     if (normalized.size) body.size = normalized.size
 
-    const data = await this.requestJson('/v1/images/generations', body, input.signal)
-    return { imageUrls: parseOpenAIFlatResults(data) }
+    const data = await this.requestJson('/v1/images/generations', body, dmxapiOpenAIResultSchema, input)
+    return completedImageTransportSubmission(parseOpenAIFlatResults(data), 'DMXAPI image')
   }
 
-  private async requestJson(
+  private async requestJson<T>(
     path: string,
     body: Record<string, unknown>,
-    signal?: AbortSignal,
-    opts?: { authHeader?: string; authValue?: string }
-  ): Promise<unknown> {
+    schema: z.ZodType<T>,
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>
+  ): Promise<T> {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`
-    const authHeader = opts?.authHeader ?? 'Authorization'
-    const authValue = opts?.authValue ?? `Bearer ${this.apiKey}`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
-        [authHeader]: authValue
-      },
-      body: JSON.stringify(body),
-      signal
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
-      if (response.status === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
-      const message = await readErrorMessage(response, t('paintings.generate_failed'))
-      throw createPaintingGenerateError('REMOTE_ERROR', { message })
+    try {
+      const response = await postJsonToApi({
+        url,
+        headers: combineHeaders(
+          {
+            Accept: 'application/json',
+            'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
+            Authorization: `Bearer ${this.apiKey}`
+          },
+          this.headers,
+          input.headers
+        ),
+        body,
+        abortSignal: input.signal,
+        fetch: this.fetch,
+        failedResponseHandler: createImageTransportErrorResponseHandler(),
+        successfulResponseHandler: createJsonResponseHandler(schema)
+      })
+      return response.value
+    } catch (error) {
+      if (APICallError.isInstance(error)) {
+        if (error.statusCode === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+        if (error.statusCode === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: error.message || t('paintings.generate_failed')
+        })
+      }
+      throw error
     }
-
-    return response.json()
   }
 }
 
@@ -255,16 +301,12 @@ class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> 
 // Response parsers (one per backend family)
 // ──────────────────────────────────────────────────────────────────────────────
 
-function parseDmxapiAsyncResults(data: unknown): string[] {
-  const output = (data as { extra?: { output?: { results?: Array<{ url?: string }> } } })?.extra?.output
-  return (output?.results ?? []).map((r) => r.url ?? '').filter((url): url is string => !!url)
+function parseDmxapiAsyncResults(data: z.infer<typeof dmxapiAsyncResultSchema>): string[] {
+  return data.extra.output.results.map((result) => result.url)
 }
 
-function parseResponsesApiOutput(data: unknown): string[] {
-  type Content = { text?: string; image?: string; type?: string }
-  type Output = { content?: Content[]; message?: { content?: Content[] } }
-  const outputs = (data as { output?: Output | Output[] })?.output
-  const list: Output[] = Array.isArray(outputs) ? outputs : outputs ? [outputs] : []
+function parseResponsesApiOutput(data: z.infer<typeof dmxapiResponsesSchema>): string[] {
+  const list = Array.isArray(data.output) ? data.output : [data.output]
   const urls: string[] = []
   for (const entry of list) {
     const parts = entry.content ?? entry.message?.content ?? []
@@ -276,9 +318,8 @@ function parseResponsesApiOutput(data: unknown): string[] {
   return urls
 }
 
-function parseOpenAIFlatResults(data: unknown): string[] {
-  const items = (data as { data?: Array<{ url?: string; b64_json?: string }> })?.data ?? []
-  return items
+function parseOpenAIFlatResults(data: z.infer<typeof dmxapiOpenAIResultSchema>): string[] {
+  return data.data
     .map((item) => {
       if (item.url) return item.url
       if (item.b64_json) return `data:image/png;base64,${item.b64_json}`

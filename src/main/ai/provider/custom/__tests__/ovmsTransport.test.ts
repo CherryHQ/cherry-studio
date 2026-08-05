@@ -41,8 +41,10 @@ describe('OvmsTransport', () => {
     const call = fetchMock.mock.calls[0]
     expect(call[0]).toBe('http://localhost:8000/images/generations')
     const init = call[1] as RequestInit
-    expect(Object.keys(init.headers as Record<string, string>)).toEqual(['Content-Type'])
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+    const requestHeaders = new Headers(init.headers)
+    expect(requestHeaders.get('Authorization')).toBeNull()
+    expect(requestHeaders.get('Content-Type')).toBe('application/json')
+    expect(requestHeaders.get('User-Agent')).toContain('ai-sdk/provider-utils/')
     expect(JSON.parse(init.body as string)).toEqual({
       model: 'sd',
       prompt: 'a cat',
@@ -50,14 +52,14 @@ describe('OvmsTransport', () => {
       num_inference_steps: 8,
       rng_seed: 7
     })
-    expect(result).toEqual({ imageUrls: ['http://local/a.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['http://local/a.png'] })
   })
 
   it('defaults size/steps/seed when absent', async () => {
     const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+      .mockResolvedValue(new Response(JSON.stringify({ data: [{ url: 'http://local/default.png' }] }), { status: 200 }))
 
     await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
 
@@ -75,7 +77,7 @@ describe('OvmsTransport', () => {
     )
 
     const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-    expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['data:image/png;base64,QUJD'] })
   })
 
   it('falls back to url entries when no b64_json present', async () => {
@@ -85,7 +87,7 @@ describe('OvmsTransport', () => {
     )
 
     const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-    expect(result).toEqual({ imageUrls: ['http://local/y.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['http://local/y.png'] })
   })
 
   it('throws the remote error message on a non-ok response', async () => {

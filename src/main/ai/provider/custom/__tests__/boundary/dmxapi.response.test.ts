@@ -81,6 +81,8 @@ describe('DMXAPI response boundary', () => {
         { ...base, modelId: c.modelId, prompt: 'a fox' } as ImageGenerationSubmitInput<DmxapiProviderParams>,
         c.response
       )
+      expect(result.kind).toBe('completed')
+      if (result.kind !== 'completed') throw new Error('expected completed transport result')
       expect(result.imageUrls).toMatchSnapshot()
     })
   }

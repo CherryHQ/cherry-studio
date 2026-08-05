@@ -23,94 +23,23 @@ import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/p
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { IMAGE_PARAM_CATALOG_KEYS, type ParamValues, wireName } from '@cherrystudio/provider-registry'
-import { loggerService } from '@logger'
-import { t } from '@main/i18n'
-import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { CanonicalParamKey } from '@shared/data/types/model'
-import * as z from 'zod'
 
-import { readErrorMessage } from '../readErrorMessage'
-import { fileToDataUrl } from '../transportUtils'
+import { executeImageTransport } from '../imageTransportRuntime'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
-
-const logger = loggerService.withContext('AihubmixImageModel')
+import { type AihubmixImageOptions, type AihubmixMode, createAihubmixImageTransport } from './aihubmixImageTransport'
 
 const AIHUBMIX_IMAGE_PROVIDER = 'aihubmix.image' as const
 const AIHUBMIX_GOOGLE_PROVIDER = 'aihubmix.google' as const
 
-type AihubmixMode = 'generate' | 'remix' | 'upscale'
-
-/**
- * Ideogram V1/V2 endpoint path segment per mode —
- * `POST {apiRoot}/ideogram/{generate|remix|upscale}` (docs.aihubmix.com "V2-V1 接口说明").
- *
- * These were `aihubmix_image_generate` / `_remix` / `_upscale`: v1 CONFIG keys spliced
- * into a URL, which produced `/ideogram/aihubmix_image_generate` and a 404. The generate
- * arm is reachable for a hand-added `V_1` / `V_2` model, so that one was live and broken.
- */
-const MODE_TO_ENDPOINT: Record<AihubmixMode, string> = {
-  generate: 'generate',
-  remix: 'remix',
-  upscale: 'upscale'
-}
-
-interface AihubmixImageFile {
-  mediaType: string
-  data: Uint8Array
-  name: string
-}
-
 /** The two Google-image params the wrapper below re-keys into `providerOptions.google`. */
 type AihubmixGoogleImageParams = Pick<ParamValues, 'personGeneration' | 'imageResolution'>
-
-/**
- * The bag under `providerOptions.aihubmix` — `WIRE_REGISTRY.aihubmix` carries
- * `passthrough: true`, so it is raw canonical camelCase and the IPC boundary has
- * already stripped every non-catalog key.
- *
- * The canonical half is `Pick`ed from {@link ParamValues} so a key that isn't in
- * `IMAGE_PARAM_CATALOG` no longer compiles. `imageSize` was one such key (dropped —
- * `imageResolution` is the catalog spelling).
- *
- * `mode` and `imageFiles` are **v1 residue**: they mirror the old `AihubmixPaintingData`
- * shape, are not catalog keys, and nothing in the v2 request path writes them (grep
- * finds only the v1 migration mappings). They therefore always arrive `undefined`,
- * which silently pins `mode` to `'generate'` and makes every `imageFiles` read empty.
- * Left declared, and deliberately outside the `Pick`, so the dead branches downstream
- * are traceable to a cause instead of looking live — see the note on `isDefaultModel`.
- */
-type AihubmixImageOptions = Pick<
-  ParamValues,
-  | 'aspectRatio'
-  | 'numImages'
-  | 'seed'
-  | 'styleType'
-  | 'renderingSpeed'
-  | 'negativePrompt'
-  | 'magicPromptOption'
-  | 'imageWeight'
-  | 'resemblance'
-  | 'detail'
-  // BFL's one vendor knob, forwarded to the async FLUX transport as
-  // `safety_tolerance`. Declared by aihubmix's flux models in the registry, but
-  // missing from this list — so the transport read it off an untyped bag.
-  | 'safetyTolerance'
-> & {
-  /** v1 residue — never delivered; see above. */
-  mode?: AihubmixMode
-  /** v1 residue — never delivered; the real reference images are `options.files`. */
-  imageFiles?: AihubmixImageFile[]
-}
 
 export interface CreateAihubmixImageModelOptions {
   baseURL: string
   resolveApiKey: () => string
   headers: () => Record<string, string | undefined>
   fetch?: FetchFunction
-}
-
-function toBlob(file: AihubmixImageFile): Blob {
-  return new Blob([file.data as unknown as BlobPart], { type: file.mediaType })
 }
 
 function isGoogleImageModel(modelId: string): boolean {
@@ -140,25 +69,6 @@ function normalizeAspectRatio(value: unknown): `${number}:${number}` | undefined
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
-}
-
-/** Ideogram V_3 FormData branch wants `aspect_ratio=1x1`. Accepts both
- *  legacy `ASPECT_1_1` and new canonical `1:1`. */
-function aspectRatioToIdeogramV3(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  return value
-    .replace(/^ASPECT_/i, '')
-    .replace(/[_:]/g, 'x')
-    .toLowerCase()
-}
-
-/** Ideogram V_1/V_2 JSON body wants `ASPECT_1_1`. Accepts both legacy
- *  `ASPECT_1_1` and new canonical `1:1`. */
-function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  if (/^ASPECT_/i.test(value)) return value
-  if (/^\d+:\d+$/.test(value)) return `ASPECT_${value.replace(':', '_')}`
-  return value
 }
 
 const CANONICAL_KEYS = new Set<string>(IMAGE_PARAM_CATALOG_KEYS)
@@ -246,81 +156,6 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
  */
 const ASYNC_FLUX_MODELS = new Set(['flux-2-flex', 'flux-2-pro', 'flux-kontext-max'])
 
-// ── Doubao Seedream (OpenAI-compat custom family) ─────────────────────────────
-// Doubao lives on `/images/generations` like the default branch, but the inner
-// `OpenAICompatibleImageModel` hard-codes `response_format: 'b64_json'` (which
-// Doubao 400s on, surfacing as an empty error) and only parses `data[].b64_json`.
-// So Doubao builds its own body with an explicit `response_format` and parses
-// `url` / `b64_json` / `base64_json`. Table-driven by an id prefix so Wan /
-// Qwen-Image slot in as sibling families later.
-
-/** Per-field `.catch()` drops invalid values (e.g. AiService size defaults Doubao
- *  rejects — only `1K`/`2K`/`4K`/`auto`) so the server applies its own default
- *  rather than 400-ing. See https://docs.aihubmix.com/cn/api/Image-Gen. */
-const DoubaoParamsSchema = z.object({
-  size: z.enum(['1K', '2K', '4K', 'auto']).optional().catch(undefined),
-  n: z.coerce.number().int().min(1).max(15).optional().catch(undefined),
-  seed: z.coerce.number().int().min(-1).max(2147483647).optional().catch(undefined),
-  watermark: z.coerce.boolean().optional().catch(undefined),
-  sequentialImageGeneration: z.enum(['auto', 'disabled']).optional().catch(undefined),
-  maxImages: z.coerce.number().int().min(1).max(15).optional().catch(undefined),
-  responseFormat: z.enum(['url', 'base64_json']).catch('url')
-})
-
-function isDoubaoSeedreamModel(modelId: string): boolean {
-  return modelId.startsWith('doubao-seedream')
-}
-
-/** Build the Doubao `/images/generations` body from native options + the
- *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
-function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): Record<string, unknown> {
-  const bag = (options.providerOptions?.aihubmix ?? {}) as Record<string, unknown>
-  const parsed = DoubaoParamsSchema.parse({
-    size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
-    n: options.n,
-    seed: typeof options.seed === 'number' ? options.seed : bag.seed,
-    watermark: bag.addWatermark ?? bag.watermark,
-    sequentialImageGeneration: bag.sequentialImageGeneration,
-    maxImages: bag.maxImages,
-    responseFormat: bag.responseFormat
-  })
-
-  const body: Record<string, unknown> = {
-    model: modelId,
-    prompt: options.prompt ?? '',
-    response_format: parsed.responseFormat
-  }
-  if (parsed.size && parsed.size !== 'auto') body.size = parsed.size
-  if (parsed.n !== undefined && parsed.n > 1) body.n = parsed.n
-  if (parsed.seed !== undefined) body.seed = parsed.seed
-  if (parsed.watermark !== undefined) body.watermark = parsed.watermark
-  if (parsed.sequentialImageGeneration) {
-    body.sequential_image_generation = parsed.sequentialImageGeneration
-    if (parsed.maxImages !== undefined) {
-      body.sequential_image_generation_options = { max_images: parsed.maxImages }
-    }
-  }
-
-  // Image edit: Doubao takes `image` as a single data URL or an array of them.
-  const images = (options.files ?? []).map(fileToDataUrl)
-  if (images.length === 1) body.image = images[0]
-  else if (images.length > 1) body.image = images
-
-  return body
-}
-
-/** Parse a `/images/generations` response into URLs / base64 data URLs. */
-function parseOpenAIImageResults(data: any): string[] {
-  const items = Array.isArray(data?.data) ? data.data : []
-  const urls: string[] = []
-  for (const item of items) {
-    if (typeof item?.url === 'string') urls.push(item.url)
-    else if (typeof item?.b64_json === 'string') urls.push(`data:image/png;base64,${item.b64_json}`)
-    else if (typeof item?.base64_json === 'string') urls.push(`data:image/png;base64,${item.base64_json}`)
-  }
-  return urls
-}
-
 export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
   const { baseURL, resolveApiKey, headers, fetch: customFetch } = opts
 
@@ -375,150 +210,67 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // Submit task + poll. `aspectRatio` travels on the typed submit field, not stamped
     // into the bag as `aspect_ratio` — the transport's spelling is declared now.
     if (ASYNC_FLUX_MODELS.has(modelId)) {
-      const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
-      const { taskId } = await transport.submit({
-        modelId,
-        prompt,
-        n: numImages,
-        size: options.size,
-        aspectRatio,
-        seed: typeof options.seed === 'number' ? options.seed : undefined,
-        files: options.files,
-        mask: options.mask,
-        providerParams: { safetyTolerance: typeof bag.safetyTolerance === 'number' ? bag.safetyTolerance : undefined },
-        signal: abortSignal
+      const transport = createAihubmixFluxTransport({
+        apiRoot,
+        apiKey: resolveApiKey(),
+        headers: headers(),
+        fetch: customFetch
       })
-      const urls = await transport.poll(taskId, { signal: abortSignal })
+      const urls = await executeImageTransport({
+        transport,
+        input: {
+          modelId,
+          prompt,
+          n: numImages,
+          size: options.size,
+          aspectRatio,
+          seed: typeof options.seed === 'number' ? options.seed : undefined,
+          files: options.files,
+          mask: options.mask,
+          providerParams: {
+            safetyTolerance: typeof bag.safetyTolerance === 'number' ? bag.safetyTolerance : undefined
+          },
+          headers: options.headers,
+          signal: abortSignal
+        },
+        onTaskSubmitted: async () => {},
+        onProgress: () => {},
+        logContext: { provider: AIHUBMIX_IMAGE_PROVIDER, modelId }
+      })
       return wrap(urls)
     }
 
-    // ---- Ideogram V_3 FormData branch ----
-    if (modelId === 'V_3') {
-      if (mode === 'generate') {
-        const formData = new FormData()
-        formData.append('prompt', prompt)
-
-        const renderSpeed = bag.renderingSpeed || 'DEFAULT'
-        formData.append('rendering_speed', renderSpeed)
-        formData.append('num_images', String(numImages))
-
-        const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
-        if (v3Aspect) {
-          formData.append('aspect_ratio', v3Aspect)
-        }
-        if (bag.styleType && bag.styleType !== 'AUTO') {
-          formData.append('style_type', bag.styleType)
-        } else {
-          formData.append('style_type', 'AUTO')
-        }
-        if (bag.seed) {
-          formData.append('seed', String(bag.seed))
-        }
-        if (bag.negativePrompt) {
-          formData.append('negative_prompt', bag.negativePrompt)
-        }
-        if (bag.magicPromptOption !== undefined) {
-          formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
-        }
-
-        const response = await fetchImpl(`${apiRoot}/ideogram/v1/ideogram-v3/generate`, {
-          method: 'POST',
-          headers: { 'Api-Key': resolveApiKey() },
-          body: formData,
-          signal: abortSignal
-        })
-
-        if (!response.ok) {
-          const message = await readErrorMessage(response, t('paintings.generate_failed'))
-          logger.error('V3 API error:', { message })
-          throw createPaintingGenerateError('REMOTE_ERROR', { message })
-        }
-
-        const data = await response.json()
-        const items = Array.isArray(data?.data) ? data.data : []
-        const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
-
-        return wrap(urls)
-      }
-
-      if (mode === 'remix') {
-        const file = bag.imageFiles?.[0]
-        if (!file) {
-          throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
-        }
-        const formData = new FormData()
-        formData.append('prompt', prompt)
-        formData.append('rendering_speed', bag.renderingSpeed || 'DEFAULT')
-        formData.append('num_images', String(numImages))
-
-        const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
-        if (v3Aspect) {
-          formData.append('aspect_ratio', v3Aspect)
-        }
-        if (bag.styleType) {
-          formData.append('style_type', bag.styleType)
-        }
-        if (bag.seed) {
-          formData.append('seed', String(bag.seed))
-        }
-        if (bag.negativePrompt) {
-          formData.append('negative_prompt', bag.negativePrompt)
-        }
-        if (bag.magicPromptOption !== undefined) {
-          formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
-        }
-        if (bag.imageWeight) {
-          formData.append('image_weight', String(bag.imageWeight))
-        }
-
-        formData.append('image', toBlob(file), file.name)
-
-        const response = await fetchImpl(`${apiRoot}/ideogram/v1/ideogram-v3/remix`, {
-          method: 'POST',
-          headers: { 'Api-Key': resolveApiKey() },
-          body: formData,
-          signal: abortSignal
-        })
-
-        if (!response.ok) {
-          const message = await readErrorMessage(response, t('paintings.image_mix_failed'))
-          logger.error('V3 Remix API error:', { message })
-          throw createPaintingGenerateError('REMOTE_ERROR', { message })
-        }
-
-        const data = await response.json()
-        const items = Array.isArray(data?.data) ? data.data : []
-        const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
-
-        return wrap(urls)
-      }
-
-      // V_3 upscale falls through to the bespoke Ideogram upscale FormData path below.
-    }
-
-    // ---- Doubao Seedream (OpenAI-compat custom family) ----
-    // Same `/images/generations` endpoint as the default branch, but with an
-    // explicit `response_format` + url/b64 parsing the inner model can't produce
-    // (it forces `b64_json`, which Doubao rejects).
-    if (mode === 'generate' && isDoubaoSeedreamModel(modelId)) {
-      const doubaoBody = buildDoubaoBody(modelId, options)
-      const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-      for (const [key, value] of Object.entries(headers())) {
-        if (value != null) reqHeaders[key] = value
-      }
-      const response = await fetchImpl(`${withoutTrailingSlash(baseURL)}/images/generations`, {
-        method: 'POST',
-        headers: reqHeaders,
-        body: JSON.stringify(doubaoBody),
-        signal: abortSignal
+    // ---- Bespoke AiHubMix HTTP families ----
+    // The adapter selects the family; endpoint/body/response handling lives in
+    // the transport so no custom branch performs HTTP here.
+    if (modelId === 'V_3' || modelId.startsWith('doubao-seedream') || !isDefaultModel(modelId, mode)) {
+      const transport = createAihubmixImageTransport({
+        apiRoot,
+        baseURL,
+        apiKey: resolveApiKey(),
+        headers: headers(),
+        fetch: customFetch
       })
-      if (!response.ok) {
-        const message = await readErrorMessage(response, 'paintings.generate_failed')
-        logger.error('Doubao Seedream API error', { modelId, message })
-        throw createPaintingGenerateError('REMOTE_ERROR', { message })
-      }
-      const data = await response.json()
-      return wrap(parseOpenAIImageResults(data))
+      const urls = await executeImageTransport({
+        transport,
+        input: {
+          modelId,
+          prompt,
+          n: numImages,
+          size: options.size,
+          aspectRatio,
+          seed: options.seed,
+          files: options.files,
+          mask: options.mask,
+          providerParams: bag,
+          headers: options.headers,
+          signal: abortSignal
+        },
+        onTaskSubmitted: async () => {},
+        onProgress: () => {},
+        logContext: { provider: AIHUBMIX_IMAGE_PROVIDER, modelId }
+      })
+      return wrap(urls)
     }
 
     // ---- DEFAULT: reconstruct the inner OpenAICompatibleImageModel byte-identically ----
@@ -538,92 +290,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       return inner.doGenerate({ ...options, providerOptions: wireNameAihubmixBag(options.providerOptions) })
     }
 
-    // ---- Ideogram V_1/V_2 (non-default) + V_3 upscale branch (relocated verbatim) ----
-    let body: string | FormData = ''
-    const reqHeaders: Record<string, string> = { 'Api-Key': resolveApiKey() }
-    const url = `${apiRoot}/ideogram/${MODE_TO_ENDPOINT[mode]}`
-
-    const v1v2Aspect = aspectRatioToIdeogramV1V2(aspectRatio)
-
-    if (mode === 'generate') {
-      const requestData = {
-        image_request: {
-          prompt,
-          model: modelId,
-          aspect_ratio: v1v2Aspect,
-          num_images: numImages,
-          style_type: bag.styleType,
-          seed: bag.seed ? +bag.seed : undefined,
-          negative_prompt: bag.negativePrompt || undefined,
-          magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
-        }
-      }
-      body = JSON.stringify(requestData)
-      reqHeaders['Content-Type'] = 'application/json'
-    } else if (mode === 'remix') {
-      const file = bag.imageFiles?.[0]
-      if (!file) {
-        throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
-      }
-      const form = new FormData()
-      const imageRequest: Record<string, any> = {
-        prompt,
-        model: modelId,
-        aspect_ratio: v1v2Aspect,
-        image_weight: bag.imageWeight,
-        style_type: bag.styleType,
-        num_images: numImages,
-        seed: bag.seed ? +bag.seed : undefined,
-        negative_prompt: bag.negativePrompt || undefined,
-        magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
-      }
-      form.append('image_request', JSON.stringify(imageRequest))
-      form.append('image_file', toBlob(file), file.name)
-      body = form
-    } else {
-      // upscale
-      const file = bag.imageFiles?.[0]
-      if (!file) {
-        throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
-      }
-      const form = new FormData()
-      const imageRequest: Record<string, any> = {
-        prompt,
-        resemblance: bag.resemblance,
-        detail: bag.detail,
-        num_images: numImages,
-        seed: bag.seed ? +bag.seed : undefined,
-        magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF'
-      }
-      form.append('image_request', JSON.stringify(imageRequest))
-      form.append('image_file', toBlob(file), file.name)
-      body = form
-    }
-
-    const response = await fetchImpl(url, { method: 'POST', headers: reqHeaders, body, signal: abortSignal })
-
-    if (!response.ok) {
-      const message = await readErrorMessage(response, t('paintings.generate_failed'))
-      logger.error('API error:', { message })
-      throw createPaintingGenerateError('REMOTE_ERROR', { message })
-    }
-
-    const data = await response.json()
-    if (data.output) {
-      const base64s = data.output.b64_json.map((item: any) => item.bytesBase64)
-      return wrap(base64s.map((b64: string) => `data:image/png;base64,${b64}`))
-    }
-    const items = Array.isArray(data?.data) ? data.data : []
-    const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
-    const base64s = items.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
-
-    if (urls.length > 0) {
-      return wrap(urls)
-    }
-    if (base64s.length > 0) {
-      return wrap(base64s.map((b64: string) => `data:image/png;base64,${b64}`))
-    }
-    return wrap([])
+    throw new Error(`Unreachable AiHubMix image route for '${modelId}'`)
   }
 
   return {

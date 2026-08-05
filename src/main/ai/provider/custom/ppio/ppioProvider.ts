@@ -37,7 +37,9 @@ export interface PpioProvider extends ProviderV3 {
 export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport<VendorBag> {
   return createPpioTransport({
     apiKey: settings.apiKey ?? '',
-    baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL
+    baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 

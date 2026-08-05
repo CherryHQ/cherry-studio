@@ -1,28 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fileToDataUrl, isTerminalHttpStatus } from '../transportUtils'
-
-describe('isTerminalHttpStatus', () => {
-  it('classifies 4xx (except 429) as terminal', () => {
-    expect(isTerminalHttpStatus(400)).toBe(true)
-    expect(isTerminalHttpStatus(401)).toBe(true)
-    expect(isTerminalHttpStatus(404)).toBe(true)
-    expect(isTerminalHttpStatus(422)).toBe(true)
-    expect(isTerminalHttpStatus(499)).toBe(true)
-  })
-
-  it('classifies 429 and 5xx as transient (retryable)', () => {
-    expect(isTerminalHttpStatus(429)).toBe(false)
-    expect(isTerminalHttpStatus(500)).toBe(false)
-    expect(isTerminalHttpStatus(502)).toBe(false)
-    expect(isTerminalHttpStatus(503)).toBe(false)
-  })
-
-  it('treats 2xx/3xx as non-terminal', () => {
-    expect(isTerminalHttpStatus(200)).toBe(false)
-    expect(isTerminalHttpStatus(304)).toBe(false)
-  })
-})
+import { fileToDataUrl } from '../transportUtils'
 
 describe('fileToDataUrl', () => {
   it('passes a url-typed file through unchanged', () => {

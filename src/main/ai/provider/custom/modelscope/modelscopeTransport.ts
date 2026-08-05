@@ -1,13 +1,25 @@
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import {
+  combineHeaders,
+  createJsonResponseHandler,
+  type FetchFunction,
+  getFromApi,
+  postJsonToApi
+} from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
-import { parseDataUrl } from '@shared/utils/dataUrl'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportInputSupport
-} from '../imageGenerationModel'
-import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import {
+  ADAPTIVE_IMAGE_POLL_POLICY,
+  completedImageTransportTask,
+  type ImageTransportInputSupport,
+  type ImageTransportTaskContext,
+  type ImageTransportTaskState,
+  submittedImageTransportSubmission,
+  type TaskImageGenerationTransport
+} from '../imageTransport'
+import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import { fileToDataUrl } from '../transportUtils'
 
 /**
  * ModelScope (魔搭) API Inference transport for AIGC image generation.
@@ -31,47 +43,43 @@ import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal }
 
 export const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn'
 
-export class ModelscopeApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number
-  ) {
-    super(message)
-    this.name = 'ModelscopeApiError'
-  }
-}
-
-export class ModelscopeTaskFailedError extends Error {
-  constructor(reason: string) {
-    super(reason)
-    this.name = 'ModelscopeTaskFailedError'
-  }
-}
-
-export type ModelscopeTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEED' | 'FAILED'
-
-export interface ModelscopeTaskResult {
-  task_id?: string
-  task_status: ModelscopeTaskStatus
-  output_images?: string[]
-  message?: string
-}
+const modelscopeSubmitResultSchema = z.object({ task_id: z.string().min(1) }).passthrough()
+const modelscopeTaskResultSchema = z
+  .object({
+    task_status: z.enum(['PENDING', 'RUNNING', 'SUCCEED', 'FAILED']),
+    output_images: z.array(z.string().min(1)).optional(),
+    message: z.string().optional()
+  })
+  .passthrough()
 
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
 
 /** The three canonical keys this transport's single body carries. */
 export type ModelscopeProviderParams = Pick<VendorBag, 'numInferenceSteps' | 'guidanceScale' | 'negativePrompt'>
 
-class ModelscopeTransport implements ImageGenerationTransport<ModelscopeProviderParams> {
-  private apiKey: string
-  private baseURL: string
+class ModelscopeTransport implements TaskImageGenerationTransport<ModelscopeProviderParams> {
+  private readonly apiKey: string
+  private readonly baseURL: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+
+  readonly task: TaskImageGenerationTransport<ModelscopeProviderParams>['task'] = {
+    kind: 'supported' as const,
+    pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
+    query: (taskId: string, context: Parameters<ModelscopeTransport['query']>[1]) => this.query(taskId, context),
+    cancel: { kind: 'unsupported' as const }
+  }
 
   constructor(settings: ModelscopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_MODELSCOPE_BASE_URL
+    this.headers = settings.headers
+    this.fetch = settings.fetch
   }
 
   /** One unconditional body for every model, and it always carries `image_url`. */
@@ -79,9 +87,7 @@ class ModelscopeTransport implements ImageGenerationTransport<ModelscopeProvider
     return { files: true, mask: false }
   }
 
-  async submit(
-    input: ImageGenerationSubmitInput<ModelscopeProviderParams>
-  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<ModelscopeProviderParams>) {
     const bag = input.providerParams
 
     const body: Record<string, unknown> = {
@@ -98,14 +104,7 @@ class ModelscopeTransport implements ImageGenerationTransport<ModelscopeProvider
     // images }`). Pass the first one — ModelScope accepts http(s) or data URLs.
     const firstFile = input.files?.[0]
     if (firstFile) {
-      if (firstFile.type === 'url') {
-        body.image_url = firstFile.url
-      } else if (typeof firstFile.data === 'string') {
-        const parsed = parseDataUrl(firstFile.data)
-        body.image_url = parsed ? firstFile.data : `data:${firstFile.mediaType || 'image/png'};base64,${firstFile.data}`
-      } else {
-        body.image_url = `data:${firstFile.mediaType || 'image/png'};base64,${uint8ToBase64(firstFile.data)}`
-      }
+      body.image_url = fileToDataUrl(firstFile)
     }
 
     // The bag is canonical camelCase (schema-coerced); ModelScope's wire names
@@ -116,149 +115,52 @@ class ModelscopeTransport implements ImageGenerationTransport<ModelscopeProvider
 
     if (input.seed !== undefined) body.seed = input.seed
 
-    const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
-      timeout: 120000,
-      signal: input.signal,
-      extraHeaders: { 'X-ModelScope-Async-Mode': 'true' }
-    })
-
-    return { taskId: response.task_id }
+    const url = `${this.baseURL}/v1/images/generations`
+    const response = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 120_000, signal: input.signal },
+      (signal) =>
+        postJsonToApi({
+          url,
+          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers, {
+            'X-ModelScope-Async-Mode': 'true'
+          }),
+          body,
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('ModelScope API error'),
+          successfulResponseHandler: createJsonResponseHandler(modelscopeSubmitResultSchema)
+        })
+    )
+    return submittedImageTransportSubmission(response.value.task_id, 'ModelScope')
   }
 
-  async poll(
+  private async query(
     taskId: string,
-    options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
-  ): Promise<string[]> {
-    const result = await this.pollTaskResult(taskId, options)
-    return result.output_images ?? []
-  }
+    context: ImageTransportTaskContext<ModelscopeProviderParams, AbortSignal>
+  ): Promise<ImageTransportTaskState> {
+    const url = `${this.baseURL}/v1/tasks/${encodeURIComponent(taskId)}`
+    const result = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 10_000, signal: context.signal },
+      (signal) =>
+        getFromApi({
+          url,
+          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers, {
+            'X-ModelScope-Task-Type': 'image_generation'
+          }),
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('ModelScope API error'),
+          successfulResponseHandler: createJsonResponseHandler(modelscopeTaskResultSchema)
+        })
+    )
 
-  private async pollTaskResult(
-    taskId: string,
-    options?: {
-      interval?: number
-      maxAttempts?: number
-      onProgress?: (progress: number) => void
-      signal?: AbortSignal
+    if (result.value.task_status === 'SUCCEED') {
+      return completedImageTransportTask(result.value.output_images ?? [], 'ModelScope task')
     }
-  ): Promise<ModelscopeTaskResult> {
-    const { interval, maxAttempts = 120, signal } = options || {}
-    const maxTransientRetries = 10
-    let attempts = 0
-    let transientRetries = 0
-    const startTime = Date.now()
-
-    while (attempts < maxAttempts) {
-      if (signal?.aborted) {
-        throw createAbortError('Task polling aborted')
-      }
-
-      try {
-        const result = await this.request<ModelscopeTaskResult>(
-          `/v1/tasks/${encodeURIComponent(taskId)}`,
-          'GET',
-          undefined,
-          {
-            timeout: 10000,
-            signal,
-            extraHeaders: { 'X-ModelScope-Task-Type': 'image_generation' }
-          }
-        )
-        transientRetries = 0
-
-        if (result.task_status === 'SUCCEED') return result
-        if (result.task_status === 'FAILED') {
-          throw new ModelscopeTaskFailedError(result.message || 'Task failed')
-        }
-      } catch (error) {
-        if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
-          throw createAbortError('Task polling aborted')
-        }
-        // Terminal failure or a 4xx (bar 429) poll response ends the loop;
-        // 5xx / 429 fall through to transient retry.
-        if (error instanceof ModelscopeTaskFailedError) {
-          throw error
-        }
-        if (error instanceof ModelscopeApiError && isTerminalHttpStatus(error.statusCode)) {
-          throw error
-        }
-
-        transientRetries++
-        if (transientRetries >= maxTransientRetries) {
-          throw error instanceof Error ? error : new Error(String(error))
-        }
-        const elapsedTime = Date.now() - startTime
-        const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-        await waitWithSignal(pollDelay, signal)
-        // Count the transient round against `maxAttempts` too — `transientRetries`
-        // resets on the next success, so alternating success/failure would otherwise
-        // never exhaust either counter.
-        attempts++
-        continue
-      }
-
-      const elapsedTime = Date.now() - startTime
-      const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-      await waitWithSignal(pollDelay, signal)
-      attempts++
+    if (result.value.task_status === 'FAILED') {
+      return { kind: 'failed', message: result.value.message || 'Task failed' }
     }
-
-    throw new Error('Task polling timeout')
-  }
-
-  private async request<T>(
-    path: string,
-    method: 'POST' | 'GET',
-    body: Record<string, unknown> | undefined,
-    options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
-  ): Promise<T> {
-    const timeout = options.timeout ?? DEFAULT_TIMEOUT
-    const externalSignal = options.signal
-    const controller = new AbortController()
-    let externallyAborted = false
-
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-    const onExternalAbort = () => {
-      externallyAborted = true
-      controller.abort()
-    }
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
-
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        ...(method === 'POST' && { 'Content-Type': 'application/json' }),
-        ...options.extraHeaders
-      },
-      signal: controller.signal
-    }
-    if (method === 'POST' && body !== undefined) {
-      fetchOptions.body = JSON.stringify(body)
-    }
-
-    try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
-      if (!response.ok) {
-        const errorText = (await response.text().catch(() => '')).slice(0, 500)
-        throw new ModelscopeApiError(`ModelScope API error: ${response.status} - ${errorText}`, response.status)
-      }
-      return (await response.json()) as T
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (externallyAborted) throw createAbortError('ModelScope API request aborted')
-        throw new Error(`ModelScope API request timeout after ${timeout / 1000}s`)
-      }
-      throw error
-    } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
-    }
+    return { kind: 'pending' }
   }
 }
 

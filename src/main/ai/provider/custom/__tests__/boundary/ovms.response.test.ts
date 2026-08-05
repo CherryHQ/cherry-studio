@@ -32,6 +32,7 @@ describe('OVMS response boundary', () => {
     const response = { data: [{ b64_json: 'QUJD' }] }
     responseSchema.parse(response)
     const result = await submitWithResponse(transport, input, response)
+    if (result.kind !== 'completed') throw new Error('expected completed transport result')
     expect(result.imageUrls).toMatchSnapshot()
   })
 
@@ -39,6 +40,7 @@ describe('OVMS response boundary', () => {
     const response = { data: [{ url: 'https://img/o.png' }] }
     responseSchema.parse(response)
     const result = await submitWithResponse(transport, input, response)
+    if (result.kind !== 'completed') throw new Error('expected completed transport result')
     expect(result.imageUrls).toMatchSnapshot()
   })
 })

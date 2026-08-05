@@ -2,7 +2,7 @@ import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
-import { buildTokenhubTransport, TokenhubTaskFailedError } from '../../tokenhub/tokenhubTransport'
+import { buildTokenhubTransport } from '../../tokenhub/tokenhubTransport'
 import { captureImageRequest, submitWithResponse } from './captureRequest'
 
 /**
@@ -11,6 +11,7 @@ import { captureImageRequest, submitWithResponse } from './captureRequest'
  * Hunyuan job fields in snake_case (`logo_add`, `negative_prompt`,
  * `resolution`), the lite model is a synchronous OpenAI-style endpoint, and
  * polling posts `{ model, id }` to `/v1/api/image/query`.
+ * Retrieved 2026-07-27.
  */
 
 const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
@@ -72,18 +73,19 @@ describe('tokenhub transport — outbound submit body', () => {
     expect(captured.body).toEqual({ model: 'hy-image-lite', prompt: 'a fox', rsp_img_type: 'url' })
 
     const result = await submitWithResponse(transport, liteInput, {
-      data: [{ url: 'https://img.example/1.png' }, { revised_prompt: 'no url' }]
+      data: [{ url: 'https://img.example/1.png' }]
     })
-    expect(result).toEqual({ imageUrls: ['https://img.example/1.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img.example/1.png'] })
   })
 
   it('returns the job id as taskId and fails loudly when the response has none', async () => {
     const transport = buildTokenhubTransport(settings)
     await expect(submitWithResponse(transport, submitInput(), { id: 'job-1', status: 'queued' })).resolves.toEqual({
+      kind: 'submitted',
       taskId: 'job-1'
     })
     await expect(submitWithResponse(transport, submitInput(), { status: 'queued' })).rejects.toThrow(
-      /returned no task id/
+      /Invalid JSON response/
     )
   })
 })
@@ -103,8 +105,14 @@ describe('tokenhub transport — poll', () => {
       { status: 'completed', data: [{ url: 'https://img.example/a.png' }] }
     ])
     try {
-      const urls = await transport.poll!('job-1', { modelDescriptor: { id: 'hy-image-v3.0' } as never })
-      expect(urls).toEqual(['https://img.example/a.png'])
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      const state = await transport.task.query('job-1', {
+        signal: new AbortController().signal,
+        modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
+        headers: undefined,
+        providerParams: {}
+      })
+      expect(state).toEqual({ kind: 'completed', imageUrls: ['https://img.example/a.png'] })
       const [url, init] = spy.mock.calls[0] as [string, RequestInit]
       expect(url).toBe('https://tokenhub.tencentmaas.com/v1/api/image/query')
       expect(JSON.parse(init.body as string)).toEqual({ model: 'hy-image-v3.0', id: 'job-1' })
@@ -113,30 +121,57 @@ describe('tokenhub transport — poll', () => {
     }
   })
 
-  it('throws TokenhubTaskFailedError on a failed status', async () => {
+  it('normalizes a failed status', async () => {
     const { transport, done } = pollWithResponses([{ status: 'failed' }])
     try {
-      await expect(transport.poll!('job-1', { modelDescriptor: { id: 'hy-image-v3.0' } as never })).rejects.toThrow(
-        TokenhubTaskFailedError
-      )
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      await expect(
+        transport.task.query('job-1', {
+          signal: new AbortController().signal,
+          modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
+          headers: undefined,
+          providerParams: {}
+        })
+      ).resolves.toEqual({ kind: 'failed', message: 'TokenHub image task failed' })
     } finally {
       done()
     }
   })
 
-  it('requires a model id (from submit on this instance or the descriptor)', async () => {
-    const transport = buildTokenhubTransport(settings)
-    await expect(transport.poll!('job-1', {})).rejects.toThrow(/requires the model id/)
+  it('rejects a missing or unknown status instead of assuming pending', async () => {
+    for (const response of [{}, { status: 'waiting' }]) {
+      const { transport, done } = pollWithResponses([response])
+      try {
+        if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+        await expect(
+          transport.task.query('job-1', {
+            signal: new AbortController().signal,
+            modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
+            headers: undefined,
+            providerParams: {}
+          })
+        ).rejects.toThrow('Invalid JSON response')
+      } finally {
+        done()
+      }
+    }
   })
 
-  it('releases the task→model id entry when the task FAILS, not only when it completes', async () => {
-    // The entry was deleted on the success branch only, and TokenHub has no `cancel()`
-    // to clean up after a failure/abort/timeout — so every failed task pinned its model
-    // id for the lifetime of the transport. Observable through the model-id requirement:
-    // once released, a later poll of the same id has no remembered model.
-    // One spy, both responses queued: submit hands back the task id (which records the
-    // model), then the poll reports failure.
-    const { transport, done } = pollWithResponses([{ id: 'job-1' }, { status: 'failed' }])
+  it('requires the persisted model descriptor', async () => {
+    const transport = buildTokenhubTransport(settings)
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+    await expect(
+      transport.task.query('job-1', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+    ).rejects.toThrow(/requires a persisted modelDescriptor/)
+  })
+
+  it('does not retain submit-time task→model state', async () => {
+    const { transport, done } = pollWithResponses([{ id: 'job-1' }])
     try {
       await transport.submit({
         modelId: 'hy-image-v3.0',
@@ -150,9 +185,15 @@ describe('tokenhub transport — poll', () => {
         modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/submit' }
       } satisfies ImageGenerationSubmitInput<VendorBag>)
 
-      await expect(transport.poll!('job-1', {})).rejects.toThrow(TokenhubTaskFailedError)
-      // Entry released by the failure, so the remembered model id is gone.
-      await expect(transport.poll!('job-1', {})).rejects.toThrow(/requires the model id/)
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      await expect(
+        transport.task.query('job-1', {
+          signal: new AbortController().signal,
+          modelDescriptor: undefined,
+          headers: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow(/requires a persisted modelDescriptor/)
     } finally {
       done()
     }

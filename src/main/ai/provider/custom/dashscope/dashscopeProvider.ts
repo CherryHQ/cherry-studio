@@ -53,7 +53,9 @@ const getDashScopeRerankBaseURL = (baseURL: string) => {
 export function buildDashScopeTransport(settings: DashScopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createDashScopeTransport({
     apiKey: settings.apiKey ?? '',
-    imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+    imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 

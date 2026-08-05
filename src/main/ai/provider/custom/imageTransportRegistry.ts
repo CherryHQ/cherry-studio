@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import type { AppProviderId, ConcreteProviderId, PresetProviderId } from '../../types'
 import type { VendorBag } from '../../utils/imageOptions'
 import {
@@ -55,7 +57,16 @@ const RESOLVERS: Record<string, TransportResolver> = {
   // bespoke SDK provider), so only the concrete-id lookup reaches this row.
   // Only the Hunyuan image models use the submit/poll endpoints.
   [TOKENHUB_PROVIDER_NAME]: (modelId, settings) =>
-    modelId.startsWith('hy-image') ? buildTokenhubTransport(settings as { apiKey?: string; baseURL?: string }) : null
+    modelId.startsWith('hy-image')
+      ? buildTokenhubTransport(
+          settings as {
+            apiKey?: string
+            baseURL?: string
+            headers?: Record<string, string | undefined>
+            fetch?: FetchFunction
+          }
+        )
+      : null
 }
 
 export function resolveImageTransport(

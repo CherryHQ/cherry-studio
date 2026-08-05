@@ -1,10 +1,14 @@
+import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportInputSupport
-} from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import {
+  completedImageTransportSubmission,
+  type ImageTransportInputSupport,
+  type ImmediateImageGenerationTransport
+} from '../imageTransport'
+import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
 /**
  * OVMS (OpenVINO Model Server) single-shot transport.
@@ -31,13 +35,27 @@ export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
 
 export interface OvmsTransportSettings {
   baseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
 
-class OvmsTransport implements ImageGenerationTransport<WireVendorBag> {
-  private baseURL: string
+const ovmsImageResponseSchema = z
+  .object({
+    data: z.array(z.object({ b64_json: z.string().min(1).optional(), url: z.string().min(1).optional() }).passthrough())
+  })
+  .passthrough()
+
+class OvmsTransport implements ImmediateImageGenerationTransport<WireVendorBag> {
+  private readonly baseURL: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+
+  readonly task = { kind: 'unsupported' as const }
 
   constructor(settings: OvmsTransportSettings) {
     this.baseURL = settings.baseURL || DEFAULT_OVMS_BASE_URL
+    this.headers = settings.headers
+    this.fetch = settings.fetch
   }
 
   /** Text-to-image only: the body is model/prompt/size/steps/seed, no image slot. */
@@ -45,8 +63,8 @@ class OvmsTransport implements ImageGenerationTransport<WireVendorBag> {
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput<WireVendorBag>): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bag = input.providerParams ?? {}
+  async submit(input: ImageGenerationSubmitInput<WireVendorBag>) {
+    const bag = input.providerParams
 
     // OVMS is the in-SDK (createImageGenerationModel) path, so its bag is the
     // WireProfile diffusion profile's snake_case wire body (camelCase twin
@@ -59,30 +77,27 @@ class OvmsTransport implements ImageGenerationTransport<WireVendorBag> {
       rng_seed: input.seed ?? 0
     }
 
-    const response = await fetch(`${this.baseURL}/images/generations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-      signal: input.signal
+    const response = await postJsonToApi({
+      url: `${this.baseURL}/images/generations`,
+      headers: combineHeaders(this.headers, input.headers),
+      body: requestBody,
+      abortSignal: input.signal,
+      fetch: this.fetch,
+      failedResponseHandler: createImageTransportErrorResponseHandler(),
+      successfulResponseHandler: createJsonResponseHandler(ovmsImageResponseSchema)
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }))
-      throw new Error(errorData.error?.message || 'Image generation failed')
-    }
-
-    const data = await response.json()
-    const items = Array.isArray(data?.data) ? data.data : []
-
-    const base64s = items
-      .filter((item: { b64_json?: string }) => item.b64_json)
-      .map((item: { b64_json: string }) => `data:image/png;base64,${item.b64_json}`)
+    const base64s = response.value.data
+      .filter((item): item is typeof item & { b64_json: string } => item.b64_json !== undefined)
+      .map((item) => `data:image/png;base64,${item.b64_json}`)
     if (base64s.length > 0) {
-      return { imageUrls: base64s }
+      return completedImageTransportSubmission(base64s, 'OVMS')
     }
 
-    const urls = items.filter((item: { url?: string }) => item.url).map((item: { url: string }) => item.url)
-    return { imageUrls: urls }
+    const urls = response.value.data
+      .filter((item): item is typeof item & { url: string } => item.url !== undefined)
+      .map((item) => item.url)
+    return completedImageTransportSubmission(urls, 'OVMS')
   }
 }
 
