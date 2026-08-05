@@ -17,7 +17,6 @@ import {
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -142,7 +141,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       // foreign tab. Apps without sub-instances keep exact-URL matching.
       const isActiveTarget =
         !!activeTab &&
-        (app.instanceKey
+        (app.conversationRoute
           ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
           : activeTab.url === path)
       if (isActiveTarget) return
@@ -159,7 +158,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
@@ -194,7 +193,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }

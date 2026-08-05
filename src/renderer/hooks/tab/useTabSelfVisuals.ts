@@ -1,6 +1,6 @@
+import type { ConversationAppId } from '@renderer/types/conversation'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
 import { useEffect } from 'react'
 
 import { useCurrentTabId } from './useCurrentTab'
@@ -10,17 +10,17 @@ export interface TabSelfVisuals {
   title: string
   emoji?: string | null
   /** Route-ownership guard: only stamp while the tab is on this app's routes. */
-  appId?: TabInstanceAppId
+  appId?: ConversationAppId
   /** Keep the tab's stored title/icon while the bound conversation is still loading. */
   preserveVisuals?: boolean
 }
 
-const TAB_APP_ROUTE_PREFIX: Record<TabInstanceAppId, string> = {
+const TAB_APP_ROUTE_PREFIX: Record<ConversationAppId, string> = {
   assistants: '/app/chat',
   agents: '/app/agents'
 }
 
-function tabBelongsToApp(tab: Pick<Tab, 'url'>, appId: TabInstanceAppId): boolean {
+function tabBelongsToApp(tab: Pick<Tab, 'url'>, appId: ConversationAppId): boolean {
   const routePrefix = TAB_APP_ROUTE_PREFIX[appId]
   return tab.url === routePrefix || tab.url.startsWith(`${routePrefix}?`) || tab.url.startsWith(`${routePrefix}/`)
 }

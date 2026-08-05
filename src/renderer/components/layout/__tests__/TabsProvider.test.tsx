@@ -157,9 +157,6 @@ function SessionInspector() {
       </div>
       <div data-testid="session-ids">{tabs.map((tab) => tab.id).join(',')}</div>
       <div data-testid="session-urls">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
-      <div data-testid="session-metadata">
-        {tabs.map((tab) => `${tab.id}:${tab.metadata ? JSON.stringify(tab.metadata) : 'none'}`).join(',')}
-      </div>
     </div>
   )
 }
@@ -642,50 +639,6 @@ describe('TabsProvider session restore', () => {
     expect(dump).toContain('a:dormant')
     expect(dump).toContain('b:awake')
     expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toHaveLength(1)
-  })
-
-  it('migrates metadata-era conversation identity into the tab URL on restore', async () => {
-    // Tabs persisted by builds that carried conversation identity in instance metadata:
-    // restore folds the identity into the URL (the sole identity channel) and strips the
-    // instance keys, keeping unrelated metadata.
-    const boundTab: Tab = {
-      id: 'bound',
-      type: 'route',
-      url: '/app/chat',
-      title: 'Topic',
-      lastAccessTime: 1,
-      isDormant: false,
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', keep: true }
-    }
-    const draftTab: Tab = {
-      id: 'draft',
-      type: 'route',
-      url: '/app/agents?sessionId=stale',
-      title: 'Draft',
-      lastAccessTime: 2,
-      isDormant: false,
-      metadata: { instanceAppId: 'agents' }
-    }
-    const plainTab: Tab = { id: 'plain', type: 'route', url: '/app/files', title: 'Files', lastAccessTime: 3 }
-    normalTabsValue = [boundTab, draftTab, plainTab]
-    activeTabIdValue = 'plain'
-
-    render(
-      <TabsProvider initialDefaultTab={null}>
-        <SessionInspector />
-      </TabsProvider>
-    )
-
-    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('plain'))
-    const urls = screen.getByTestId('session-urls').textContent ?? ''
-    expect(urls).toContain('bound=/app/chat?topicId=topic-1')
-    // A metadata-era draft collapses to the bare entry route; the interceptor re-resolves it on wake.
-    expect(urls).toContain('draft=/app/agents')
-    expect(urls).not.toContain('draft=/app/agents?sessionId=stale')
-    expect(urls).toContain('plain=/app/files')
-    const metadata = screen.getByTestId('session-metadata').textContent ?? ''
-    expect(metadata).toContain('bound:{"keep":true}')
-    expect(metadata).toContain('draft:none')
   })
 
   it('keeps the resolved active tab awake when the persisted active id is stale', async () => {

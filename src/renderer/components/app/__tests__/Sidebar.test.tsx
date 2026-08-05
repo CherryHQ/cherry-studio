@@ -285,8 +285,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
-
 import Sidebar from '../Sidebar'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
@@ -366,45 +364,6 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
-  })
-
-  it('derives conversation detach URLs from instance metadata', () => {
-    expect(
-      resolveSidebarAppTabEntryUrl({
-        url: '/app/chat?topicId=entry-topic',
-        metadata: { instanceAppId: 'assistants', instanceKey: 'current-topic' }
-      })
-    ).toBe('/app/chat?topicId=current-topic')
-    expect(
-      resolveSidebarAppTabEntryUrl({
-        url: '/app/agents?sessionId=entry-session',
-        metadata: { instanceAppId: 'agents', instanceKey: 'current-session' }
-      })
-    ).toBe('/app/agents?sessionId=current-session')
-  })
-
-  it('uses the conversation base route when instance metadata represents a draft', () => {
-    expect(
-      resolveSidebarAppTabEntryUrl({
-        url: '/app/chat?topicId=previous-topic',
-        metadata: { instanceAppId: 'assistants' }
-      })
-    ).toBe('/app/chat')
-    expect(
-      resolveSidebarAppTabEntryUrl({
-        url: '/app/agents?sessionId=previous-session',
-        metadata: { instanceAppId: 'agents' }
-      })
-    ).toBe('/app/agents')
-  })
-
-  it('keeps a message-only detach URL when there is no normal instance key', () => {
-    expect(
-      resolveSidebarAppTabEntryUrl({
-        url: '/app/chat?topicId=t-1&view=message',
-        metadata: { instanceAppId: 'assistants', instanceKey: 'stale-topic' }
-      })
-    ).toBe('/app/chat?topicId=t-1&view=message')
   })
 
   it('renders sidebar menu items in visible preference order', () => {
@@ -563,7 +522,7 @@ describe('app Sidebar', () => {
       url: '/app/chat?topicId=t-1',
       title: 'Topic',
       icon: 'emoji:🍒',
-      metadata: { instanceAppId: 'assistants', instanceKey: 't-1', keep: true }
+      metadata: { keep: true }
     }
 
     render(<Sidebar />)
@@ -573,7 +532,7 @@ describe('app Sidebar', () => {
       url: '/app/mini-app/calculator',
       title: 'Calculator',
       icon: 'calculator-logo',
-      metadata: { keep: true }
+      metadata: undefined
     })
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
@@ -656,14 +615,14 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('replaces the active tab with the bare route and drops its old conversation identity', () => {
+  it('replaces the active tab with the bare route', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
-      url: '/app/chat',
+      url: '/app/chat?topicId=topic-1',
       title: 'Chat',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', keep: true }
+      metadata: { keep: true }
     }
 
     render(<Sidebar />)
@@ -675,7 +634,7 @@ describe('app Sidebar', () => {
       url: '/app/agents',
       title: 'Work',
       icon: undefined,
-      metadata: { keep: true }
+      metadata: undefined
     })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
@@ -719,7 +678,7 @@ describe('app Sidebar', () => {
     })
   })
 
-  it('clears stale instance metadata when reusing the active tab', () => {
+  it('clears route-specific metadata when reusing the active tab', () => {
     mocks.sidebarFavorites = [appFavorite('translate')]
     mocks.activeTab = {
       id: 'chat',
@@ -727,7 +686,7 @@ describe('app Sidebar', () => {
       url: '/app/chat?topicId=t-1',
       title: 'Topic',
       icon: 'emoji:🍒',
-      metadata: { instanceAppId: 'assistants', instanceKey: 't-1', keep: true }
+      metadata: { keep: true }
     }
 
     render(<Sidebar />)
@@ -737,7 +696,7 @@ describe('app Sidebar', () => {
       url: '/app/translate',
       title: 'Translate',
       icon: undefined,
-      metadata: { keep: true }
+      metadata: undefined
     })
     expect(mocks.openTab).not.toHaveBeenCalled()
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()

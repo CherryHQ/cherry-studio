@@ -6,7 +6,6 @@ import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { hasOtherConversationAppTab } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
@@ -95,7 +94,7 @@ export const AppShell = () => {
           title: getDefaultRouteTitle(url),
           icon: undefined,
           lastAccessTime: Date.now(),
-          metadata: clearTabInstanceMetadata(tab?.metadata)
+          metadata: undefined
         }
     updateTab(tabId, patch)
 

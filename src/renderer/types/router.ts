@@ -1,5 +1,5 @@
-import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
+import type { ConversationAppId } from './conversation'
 
 export interface TabRouterContext {
-  hasOtherConversationTab: (appId: TabInstanceAppId) => boolean
+  hasOtherConversationTab: (appId: ConversationAppId) => boolean
 }

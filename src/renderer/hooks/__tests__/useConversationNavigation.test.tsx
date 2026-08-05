@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConversationNavigation } from '../useConversationNavigation'
 
-// Drive the boundary over a fake tabs context; utils/sidebar (the identity↔url registry)
-// runs for real, so these tests also lock the assistants/agents instanceKey wiring.
+// Drive the boundary over a fake tabs context; utils/sidebar (the key↔URL registry)
+// runs for real, so these tests also lock the assistants/agents conversationRoute wiring.
 const tabsMock = vi.hoisted(() => ({
   ctx: null as ReturnType<typeof makeCtx> | null,
   emitResourceListReveal: vi.fn(),
