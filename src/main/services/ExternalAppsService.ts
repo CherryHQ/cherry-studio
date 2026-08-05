@@ -108,14 +108,18 @@ class ExternalAppsService {
       return null
     }
     // Windows Terminal (Store app) registers its `wt.exe` App Execution Alias here.
-    const aliasPath = path.join(localAppData, 'Microsoft', 'WindowsApps', appConfig.executable)
+    // `path.win32` keeps the resulting path deterministic (backslash-separated) even
+    // when the service is exercised on a non-Windows host (e.g. CI unit tests).
+    const aliasPath = path.win32.join(localAppData, 'Microsoft', 'WindowsApps', appConfig.executable)
     return existsSync(aliasPath) ? aliasPath : null
   }
 
   private resolveTerminalDirectory(targetPath: string): string {
     try {
       if (statSync(targetPath).isFile()) {
-        return path.dirname(targetPath)
+        // Same rationale as resolveExecutablePath: `path.win32` keeps Windows path
+        // handling deterministic regardless of the host the process runs on.
+        return path.win32.dirname(targetPath)
       }
     } catch {
       // Target may not exist yet; fall through and pass it through as-is.
