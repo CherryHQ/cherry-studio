@@ -716,15 +716,13 @@ describe('JobManager integration', () => {
         handlers: [['parallel.task', makeSlowHandler('abandon') as JobHandler]]
       })
 
-      const handles = await Promise.all(
-        Array.from({ length: 20 }, (_, i) =>
-          jobManager.enqueue(
-            'parallel.task' as never,
-            { message: `n-${i}`, sleepMs: 5 } as never,
-            {
-              queue: `parallel-${i}`
-            } as never
-          )
+      const handles = Array.from({ length: 20 }, (_, i) =>
+        jobManager.enqueue(
+          'parallel.task' as never,
+          { message: `n-${i}`, sleepMs: 5 } as never,
+          {
+            queue: `parallel-${i}`
+          } as never
         )
       )
 

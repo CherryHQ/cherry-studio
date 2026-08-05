@@ -115,11 +115,12 @@
     "typescript/no-require-imports": "off",
     "typescript/no-this-alias": "error",
     "typescript/no-unnecessary-parameter-property-assignment": "warn",
-    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-type-assertion": "off", // TODO: error — tsgolint 7 backlog (1508 diagnostics / 488 files), tracked in #17746
     "typescript/no-unnecessary-type-constraint": "error",
     "typescript/no-unsafe-declaration-merging": "error",
     "typescript/no-unsafe-function-type": "error",
     "typescript/no-unsafe-unary-minus": "warn",
+    "typescript/no-useless-default-assignment": "off", // TODO: error — 1.76 default-warn; rule + 17 fixes split to a dedicated PR
     "typescript/no-useless-empty-export": "warn",
     "typescript/no-wrapper-object-types": "error",
     "typescript/prefer-as-const": "error",
