@@ -6,8 +6,7 @@ const mocks = vi.hoisted(() => ({
   agent: undefined as any,
   agentLoading: false,
   agentLookupId: undefined as string | null | undefined,
-  modelLookupId: undefined as string | null | undefined,
-  providerLookupId: undefined as string | null | undefined
+  modelLookupId: undefined as string | null | undefined
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -27,16 +26,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviderById: (providerId: string | null | undefined) => {
-    mocks.providerLookupId = providerId
-    return {
-      provider: providerId ? { id: providerId } : undefined,
-      isLoading: Boolean(providerId)
-    }
-  }
-}))
-
 import { useAgentConversationBootstrap } from '../useAgentConversationBootstrap'
 
 const session = { id: 'session-1', agentId: 'agent-1' } as AgentSessionEntity
@@ -47,7 +36,6 @@ describe('useAgentConversationBootstrap', () => {
     mocks.agentLoading = false
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
-    mocks.providerLookupId = undefined
   })
 
   it('uses the list agent as a key hint while the canonical agent is loading', () => {
@@ -64,12 +52,10 @@ describe('useAgentConversationBootstrap', () => {
 
     expect(mocks.agentLookupId).toBe('agent-1')
     expect(mocks.modelLookupId).toBe('provider-hint::model-hint')
-    expect(mocks.providerLookupId).toBe('provider-hint')
     expect(result.current.resources.model?.id).toBe('provider-hint::model-hint')
-    expect(result.current.resources.provider?.id).toBe('provider-hint')
   })
 
-  it('switches model and provider keys to the canonical agent result', () => {
+  it('switches the model key to the canonical agent result', () => {
     const { rerender, result } = renderHook(() =>
       useAgentConversationBootstrap({
         session,
@@ -84,7 +70,6 @@ describe('useAgentConversationBootstrap', () => {
     rerender()
 
     expect(mocks.modelLookupId).toBe('provider-canonical::model-canonical')
-    expect(mocks.providerLookupId).toBe('provider-canonical')
     expect(result.current.resources.agent).toBe(mocks.agent)
   })
 
@@ -99,6 +84,5 @@ describe('useAgentConversationBootstrap', () => {
     )
 
     expect(mocks.modelLookupId).toBeUndefined()
-    expect(mocks.providerLookupId).toBeNull()
   })
 })

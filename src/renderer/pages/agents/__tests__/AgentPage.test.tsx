@@ -374,8 +374,6 @@ vi.mock('../AgentChat', () => ({
   default: ({
     centerSurface,
     conversationBootstrap,
-    activeSession,
-    activeSessionLoading,
     missingAgentSelection,
     onCreateEmptySession,
     onMissingAgentSelectionAgentChange,
@@ -400,12 +398,10 @@ vi.mock('../AgentChat', () => ({
     composerLaunchOptions
   }: {
     centerSurface?: { content?: ReactNode } | null
-    conversationBootstrap?: {
+    conversationBootstrap: {
       session: { id: string } | null
       sessionLoading: boolean
     }
-    activeSession?: { id: string } | null
-    activeSessionLoading?: boolean
     missingAgentSelection?: boolean
     onCreateEmptySession?: (defaults?: {
       agentId?: string | null
@@ -438,10 +434,8 @@ vi.mock('../AgentChat', () => ({
         agentPageMocks.composerLaunchOptions = composerLaunchOptions
         onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)
       }}>
-      <output data-testid="active-session">{conversationBootstrap?.session?.id ?? activeSession?.id ?? ''}</output>
-      <output data-testid="active-session-loading">
-        {String(Boolean(conversationBootstrap?.sessionLoading ?? activeSessionLoading))}
-      </output>
+      <output data-testid="active-session">{conversationBootstrap.session?.id ?? ''}</output>
+      <output data-testid="active-session-loading">{String(conversationBootstrap.sessionLoading)}</output>
       <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
@@ -833,7 +827,7 @@ describe('AgentPage', () => {
     expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
   })
 
-  it('starts model and provider reads from the visible list agent hint', async () => {
+  it('starts the model read from the visible list agent hint', async () => {
     agentPageMocks.isActiveTab = true
     agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-a::model-a', name: 'Agent A' }]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -846,12 +840,8 @@ describe('AgentPage', () => {
         enabled: true,
         swrOptions: { keepPreviousData: false }
       })
-      expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
-        params: { providerId: 'provider-a' },
-        enabled: true,
-        swrOptions: { keepPreviousData: false }
-      })
     })
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/providers/:providerId', expect.anything())
   })
 
   it('shows both agent and session panes by default when sessions are on the right', () => {

@@ -31,17 +31,15 @@ import {
 } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModelById } from '@renderer/hooks/useModel'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -61,7 +59,6 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
@@ -272,11 +269,10 @@ export interface AgentComposerLaunchOptions {
 type Props = {
   agentId: string
   sessionId: string
-  sessionOverride?: AgentComposerSessionSnapshot
-  resolvedAgent?: AgentEntity
-  resolvedModel?: Model
-  resolvedProvider?: Provider
-  resolvedWorkspaceWarning?: string | null
+  sessionOverride: AgentComposerSessionSnapshot
+  resolvedAgent: AgentEntity | undefined
+  resolvedModel: Model | undefined
+  resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   stop: () => Promise<void>
@@ -306,9 +302,7 @@ const AgentComposerRoot = ({
   sessionOverride,
   resolvedAgent,
   resolvedModel,
-  resolvedProvider,
   resolvedWorkspaceWarning,
-  externalContextControls = false,
   sendMessage,
   stop,
   onCreateEmptySession,
@@ -327,14 +321,9 @@ const AgentComposerRoot = ({
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: AgentComposerRootProps) => {
-  const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
-  const session = sessionOverride ?? loadedSession
-  const { agent: loadedAgent } = useAgent(externalContextControls || resolvedAgent ? null : agentId)
-  const agent = resolvedAgent ?? loadedAgent
-  const { model: loadedModel, isLoading: isModelLoading } = useModelById(
-    externalContextControls || resolvedModel ? null : agent?.model
-  )
-  const sessionModel = resolvedModel ?? loadedModel
+  const session = sessionOverride
+  const agent = resolvedAgent
+  const sessionModel = resolvedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const launchIdentityRef = useRef({ sessionId, draftCacheKey: launchOptions?.draftCacheKey })
   if (launchIdentityRef.current.sessionId !== sessionId) {
@@ -379,8 +368,6 @@ const AgentComposerRoot = ({
     []
   )
 
-  if (!session) return null
-
   return (
     <ComposerToolRuntimeProvider
       key={`${agentId}:${sessionId}`}
@@ -395,9 +382,7 @@ const AgentComposerRoot = ({
         key={composerInstanceKey}
         agent={agent}
         model={sessionModel}
-        resolvedProvider={resolvedProvider}
-        providerManagedExternally={externalContextControls}
-        modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
+        modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
@@ -435,8 +420,6 @@ interface InputHistoryToolSnapshot {
 interface InnerProps {
   agent?: AgentEntity
   model?: Model
-  resolvedProvider?: Provider
-  providerManagedExternally?: boolean
   modelPending?: boolean
   agentId: string
   sessionId: string
@@ -460,7 +443,7 @@ interface InnerProps {
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
-  resolvedWorkspaceWarning?: string | null
+  resolvedWorkspaceWarning: string | null
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -667,8 +650,6 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
 const AgentComposerInner = ({
   agent,
   model,
-  resolvedProvider,
-  providerManagedExternally,
   modelPending,
   agentId,
   sessionId,
@@ -784,9 +765,7 @@ const AgentComposerInner = ({
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
-  const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
-  const workspaceWarning =
-    resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
+  const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
@@ -1513,15 +1492,7 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && (
-        <ComposerToolRuntimeHost
-          scope={scope}
-          model={model}
-          session={toolsSession}
-          resolvedProvider={resolvedProvider}
-          providerManagedExternally={providerManagedExternally}
-        />
-      )}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface

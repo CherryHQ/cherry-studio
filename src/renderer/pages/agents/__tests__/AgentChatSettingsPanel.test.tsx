@@ -308,13 +308,23 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat settings panel', () => {
-  const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
+  const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+  const createConversationBootstrap = (
+    session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = defaultSession
+  ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
+    session,
+    sessionLoading: false,
+    sessionSource: session ? 'query' : 'none',
+    resources: {
+      agent: activeAgentMock.isLoading ? undefined : activeAgentMock.value,
+      agentLoading: activeAgentMock.isLoading,
+      model: activeModelMock.isLoading ? undefined : activeModelMock.value,
+      modelLoading: activeModelMock.isLoading
+    }
+  })
+  const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
     render(
-      <AgentChat
-        activeSession={{ id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any}
-        activeSessionSource="query"
-        {...props}
-      />
+      <AgentChat {...props} conversationBootstrap={props.conversationBootstrap ?? createConversationBootstrap()} />
     )
 
   beforeEach(() => {
@@ -362,32 +372,14 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('uses page-owned resources without subscribing to agent and model again', () => {
-    const session = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
-    const provider = { id: 'provider' } as any
+  it('uses page-owned resources without subscribing to agent and model', () => {
+    renderAgentChat()
 
-    renderAgentChat({
-      conversationBootstrap: {
-        session,
-        sessionLoading: false,
-        sessionSource: 'query',
-        resources: {
-          agent: activeAgentMock.value,
-          agentLoading: false,
-          model: activeModelMock.value,
-          modelLoading: false,
-          provider,
-          providerLoading: false
-        }
-      }
-    })
-
-    expect(activeAgentMock.lookupId).toBeNull()
-    expect(activeModelMock.lookupId).toBeNull()
+    expect(activeAgentMock.lookupId).toBeUndefined()
+    expect(activeModelMock.lookupId).toBeUndefined()
     expect(agentComposerPropsMock.last).toMatchObject({
       resolvedAgent: activeAgentMock.value,
-      resolvedModel: activeModelMock.value,
-      resolvedProvider: provider
+      resolvedModel: activeModelMock.value
     })
   })
 
@@ -426,14 +418,15 @@ describe('AgentChat settings panel', () => {
 
   it('resolves session context above the composer and changes an empty session workspace from the top bar', () => {
     const onSessionWorkspaceChange = vi.fn()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+    } as any
 
     renderAgentChat({
-      activeSession: {
-        id: 'session-1',
-        agentId: 'agent-1',
-        workspaceId: 'workspace-1',
-        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-      } as any,
+      conversationBootstrap: createConversationBootstrap(session),
       onSessionWorkspaceChange
     })
 
@@ -477,13 +470,12 @@ describe('AgentChat settings panel', () => {
   })
 
   it('keeps the composer mounted during later model changes', () => {
-    const activeSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
-    const { container, rerender } = render(<AgentChat activeSession={activeSession} activeSessionSource="query" />)
+    const { container, rerender } = renderAgentChat()
 
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
 
     activeModelMock.isLoading = true
-    rerender(<AgentChat activeSession={activeSession} activeSessionSource="query" />)
+    rerender(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
 
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
     expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
@@ -503,28 +495,17 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
-  it('keeps the greeting hidden while session messages are disabled during the locked/active switch window', () => {
-    // hasLockedSession makes the locked session the snapshot; the active session
-    // pointing elsewhere means sessionMessagesEnabled=false — the transition
-    // window where messages are force-empty but the conversation is not empty.
-    renderAgentChat({
-      lockedSession: { id: 'session-locked', agentId: 'agent-1', accessiblePaths: [] } as any,
-      activeSession: { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
-    })
-
-    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
-  })
-
   it('does not allow switching the workspace while the empty session is pending', () => {
     topicStreamStatusMock.isPending = true
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+    } as any
 
     renderAgentChat({
-      activeSession: {
-        id: 'session-1',
-        agentId: 'agent-1',
-        workspaceId: 'workspace-1',
-        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-      } as any,
+      conversationBootstrap: createConversationBootstrap(session),
       onSessionWorkspaceChange: vi.fn()
     })
 
@@ -537,14 +518,15 @@ describe('AgentChat settings panel', () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
     }
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+    } as any
 
     renderAgentChat({
-      activeSession: {
-        id: 'session-1',
-        agentId: 'agent-1',
-        workspaceId: 'workspace-1',
-        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-      } as any,
+      conversationBootstrap: createConversationBootstrap(session),
       onSessionWorkspaceChange: vi.fn()
     })
 
@@ -558,14 +540,15 @@ describe('AgentChat settings panel', () => {
       'message-1': [{ type: 'text', text: 'hello' }]
     }
     activeAgentMock.value = { id: 'agent-1', model: null }
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+    } as any
 
     renderAgentChat({
-      activeSession: {
-        id: 'session-1',
-        agentId: 'agent-1',
-        workspaceId: 'workspace-1',
-        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-      } as any,
+      conversationBootstrap: createConversationBootstrap(session),
       onSessionWorkspaceChange: vi.fn()
     })
 
@@ -678,7 +661,7 @@ describe('AgentChat settings panel', () => {
     }
 
     renderAgentChat({
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null),
       missingAgentSelection: true
     })
 
@@ -783,7 +766,7 @@ describe('AgentChat settings panel', () => {
     }
 
     renderAgentChat({
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null),
       missingAgentSelection: true
     })
 
