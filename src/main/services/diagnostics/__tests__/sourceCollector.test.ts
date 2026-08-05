@@ -17,6 +17,12 @@ import type { DiagnosticWarning, SourceCandidate } from '../types'
 
 const ALL_SOURCES = { includeLogs: true, includeTraces: true } as const
 
+function formatLogDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 describe('diagnostic source collection', () => {
   let workDir: string
   let logsDir: string
@@ -49,12 +55,13 @@ describe('diagnostic source collection', () => {
 
   it('filters log and trace JSONL by record time while preserving eligible bytes', async () => {
     const now = Date.now()
+    const logDate = formatLogDate(now)
     const recentLog = `${JSON.stringify({ level: 'info', message: 'recent', timestamp: new Date(now - 1_000).toISOString() })}\n`
     const oldLog = `${JSON.stringify({ level: 'info', message: 'old', timestamp: new Date(now - 2 * 86_400_000).toISOString() })}\n`
     const recentError = `${JSON.stringify({ level: 'warn', message: 'recent error', timestamp: new Date(now - 2_000).toISOString() })}\n`
     await Promise.all([
-      writeFile(path.join(logsDir, 'app.2026-07-30.log'), `${oldLog}${recentLog}not-json\n`),
-      writeFile(path.join(logsDir, 'app-error.2026-07-30.log'), recentError)
+      writeFile(path.join(logsDir, `app.${logDate}.log`), `${oldLog}${recentLog}not-json\n`),
+      writeFile(path.join(logsDir, `app-error.${logDate}.log`), recentError)
     ])
 
     const topicDir = path.join(tracesDir, 'topic:one')
@@ -82,7 +89,7 @@ describe('diagnostic source collection', () => {
 
   it('rejects a source whose inode changes after inspection', async () => {
     const now = Date.now()
-    const source = path.join(logsDir, 'app.2026-07-30.log')
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
     await writeFile(source, `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`)
     const range = { fromMs: now - 86_400_000, toMs: now }
     const collection = await collectDiagnosticSources(range, ALL_SOURCES)
@@ -97,7 +104,7 @@ describe('diagnostic source collection', () => {
 
   it('uses record timestamps even when the source modification time is outside the range', async () => {
     const now = Date.now()
-    const source = path.join(logsDir, 'app.2026-07-30.log')
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
     const recentLine = `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, recentLine)
     const oldTime = new Date(now - 30 * 86_400_000)
@@ -133,7 +140,7 @@ describe('diagnostic source collection', () => {
 
   it('stages the inspected log prefix when the active file is appended', async () => {
     const now = Date.now()
-    const source = path.join(logsDir, 'app.2026-07-30.log')
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
     const inspectedLine = `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, inspectedLine)
     const range = { fromMs: now - 86_400_000, toMs: now }
@@ -148,7 +155,7 @@ describe('diagnostic source collection', () => {
 
   it('rejects a same-size in-place log rewrite after inspection', async () => {
     const now = Date.now()
-    const source = path.join(logsDir, 'app.2026-07-30.log')
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
     const inspectedLine = `${JSON.stringify({ message: 'first', timestamp: new Date(now - 1_000).toISOString() })}\n`
     const rewrittenLine = `${JSON.stringify({ message: 'later', timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, inspectedLine)
@@ -215,7 +222,7 @@ describe('diagnostic source collection', () => {
     const line = `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`
     const outsideLog = path.join(workDir, 'outside.log')
     await writeFile(outsideLog, line)
-    await symlink(outsideLog, path.join(logsDir, 'app.2026-07-30.log'))
+    await symlink(outsideLog, path.join(logsDir, `app.${formatLogDate(now)}.log`))
 
     const outsideTopic = path.join(workDir, 'outside-topic')
     await mkdir(outsideTopic)

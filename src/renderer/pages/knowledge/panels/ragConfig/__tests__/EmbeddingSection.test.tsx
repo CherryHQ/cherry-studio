@@ -11,54 +11,65 @@ vi.mock('../panelPrimitives', () => ({
   RagFieldLabel: ({ label }: { label: string }) => <span>{label}</span>
 }))
 
-vi.mock('../../../components/KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
-  KnowledgeModelSelect: ({ value, placeholder }: { value: string | null; placeholder: string }) => (
-    <span>{value ?? placeholder}</span>
-  )
-}))
-
-vi.mock('../../../components/LocalEmbeddingDownloadButton', () => ({
-  default: ({ onSelected }: { onSelected: (id: string) => void }) => (
-    <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
-      local-download
-    </button>
+vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
+    value,
+    placeholder,
+    noneOptionLabel,
+    onChange
+  }: {
+    value: string | null
+    placeholder: string
+    noneOptionLabel?: string
+    onChange: (modelId: string | null) => void
+  }) => (
+    <div>
+      <span>{value ?? placeholder}</span>
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        local-model-option
+      </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
+    </div>
   )
 }))
 
 describe('EmbeddingSection', () => {
-  it('shows the local download entry only when no embedding model is set', () => {
-    const { rerender } = render(
-      <EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} onLocalEmbeddingDownloaded={vi.fn()} />
-    )
+  it('keeps the local model and disabled entries inside the selector', () => {
+    const { rerender } = render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} />)
+    const localOption = screen.getByText('local-model-option')
 
-    expect(screen.getByText('local-download')).toBeInTheDocument()
-    expect(screen.getByText('knowledge.not_set')).toBeInTheDocument()
+    expect(localOption).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'knowledge.rag.rerank_disabled' })).toBeInTheDocument()
+    expect(screen.queryByText('knowledge.not_set')).not.toBeInTheDocument()
 
-    rerender(
-      <EmbeddingSection
-        embeddingModelId="openai::text-embedding-3-small"
-        onEmbeddingModelChange={vi.fn()}
-        onLocalEmbeddingDownloaded={vi.fn()}
-      />
-    )
-    expect(screen.queryByText('local-download')).not.toBeInTheDocument()
+    rerender(<EmbeddingSection embeddingModelId="openai::text-embedding-3-small" onEmbeddingModelChange={vi.fn()} />)
+    expect(screen.getByText('local-model-option')).toBeInTheDocument()
   })
 
-  it('routes a finished download to the auto-save callback, not the plain model change', () => {
+  it('reports local model selection through the single change callback', () => {
     const onEmbeddingModelChange = vi.fn()
-    const onLocalEmbeddingDownloaded = vi.fn()
+    render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={onEmbeddingModelChange} />)
+
+    fireEvent.click(screen.getByText('local-model-option'))
+
+    expect(onEmbeddingModelChange).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
+  })
+
+  it('reports the disabled entry through the single change callback', () => {
+    const onEmbeddingModelChange = vi.fn()
     render(
       <EmbeddingSection
-        embeddingModelId={null}
+        embeddingModelId="openai::text-embedding-3-small"
         onEmbeddingModelChange={onEmbeddingModelChange}
-        onLocalEmbeddingDownloaded={onLocalEmbeddingDownloaded}
       />
     )
 
-    fireEvent.click(screen.getByText('local-download'))
+    fireEvent.click(screen.getByRole('button', { name: 'knowledge.rag.rerank_disabled' }))
 
-    expect(onLocalEmbeddingDownloaded).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
-    expect(onEmbeddingModelChange).not.toHaveBeenCalled()
+    expect(onEmbeddingModelChange).toHaveBeenCalledWith(null)
   })
 })

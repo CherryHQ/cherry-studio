@@ -4,6 +4,7 @@ import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,8 +23,25 @@ const assistantDataMocks = vi.hoisted(() => ({
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
+  agents: [
+    {
+      id: 'agent-1',
+      name: 'Agent 1',
+      orderKey: 'a',
+      configuration: {},
+      model: 'anthropic::claude-sonnet-4',
+      modelName: 'Claude Sonnet 4'
+    }
+  ],
   deleteAgent: vi.fn(),
-  refetchAgents: vi.fn()
+  refetchAgents: vi.fn(),
+  toggleAgentPin: vi.fn()
+}))
+
+const loggerMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn()
 }))
 
 const preferenceMocks = vi.hoisted(() => ({
@@ -88,11 +106,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn()
-    })
+    withContext: () => loggerMocks
   }
 }))
 
@@ -229,16 +243,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
-    agents: [
-      {
-        id: 'agent-1',
-        name: 'Agent 1',
-        orderKey: 'a',
-        configuration: {},
-        model: 'anthropic::claude-sonnet-4',
-        modelName: 'Claude Sonnet 4'
-      }
-    ],
+    agents: agentDataMocks.agents,
     deleteAgent: agentDataMocks.deleteAgent,
     error: null,
     isLoading: false,
@@ -252,7 +257,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
     isMutating: false,
     isRefreshing: false,
     pinnedIds: [],
-    togglePin: vi.fn()
+    togglePin: agentDataMocks.toggleAgentPin
   })
 }))
 
@@ -343,6 +348,16 @@ vi.mock('@renderer/utils/error', () => ({
 
 describe('classic layout entity resource list actions', () => {
   beforeEach(() => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Agent 1',
+        orderKey: 'a',
+        configuration: {},
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
     preferenceMocks.setPreference.mockClear()
@@ -363,6 +378,11 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.deleteAgent.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
+    agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
+    agentDataMocks.toggleAgentPin.mockClear()
+    loggerMocks.error.mockClear()
+    loggerMocks.info.mockClear()
+    loggerMocks.warn.mockClear()
   })
 
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -696,6 +716,57 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
+  it('does not report a pin failure when the post-success agent refresh fails', async () => {
+    const user = userEvent.setup()
+    const refreshError = new Error('transient refresh failure')
+    agentDataMocks.refetchAgents.mockRejectedValueOnce(refreshError)
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    await user.click(
+      within(screen.getByTestId('agent-1-context-menu')).getByRole('button', { name: 'agent.pin.title' })
+    )
+
+    await waitFor(() => expect(agentDataMocks.toggleAgentPin).toHaveBeenCalledWith('agent-1'))
+    await waitFor(() =>
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        'Failed to refresh agents after toggling pin from classic-layout rail',
+        { agentId: 'agent-1', err: refreshError }
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('reports a pin failure and skips the agent refresh when the pin mutation fails', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.toggleAgentPin.mockRejectedValueOnce(new Error('pin mutation failed'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    await user.click(
+      within(screen.getByTestId('agent-1-context-menu')).getByRole('button', { name: 'agent.pin.title' })
+    )
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.error'))
+    expect(agentDataMocks.refetchAgents).not.toHaveBeenCalled()
+  })
+
   it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
     const onShowMissingAgentSelection = vi.fn()
     const onActiveAgentDeleted = vi.fn()
@@ -730,6 +801,49 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+  })
+
+  it('deletes only tasks for the built-in Cherry Assistant in the classic layout', async () => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Cherry Assistant',
+        orderKey: 'a',
+        configuration: { builtin_role: 'assistant' },
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
+    const deleteSessions = vi.fn().mockResolvedValue({ deletedIds: ['session-1'] })
+    const onActiveAgentDeleted = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ deleteSessions })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.delete.title')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+
+    await waitFor(() =>
+      expect(popup.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'agent.session.agent.delete.title',
+          content: 'agent.session.agent.delete.content'
+        })
+      )
+    )
+    await waitFor(() => expect(deleteSessions).toHaveBeenCalledWith(['session-1']))
+    expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
   })
 
   it('creates a new session for the hovered agent row', () => {

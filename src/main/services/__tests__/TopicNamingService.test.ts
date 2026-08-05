@@ -184,7 +184,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'bad-value' }
     )
   })
@@ -207,7 +207,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to a missing model; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'ghost::missing' }
     )
   })
@@ -597,7 +597,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'claude-code::haiku' }
     )
   })

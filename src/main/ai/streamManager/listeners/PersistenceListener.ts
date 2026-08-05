@@ -1,12 +1,17 @@
 /**
  * Storage-agnostic terminal-event listener: filters by `modelId`, folds
- * errors into `finalMessage.parts`, carries message-owned runtime timing,
- * and delegates the write to a `PersistenceBackend`.
+ * errors into `finalMessage.parts`, carries message-owned runtime stats, and
+ * delegates the write to a `PersistenceBackend`.
  */
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageRuntimeStatsInput,
+  MessageRuntimeTiming
+} from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -97,13 +102,18 @@ export class PersistenceListener implements StreamListener {
           parts: finalizeInterruptedParts(dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]), status)
         }
       : finalMessage
+    const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
+    const runtimeStats: MessageRuntimeStatsInput = {
+      ...(runtimeTiming ? { runtimeTiming } : {}),
+      ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
+    }
 
     try {
       await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
-        ...(runtimeTiming ? { runtimeStats: { runtimeTiming } } : {})
+        ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,

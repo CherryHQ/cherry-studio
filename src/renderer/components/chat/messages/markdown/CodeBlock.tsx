@@ -1,4 +1,5 @@
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
@@ -10,7 +11,7 @@ import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
-import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
@@ -25,9 +26,8 @@ interface Props {
   [key: string]: any
 }
 
-const INLINE_CODE_CLASS =
-  'inline-flex items-center whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
-const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middle break-all! [&>span]:translate-y-px`
+const INLINE_CODE_CLASS = 'whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
+const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} inline-flex max-w-full items-center align-middle break-all! [&>span]:translate-y-px`
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
@@ -57,8 +57,7 @@ const CodeBlock: React.FC<Props> = ({
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
   const actions = useOptionalMessageListActions()
-  const ui = useOptionalMessageListUi()
-  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock && ui?.readonly !== true
+  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock
 
   const handleSave = useCallback(
     (newContent: string) => {
@@ -73,16 +72,20 @@ const CodeBlock: React.FC<Props> = ({
     [actions, blockId, id]
   )
 
+  const inlinePath =
+    (language === null || language === 'text') && typeof children === 'string'
+      ? normalizeInlineFilePath(children)
+      : null
+
+  if (inlinePath && isKnownNavigationPath(inlinePath)) {
+    return <NavigateToolInline input={{ path: inlinePath }} />
+  }
+
   // A plain text fence may be the model's way to present a single generated file or directory path.
-  if (
-    !isWin &&
-    (language === null || language === 'text') &&
-    typeof children === 'string' &&
-    isInlineFilePath(children)
-  ) {
+  if (!isWin && inlinePath && isInlineFilePath(children)) {
     return (
       <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={normalizeInlineFilePath(children)} />
+        <ClickableFilePath path={inlinePath} />
       </code>
     )
   }

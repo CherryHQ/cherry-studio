@@ -29,7 +29,7 @@ export const EmojiAvatarPicker: FC<{
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50',
+            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80',
             size === 'sm' ? 'size-9' : 'size-8'
           )}>
           {/* Match the adjacent Input's rounded-lg + hairline border. */}
@@ -93,7 +93,7 @@ export const DialogModelTrigger = ({
     aria-labelledby={ariaLabelledBy}
     className={cn(
       // Mirrors the shared SelectTrigger recipe (bg-muted/50, borderless, rounded-lg).
-      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 aria-expanded:bg-muted',
+      'h-8 min-w-0 max-w-full shrink-0 justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm shadow-none transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground aria-expanded:bg-muted',
       model ? 'text-foreground' : 'text-muted-foreground',
       className
     )}>

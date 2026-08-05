@@ -1,5 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,8 +19,6 @@ const { providerEditorDrawerSpy } = vi.hoisted(() => ({
 }))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
-let providerListScrollerClientHeight = 100
-let providerListMainContentScrollHeight = 120
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -164,6 +163,7 @@ describe('ProviderList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
@@ -181,22 +181,6 @@ describe('ProviderList', () => {
     deleteProviderMock.mockResolvedValue(undefined)
     providerItemRects = {}
     scrollerRect = { bottom: 100, top: 0 }
-    providerListScrollerClientHeight = 100
-    providerListMainContentScrollHeight = 120
-    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).dataset.testid === 'provider-list-scrollbar' ? providerListScrollerClientHeight : 0
-      }
-    })
-    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).hasAttribute('data-provider-list-main-content')
-          ? providerListMainContentScrollHeight
-          : 0
-      }
-    })
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
       value: (callback: FrameRequestCallback) => {
@@ -362,29 +346,33 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('keeps add actions around the provider list', () => {
+  it('restores the provider filter after leaving and returning to the page', () => {
+    const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
+    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
+
+    first.unmount()
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
-    const [topAddButton, bottomAddButton] = addButtons
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+  })
+
+  it('keeps a single add action below the scrollable provider list', () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    const addButton = screen.getByRole('button', { name: '添加服务商' })
+    const scrollbar = screen.getByTestId('provider-list-scrollbar')
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     const searchInput = screen.getByPlaceholderText('搜索模型平台...')
     const searchWrap = searchInput.closest('div')
-    const firstProvider = screen.getByTestId('provider-list-item-openai')
-    const lastProvider = screen.getByTestId('provider-list-item-anthropic')
 
-    expect(addButtons).toHaveLength(2)
-    expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(scrollbar).not.toContainElement(addButton)
+    expect(scrollbar.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(searchWrap).toContainElement(filterButton)
-  })
-
-  it('hides the bottom add button when provider list content does not overflow', () => {
-    providerListMainContentScrollHeight = 80
-
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    expect(screen.getAllByRole('button', { name: '添加服务商' })).toHaveLength(1)
   })
 
   it('surfaces reorder persistence errors', async () => {
@@ -426,6 +414,7 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('all')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

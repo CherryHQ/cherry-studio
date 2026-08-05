@@ -37,12 +37,10 @@ const mocks = vi.hoisted(() => ({
   modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
-  getMetadata: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
@@ -53,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
+  surfaceFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['composer:new-session', 'skills'] as string[],
   pinnedLauncherIds: [] as readonly string[],
@@ -191,6 +190,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
+    hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
     subscribe: vi.fn(() => () => {})
   }
@@ -208,7 +208,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
-        focus: vi.fn(),
+        focus: mocks.surfaceFocus,
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -743,28 +743,37 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
-    mocks.isDirectory.mockReset()
-    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.hasCasual).mockReset()
+    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
-    mocks.getMetadata.mockReset()
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
     mocks.ipcApiRequest.mockReset()
-    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
-      if (route !== 'file.batch_get_metadata') return {}
-      return Object.fromEntries(
-        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
-      )
-    })
+    mocks.ipcApiRequest.mockImplementation(
+      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+        if (route === 'file.get_metadata') {
+          // The session workspace-status preflight stays pending so it never flips the composer into a
+          // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
+          // (from buildFileParts) resolve to a real file MIME instead.
+          if (input.kind === 'path' && input.path === mocks.sessionWorkspacePath) {
+            return new Promise(() => undefined)
+          }
+          return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+        }
+        if (route !== 'file.batch_get_metadata') return {}
+        return Object.fromEntries(
+          (input.items ?? []).map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+        )
+      }
+    )
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -779,12 +788,10 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory,
         listDirectoryEntries: mocks.listDirectoryEntries,
         createInternalEntry: mocks.createInternalEntry,
-        getPhysicalPath: mocks.getPhysicalPath,
-        getMetadata: mocks.getMetadata
+        getPhysicalPath: mocks.getPhysicalPath
       }
     }
     mocks.updateModel.mockReset()
@@ -798,6 +805,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
+    mocks.surfaceFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['composer:new-session', 'skills']
     mocks.pinnedLauncherIds = []
@@ -2802,6 +2810,199 @@ describe('AgentComposer', () => {
     ])
   })
 
+  it('uses an isolated launch draft, selects its skill, and focuses without sending', async () => {
+    const issueReporter = { name: 'issue-reporter', filename: 'issue-reporter' }
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: issueReporter,
+      index: 0,
+      textOffset: 0
+    }
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: {
+            text: 'Use the issue-reporter skill.',
+            tokens: [issueReporterToken]
+          }
+        }}
+      />
+    )
+
+    expect(cacheService.getCasual).toHaveBeenCalledWith('agent-feedback-draft-feedback-session')
+    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-agent-1')
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] },
+      expect.any(Number)
+    )
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('adopts launch options that arrive after the restored session first renders', async () => {
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    const defaultProps = {
+      agentId: 'restored-assistant',
+      sessionId: 'feedback-session',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    view.rerender(
+      <AgentComposer
+        {...defaultProps}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+
+    view.rerender(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+  })
+
+  it('does not restore the launch template after the isolated draft was intentionally cleared', () => {
+    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
+    vi.mocked(cacheService.getCasual).mockReturnValue({ text: '', tokens: [] })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
+  it('consumes the launch state only after the user successfully sends the editable draft', async () => {
+    const onSent = vi.fn()
+    const token = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [token] },
+          onSent
+        }}
+      />
+    )
+
+    expect(onSent).not.toHaveBeenCalled()
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the issue-reporter skill. The settings page is unresponsive.',
+        tokens: [token]
+      })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(onSent).toHaveBeenCalledTimes(1)
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: '', tokens: [] },
+      expect.any(Number)
+    )
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-session-draft-agent-1',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('keeps the launch state when sending fails', async () => {
+    const onSent = vi.fn()
+    mocks.sendMessage.mockRejectedValue(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+          onSent
+        }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Use the issue-reporter skill.', tokens: [] })
+    })
+
+    expect(onSent).not.toHaveBeenCalled()
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
   it('drops a cached knowledge chip together with its prompt text', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
@@ -3224,62 +3425,6 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
-    const workspaceFile = {
-      id: 'workspace-file-1',
-      fileTokenSourceId: 'source-workspace-file-1',
-      name: 'notes.md',
-      origin_name: 'notes.md',
-      path: '/workspace/docs/notes.md'
-    } as FileMetadata
-    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    mocks.draftText = 'long line\n'.repeat(80)
-    mocks.files = [workspaceFile]
-    mocks.draftTokens = [
-      {
-        id: `file:${workspaceFile.fileTokenSourceId}`,
-        kind: 'file',
-        label: workspaceFile.name,
-        payload: workspaceFile,
-        index: 0,
-        textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
-    ]
-    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    fireEvent.click(screen.getByText('send'))
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.ipcApiRequest.mock.invocationCallOrder[0]
-    )
-
-    await act(async () => {
-      metadata.resolve({
-        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
-      })
-    })
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
-  })
-
   it('batches workspace attachment metadata while preserving attachment order', async () => {
     const workspaceFileA = {
       id: 'workspace-file-1',
@@ -3328,7 +3473,7 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'file.batch_get_metadata')).toHaveLength(1)
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
       items: [
         { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
@@ -3336,7 +3481,11 @@ describe('AgentComposer', () => {
       ]
     })
     expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/local.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
 
     const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
     expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
@@ -3474,7 +3623,11 @@ describe('AgentComposer', () => {
     // The FileEntry is created at send time: the file part carries both file identities,
     // a file:// URL, and a real MIME instead of the raw path / literal extension.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/notes.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -4303,7 +4456,7 @@ describe('AgentComposer', () => {
   })
 
   it('does not block sends when workspace status preflight fails', async () => {
-    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('preflight unavailable'))
 
     render(
       <AgentHomeComposer
@@ -4315,7 +4468,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/workspace' })
+    )
     await act(async () => {
       await Promise.resolve()
     })
@@ -4355,7 +4510,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(mocks.isDirectory).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 })
 

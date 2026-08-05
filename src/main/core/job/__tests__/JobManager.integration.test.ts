@@ -53,6 +53,12 @@ interface SlowOutput {
   echoed: string
 }
 
+/**
+ * Set by a test that needs to know a slow handler is genuinely parked in its
+ * abortable await, instead of sleeping a fixed interval and hoping (#17703).
+ */
+let onSlowHandlerEntered: (() => void) | null = null
+
 function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandler<SlowInput> {
   return {
     recovery,
@@ -71,6 +77,7 @@ function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandle
           },
           { once: true }
         )
+        onSlowHandlerEntered?.()
       })
       return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
     }
@@ -676,6 +683,10 @@ describe('JobManager integration', () => {
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
 
+      const entered = new Promise<void>((resolve) => {
+        onSlowHandlerEntered = resolve
+      })
+
       const handle = jobManager.enqueue(
         'shutdown.slow' as never,
         {
@@ -684,9 +695,11 @@ describe('JobManager integration', () => {
         } as never
       )
 
-      // Wait for dispatch + handler.execute to be inside its await.
+      // Wait for dispatch + handler.execute to be inside its await — the handler
+      // signals that itself, so _doStop() cannot race a fixed sleep.
       await drainAllQueues(jobManager)
-      await new Promise<void>((r) => setTimeout(r, 50))
+      await entered
+      onSlowHandlerEntered = null
 
       const stopPromise = jobManager._doStop()
       const settled = await handle.finished

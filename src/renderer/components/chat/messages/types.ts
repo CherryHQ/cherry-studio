@@ -11,6 +11,7 @@ import type {
   MultiModelMessageStyle,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
+import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -40,7 +41,6 @@ export interface MessageListSelectionState {
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
-  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -207,6 +207,23 @@ export interface MessageListItem {
   isContextBoundary?: boolean
 }
 
+/**
+ * The message topology the anchor rail derives its turns from — deliberately
+ * the complete set of fields it may read.
+ *
+ * Streaming rewrites message content and array identity on every chunk but
+ * never the topology, so projecting onto these fields lets the rail keep a
+ * referentially stable `messages` prop and skip the render entirely. Reading
+ * any other field from the rail means widening this type first, which is a
+ * compile error rather than a silently stale render.
+ */
+export interface AnchorMessage {
+  id: string
+  role: MessageListItem['role']
+  isActiveBranch?: boolean
+  isContextBoundary?: boolean
+}
+
 export interface MessageRenderConfig {
   userName: string
   narrowMode: boolean
@@ -285,14 +302,12 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
-  /** Monotonic counter incremented only after this renderer opens a local user turn. */
-  localSendGeneration?: number
-  readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
   editingMessageId?: string | null
   translationLanguages?: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
@@ -305,6 +320,14 @@ export interface MessageListState {
     withEmoji?: boolean
   ) => string | undefined
 }
+
+/** Shared list mechanics; page adapters provide data and capabilities, not separate geometry or loading timing. */
+export const DEFAULT_MESSAGE_LIST_CONFIG = {
+  estimateSize: 400,
+  overscan: 6,
+  loadOlderDelayMs: 0,
+  loadingResetDelayMs: 600
+} as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
   loadOlder?: () => void
@@ -356,6 +379,8 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
+  requestTranslationLanguages?: () => void
+  retryTranslationLanguages?: () => void
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
@@ -388,6 +413,8 @@ export interface MessageListMeta {
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
   imageExportFileName?: string
+  /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
+  aiUsageMessageKind?: AiUsageRecordMessageKind
 }
 
 export interface MessageListProviderValue {

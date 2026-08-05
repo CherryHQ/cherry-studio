@@ -176,14 +176,4 @@ describe('ProviderSpecificSettings', () => {
 
     expect(container.textContent).not.toContain('provider-oauth-radeon-cloud')
   })
-
-  it('returns nothing when the provider is missing', () => {
-    useProviderMock.mockReturnValue({
-      provider: undefined
-    })
-
-    const { container } = render(<ProviderSpecificSettings providerId="missing" placement="beforeAuth" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
 })

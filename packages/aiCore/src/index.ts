@@ -47,6 +47,30 @@ export type {
   WebSearchToolConfigMap
 } from './core/providers'
 
+// ==================== Context 模块(截断 + 历史压缩) ====================
+export type {
+  ContextLogger,
+  ContextMessage,
+  ContextMiddlewareOptions,
+  EntityToolOutputCodec,
+  HeadTailExcerpt,
+  TruncateOptions,
+  VFSStorageAdapter
+} from './core/context'
+export {
+  compactModelMessages,
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS,
+  computeHeadTailExcerpt,
+  ContextPrompts,
+  createContextMiddleware,
+  groupIntoTurns,
+  Offloader,
+  PERSISTED_OUTPUT_TAG,
+  resolveCompressionOutputTokens,
+  summarizeModelMessages
+} from './core/context'
+
 // ==================== 错误处理 ====================
 export {
   AiCoreError,

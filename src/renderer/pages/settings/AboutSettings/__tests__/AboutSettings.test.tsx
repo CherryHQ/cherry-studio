@@ -49,6 +49,10 @@ vi.mock('../DiagnosticBundleDialog', () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>diagnostic-dialog-open</div> : null)
 }))
 
+vi.mock('../../FeedbackDialog', () => ({
+  FeedbackDialog: () => null
+}))
+
 import AboutSettings from '../../AboutSettings'
 
 describe('AboutSettings diagnostics entry', () => {

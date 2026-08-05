@@ -1,7 +1,11 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
+import { createFilePathHandle } from '@shared/utils/file'
 import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
@@ -60,8 +64,8 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   const getInstallErrorMessage = useCallback(
     (e: unknown, fallbackName?: string) => {
-      const fallback = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
-      return e instanceof Error && e.message ? e.message : fallback
+      const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
+      return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
     },
     [t]
   )
@@ -90,41 +94,47 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
           try {
             const skill = item.kind === 'zip' ? await installFromZip(item.path) : await installFromDirectory(item.path)
             if (!skill) {
-              throw new Error(t('settings.skills.installFailed', { name: item.name }))
+              failedCount += 1
+              updateItem(item.id, { status: 'error', error: getInstallErrorMessage(undefined, item.name) })
+              continue
             }
 
             lastSkill = skill
             successCount += 1
             updateItem(item.id, { status: 'success', skillName: skill.name })
-          } catch (e) {
+          } catch (error) {
             failedCount += 1
-            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(e, item.name) })
+            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(error, item.name) })
           }
         }
 
-        if (preErrorCount === nextItems.length) {
-          setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
-        } else if (failedCount > 0) {
-          setStatus({
-            kind: 'error',
-            message: t('settings.skills.batchInstallPartialFailed', {
-              failed: failedCount,
-              success: successCount,
-              total: nextItems.length
+        if (preErrorCount === nextItems.length) return
+
+        if (failedCount > 0) {
+          if (nextItems.length > 1) {
+            setStatus({
+              kind: 'error',
+              message: t('settings.skills.batchInstallPartialFailed', {
+                failed: failedCount,
+                success: successCount,
+                total: nextItems.length
+              })
             })
-          })
-        } else {
-          const message =
-            nextItems.length === 1 && lastSkill
-              ? t('settings.skills.installSuccess', { name: lastSkill.name })
-              : t('settings.skills.batchInstallComplete', { count: successCount })
-          toast.success(message)
+          }
+          return
         }
+
+        const message =
+          nextItems.length === 1 && lastSkill
+            ? t('settings.skills.installSuccess', { name: lastSkill.name })
+            : t('settings.skills.batchInstallComplete', { count: successCount })
+        toast.success(message)
+        onOpenChange(false)
       } finally {
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onOpenChange, t, updateItem]
   )
 
   const createImportItem = useCallback(
@@ -184,7 +194,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   /**
    * Drag-and-drop accepts ZIP files and directories. Settings
-   * page uses the same probe (`window.api.file.isDirectory`) since dropped
+   * page uses the same probe (`file.get_metadata`'s `kind`) since dropped
    * directories show up as `File` entries on Electron.
    */
   const handleDroppedEntries = async (files: File[]) => {
@@ -198,8 +208,15 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         const filePath = window.api.file.getPathForFile(file)
         if (!filePath) continue
 
-        const isDirectory = await window.api.file.isDirectory(filePath)
-        if (isDirectory) {
+        const meta = await ipcApi.request(
+          'file.get_metadata',
+          createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
+        )
+        // A `null` metadata (path unreadable / vanished — near-nil since dropped
+        // paths resolve) folds into "not a directory": it falls through to the
+        // filename-based zip/invalid classification below, and a genuine read
+        // failure still surfaces downstream when the item is actually imported.
+        if (meta?.kind === 'directory') {
           droppedItems.push(createImportItem('directory', filePath, file.name || getNameFromPath(filePath), index))
           continue
         }
@@ -242,7 +259,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         </div>
 
         {/* Body */}
-        <div>
+        <div className="min-w-0">
           <Dropzone
             disabled={Boolean(installing)}
             getFilesFromEvent={async (event) => {
@@ -309,25 +326,31 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
   return (
     <Scrollbar
       data-testid="skill-import-results"
-      className="mt-4 max-h-44 rounded-md border border-border-subtle bg-background-subtle/50">
-      <div className="divide-y divide-border-subtle">
-        {items.map((item) => (
-          <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
-            <ImportItemStatusIcon status={item.status} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-foreground">
-                {item.status === 'success' ? (item.skillName ?? item.name) : item.name}
-              </div>
-              {item.status !== 'success' ? (
-                <div className="mt-0.5 truncate text-foreground-tertiary">
-                  {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
-                  {item.status === 'installing' ? t('common.loading') : null}
-                  {item.status === 'error' ? item.error : null}
+      className="mt-4 max-h-44 w-full min-w-0 max-w-full overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+      <div className="min-w-0 divide-y divide-border-subtle">
+        {items.map((item) => {
+          const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
+
+          return (
+            <div key={item.id} className="flex min-w-0 items-start gap-2 px-3 py-2 text-xs">
+              <ImportItemStatusIcon status={item.status} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-foreground" title={displayName}>
+                  {displayName}
                 </div>
-              ) : null}
+                {item.status !== 'success' ? (
+                  <div
+                    className="mt-0.5 min-w-0 whitespace-normal break-words text-foreground-tertiary [overflow-wrap:anywhere]"
+                    title={item.status === 'error' ? item.error : undefined}>
+                    {item.status === 'pending' ? t('settings.skills.batchInstallQueued') : null}
+                    {item.status === 'installing' ? t('common.loading') : null}
+                    {item.status === 'error' ? item.error : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </Scrollbar>
   )

@@ -4,7 +4,7 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { SerializedTreeNode } from '@shared/utils/file'
+import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
@@ -77,7 +77,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     editMode === 'edit' && selectedFile
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
-  const fileSession = useFileEditSession(editPath)
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
 
   return (
     <ArtifactPaneView
@@ -117,7 +117,6 @@ const mocks = vi.hoisted(() => ({
   treeOnMutation: vi.fn(),
   ipcRequest: vi.fn(),
   fsReadText: vi.fn(),
-  isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
@@ -560,7 +559,13 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest }
+  ipcApi: {
+    // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
+    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
+    // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
+    request: (route: string, input: unknown) =>
+      route === 'file.get_metadata' ? mocks.getMetadata(input) : mocks.ipcRequest(route, input)
+  }
 }))
 
 vi.mock('@renderer/utils/editor', () => ({
@@ -610,10 +615,10 @@ describe('ArtifactPane', () => {
     mocks.showInFolder.mockResolvedValue(undefined)
     mocks.externalApps = []
     mocks.isDirectory.mockResolvedValue(false)
-    // Default: tests select text files; override per-test for binary cases.
-    mocks.isTextFile.mockResolvedValue(true)
-    // Default: tests use tiny files; override per-test to exercise the size gate.
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
+    // Default: tiny text files. `getMetadata().type` drives text detection
+    // (via useIsTextFile) and `.size` drives the size gate — override per-test
+    // for binary / large-file cases.
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'text' })
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -621,11 +626,9 @@ describe('ArtifactPane', () => {
         file: {
           openPath: mocks.openPath,
           showInFolder: mocks.showInFolder,
-          isTextFile: mocks.isTextFile,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
-          listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          listDirectoryEntries: mocks.listDirectoryEntries
         },
         fs: {
           readText: mocks.fsReadText
@@ -676,6 +679,10 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('rejects a workspace-relative artifact when the workspace path is relative', () => {
+    expect(resolveArtifactPaneFileSelection('relative/workspace', 'report.md')).toBeNull()
+  })
+
   it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
     // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
     // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
@@ -708,6 +715,27 @@ describe('ArtifactPane', () => {
     expect(mocks.treeCreate).not.toHaveBeenCalled()
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.title')
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
+  })
+
+  it('shows a localized invalid-path state without requesting the filesystem', async () => {
+    render(
+      <ArtifactPane
+        workspacePath="relative/workspace"
+        previewFileSelection={{ workspacePath: 'relative/workspace', filePath: 'report.md' }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(
+      'agent.preview_pane.tree_error.invalid_path.description'
+    )
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })
 
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
@@ -1269,15 +1297,18 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('logs and displays directory listing errors', async () => {
+  it('logs directory listing errors and displays a localized load-error state', async () => {
     const error = new Error('Permission denied')
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.description')
+    expect(screen.queryByText('Permission denied')).not.toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
@@ -1351,13 +1382,13 @@ describe('ArtifactPane', () => {
     const oversizedDraftBytes = new Blob([oversizedDraft]).size
     expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     let diskSize = 1024
-    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number }) => void
+    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number; type: string }) => void
     mocks.getMetadata.mockImplementation(() =>
       diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
         ? new Promise((resolve) => {
             resolveOversizedMetadata = resolve
           })
-        : Promise.resolve({ kind: 'file', size: diskSize })
+        : Promise.resolve({ kind: 'file', size: diskSize, type: 'text' })
     )
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
@@ -1402,7 +1433,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
 
     await act(async () => {
-      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes })
+      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes, type: 'text' })
     })
   })
 
@@ -1479,9 +1510,9 @@ describe('ArtifactPane', () => {
     const writeInput = writeCall[1] as {
       data: Uint8Array
       expectedVersion: { mtime: number; size: number }
-      path: string
+      handle: { kind: 'path'; path: string }
     }
-    expect(writeInput.path).toBe('/tmp/workspace/notes.txt')
+    expect(writeInput.handle).toEqual({ kind: 'path', path: '/tmp/workspace/notes.txt' })
     expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])

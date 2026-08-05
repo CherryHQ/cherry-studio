@@ -29,6 +29,7 @@ describe('endpoint classification', () => {
       | '/agents/:agentId/tasks/:taskId/logs'
       | '/assistants'
       | '/files/entries'
+      | '/files/entries/by-content-hash'
       | '/files/entries/:id/refs'
       | '/files/entries/ref-counts'
       | '/files/refs'

@@ -25,6 +25,12 @@ vi.mock('electron', () => ({
 
 import { DiagnosticBundleService } from '../DiagnosticBundleService'
 
+function formatLogDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 describe('DiagnosticBundleService', () => {
   let workDir: string
   let logsDir: string
@@ -87,9 +93,10 @@ describe('DiagnosticBundleService', () => {
 
   it('exports filtered logs, persisted traces, whitelisted system data, and crash inventory', async () => {
     const now = Date.now()
+    const logFileName = `app.${formatLogDate(now)}.log`
     const recentLog = `${JSON.stringify({ message: 'recent', timestamp: new Date(now - 1_000).toISOString() })}\n`
     const oldLog = `${JSON.stringify({ message: 'old', timestamp: new Date(now - 2 * 86_400_000).toISOString() })}\n`
-    await writeFile(path.join(logsDir, 'app.2026-07-30.log'), `${oldLog}${recentLog}`)
+    await writeFile(path.join(logsDir, logFileName), `${oldLog}${recentLog}`)
 
     const topicDir = path.join(tracesDir, 'topic:private')
     await mkdir(topicDir)
@@ -111,10 +118,10 @@ describe('DiagnosticBundleService', () => {
     const zip = await readZip(destination)
     expect(zip.entries).toHaveLength(3)
     expect(zip.entries).toContain('diagnostics.json')
-    expect(zip.entries).toContain('logs/app.2026-07-30.log')
+    expect(zip.entries).toContain(`logs/${logFileName}`)
     expect(zip.entries.some((entry) => /^traces\/[0-9a-f]+\/[0-9a-f]+\.jsonl$/.test(entry))).toBe(true)
     expect(zip.entries.some((entry) => entry.endsWith('.dmp'))).toBe(false)
-    expect(zip.contents['logs/app.2026-07-30.log'].toString()).toBe(recentLog)
+    expect(zip.contents[`logs/${logFileName}`].toString()).toBe(recentLog)
 
     const manifestText = zip.contents['diagnostics.json'].toString()
     const manifest = JSON.parse(manifestText)

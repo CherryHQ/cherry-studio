@@ -9,7 +9,12 @@ import type { ComponentPropsWithoutRef, ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  ipcApiRequest: vi.fn(),
   textPreview: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -73,7 +78,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
-  window.api.file.getMetadata = vi.fn().mockResolvedValue({
+  mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
     type: 'other',
     size: 1,
@@ -81,7 +86,6 @@ beforeEach(() => {
     modifiedAt: 1,
     mime: 'application/octet-stream'
   })
-  window.api.file.isTextFile = vi.fn().mockResolvedValue(false)
 })
 
 describe('FilePreview', () => {
@@ -90,6 +94,7 @@ describe('FilePreview', () => {
 
     expect(await screen.findByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
+    expect(screen.getByText('file_preview.unsupported.title').closest('[data-ui~="file-preview.view"]')).not.toBeNull()
   })
 
   it('contains invalid paths in an inline state', () => {
@@ -115,7 +120,7 @@ describe('FilePreview', () => {
   })
 
   it('keeps directories out of file preview plugins', async () => {
-    vi.mocked(window.api.file.getMetadata).mockResolvedValueOnce({
+    mocks.ipcApiRequest.mockResolvedValueOnce({
       kind: 'directory',
       size: 0,
       createdAt: 1,
@@ -125,11 +130,11 @@ describe('FilePreview', () => {
     render(<FilePreview filePath={'/tmp/artifacts' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.directory.title')).toBeInTheDocument()
-    expect(window.api.file.isTextFile).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledOnce()
   })
 
   it('shows an unavailable state when metadata cannot be read', async () => {
-    vi.mocked(window.api.file.getMetadata).mockRejectedValueOnce(new Error('ENOENT'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('ENOENT'))
 
     render(<FilePreview filePath={'/tmp/missing.txt' as AbsoluteFilePath} />)
 
@@ -137,18 +142,15 @@ describe('FilePreview', () => {
     expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
   })
 
-  it('shows an unavailable state when metadata succeeds but the text sniff fails', async () => {
-    vi.mocked(window.api.file.isTextFile).mockRejectedValueOnce(new Error('EACCES'))
-
-    render(<FilePreview filePath={'/tmp/notes.md' as AbsoluteFilePath} />)
-
-    expect(await screen.findByText('file_preview.unavailable.title')).toBeInTheDocument()
-    expect(screen.queryByText('file_preview.unsupported.title')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
-  })
-
   it('falls back to text preview for text content with an unknown extension', async () => {
-    vi.mocked(window.api.file.isTextFile).mockResolvedValueOnce(true)
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
 
     render(<FilePreview filePath={'/tmp/Dockerfile.generated' as AbsoluteFilePath} />)
 

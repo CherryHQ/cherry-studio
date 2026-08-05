@@ -101,6 +101,14 @@
     "select_folder": "Επιλέξτε φάκελο",
     "word_document": "Έγγραφο Word"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Το εκτελέσιμο αρχείο OpenClaw που χρησιμοποιεί το Cherry Studio δεν είναι συμβατό με τη διαμόρφωση που δημιουργήθηκε. Αναβαθμίστε το OpenClaw.{{details}}",
+      "external_config_invalid": "Το OpenClaw απέρριψε διαμόρφωση εκτός της ενότητας παρόχων που διαχειρίζεται το Cherry Studio. Διορθώστε αυτή τη διαμόρφωση ή αναβαθμίστε το OpenClaw.{{details}}",
+      "more_issues": "και {{count}} ακόμη ζητήματα",
+      "preflight_failed": "Το Cherry Studio δεν μπόρεσε να επικυρώσει τη διαμόρφωση του OpenClaw."
+    }
+  },
   "paintings": {
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "image_mix_failed": "Αποτυχία ανάμειξης εικόνων"

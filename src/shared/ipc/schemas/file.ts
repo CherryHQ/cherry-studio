@@ -1,4 +1,6 @@
 import {
+  CleanupPolicySchema,
+  ContentHashSchema,
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
@@ -7,9 +9,11 @@ import {
 } from '@shared/data/types/file'
 import {
   AbsoluteFilePathSchema,
+  Base64StringSchema,
   FileVersionSchema,
   PhysicalFileMetadataSchema,
-  SafeExtSchema
+  SafeExtSchema,
+  UrlStringSchema
 } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -59,29 +63,42 @@ const binaryReadResultSchema = z.strictObject({
 })
 
 const writeIfUnchangedInputSchema = z.strictObject({
-  path: AbsoluteFilePathSchema,
+  handle: FileHandleSchema,
   data: uint8ArraySchema,
-  expectedVersion: FileVersionSchema
+  expectedVersion: FileVersionSchema,
+  expectedContentHash: ContentHashSchema.optional()
 })
 
-// TODO(file-ipc): Unify these schemas with the branded transport types in
-// `src/shared/types/file/ipc.ts`. `AbsoluteFilePath`, `Base64String`, and `UrlString` are
-// TS-only aliases while their runtime schemas live elsewhere, so a successful
-// Zod parse still cannot prove `CreateInternalEntryIpcParams` without an `as`
-// cast in the handler. Keeping the type and schema definitions separate risks
-// future drift; refactor them to share one source of truth before migrating the
-// remaining File IPC surface.
-const createInternalEntryInputSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
-  z.strictObject({
+// Fields common to every create-entry source. `cleanupPolicy` is required at
+// all creation surfaces (file-entry-cleanup.md §4.1) — written once here, not
+// per union branch. `.extend()` keeps the branches strict.
+const createInternalEntryBaseSchema = z.strictObject({ cleanupPolicy: CleanupPolicySchema })
+
+// TODO(file-ipc): Unify these schemas with the transport types in
+// `src/shared/types/file/ipc.ts`, which still hand-mirror this union. Every
+// branch's payload schema now carries its transport type (`AbsoluteFilePath`,
+// `UrlString`, `Base64String`), so the two can finally be collapsed onto one
+// source of truth; see the matching TODO there for what remains to check.
+//
+// Exported: the legacy single-create channel (`File_CreateInternalEntry`,
+// registered in FileManager) parses with this same schema — one source of truth.
+export const createInternalEntryInputSchema = z.discriminatedUnion('source', [
+  createInternalEntryBaseSchema.extend({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
+  createInternalEntryBaseSchema.extend({ source: z.literal('url'), url: UrlStringSchema }),
+  createInternalEntryBaseSchema.extend({
+    source: z.literal('base64'),
+    data: Base64StringSchema,
+    name: SafeNameSchema.optional()
+  }),
+  createInternalEntryBaseSchema.extend({
     source: z.literal('bytes'),
-    data: z.instanceof(Uint8Array),
+    data: uint8ArraySchema,
     name: SafeNameSchema,
     ext: SafeExtSchema.nullable()
   })
 ])
+
+export type CreateInternalEntryInput = z.infer<typeof createInternalEntryInputSchema>
 
 const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
@@ -100,6 +117,7 @@ export const fileRequestSchemas = {
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())
   }),
+  'file.get_metadata': defineRoute({ input: FileHandleSchema, output: PhysicalFileMetadataSchema.nullable() }),
   'file.batch_get_physical_paths': defineRoute({
     input: fileEntryIdsInputSchema,
     output: z.record(z.string(), AbsoluteFilePathSchema.nullable())

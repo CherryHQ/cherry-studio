@@ -122,6 +122,7 @@ import {
 type SessionsBaseProps = {
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -162,6 +163,7 @@ function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
   deleteAgentDisabled,
+  deleteTasksOnly,
   pinDisabled,
   pinned,
   onDeleteAgent,
@@ -172,6 +174,7 @@ function AgentGroupMoreMenu({
   agentId: string
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
+  deleteTasksOnly?: boolean
   pinDisabled?: boolean
   pinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
@@ -184,6 +187,7 @@ function AgentGroupMoreMenu({
     agentId,
     assistantIconType,
     deleteAgentDisabled,
+    deleteTasksOnly,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -333,6 +337,7 @@ const Sessions = ({
   agentSessionsSource,
   activeSessionId,
   agentIdFilter,
+  dataEnabled = true,
   historyRecordsActive,
   onActiveAgentDeleted,
   onAddAgent,
@@ -387,6 +392,7 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
+    deleteSessions,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -414,7 +420,7 @@ const Sessions = ({
       rejectPendingActions: rejectPendingAgentSessionImageActions
     })
 
-  const { data: channels } = useQuery('/agent-channels')
+  const { data: channels } = useQuery('/agent-channels', { enabled: dataEnabled })
   const channelTypeMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const ch of channels ?? []) {
@@ -453,7 +459,7 @@ const Sessions = ({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent', { enabled: displayMode === 'agent' })
+  } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const sessionItems = useMemo<SessionListItem[]>(
@@ -1073,6 +1079,11 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
+      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
+      const sessionIds = deleteTasksOnly
+        ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
+        : []
+
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
         ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
@@ -1081,8 +1092,8 @@ const Sessions = ({
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t('agent.delete.title'),
-          content: t('agent.delete.content'),
+          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
+          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -1092,8 +1103,12 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-        closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        if (deleteTasksOnly) {
+          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+        } else {
+          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        }
         if (currentActiveSession?.agentId === agentId) {
           if (onActiveAgentDeleted) {
             await onActiveAgentDeleted(agentId)
@@ -1103,7 +1118,7 @@ const Sessions = ({
           }
         }
 
-        await refetchAgents()
+        if (!deleteTasksOnly) await refetchAgents()
         await reload()
         await refetchWorkspaces()
         toast.success(t('common.delete_success'))
@@ -1116,7 +1131,9 @@ const Sessions = ({
     },
     [
       closeConversationTabs,
+      agentById,
       deleteAgent,
+      deleteSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
@@ -1251,10 +1268,16 @@ const Sessions = ({
 
       try {
         await toggleAgentPin(agentId)
-        await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
         toast.error(t('common.error'))
+        return
+      }
+
+      try {
+        await refetchAgents()
+      } catch (err) {
+        logger.warn('Failed to refresh agents after toggling pin from session group', { agentId, err })
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -1475,6 +1498,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
+                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1641,6 +1665,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
+          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,

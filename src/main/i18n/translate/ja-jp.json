@@ -101,6 +101,14 @@
     "select_folder": "フォルダを選択",
     "word_document": "ワード文書"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Cherry Studio が使用している OpenClaw バイナリは、生成された設定と互換性がありません。OpenClaw をアップグレードしてください。{{details}}",
+      "external_config_invalid": "OpenClaw は、Cherry Studio の管理対象プロバイダーセクション外の設定を拒否しました。その設定を修正するか、OpenClaw をアップグレードしてください。{{details}}",
+      "more_issues": "ほか {{count}} 件の問題",
+      "preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。"
+    }
+  },
   "paintings": {
     "generate_failed": "画像の生成に失敗しました",
     "image_mix_failed": "画像の混合に失敗しました"

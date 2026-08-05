@@ -29,6 +29,7 @@ export default defineProvider({
       }
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       docs: 'https://docs.x.ai/',
