@@ -69,9 +69,6 @@ type AssistantConversationResourceKind = 'assistant'
 
 type NewTopicAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedNewTopicAssistantSelection = { assistantId?: string; source: NewTopicAssistantSelectionSource }
-type InitialTopicStartState = {
-  firstLaunchStarted: boolean
-}
 
 type NewTopicAssistantTargetOptions = {
   excludedAssistantIds?: readonly string[]
@@ -130,7 +127,6 @@ const HomePage: FC = () => {
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
-  const initialTopicStartStateRef = useRef<InitialTopicStartState>({ firstLaunchStarted: false })
   // Guards the classic-layout topic-create paths against re-entry: a rapid double-click would
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
@@ -147,7 +143,6 @@ const HomePage: FC = () => {
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
-  const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
     requestAnimationFrame(() => {
@@ -185,8 +180,6 @@ const HomePage: FC = () => {
     () => (routeApiTopic ? mapApiTopicToRendererTopic(routeApiTopic) : undefined),
     [routeApiTopic]
   )
-
-  const shouldAutoCreateTopic = !isMessageOnlyView
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -262,7 +255,6 @@ const HomePage: FC = () => {
     passive: isMessageOnlyView
   })
   const reenterChatRoute = useCallback(() => {
-    initialTopicStartStateRef.current.firstLaunchStarted = false
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [clearActiveTopic, navigate])
@@ -581,30 +573,10 @@ const HomePage: FC = () => {
     [createAndActivateEmptyTopic]
   )
 
-  // First-entry create. Resume/latest entry lives in the route interceptor now: this page only
-  // reaches here bare when nothing was resolvable (empty library) or with an `?assistantId=` deep
-  // link, both of which create a fresh topic once the assistants list can pick a target.
-  useEffect(() => {
-    if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted) return
-    // A URL-bound topic is the entry — nothing to create while it loads (or retries after a
-    // non-NOT_FOUND error; the recovery effect above owns the missing case).
-    if (routeTopicId) return
-    if (activeTopic || isActiveTopicLoading) return
-    if (!isAssistantListResolved) return
-
-    initialTopicStartStateRef.current.firstLaunchStarted = true
-    void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined).then((topic) => {
-      if (!topic) initialTopicStartStateRef.current.firstLaunchStarted = false
-    })
-  }, [
-    activeTopic,
-    createAndActivateEmptyTopic,
-    isActiveTopicLoading,
-    isAssistantListResolved,
-    routeAssistantId,
-    routeTopicId,
-    shouldAutoCreateTopic
-  ])
+  // No first-entry auto-create here: `DefaultAssistantSeeder` seeds one topic into every fresh
+  // database and each delete path creates its replacement, so a bare entry that resolves to
+  // nothing means the user really has no topic — the page shows its empty state and they pick
+  // "new topic". (AgentPage keeps its create-on-entry because sessions have no seeder.)
 
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -900,6 +872,7 @@ const HomePage: FC = () => {
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}
+            topicPending={isActiveTopicLoading || isRouteTopicLoading}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}

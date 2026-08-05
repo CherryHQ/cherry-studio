@@ -49,7 +49,6 @@ const homeMocks = vi.hoisted(() => ({
     | {
         passive?: boolean
         activeTopicId?: string | null
-        initialTopic?: Topic
         setActiveTopicId?: (id: string | null) => void
       }
     | undefined,
@@ -85,7 +84,8 @@ const homeMocks = vi.hoisted(() => ({
   createdAssistantTopicsSource: undefined as unknown,
   forceActiveTopicUndefined: false,
   homeTabsTopicsSource: undefined as unknown,
-  locationState: undefined as { topic: Topic } | undefined,
+  // The topic the entry interceptor resolved before the page mounted; `undefined` → bare entry.
+  entryTopic: undefined as Topic | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
@@ -259,12 +259,11 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       refreshTopics: homeMocks.refreshTopics
     }),
     useActiveTopic: (options: {
-      initialTopic?: Topic
       activeTopicId: string | null
       setActiveTopicId: (id: string | null) => void
       passive?: boolean
     }) => {
-      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
+      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(homeMocks.entryTopic)
       const commitActiveTopicId = options.setActiveTopicId
       const setActiveTopicId = React.useCallback(
         (id: string | null) => {
@@ -283,7 +282,6 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       homeMocks.activeTopicOptions = {
         passive: options.passive,
         activeTopicId: options.activeTopicId,
-        initialTopic: options.initialTopic,
         setActiveTopicId
       }
       const clearActiveTopic = React.useCallback(() => {
@@ -693,7 +691,7 @@ import HomePage from '../HomePage'
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    homeMocks.locationState = { topic: initialTopic }
+    homeMocks.entryTopic = initialTopic
     homeMocks.assistants = [{ id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     homeMocks.isTopicsFirstPageLoading = false
@@ -1132,27 +1130,31 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })
 
-  it('creates an empty topic on modern first entry only when the topic library is empty', async () => {
-    homeMocks.locationState = undefined
+  it('never auto-creates a topic on entry, even with an empty topic library', async () => {
+    // The seeder guarantees a first topic and every delete path creates its replacement, so a bare
+    // entry that resolves to nothing shows the empty state instead of silently creating a topic.
+    homeMocks.entryTopic = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.classicLayoutTopics = []
 
     render(<HomePage />)
 
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByTestId('home-chat-shell')).toBeInTheDocument())
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
-    homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
+    // The entry interceptor resolved the latest topic (assistant-a) before the page mounted.
+    homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a' }
 
     render(<HomePage />)
-    // Latest overall (assistant-a) auto-selects on load.
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
@@ -1166,10 +1168,9 @@ describe('HomePage', () => {
   it('reuses the default/unassigned empty topic instead of stacking a new blank', async () => {
     // Regression: the default group resolves to no target assistant, so its empty placeholder was never
     // matched and repeated "new topic" for it stacked duplicate blanks.
-    homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
-      // Latest overall (has a conversation) → auto-selected on entry, never reusable.
+      // Latest overall (has a conversation) → resolved by the entry interceptor, never reusable.
       {
         ...historyTopic,
         id: 'topic-real',
@@ -1187,6 +1188,7 @@ describe('HomePage', () => {
         updatedAt: '2026-01-06T00:00:00.000Z'
       }
     ]
+    homeMocks.entryTopic = { ...historyTopic, id: 'topic-real', assistantId: 'assistant-1' }
 
     render(<HomePage />)
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-real'))
@@ -1218,11 +1220,11 @@ describe('HomePage', () => {
   it('clears the active topic when the fallback create fails after deleting the active assistant', async () => {
     // The deleted assistant's last topic is the active one; if the replacement create rejects, the view
     // must not be left stranded on a topic belonging to the just-deleted assistant.
-    homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
+    homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a' }
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
 
     render(<HomePage />)
@@ -1701,7 +1703,7 @@ describe('HomePage', () => {
   })
 
   it('writes locate state into the current tab for a global-search topic message', async () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
 
     render(<HomePage />)
 
@@ -1748,8 +1750,8 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
   })
 
-  it('waits for a cached active topic before creating the first-launch empty topic', () => {
-    homeMocks.locationState = undefined
+  it('keeps the topic right pane mounted while the entry topic is still loading', () => {
+    homeMocks.entryTopic = undefined
     homeMocks.activeTopicLoading = true
     homeMocks.forceActiveTopicUndefined = true
 
@@ -1772,7 +1774,7 @@ describe('HomePage', () => {
   })
 
   it('renders a message-only route topic without updating global chat state', () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.preferenceValues.set('topic.tab.show', true)
     homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
     homeMocks.routeTopic = {
@@ -1796,7 +1798,7 @@ describe('HomePage', () => {
   })
 
   it('shows a loading state for a message-only route topic while it is loading', () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
     homeMocks.routeTopicLoading = true
 
@@ -1809,7 +1811,7 @@ describe('HomePage', () => {
   })
 
   it('shows a not-found state for a missing message-only route topic', () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
 
     render(<HomePage />)
@@ -1818,38 +1820,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('Conversation not found')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
-  })
-
-  it('creates the first-launch empty topic from the remembered assistant', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
-  })
-
-  it('reuses a first-launch empty topic from the shared topic source', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.classicLayoutTopics = [
-      {
-        id: 'topic-empty-first-launch',
-        assistantId: 'assistant-2',
-        name: '',
-        createdAt: '2026-01-04T00:00:00.000Z',
-        updatedAt: '2026-01-04T00:00:00.000Z'
-      }
-    ]
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-first-launch'))
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('creates a new topic from the selected assistant payload', async () => {
@@ -1932,14 +1902,12 @@ describe('HomePage', () => {
 
   it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
-    homeMocks.locationState = {
-      topic: {
-        ...initialTopic,
-        id: 'topic-empty-current',
-        name: '',
-        createdAt: '2026-01-04T00:00:00.000Z',
-        updatedAt: '2026-01-04T00:00:00.000Z'
-      }
+    homeMocks.entryTopic = {
+      ...initialTopic,
+      id: 'topic-empty-current',
+      name: '',
+      createdAt: '2026-01-04T00:00:00.000Z',
+      updatedAt: '2026-01-04T00:00:00.000Z'
     }
     homeMocks.classicLayoutTopics = []
 
@@ -1949,37 +1917,6 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-current'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
-  })
-
-  it('creates the first-launch topic immediately without opening a stream', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
-    expect(homeMocks.refreshTopics).toHaveBeenCalled()
-  })
-
-  it('unlocks first-launch empty topic creation after a failure', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.createTopic
-      .mockRejectedValueOnce(new Error('create failed'))
-      .mockResolvedValueOnce({ ...createdTopic, assistantId: 'assistant-default' })
-    vi.mocked(toast.error).mockClear()
-
-    const { rerender } = render(<HomePage />)
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
-    expect(toast.error).toHaveBeenCalled()
-
-    rerender(<HomePage />)
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
   })
 
   it('uses a valid explicit payload assistant before remembered and first assistants', async () => {
@@ -1995,7 +1932,7 @@ describe('HomePage', () => {
   })
 
   it('passes URL topicId to useActiveTopic as activeTopicId', async () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = { topicId: 'topic-from-url' }
     homeMocks.activeTopicLoading = true
 
@@ -2008,7 +1945,7 @@ describe('HomePage', () => {
   })
 
   it('keeps the new tab topic identity while the previous topic remains visible', async () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = { topicId: 'topic-a' }
     homeMocks.activeTopicOverride = { ...historyTopic, id: 'topic-a', name: 'Topic A' }
 
@@ -2031,7 +1968,7 @@ describe('HomePage', () => {
   })
 
   it('writes same-tab topic changes to the URL', async () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = {}
 
     await act(async () => {
@@ -2054,7 +1991,7 @@ describe('HomePage', () => {
   })
 
   it('clears the local active topic without mutating URL search', async () => {
-    homeMocks.locationState = undefined
+    homeMocks.entryTopic = undefined
     homeMocks.routeSearch = { topicId: 'topic-x' }
 
     await act(async () => {

@@ -835,6 +835,8 @@ const AgentPage = () => {
   // First-entry create. Resume/latest entry lives in the route interceptor now: this page only
   // reaches here bare when nothing was resolvable (empty session list), which creates a default
   // session once the agent list can pick a target (or surfaces agent selection when none exist).
+  // Unlike HomePage — which dropped its equivalent effect — this is the main path, not a fallback:
+  // nothing seeds a session into a fresh database, so every first agent entry lands here.
   useEffect(() => {
     if (initialEmptySessionEvaluatedRef.current) return
 
