@@ -62,8 +62,15 @@ describe('Cherry Assistant guide', () => {
 
     expect(agent.instructions['en-US']).toContain('built-in general-purpose Agent and onboarding guide')
     expect(agent.instructions['en-US']).toContain('complete any request using the available tools')
+    expect(agent.instructions['en-US']).toContain(
+      'taking particular ownership of helping them succeed with Cherry Studio'
+    )
+    expect(agent.instructions['en-US']).toContain(
+      'Use `cherry-studio-feedback` unless the user explicitly asks for a GitHub Issue'
+    )
     expect(agent.instructions['zh-CN']).toContain('内置通用 Agent 和上手引导')
     expect(agent.instructions['zh-CN']).toContain('帮助用户完成任何请求')
+    expect(agent.instructions['zh-CN']).toContain('帮助将其整理成清晰、可执行的反馈')
     expect(guide).toContain('mcp__assistant__product_info')
     expect(guide).toContain('必须在同一轮调用 `mcp__assistant__navigate`')
     expect(guide).toContain('不得声称已经生成入口或已经打开页面')
@@ -81,10 +88,9 @@ describe('Cherry Assistant guide', () => {
     expect(agent.instructions['zh-CN']).toContain('帮助用户开始使用 Cherry Studio')
     expect(soul).toContain('Warm, patient, and practical')
     expect(soul).toContain("Mirror the user's terminology and level of formality")
-    expect(soul).toContain('take particular ownership of helping users succeed with Cherry Studio')
-    expect(soul).toContain('`cherry-studio-feedback` for ordinary feedback or bug-report requests')
-    expect(soul).toContain('`issue-reporter` only when the user explicitly asks for a GitHub Issue')
     expect(soul).not.toContain("Match the user's language")
+    expect(soul).not.toContain('Cherry Studio')
+    expect(soul).not.toContain('cherry-studio-feedback')
     expect(soul).not.toContain('Working principles')
     expect(soul).not.toContain('Hard safety constraints')
   })
@@ -155,7 +161,8 @@ describe('Cherry Assistant guide', () => {
     const issueReporter = fs.readFileSync(ISSUE_REPORTER_PATH, 'utf-8')
 
     expect(agent.skills).toContain('cherry-studio-feedback')
-    expect(Object.values(agent.instructions).join('\n')).not.toContain('cherry-studio-feedback')
+    expect(agent.instructions['en-US']).toContain('Use `cherry-studio-feedback` unless the user explicitly asks')
+    expect(agent.instructions['zh-CN']).toContain('明确要求创建 GitHub Issue')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "info" })')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "errors", lines: 100 })')
     expect(feedback).toContain('mcp__assistant-files__save_attachment')
