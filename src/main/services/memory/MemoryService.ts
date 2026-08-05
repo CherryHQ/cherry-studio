@@ -52,6 +52,7 @@ export class MemoryService {
   private isInitialized = false
   private embeddings: Embeddings | null = null
   private config: MemoryConfig | null = null
+  private static readonly HASH_SCHEMA_VERSION = 2
   private static readonly UNIFIED_DIMENSION = 1536
   private static readonly SIMILARITY_THRESHOLD = 0.85
 
@@ -72,6 +73,21 @@ export class MemoryService {
     }
     MemoryService.instance = new MemoryService()
     return MemoryService.instance
+  }
+
+  private createMemoryHash(memory: string, userId?: string | null, agentId?: string | null): string {
+    const payload = JSON.stringify({
+      schema: MemoryService.HASH_SCHEMA_VERSION,
+      userId: userId || null,
+      agentId: agentId || null,
+      memory
+    })
+
+    return crypto.createHash('sha256').update(payload).digest('hex')
+  }
+
+  private createLegacyMemoryHash(memory: string): string {
+    return crypto.createHash('sha256').update(memory).digest('hex')
   }
 
   /**
@@ -164,13 +180,27 @@ export class MemoryService {
         const trimmedMemory = memory.trim()
         if (!trimmedMemory) continue
 
-        // Generate hash for deduplication
-        const hash = crypto.createHash('sha256').update(trimmedMemory).digest('hex')
+        // Generate scoped hash for deduplication
+        const hash = this.createMemoryHash(trimmedMemory, userId, agentId)
+        const userScopedHash = this.createMemoryHash(trimmedMemory, userId, null)
+        const legacyHash = this.createLegacyMemoryHash(trimmedMemory)
 
-        // Check if memory already exists
+        // Check if memory already exists in the same user/agent scope.
         const existing = await this.db.execute({
-          sql: MemoryQueries.memory.checkExistsIncludeDeleted,
-          args: [hash]
+          sql: MemoryQueries.memory.checkExistsIncludeDeletedByScope,
+          args: [
+            hash,
+            userScopedHash,
+            legacyHash,
+            userId || null,
+            userId || null,
+            agentId || null,
+            agentId || null,
+            agentId || null,
+            hash,
+            userScopedHash,
+            agentId || null
+          ]
         })
 
         if (existing.rows.length > 0) {
@@ -517,8 +547,8 @@ export class MemoryService {
       const previousMemory = row.memory as string
       const previousMetadata = row.metadata ? JSON.parse(row.metadata as string) : {}
 
-      // Generate new hash
-      const hash = crypto.createHash('sha256').update(memory.trim()).digest('hex')
+      // Generate new scoped hash
+      const hash = this.createMemoryHash(memory.trim(), row.user_id as string | null, row.agent_id as string | null)
 
       // Generate new embedding if model is configured
       let embedding: number[] | null = null
