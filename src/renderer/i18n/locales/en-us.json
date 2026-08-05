@@ -2519,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "Free diagnosis model is unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",

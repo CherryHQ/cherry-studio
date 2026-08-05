@@ -2483,6 +2483,7 @@
       "content": "コンテンツがセキュリティシステムによりブロックされました。修正して再試行してください",
       "context_length": "会話が長すぎます。履歴をクリアするか、新しいチャットを開始してください。",
       "deprecated": "このモデルは廃止されました。別のモデルに切り替えてください。",
+      "free_model_unavailable": "[to be translated]:Free diagnosis model is unavailable",
       "go_to_settings": "設定へ移動",
       "knowledge": "ナレッジベースのベクトル化に失敗しました",
       "mcp": "MCP サーバーへの接続に失敗しました。サービスが実行中か確認してください",
