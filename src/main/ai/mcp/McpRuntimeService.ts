@@ -56,6 +56,27 @@ import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
+function buildStdioEnvironment(
+  loginShellEnv: Record<string, string>,
+  serverEnv: Record<string, string>
+): Record<string, string> {
+  const env = { ...loginShellEnv, ...serverEnv }
+  const serverPathKey = Object.keys(serverEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const shellPathKey = Object.keys(loginShellEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const pathValue = serverPathKey ? serverEnv[serverPathKey] : shellPathKey ? loginShellEnv[shellPathKey] : undefined
+
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'path') delete env[key]
+  }
+  if (pathValue !== undefined) env.PATH = pathValue
+
+  return env
+}
+
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
@@ -596,10 +617,9 @@ export class McpRuntimeService extends BaseService {
             const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
-              env: {
-                ...loginShellEnv,
-                ...connectEnv
-              },
+              // The SDK prepends process.env.PATH before this object. Always use
+              // the same canonical key so our fresh shell PATH replaces it on Windows.
+              env: buildStdioEnvironment(loginShellEnv, connectEnv),
               stderr: 'pipe'
             }
 

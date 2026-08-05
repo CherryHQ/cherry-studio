@@ -20,6 +20,20 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
+const shellEnvMock = vi.hoisted(() => ({
+  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+}))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: shellEnvMock.getShellEnv
+}))
+
+const commandResolverMock = vi.hoisted(() => ({
+  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+}))
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv
+}))
+
 // Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
 // a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
 const mcpSdkMock = vi.hoisted(() => {
@@ -82,12 +96,22 @@ const mcpSdkMock = vi.hoisted(() => {
       this.code = code
     }
   }
+  const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  class StdioClientTransport {
+    kind = 'stdio' as const
+    stderr = null
+    constructor(params: { env?: Record<string, string> }) {
+      stdioTransports.push(params)
+    }
+  }
   return {
     SseError,
     SSEClientTransport,
     StreamableHTTPClientTransport,
     Client,
     StreamableHTTPError,
+    StdioClientTransport,
+    stdioTransports,
     clients,
     state: { failStreamable: false, failStreamableCode: 503 }
   }
@@ -103,6 +127,9 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 }))
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: mcpSdkMock.Client
+}))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
@@ -130,6 +157,32 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve }
 }
+
+describe('McpRuntimeService stdio environment', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.stdioTransports.length = 0
+  })
+
+  it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
+    expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
+  })
+})
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
