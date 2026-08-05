@@ -21,3 +21,5 @@ TBD — the feature will be re-launched once mobile-side development is complete
 ## Notes for release manager
 
 UI-only removal: the underlying LAN transfer service, IPC channels, and backup-file generation are kept dormant in the codebase for the relaunch. If the feature ships again before v2.0.0, drop this entry.
+
+**The relaunch needs a new payload, not the old one.** The renderer producer this fed on (`getBackupData`, a `{ version: 5, localStorage }` dump) was a v1 shape: in v2 the user's data lives in SQLite and Preference, so that payload carried nothing but an emoji-picker history and a favicon cache. It has been removed along with the rest of the renderer's backup service. The transfer service, its protocol, and the two IPC channels are untouched — what has to be rebuilt is what gets sent, and the natural answer is the v2 archive `BackupService.export()` already produces (note that `handlers/fileTransfer.ts` currently accepts `.zip` only).
