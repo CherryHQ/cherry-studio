@@ -17,7 +17,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { wrapExternalContent } from './security/ExternalContentGuard'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
@@ -396,14 +395,6 @@ export class ChannelMessageHandler {
         textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
       }
 
-      // Wrap untrusted channel input with security boundary markers
-      const securedContent = wrapExternalContent(textWithAttachments, {
-        chatId: message.chatId,
-        userId: message.userId,
-        userName: message.userName,
-        channelType: adapter.channelType
-      })
-
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
 
@@ -421,7 +412,7 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          securedContent,
+          textWithAttachments,
           abortController,
           adapter,
           message.chatId,

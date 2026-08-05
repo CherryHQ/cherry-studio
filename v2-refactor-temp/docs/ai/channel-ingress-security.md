@@ -1,40 +1,42 @@
-# Channel Ingress Security — Design
+# Channel Ingress Trust — Design
 
-How an externally-triggered agent run (inbound IM → auto agent run → tool calls) is secured,
-and the gaps to close. Answers review item **D1**. The threat model: an **untrusted remote
-party** sends a message on a bound channel (Slack / Discord / Telegram / Feishu / WeChat / QQ);
-that message drives an agent that can call tools and touch the session workspace, with **no
-human watching the renderer**.
+How an externally-triggered agent run (inbound IM → auto agent run → tool calls) is authorized,
+and the gaps to close. Answers review item **D1**. The threat model: a remote party can reach a
+bound channel (Slack / Discord / Telegram / Feishu / WeChat / QQ), but only an allow-listed chat,
+channel, or user should drive an agent that can call tools and touch the session workspace with
+**no human watching the renderer**. Once admitted, the message has the same trust and agent policy
+as a request submitted through the Cherry Studio UI.
 
 ## Ingress flow
 
-`adapter` (webhook/socket) → `ChannelManager` registers `adapter.on('message', …)`
-(`ChannelManager.ts:301`) → `ChannelMessageHandler.handleIncoming` (per-chat 8 s debounce +
-serial queue, `:54`, `:111`) → `processIncoming` resolves the bound session+agent →
-`wrapExternalContent(...)` (`:254`) → `startAgentSessionRun({ sessionId, userParts, listeners })`
-(`:552`). One run at a time per `${agentId}:${channelId}:${chatId}`.
+`adapter` (webhook/socket) → adapter allow-list check → `ChannelManager` registers
+`adapter.on('message', …)` → `ChannelMessageHandler.handleIncoming` (per-chat 8 s debounce +
+serial queue) → `processIncoming` resolves the bound session+agent →
+`startAgentSessionRun({ sessionId, userParts, listeners })`. One run at a time per
+`${agentId}:${channelId}:${chatId}`. The channel message text is passed through unchanged, apart
+from appending paths for downloaded attachments.
 
 ## Defenses already in place
 
 | Layer | Where | What it does |
 |---|---|---|
-| **Prompt-injection boundary** | `channels/security/ExternalContentGuard.ts` (`wrapExternalContent`, called `ChannelMessageHandler.ts:254`) | Normalizes full-width/CJK angle brackets (anti boundary-spoof), strips invisible/zero-width chars, wraps the message in `<<<EXTERNAL_UNTRUSTED_CONTENT boundary="<rand>">>> … >>>` with a `[SECURITY NOTICE: UNTRUSTED INPUT]` preamble; logs suspicious patterns (advisory) |
-| **System-prompt hardening** | `shared/ai/claudecode/constants.ts` `CHANNEL_SECURITY_PROMPT` | Standing instruction that external content is data, not commands — overrides per-message injection attempts |
+| **Channel allow-listing** | `allowed_chat_ids` / `allowed_channel_ids` in each adapter | Drops inbound messages whose chat, channel, or user ID is not configured. An empty list currently means no restriction. |
+| **Agent-owned permissions** | Claude Code settings and tool policy | An admitted channel turn uses the same prompt and tool policy as a local turn. Channel delivery remains headless, so tools that require interactive approval are denied unless the agent policy already permits them. |
 | **Output secret-redaction** | `channels/security/OutputSanitizer.ts` (`sanitizeChannelOutput`, called `ChannelMessageHandler.ts:282`) | Redacts PEM keys, AWS/GitHub/Anthropic/OpenAI keys, bearer tokens, etc. **before** any agent output leaves through the channel |
 | **Workspace isolation** | session `workspace.path`; attachments persisted under `${workspace}/.cherry-studio/channel-*` | The agent's fs reach is bounded to the session workspace — but **only as strong as the agent's tool policy**: a channel-bound agent with broad `Bash`/`Write` and no per-channel narrowing (see G3) is not effectively bounded |
-| **Channel allow-listing** | per-adapter allow-list config (`allowedChatIds` / `allowedChannelIds`) in `channels/adapters/<platform>/<Platform>Adapter.ts` | Inbound from a non-allow-listed chat/channel is silently dropped |
 | **Per-chat serialization** | `ChannelMessageHandler.ts:111` | One stream per chat; no concurrent interleave |
 
-Trust-boundary summary: **inbound text is guarded** (wrap + prompt); **inbound files/images are
-not content-inspected** (persisted to the workspace, agent reads via the Read tool, bounded by
-workspace); **outbound is secret-redacted**; **sender identity is unvalidated** (see gap 1).
+Trust-boundary summary: **inbound authorization is owned by the adapter allow-list**; admitted text
+is not rewritten; **inbound files/images are not content-inspected** (persisted to the workspace,
+agent reads via the Read tool, bounded by workspace); **outbound is secret-redacted**; **sender
+identity is not separately authorized in group chats** (see gap 1).
 
 ## Gaps to close (the actual D1 work)
 
 ### G1 — Authorization is chat-level, not sender-level
-Adapters gate on the *chat/channel* allow-list; `userId`/`userName` are used only in the preamble
-and logs (`ChannelMessageHandler.ts:254`). So **any member of an allow-listed group chat can
-trigger agent runs.** Proposed direction: an optional per-channel **sender allow-list** (user ids)
+Adapters gate on the *chat/channel* allow-list; `userId`/`userName` do not participate in that
+authorization. So **any member of an allow-listed group chat can trigger agent runs.** Proposed
+direction: an optional per-channel **sender allow-list** (user ids)
 enforced in the adapter alongside the chat check; default off (chat-level remains the baseline),
 opt-in for group chats. Deny → silent drop (consistent with the chat gate).
 
@@ -64,12 +66,14 @@ option reads from.
 
 ## Recommended posture (until G1–G3 land)
 
-Channels are an opt-in, high-trust feature. Document the conservative defaults: enable only for
-trusted workspaces; require explicit chat allow-listing; give channel-bound agents a **read-only**
-tool set; do **not** use `bypassPermissions` for a channel-connected agent. G2 is the first to fix
-because today's only "make tools work on a channel" answer (`bypassPermissions`) is the least safe.
+Channels are an opt-in, high-trust feature. Configure `allowed_chat_ids` or `allowed_channel_ids`
+explicitly because an empty list currently admits every reachable chat. Bind a channel only to an
+agent whose tool policy matches the control granted to those remote callers; `bypassPermissions`
+is equivalent to granting the allow-listed chat unattended control of that agent and workspace.
+G2 is the first usability gap to fix because approval-required tools cannot ask a remote caller for
+confirmation.
 
 ## Status
 
-Not implemented in this PR — parity with v1 (which also had no inbound auth). Tracked as a
-follow-up; this doc is the design the reviewer (D1) asked for.
+Channel messages are authorized by the existing per-adapter allow-list and are then delivered
+without content wrapping or channel-specific prompt restrictions. G1–G3 remain follow-up work.

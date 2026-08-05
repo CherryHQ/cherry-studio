@@ -75,7 +75,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
+import { REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -419,9 +419,7 @@ export async function buildClaudeCodeSessionSettings(
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
       : options.linkedChannelSnapshot
-  // External channel turns are untrusted and have no local approval UI; never expose
-  // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
-  const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
+  const assistantMcpEnabled = isAssistant
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -467,15 +465,7 @@ export async function buildClaudeCodeSessionSettings(
   // step 6 exposes the kb_* tools — a composer-only selection on an unbound agent still gets them, and
   // without the guidance the model would never emit the `[cite:id]` markers those results need.
   const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
-  const systemPrompt = await buildSystemPrompt(
-    session,
-    agent,
-    cwd,
-    linkedChannelSnapshot !== null,
-    agentDataPath,
-    knowledgeBaseScope,
-    disallowedTools
-  )
+  const systemPrompt = await buildSystemPrompt(agent, cwd, agentDataPath, knowledgeBaseScope, disallowedTools)
 
   // 6. MCP servers (session + built-in)
   const mcpServers = buildMcpServers(
@@ -895,11 +885,11 @@ async function buildToolPermissions(
     // approval) is a deliberate decision (matches feat/chat-page): the READ tools have no side
     // effects in the main process — web_search/web_fetch read the network,
     // kb_search/kb_read/kb_list read the user's knowledge bases, report_artifacts only records a
-    // declaration. The untrusted-channel exposure this creates (approval-free reads + web_fetch URL
-    // egress for channel-linked sessions) is bounded by the system-level channel security policy
-    // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
-    // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
-    // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
+    // declaration. Channel ingress authorization is owned by the channel adapters; once admitted,
+    // channel turns use the same agent tool policy as local turns. The autonomy tools
+    // (cron/notify/config) also stay auto-approved — they were blanket-allowed as the standalone
+    // `cherry` server before the merge. Keep this an explicit allowlist so a future cherry-tools
+    // addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: [
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
       // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
@@ -1384,10 +1374,8 @@ async function buildRuntimeContext(): Promise<string> {
 }
 
 export async function buildSystemPrompt(
-  session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
-  channelLinked?: boolean,
   agentDataPath = cwd,
   /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
@@ -1420,9 +1408,6 @@ export async function buildSystemPrompt(
     await provisionBuiltinAgent(agentDataPath, builtinRole)
   }
 
-  // Channel security (still scoped per session — channels link to a session)
-  const isChannelLinked = channelLinked ?? Boolean(channelService.findBySessionId(session.id))
-  const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const unavailableTools = new Set(disallowedTools)
   const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
@@ -1447,13 +1432,13 @@ export async function buildSystemPrompt(
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
-        : `${memoriesBlock}${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${citationsBlock}${runtimeGuardBlock}`
+        : `${memoriesBlock}${context}${workspaceContextBlock}${citationsBlock}${runtimeGuardBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${memoriesBlock}${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+      return `${memoriesBlock}${instructions}${workspaceContextBlock}${citationsBlock}${runtimeGuardBlock}`
     }
   }
 
@@ -1468,7 +1453,7 @@ export async function buildSystemPrompt(
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(
@@ -1550,7 +1535,7 @@ export function buildMcpServers(
     totalMcpServers: Object.keys(mcpList).length
   })
 
-  // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
+  // 5. Assistant — navigate + diagnose tools
   if (assistantMcpEnabled) {
     const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }

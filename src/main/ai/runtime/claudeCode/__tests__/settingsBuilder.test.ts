@@ -10,7 +10,6 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -1558,7 +1557,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
+  it('uses a supplied channel snapshot without rereading channel state', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1584,11 +1583,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
-  it('excludes Assistant MCP capability for channel-linked sessions', async () => {
+  it('keeps Assistant MCP capability for channel-linked sessions', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1607,13 +1605,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.mcpServers?.assistant).toBeUndefined()
-    expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
-    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__product_info')
-    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
-    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
   })
 
   it('reasserts the Cherry Assistant identity and ownership contract on every submitted prompt', async () => {

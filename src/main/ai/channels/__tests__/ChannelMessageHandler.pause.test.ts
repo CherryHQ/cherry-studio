@@ -23,10 +23,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../security/ExternalContentGuard', () => ({
-  wrapExternalContent: vi.fn((text: string) => text)
-}))
-
 vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
