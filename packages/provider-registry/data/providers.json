@@ -312,7 +312,13 @@
           "official": "https://deepseek.com/"
         }
       },
-      "name": "deepseek"
+      "name": "deepseek",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2048,5 +2054,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "bba2c6cc60c9ccbf"
+  "version": "9d23ddac26bc2e63"
 }

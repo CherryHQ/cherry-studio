@@ -119,6 +119,11 @@ export function buildProviderBuiltinWebSearchConfig(
       if (provider && matchesPreset(provider, 'doubao')) {
         return { openai: {} }
       }
+      // DeepSeek implements the bare Responses web_search tool and ignores OpenAI-only options such
+      // as search_context_size and user_location (api-docs.deepseek.com/guides/responses_api).
+      if (provider && matchesPreset(provider, 'deepseek')) {
+        return { openai: {} }
+      }
       if (model && provider && matchesPreset(provider, 'dashscope')) {
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
