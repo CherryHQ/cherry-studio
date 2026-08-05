@@ -207,8 +207,11 @@ describe('SelectionContextMenu', () => {
       </SelectionContextMenu>
     )
 
+    const mathElement = screen.getByTestId('target').querySelector('math')
+    expect(mathElement).not.toBeNull()
+
     const range = document.createRange()
-    range.selectNodeContents(screen.getByRole('math'))
+    range.selectNodeContents(mathElement!)
     const selection = window.getSelection()
     selection?.removeAllRanges()
     selection?.addRange(range)
