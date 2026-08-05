@@ -226,11 +226,7 @@ const MiniAppPage: FC = () => {
 
     setWebviewLoaded(app.appId, false)
     setIsReady(false)
-    if (app.appId === 'openclaw-dashboard') {
-      webview.reloadIgnoringCache()
-    } else {
-      webview.reload()
-    }
+    webview.reload()
   }
 
   const handleOpenDevTools = () => {

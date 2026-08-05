@@ -54,9 +54,9 @@ export function useOpenClawGatewayController({
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
     const url = new URL(dashboardUrl)
-    // The URL is the revision carried by the cross-window transient descriptor.
-    // Change it on every open so each window replaces its local keep-alive snapshot.
-    url.searchParams.set('cherry_cache_bust', String(Date.now()))
+    // A per-open revision makes equal dashboard URLs observable through the
+    // cross-window transient descriptor registry after a gateway restart.
+    url.searchParams.set('cherry_navigation_revision', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',
       name: 'OpenClaw',

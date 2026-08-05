@@ -94,37 +94,4 @@ describe('WebviewContainer', () => {
 
     expect(onLoaded).not.toHaveBeenCalled()
   })
-
-  it('waits for an ignoring-cache reload before reporting an OpenClaw navigation as loaded', () => {
-    const onLoaded = vi.fn()
-    const reloadIgnoringCache = vi.fn()
-    const { container } = render(
-      <WebviewContainer
-        appid="openclaw-dashboard"
-        url="http://127.0.0.1:18790/?cherry_cache_bust=1#token=test"
-        reloadIgnoringCacheOnNavigation
-        onSetRefCallback={vi.fn()}
-        onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
-      />
-    )
-    const webview = container.querySelector('webview')
-    Object.defineProperty(webview, 'reloadIgnoringCache', { value: reloadIgnoringCache })
-
-    act(() => {
-      webview?.dispatchEvent(new Event('did-finish-load'))
-      vi.advanceTimersByTime(100)
-    })
-
-    expect(reloadIgnoringCache).toHaveBeenCalledOnce()
-    expect(onLoaded).not.toHaveBeenCalled()
-
-    act(() => {
-      webview?.dispatchEvent(new Event('did-finish-load'))
-      vi.advanceTimersByTime(100)
-    })
-
-    expect(reloadIgnoringCache).toHaveBeenCalledOnce()
-    expect(onLoaded).toHaveBeenCalledOnce()
-  })
 })

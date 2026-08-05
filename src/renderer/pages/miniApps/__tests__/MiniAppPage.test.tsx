@@ -311,39 +311,6 @@ describe('MiniAppPage', () => {
     expect(reload).toHaveBeenCalledOnce()
     expect(webview.src).toBe('https://chat.openai.com/c/123')
   })
-
-  it('reloads the OpenClaw dashboard while bypassing the HTTP cache', () => {
-    mocks.appId = 'openclaw-dashboard'
-    mocks.currentTab = {
-      ...mocks.currentTab,
-      url: '/app/mini-app/openclaw-dashboard'
-    }
-    mocks.allApps = [
-      stubApp({
-        appId: 'openclaw-dashboard',
-        name: 'OpenClaw',
-        url: 'http://127.0.0.1:18790'
-      })
-    ]
-    const reload = vi.fn()
-    const reloadIgnoringCache = vi.fn()
-    const webview = {
-      src: 'http://127.0.0.1:18790/chat',
-      reload,
-      reloadIgnoringCache,
-      isConnected: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn()
-    }
-    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
-
-    const { getByTestId } = render(<MiniAppPage />)
-    fireEvent.click(getByTestId('minimal-toolbar'))
-
-    expect(reloadIgnoringCache).toHaveBeenCalledOnce()
-    expect(reload).not.toHaveBeenCalled()
-  })
-
   it('does not call WebView methods before the mini app has finished loading', () => {
     mocks.webviewLoaded = false
     const reload = vi.fn()

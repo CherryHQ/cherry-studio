@@ -58,7 +58,7 @@ describe('useOpenClawGatewayController', () => {
     vi.restoreAllMocks()
   })
 
-  it('adds a fresh Cherry cache-bust query while preserving the dashboard token fragment', async () => {
+  it('adds a fresh navigation revision while preserving the dashboard token fragment', async () => {
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'running' })
       if (route === 'openclaw.get_dashboard_url')
@@ -81,7 +81,7 @@ describe('useOpenClawGatewayController', () => {
     })
 
     const dashboardUrl = new URL(vi.mocked(mocks.openSmartMiniApp).mock.calls[0][0].url)
-    expect(dashboardUrl.searchParams.get('cherry_cache_bust')).toBe('1774560000000')
+    expect(dashboardUrl.searchParams.get('cherry_navigation_revision')).toBe('1774560000000')
     expect(dashboardUrl.searchParams.get('theme')).toBe('dark')
     expect(dashboardUrl.hash).toBe('#token=secret')
   })
