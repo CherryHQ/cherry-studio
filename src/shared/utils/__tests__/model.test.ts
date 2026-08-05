@@ -7,6 +7,7 @@ import {
   isFunctionCallingModel,
   isGatewayRoutableModel,
   isGenerateImageModel,
+  isNoAssistantPrefillClaudeModel,
   isNonChatModel,
   isReasoningModel,
   isRerankModel,
@@ -39,6 +40,44 @@ describe('shared model capability helpers', () => {
       ['  ', undefined]
     ])('derives %s as %s', (modelId, expected) => {
       expect(deriveModelGroupName(modelId)).toBe(expected)
+    })
+  })
+
+  describe('isNoAssistantPrefillClaudeModel', () => {
+    it.each([
+      'claude-opus-4-6',
+      'claude-opus-4.7',
+      'claude-opus-4-8',
+      'claude-opus-5',
+      'claude-sonnet-5',
+      'claude-opus-5-20260101',
+      'anthropic.claude-opus-4-6',
+      'CLAUDE-OPUS-5'
+    ])('matches no-prefill Claude model %s', (apiModelId) => {
+      expect(
+        isNoAssistantPrefillClaudeModel({
+          ...createModel(),
+          apiModelId,
+          name: apiModelId
+        })
+      ).toBe(true)
+    })
+
+    it.each([
+      'claude-opus-4-5',
+      'claude-sonnet-4.5',
+      'claude-haiku-4-5',
+      'claude-3-5-sonnet',
+      'claude-opus-4',
+      'gpt-5.5'
+    ])('rejects model %s that still supports prefill or is not Claude', (apiModelId) => {
+      expect(
+        isNoAssistantPrefillClaudeModel({
+          ...createModel(),
+          apiModelId,
+          name: apiModelId
+        })
+      ).toBe(false)
     })
   })
 

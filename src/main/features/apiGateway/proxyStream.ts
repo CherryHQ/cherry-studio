@@ -18,10 +18,13 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isNoAssistantPrefillClaudeModel } from '@shared/utils/model'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -30,6 +33,7 @@ import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { resolveGatewayModelAddress } from './utils/models'
+import { appendNoPrefillContinuation } from './utils/noPrefill'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -146,6 +150,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
+  const isInternalAgentRequest =
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
@@ -154,18 +161,25 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
 
+  const provider: Provider = config.provider ?? resolvedProvider
+  const shouldNormalizeNoPrefill =
+    inputFormat === 'anthropic' &&
+    isInternalAgentRequest &&
+    isNoAssistantPrefillClaudeModel(model) &&
+    resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
     openRouterReasoningCache
   })
 
-  const messages = converter.toUIMessages(params)
+  const convertedMessages = converter.toUIMessages(params)
+  const messages = shouldNormalizeNoPrefill ? appendNoPrefillContinuation(convertedMessages) : convertedMessages
   const tools = converter.toAiSdkTools?.(params)
   const streamOptions = converter.extractStreamOptions(params)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const provider: Provider = config.provider ?? resolvedProvider
   const extractedProviderOptions =
     converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens) ?? {}
   const providerOptions = applyFastModeToProviderOptions(
@@ -189,6 +203,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
+  if (messages !== convertedMessages) {
+    logger.info('Appended no-prefill continuation for internal agent request', { providerId, modelId, streamId })
+  }
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
