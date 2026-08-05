@@ -557,9 +557,11 @@ afterEach(() => {
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
     testOnlyClearRefreshHistory()
+    // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
+    // route prefix rather than the bare path.
     mocks.openTab.mockImplementation((route: string) => {
-      if (route === '/app/agents') return 'opened-agent-tab'
-      if (route === '/app/chat') return 'opened-chat-tab'
+      if (route.startsWith('/app/agents')) return 'opened-agent-tab'
+      if (route.startsWith('/app/chat')) return 'opened-chat-tab'
       return 'opened-route-tab'
     })
     mocks.recentItems = [
