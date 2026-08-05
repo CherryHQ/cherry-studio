@@ -26,7 +26,12 @@ export const extractInfoFromXML = (text: string): ExtractResults => {
   const parser = new XMLParser({
     isArray: (name) => {
       return name === 'question' || name === 'links'
-    }
+    },
+    // Keep tag values as strings. Without this, a purely numeric query like
+    // "2028" is coerced to a number, and downstream `question.trim()` throws
+    // "TypeError: question.trim is not a function". `question`/`links`/`rewrite`
+    // are declared `string`, so this also keeps the parsed shape honest.
+    parseTagValue: false
   })
   // Logger.log('Extracted results:', extractResults)
   return parser.parse(text)

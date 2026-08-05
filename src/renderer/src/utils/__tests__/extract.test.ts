@@ -90,6 +90,25 @@ describe('extract', () => {
       })
     })
 
+    it('should keep purely numeric questions as strings', () => {
+      // Regression: default value coercion turned "2028" into the number 2028,
+      // which later crashed with "question.trim is not a function".
+      const xml = `
+        <websearch>
+          <question>2028</question>
+        </websearch>
+      `
+
+      const result = extractInfoFromXML(xml)
+
+      expect(result).toEqual({
+        websearch: {
+          question: ['2028']
+        }
+      })
+      expect(typeof result.websearch?.question[0]).toBe('string')
+    })
+
     it('should handle XML with special characters', () => {
       const xml = `
         <websearch>

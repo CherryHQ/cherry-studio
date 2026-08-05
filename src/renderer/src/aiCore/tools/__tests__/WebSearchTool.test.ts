@@ -58,6 +58,31 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     expect(modelText).toContain('"url": "https://example.com/path?utm_source=newsletter#details"')
   })
 
+  it('normalizes non-string prepared queries without throwing', async () => {
+    // Regression: numeric queries (e.g. "2028") arrive as numbers from the XML
+    // intent extraction and previously crashed with "question.trim is not a function".
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: [2028, { nested: 'object' }, 'valid'] as unknown as string[]
+      },
+      'request-1'
+    ) as any
+
+    await expect(searchTool.execute({})).resolves.toBeDefined()
+
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
+      { id: 'tavily' },
+      {
+        websearch: {
+          question: ['2028', 'valid'],
+          links: undefined
+        }
+      },
+      'request-1'
+    )
+  })
+
   it('reuses the in-flight search request for concurrent executions', async () => {
     const searchResponse = {
       query: 'first',

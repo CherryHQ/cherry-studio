@@ -16,18 +16,24 @@ function normalizeWebSearchQueries(questions: string[]): string[] {
 
   const seen = new Set<string>()
 
-  return questions
-    .map((question) => question.trim())
-    .filter((question) => question.length > 0)
-    .filter((question) => {
-      const key = question.toLocaleLowerCase()
-      if (seen.has(key)) {
-        return false
-      }
-      seen.add(key)
-      return true
-    })
-    .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
+  return (
+    questions
+      // Coerce defensively: extracted queries come from untrusted model XML, where
+      // an entry can arrive as a number (numeric query like "2028") or, with
+      // malformed nesting, a non-primitive. Drop anything that isn't a string or
+      // number so `.trim()` never throws.
+      .map((question) => (typeof question === 'string' || typeof question === 'number' ? String(question).trim() : ''))
+      .filter((question) => question.length > 0)
+      .filter((question) => {
+        const key = question.toLocaleLowerCase()
+        if (seen.has(key)) {
+          return false
+        }
+        seen.add(key)
+        return true
+      })
+      .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
+  )
 }
 
 /**
