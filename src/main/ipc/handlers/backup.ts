@@ -19,6 +19,7 @@ import {
   OutputPathExistsError,
   presentDegradations,
   presentJournalDegradations,
+  readAutoSyncStatus,
   ResourceInstallPlanError,
   RestoreStateError,
   SourceDriftError,
@@ -459,6 +460,11 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.delete_destination_backup': async (input, ctx) => {
     requireManagedWindow(ctx)
     await mapped(() => application.get('BackupService').deleteDestinationBackup(input.destination, input.name))
+  },
+
+  'backup.get_auto_sync_status': async (_input, ctx) => {
+    requireManagedWindow(ctx)
+    return mapped(() => readAutoSyncStatus())
   },
 
   'backup.check_destination': async (input, ctx) => {

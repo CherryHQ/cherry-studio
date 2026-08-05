@@ -14,29 +14,24 @@ import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import {
-  backupToNutstore,
-  checkConnection,
-  getNutstoreSyncState,
-  startNutstoreAutoSync,
-  stopNutstoreAutoSync
-} from '@renderer/services/NutstoreService'
+import { checkDestination } from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import dayjs from 'dayjs'
-import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import { Check, ExternalLink, FolderOpen, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import NutstorePathPopup from './NutstorePathPopup'
+import { useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const nutstoreSyncState = getNutstoreSyncState()
+  const { status: autoSync, refresh: refreshAutoSync } = useAutoSyncStatus('nutstore')
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -94,7 +89,7 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
-    const isConnectedToNutstore = await checkConnection()
+    const isConnectedToNutstore = await checkDestination('nutstore')
 
     toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
@@ -110,19 +105,13 @@ const NutstoreSettings: FC = () => {
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useWebdavBackupModal({
-      backupMethod: backupToNutstore
-    })
+    useWebdavBackupModal({ destination: 'nutstore' })
 
   const onSyncIntervalChange = async (value: number) => {
     await setNutstoreSyncInterval(value)
-    if (value === 0) {
-      await setNutstoreAutoSync(false)
-      stopNutstoreAutoSync()
-    } else {
-      await setNutstoreAutoSync(true)
-      void startNutstoreAutoSync()
-    }
+    await setNutstoreAutoSync(value > 0)
+    // Main reconciles the schedule from these settings; read back what it decided.
+    await refreshAutoSync()
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -151,22 +140,21 @@ const NutstoreSettings: FC = () => {
   const renderSyncStatus = () => {
     if (!nutstoreToken) return null
 
-    if (!nutstoreSyncState.lastSyncTime && !nutstoreSyncState.syncing && !nutstoreSyncState.lastSyncError) {
+    if (!autoSync?.lastRun && !autoSync?.lastError) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
+        {autoSync?.lastError && (
           <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+            content={`${t('settings.data.webdav.syncError')}: ${autoSync.lastError}`}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {nutstoreSyncState.lastSyncTime && (
+        {autoSync?.lastRun && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.webdav.lastSync')}: {dayjs(autoSync.lastRun).format('HH:mm:ss')}
           </span>
         )}
       </RowFlex>

@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
-import { backupToS3 } from '@renderer/services/BackupService'
+import { backupToDestination } from '@renderer/services/backupDestination'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ export function useS3BackupModal() {
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await backupToS3({ customFileName, showMessage: true })
+      await backupToDestination('s3', { showMessage: true, name: customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)

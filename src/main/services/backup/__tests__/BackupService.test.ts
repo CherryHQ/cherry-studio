@@ -79,6 +79,9 @@ vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'KnowledgeService') return { cancelRestoredMaterialRebuild: cancelRebuildMock }
+      // Registered in `onInit`; the auto-sync behaviour itself is proven in autoSync.test.ts.
+      if (name === 'JobManager') return { registerHandler: vi.fn(), getJobSchedule: () => null }
+      if (name === 'PreferenceService') return { get: () => false, subscribeMultipleChanges: () => () => {} }
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       throw new Error(`Unexpected service in BackupService test: ${name}`)
     }),
@@ -177,10 +180,10 @@ describe('BackupService', () => {
     it('initializes after the path registry is frozen and declares its same-phase owner dependency', () => {
       // Journal paths resolve through `application.getPath`, so BeforeReady
       // would be too early. Phase ordering to DbService/PreferenceService is
-      // enforced by the container, never by @DependsOn; KnowledgeService is a
-      // same-phase peer this service calls, so that one IS declared.
+      // enforced by the container, never by @DependsOn; KnowledgeService and
+      // JobManager are same-phase peers this service calls, so both ARE declared.
       expect(getPhase(BackupService)).toBe(Phase.WhenReady)
-      expect(getDependencies(BackupService)).toEqual(['KnowledgeService'])
+      expect(getDependencies(BackupService)).toEqual(['KnowledgeService', 'JobManager'])
     })
 
     it('starts after KnowledgeService and stops before it', () => {
