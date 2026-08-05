@@ -26,6 +26,8 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BackupProgressDialog from './BackupProgressDialog'
+
 /**
  * Backup v2 — export and restore (docs/references/backup/README.md).
  *
@@ -624,6 +626,13 @@ const BackupV2Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
+      {/* Only the two operations the user waits on report progress; arm and
+          rollback relaunch immediately and have nothing to show. */}
+      <BackupProgressDialog
+        open={activeOperation === 'export' || activeOperation === 'prepare-restore'}
+        operation={activeOperation === 'export' || activeOperation === 'prepare-restore' ? activeOperation : null}
+        onCancel={handleCancelOperation}
+      />
       <SettingTitle>{t('settings.data.title')}</SettingTitle>
       <SettingDivider />
 
