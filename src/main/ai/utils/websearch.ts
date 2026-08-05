@@ -3,7 +3,7 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
-import { matchesPreset } from '@shared/utils/provider'
+import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -37,14 +37,20 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
 
   if (provider && matchesPreset(provider, 'dashscope')) {
     // Chat-Completions web search (help.aliyun.com/zh/model-studio/web-search). The newest qwen-max and
-    // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default.
+    // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default. When
+    // the model also serves the web-extractor (url-context) tool, `agent_max` upgrades the strategy to
+    // fetch full page content (help.aliyun.com/zh/model-studio/web-extractor); thinking mode is required.
     const apiModelId = getRawModelId(model)
-    const needsAgentStrategy = /qwen3-max|omni|qwen3-vl/.test(apiModelId)
+    const searchStrategy = isBuiltinWebFetchAvailable(model, provider)
+      ? 'agent_max'
+      : /qwen3-max|omni|qwen3-vl/.test(apiModelId)
+        ? 'agent'
+        : undefined
     return {
       enable_search: true,
       search_options: {
         forced_search: true,
-        ...(needsAgentStrategy ? { search_strategy: 'agent' } : {})
+        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
       }
     }
   }

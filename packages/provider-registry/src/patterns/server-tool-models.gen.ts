@@ -827,6 +827,25 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'qwen3-max',
         'qwen3-max-preview',
         'qwq-plus'
+      ],
+      'url-context': [
+        'qwen-flash',
+        'qwen-plus',
+        'qwen-plus-character',
+        'qwen-plus-character-ja',
+        'qwen3-5-flash',
+        'qwen3-5-flash-02-23',
+        'qwen3-5-plus',
+        'qwen3-5-plus-02-15',
+        'qwen3-6-flash',
+        'qwen3-6-max-preview',
+        'qwen3-6-plus',
+        'qwen3-7-max',
+        'qwen3-7-plus',
+        'qwen3-8-max',
+        'qwen3-8-max-preview',
+        'qwen3-max',
+        'qwen3-max-preview'
       ]
     },
     doubao: {
