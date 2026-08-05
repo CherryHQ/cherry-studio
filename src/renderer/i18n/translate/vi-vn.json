@@ -5842,7 +5842,8 @@
           "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
           "title": "[to be translated]:Diagnostic bundle exported"
         },
-        "unknown": "[to be translated]:Unknown"
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
       },
       "downloading": "Đang tải xuống...",
       "enterprise": {

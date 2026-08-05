@@ -1,6 +1,7 @@
 import { once } from 'node:events'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { finished } from 'node:stream/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -374,10 +375,9 @@ export async function stageSourceCandidate(
 ): Promise<StagedSource> {
   const snapshot = await openReadableFileSnapshot(candidate.sourcePath)
   const writer = createAtomicWriteStream(destination)
-  const completion = new Promise<void>((resolve, reject) => {
-    writer.once('finish', resolve)
-    writer.once('error', reject)
-  })
+  const completion = finished(writer)
+  // Observe writer failures immediately while the read loop may still be awaiting another event.
+  void completion.catch(() => undefined)
   let bytes = 0
   let malformedLineCount = 0
 
@@ -407,7 +407,7 @@ export async function stageSourceCandidate(
       path: destination
     }
   } catch (error) {
-    await writer.abort().catch(() => undefined)
+    if (!writer.destroyed) await writer.abort().catch(() => undefined)
     await remove(destination).catch(() => undefined)
     throw error
   } finally {

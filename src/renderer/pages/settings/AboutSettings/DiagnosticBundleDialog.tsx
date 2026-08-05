@@ -226,7 +226,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
       })
     })
     try {
-      await ipcApi.request('system.shell.open_website', `mailto:${SUPPORT_EMAIL}?${params.toString()}`)
+      const query = params.toString().replaceAll('+', '%20')
+      await ipcApi.request('system.shell.open_website', `mailto:${SUPPORT_EMAIL}?${query}`)
     } catch (error) {
       logger.error('Failed to open support email client', error as Error)
       setCopyEmailFallback(true)

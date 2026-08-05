@@ -153,6 +153,32 @@ describe('diagnostic source collection', () => {
     expect(await readFile(stagedPath, 'utf8')).toBe(inspectedLine)
   })
 
+  it('does not leak an unhandled rejection when staging cannot open its temporary file', async () => {
+    const now = Date.now()
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
+    const line = `${JSON.stringify({ message: 'x'.repeat(32 * 1024), timestamp: new Date(now - 1_000).toISOString() })}\n`
+    await writeFile(source, line)
+    const range = { fromMs: now - 86_400_000, toMs: now }
+    const collection = await collectDiagnosticSources(range, ALL_SOURCES)
+    const unhandledRejections: unknown[] = []
+    const handleUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason)
+    process.on('unhandledRejection', handleUnhandledRejection)
+
+    try {
+      await expect(
+        stageSourceCandidate(
+          collection.logs[0],
+          range,
+          path.join(tempDir, 'missing', 'filtered.jsonl') as AbsoluteFilePath
+        )
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(unhandledRejections).toEqual([])
+    } finally {
+      process.off('unhandledRejection', handleUnhandledRejection)
+    }
+  })
+
   it('rejects a same-size in-place log rewrite after inspection', async () => {
     const now = Date.now()
     const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
