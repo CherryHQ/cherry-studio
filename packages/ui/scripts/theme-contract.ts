@@ -9,7 +9,7 @@
  * - Tailwind color variables are generated only for roles used as utilities.
  */
 
-export const RUNTIME_THEME_INPUT_TOKENS = ['primary', 'primary-foreground'] as const
+export const RUNTIME_THEME_INPUT_TOKENS = ['control-accent', 'control-accent-foreground'] as const
 
 export const SHADCN_COLOR_TOKENS = [
   'background',
@@ -70,7 +70,10 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'border-subtle',
   'border-strong',
   'border-selected',
+  'control-accent',
+  'control-accent-foreground',
   'link',
+  'icon-stroke',
 
   /* Feedback */
   'success',
@@ -110,6 +113,8 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'border-subtle',
   'border-strong',
   'border-selected',
+  'control-accent',
+  'control-accent-foreground',
   'link',
   'success',
   'success-subtle',
@@ -149,6 +154,7 @@ export const COMPATIBILITY_COLOR_TOKENS = [
 ] as const
 
 export const CHERRY_PRODUCT_SURFACE_PAIRS = [
+  ['control-accent', 'control-accent-foreground'],
   ['success-subtle', 'success-subtle-foreground'],
   ['warning-subtle', 'warning-subtle-foreground'],
   ['info-subtle', 'info-subtle-foreground'],

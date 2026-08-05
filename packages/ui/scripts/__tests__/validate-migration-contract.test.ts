@@ -165,18 +165,12 @@ describe('validateMigrationContractSources', () => {
     }
   })
 
-  it('keeps the runtime-accent link migration under review', () => {
+  it('keeps the historical runtime-accent link on the canonical link role', () => {
     const registry = JSON.parse(sources.migrationRegistry) as {
       rules: Array<{ source: string; target: string | null; strategy: string }>
     }
 
-    expect(registry.rules).toContainEqual(
-      expect.objectContaining({
-        source: '--cs-link',
-        target: null,
-        strategy: 'review'
-      })
-    )
+    expect(registry.rules).toContainEqual({ source: '--cs-link', target: '--link', strategy: 'exact' })
   })
 
   it('keeps renderer Sidebar effects out of the shared migration contract', () => {
@@ -274,7 +268,7 @@ describe('validateMigrationContractSources', () => {
         ...sources,
         rendererTypeScriptSources: {
           'example.ts': `
-            document.documentElement.style.setProperty('--cs-theme-primary', '#00b96b')
+            document.documentElement.style.setProperty('--cs-theme-control-accent', '#00b96b')
             document.documentElement.style.setProperty('--app-user-font-family', 'Inter')
           `
         }
