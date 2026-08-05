@@ -641,6 +641,51 @@ describe('TabsProvider session restore', () => {
     expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toHaveLength(1)
   })
 
+  it('restores distinct v2.0.0 conversation tabs from their legacy metadata identities', async () => {
+    const chatTab: Tab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Chat topic',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', retained: true }
+    }
+    const agentTab: Tab = {
+      id: 'agent',
+      type: 'route',
+      url: '/app/agents',
+      title: 'Agent session',
+      metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+    }
+    normalTabsValue = [chatTab, agentTab]
+    activeTabIdValue = 'chat'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('session-urls')).toHaveTextContent(
+      'chat=/app/chat?topicId=topic-1,agent=/app/agents?sessionId=session-1'
+    )
+    await waitFor(() =>
+      expect(setNormalTabsMock).toHaveBeenCalledWith([
+        {
+          ...chatTab,
+          url: '/app/chat?topicId=topic-1',
+          metadata: { retained: true },
+          isDormant: false
+        },
+        {
+          ...agentTab,
+          url: '/app/agents?sessionId=session-1',
+          metadata: undefined,
+          isDormant: true
+        }
+      ])
+    )
+  })
+
   it('keeps the resolved active tab awake when the persisted active id is stale', async () => {
     // Active id points at a tab that no longer exists in either the pinned or normal set. The
     // resolved active tab (first normal tab) must still be awake, or AppShell renders no TabRouter.
@@ -733,6 +778,28 @@ describe('TabsProvider session restore', () => {
 })
 
 describe('migratePinnedTabs', () => {
+  it('migrates a pinned conversation identity without dropping unrelated metadata', () => {
+    const pinnedChat: Tab = {
+      id: 'pinned-chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Pinned chat',
+      isPinned: true,
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', retained: true }
+    }
+
+    expect(migratePinnedTabs([pinnedChat])).toEqual({
+      changed: true,
+      tabs: [
+        {
+          ...pinnedChat,
+          url: '/app/chat?topicId=topic-1',
+          metadata: { retained: true }
+        }
+      ]
+    })
+  })
+
   it('redirects an OpenClaw pin to the Code page and flags the change', () => {
     const { tabs, changed } = migratePinnedTabs([PINNED_OPENCLAW_TAB, PINNED_FILES_TAB])
     expect(changed).toBe(true)

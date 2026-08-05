@@ -10,7 +10,8 @@ const tab: Tab = {
   type: 'route',
   url: '/app/chat?topicId=topic-1',
   title: 'Daily Standup',
-  icon: 'emoji:🤖'
+  icon: 'emoji:🤖',
+  metadata: { retained: true }
 }
 
 // Detached sub-window hosts exactly one tab; controls read it directly.
