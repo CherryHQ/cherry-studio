@@ -1,5 +1,5 @@
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +28,13 @@ const messageVirtualListMocks = vi.hoisted(() => ({
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
-const messageListSearchMock = vi.hoisted(() => ({ props: null as { messages: MessageListItem[] } | null }))
+const messageListSearchMock = vi.hoisted(() => ({
+  props: null as {
+    messages: MessageListItem[]
+    excludedMessageIds: ReadonlySet<string>
+    isStreaming: boolean
+  } | null
+}))
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
   setForceWideLayout: () => {},
@@ -123,14 +129,10 @@ vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
   const MockMessageGroup = ({
     messages,
-    registerMessageElement,
-    selectedMessageId,
-    onSelectedMessageChange
+    registerMessageElement
   }: {
     messages: MessageListItem[]
     registerMessageElement?: (id: string, element: HTMLElement | null) => void
-    selectedMessageId?: string
-    onSelectedMessageChange?: (messageId: string) => void
   }) => {
     const groupId = messages.map((message) => message.id).join(',')
     messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
@@ -141,25 +143,19 @@ vi.mock('../list/MessageGroup', async () => {
     }, [])
 
     return (
-      <div data-selected-message-id={selectedMessageId} data-testid="message-group">
+      <div data-testid="message-group">
         {messages.map((message) => {
           const setRef = (element: HTMLDivElement | null) => {
             registerMessageElement?.(message.id, element)
           }
           return (
-            <React.Fragment key={message.id}>
-              <div
-                id={`message-${message.id}`}
-                ref={setRef}
-                className="fold"
-                data-testid={`message-node-${message.id}`}
-              />
-              <button
-                type="button"
-                data-testid={`select-message-${message.id}`}
-                onClick={() => onSelectedMessageChange?.(message.id)}
-              />
-            </React.Fragment>
+            <div
+              id={`message-${message.id}`}
+              key={message.id}
+              ref={setRef}
+              className="fold"
+              data-testid={`message-node-${message.id}`}
+            />
           )
         })}
         {groupId}
@@ -179,7 +175,7 @@ vi.mock('../list/MessageNavigation', () => ({
 }))
 
 vi.mock('../list/MessageListSearch', () => ({
-  MessageListSearch: (props: { messages: MessageListItem[] }) => {
+  MessageListSearch: (props: NonNullable<typeof messageListSearchMock.props>) => {
     messageListSearchMock.props = props
     return <div data-testid="message-list-search" />
   }
@@ -319,7 +315,7 @@ describe('MessageList', () => {
     expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
   })
 
-  it('does not mount search while the list contains pending or live messages', () => {
+  it('keeps search mounted while excluding pending and live message content', () => {
     const completed = createMessage('assistant-completed', 'assistant')
     const pending = createMessage('assistant-pending', 'assistant', 'pending')
     const live = createMessage('assistant-live', 'assistant')
@@ -336,62 +332,14 @@ describe('MessageList', () => {
       </MessageListProvider>
     )
 
-    expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
-    expect(messageListSearchMock.props).toBeNull()
-  })
-
-  it('keeps fold rendering and search on the same controlled selection', () => {
-    const first = { ...createMessage('assistant-1', 'assistant'), parentId: 'user-1' }
-    const selected = { ...createMessage('assistant-2', 'assistant'), parentId: 'user-1' }
-
-    render(
-      <MessageListProvider
-        value={createValue([first, selected], {
-          getMessageUiState: (messageId) => ({ foldSelected: messageId === selected.id }),
-          renderConfig: { ...defaultMessageRenderConfig, multiModelMessageStyle: 'fold' }
-        })}>
-        <MessageList enableSearch />
-      </MessageListProvider>
-    )
-
     expect(screen.getByTestId('message-list-search')).toBeInTheDocument()
-    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([selected.id])
-    expect(screen.getByTestId('message-group')).toHaveAttribute('data-selected-message-id', selected.id)
-
-    fireEvent.click(screen.getByTestId(`select-message-${first.id}`))
-
-    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([first.id])
-    expect(screen.getByTestId('message-group')).toHaveAttribute('data-selected-message-id', first.id)
-  })
-
-  it('reconciles an external active-branch change even when search owns the loaded group projection', async () => {
-    const first = { ...createMessage('assistant-1', 'assistant'), parentId: 'user-1', isActiveBranch: true }
-    const second = { ...createMessage('assistant-2', 'assistant'), parentId: 'user-1', isActiveBranch: false }
-    const buildValue = (messages: MessageListItem[]) =>
-      createValue(messages, {
-        renderConfig: { ...defaultMessageRenderConfig, multiModelMessageStyle: 'fold' }
-      })
-
-    const view = render(
-      <MessageListProvider value={buildValue([first, second])}>
-        <MessageList enableSearch />
-      </MessageListProvider>
-    )
-
-    view.rerender(
-      <MessageListProvider
-        value={buildValue([
-          { ...first, isActiveBranch: false },
-          { ...second, isActiveBranch: true }
-        ])}>
-        <MessageList enableSearch />
-      </MessageListProvider>
-    )
-
-    await waitFor(() => {
-      expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([second.id])
-      expect(screen.getByTestId('message-group')).toHaveAttribute('data-selected-message-id', second.id)
-    })
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([
+      completed.id,
+      pending.id,
+      live.id
+    ])
+    expect(messageListSearchMock.props?.excludedMessageIds.has(live.id)).toBe(true)
+    expect(messageListSearchMock.props?.isStreaming).toBe(true)
   })
 
   it('pads the message column with the rail gutter from the chat layout context', () => {

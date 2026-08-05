@@ -18,11 +18,8 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState } from '../types'
-import {
-  getEffectiveMultiModelMessageStyle,
-  getPreferredMultiModelMessage,
-  isAssistantMultiModelGroup
-} from '../utils/messageGroupLayout'
+import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
+import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
@@ -31,8 +28,6 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
-  selectedMessageId?: string
-  onSelectedMessageChange?: (messageId: string) => void
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -44,11 +39,20 @@ interface Props {
   }
 }
 
+function pickPreferredSelectedMessage(
+  messages: MessageListItem[],
+  getMessageUiState: (messageId: string) => MessageUiState
+) {
+  return (
+    messages.find((message) => message.isActiveBranch) ??
+    messages.find((message) => getMessageUiState(message.id).foldSelected) ??
+    messages.find(isMessageListItemProcessing)
+  )
+}
+
 const MessageGroup = ({
   messages,
   partsByMessageId,
-  selectedMessageId: controlledSelectedMessageId,
-  onSelectedMessageChange,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -86,6 +90,7 @@ const MessageGroup = ({
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
     getEffectiveMultiModelMessageStyle(messages, getMessageUiState, multiModelMessageStyleSetting)
   )
+  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
   const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
 
@@ -96,29 +101,18 @@ const MessageGroup = ({
 
   const isGrid = multiModelMessageStyle === 'grid'
 
-  // MessageList controls this value in production so fold rendering and search
-  // share one source. The fallback preserves standalone/embed usage.
-  const [uncontrolledSelectedMessageId, setUncontrolledSelectedMessageId] = useState<string>(() => {
+  // Track the selected message ID in React state. The active branch remains
+  // the single source of truth for which grouped reply is used as context.
+  const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    return getPreferredMultiModelMessage(messages, getMessageUiState)?.id ?? ''
+    return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
   })
-  const selectedMessageId = controlledSelectedMessageId ?? uncontrolledSelectedMessageId
-  const selectedIndex = messages.findIndex((message) => message.id === selectedMessageId)
-  const commitSelectedMessageId = useCallback(
-    (messageId: string) => {
-      if (controlledSelectedMessageId === undefined) {
-        setUncontrolledSelectedMessageId(messageId)
-      }
-      onSelectedMessageChange?.(messageId)
-    },
-    [controlledSelectedMessageId, onSelectedMessageChange]
-  )
 
   // Re-sync the selected ID when the active branch or group membership changes.
   // Without this, fold mode can keep showing an old model column even after
   // branch navigation moves the active path to another multi-model node.
   useEffect(() => {
-    if (captureMode || controlledSelectedMessageId !== undefined) return
+    if (captureMode) return
 
     const previousIds = previousMessageIdsRef.current
     const previousIdSet = new Set(previousIds)
@@ -132,9 +126,9 @@ const MessageGroup = ({
     if (activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
-      nextSelectedMessage = getPreferredMultiModelMessage(messages, getMessageUiState)
+      nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]
     } else if (addedMessages.length > 0) {
-      nextSelectedMessage = getPreferredMultiModelMessage(addedMessages, getMessageUiState)
+      nextSelectedMessage = pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1)
     }
 
     if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
@@ -142,27 +136,20 @@ const MessageGroup = ({
         updateMessageUiState(selectedMessageId, { foldSelected: false })
       }
       updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
-      commitSelectedMessageId(nextSelectedMessage.id)
+      setSelectedMessageIdState(nextSelectedMessage.id)
+      setSelectedIndex(messages.findIndex((message) => message.id === nextSelectedMessage.id))
     }
-  }, [
-    captureMode,
-    commitSelectedMessageId,
-    controlledSelectedMessageId,
-    getMessageUiState,
-    messages,
-    selectedMessageId,
-    updateMessageUiState
-  ])
+  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
-      if (controlledSelectedMessageId === undefined) {
-        if (selectedMessageId) {
-          updateMessageUiState(selectedMessageId, { foldSelected: false })
-        }
-        updateMessageUiState(message.id, { foldSelected: true })
+      // 前一个
+      if (selectedMessageId) {
+        updateMessageUiState(selectedMessageId, { foldSelected: false })
       }
-      commitSelectedMessageId(message.id)
+      // 当前选中的消息
+      updateMessageUiState(message.id, { foldSelected: true })
+      setSelectedMessageIdState(message.id)
 
       if (message.role === 'assistant' && message.id !== selectedMessageId) {
         void Promise.resolve(actions.setActiveBranch?.(message.id)).catch((error) => {
@@ -184,15 +171,7 @@ const MessageGroup = ({
         200
       )
     },
-    [
-      actions,
-      commitSelectedMessageId,
-      controlledSelectedMessageId,
-      navigateWithScrollRuntime,
-      selectedMessageId,
-      setTimeoutTimer,
-      updateMessageUiState
-    ]
+    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -207,6 +186,8 @@ const MessageGroup = ({
 
       // 如果找到消息且不是当前选中的索引，则切换标签
       if (targetIndex !== -1 && targetIndex !== selectedIndex) {
+        setSelectedIndex(targetIndex)
+
         // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
         const targetMessage = messages[targetIndex]
         if (targetMessage) {
@@ -538,7 +519,7 @@ function messagePartsShallowEqual(
 
 // Custom comparator: bail out only when latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
-// onSelectedMessageChange, registerMessageElement) are intentionally ignored — they close over
+// registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
 // same key, so treating them as equal lets the memo actually do its job in
 // production (where the parent's inline arrow would otherwise bust it every
@@ -549,7 +530,6 @@ function messagePartsShallowEqual(
 export default memo(MessageGroup, (prev, next) => {
   return (
     prev.captureMode === next.captureMode &&
-    prev.selectedMessageId === next.selectedMessageId &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
     prev.messageTail === next.messageTail &&

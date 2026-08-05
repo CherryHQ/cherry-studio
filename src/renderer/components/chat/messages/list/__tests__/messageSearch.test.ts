@@ -1,8 +1,9 @@
+import { findTextMatches } from '@renderer/utils/contentSearch'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
-import { computeMessageSearchMatches, findTextMatches, toMessageSearchText } from '../messageSearch'
+import { computeMessageSearchMatches } from '../messageSearch'
 
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
 const toolPart = (): CherryMessagePart =>
@@ -53,38 +54,6 @@ describe('findTextMatches', () => {
   })
 })
 
-describe('toMessageSearchText', () => {
-  it('matches rendered markdown labels without indexing link URLs, image alt text, or citation ids', () => {
-    const text = toMessageSearchText('[foo](https://foo.example) ![hidden alt](image.png) [cite:internal-id]')
-    expect(text).toContain('foo')
-    expect(text).not.toContain('foo.example')
-    expect(text).not.toContain('hidden alt')
-    expect(text).not.toContain('internal-id')
-  })
-
-  it('uses parsed visible text for entities, escapes, and GFM tables', () => {
-    const text = toMessageSearchText('A &amp; B and \\*literal\\*\n\n| alpha | beta |\n| --- | --- |')
-
-    expect(text).toContain('A & B and *literal*')
-    expect(text).toContain('alphabeta')
-    expect(text).not.toContain('&amp;')
-    expect(text).not.toContain('---')
-  })
-
-  it('keeps citation-like text in code while excluding rendered citation markers', () => {
-    const text = toMessageSearchText('outside [cite:hidden]\n\n```text\n[cite:visible]\n```')
-
-    expect(text).not.toContain('[cite:hidden]')
-    expect(text).toContain('[cite:visible]')
-  })
-
-  it('uses visible HTML text while excluding controls and hidden metadata', () => {
-    const text = toMessageSearchText('<button>Copy</button><span aria-hidden="true">Hidden</span><div>A &amp; B</div>')
-
-    expect(text).toBe('A & B')
-  })
-})
-
 describe('computeMessageSearchMatches', () => {
   it('matches assistant result parts in display order with stable original part ids', () => {
     const messages = [message('a1', 'assistant')]
@@ -93,8 +62,8 @@ describe('computeMessageSearchMatches', () => {
     }
 
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([
-      { key: 'a1-part-0:0', messageId: 'a1', partId: 'a1-part-0', role: 'assistant', occurrence: 0 },
-      { key: 'a1-part-1:0', messageId: 'a1', partId: 'a1-part-1', role: 'assistant', occurrence: 0 }
+      { type: 'text', key: 'a1-part-0:0', messageId: 'a1', partId: 'a1-part-0', role: 'assistant', occurrence: 0 },
+      { type: 'text', key: 'a1-part-1:0', messageId: 'a1', partId: 'a1-part-1', role: 'assistant', occurrence: 0 }
     ])
   })
 
@@ -105,7 +74,7 @@ describe('computeMessageSearchMatches', () => {
     }
 
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([
-      { key: 'a1-part-2:0', messageId: 'a1', partId: 'a1-part-2', role: 'assistant', occurrence: 0 }
+      { type: 'text', key: 'a1-part-2:0', messageId: 'a1', partId: 'a1-part-2', role: 'assistant', occurrence: 0 }
     ])
   })
 
@@ -118,21 +87,12 @@ describe('computeMessageSearchMatches', () => {
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([])
   })
 
-  it('counts rendered markdown occurrences rather than raw URLs', () => {
+  it('uses the existing plain-text Markdown utility for coarse matching', () => {
     const messages = [message('a1', 'assistant')]
     const parts = { a1: [textPart('[foo](https://foo.example)')] }
 
     expect(computeMessageSearchMatches(messages, parts, 'foo', DEFAULT_OPTIONS)).toHaveLength(1)
     expect(computeMessageSearchMatches(messages, parts, 'foo.example', DEFAULT_OPTIONS)).toEqual([])
-  })
-
-  it('does not report non-rendered GFM table delimiters or encoded entity names', () => {
-    const messages = [message('a1', 'assistant')]
-    const parts = { a1: [textPart('A &amp; B\n\n| alpha | beta |\n| --- | --- |')] }
-
-    expect(computeMessageSearchMatches(messages, parts, 'amp', DEFAULT_OPTIONS)).toEqual([])
-    expect(computeMessageSearchMatches(messages, parts, '---', DEFAULT_OPTIONS)).toEqual([])
-    expect(computeMessageSearchMatches(messages, parts, '&', DEFAULT_OPTIONS)).toHaveLength(1)
   })
 
   it('includes full user text only when requested and preserves plain-text rendering semantics', () => {
@@ -141,7 +101,7 @@ describe('computeMessageSearchMatches', () => {
 
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([])
     expect(computeMessageSearchMatches(messages, parts, 'apple', { ...DEFAULT_OPTIONS, includeUser: true })).toEqual([
-      { key: 'u1-part-0:0', messageId: 'u1', partId: 'u1-part-0', role: 'user', occurrence: 0 }
+      { type: 'text', key: 'u1-part-0:0', messageId: 'u1', partId: 'u1-part-0', role: 'user', occurrence: 0 }
     ])
   })
 
@@ -155,7 +115,45 @@ describe('computeMessageSearchMatches', () => {
     const parts = { a1: [nestedToolText, textPart('visible apple')] }
 
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([
-      { key: 'a1-part-1:0', messageId: 'a1', partId: 'a1-part-1', role: 'assistant', occurrence: 0 }
+      { type: 'text', key: 'a1-part-1:0', messageId: 'a1', partId: 'a1-part-1', role: 'assistant', occurrence: 0 }
+    ])
+  })
+
+  it('returns one component-level result for a multi-model group', () => {
+    const messages = [
+      { ...message('a1', 'assistant'), parentId: 'u1' },
+      { ...message('a2', 'assistant'), parentId: 'u1' }
+    ]
+    const parts = {
+      a1: [textPart('apple apple')],
+      a2: [textPart('another apple')]
+    }
+
+    expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([
+      {
+        type: 'message-group',
+        key: 'message-group:assistantu1',
+        messageId: 'a1',
+        role: 'assistant'
+      }
+    ])
+  })
+
+  it('excludes live message ids without removing completed history results', () => {
+    const history = message('a1', 'assistant')
+    const live = message('a2', 'assistant')
+    const parts = {
+      a1: [textPart('history apple')],
+      a2: [textPart('live apple')]
+    }
+
+    expect(
+      computeMessageSearchMatches([history, live], parts, 'apple', {
+        ...DEFAULT_OPTIONS,
+        excludedMessageIds: new Set([live.id])
+      })
+    ).toEqual([
+      { type: 'text', key: 'a1-part-0:0', messageId: 'a1', partId: 'a1-part-0', role: 'assistant', occurrence: 0 }
     ])
   })
 

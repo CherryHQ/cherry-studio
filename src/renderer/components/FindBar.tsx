@@ -27,7 +27,6 @@ export const INITIAL_FIND_BAR_STATE: FindBarState = {
 export interface FindBarRef {
   disable(): void
   enable(initialText?: string): void
-  focus(): void
 }
 
 interface Props {
@@ -88,7 +87,7 @@ export function FindBar({
     setFocusSequence((sequence) => sequence + 1)
   }, [])
 
-  useImperativeHandle(ref, () => ({ disable, enable, focus }), [disable, enable, focus])
+  useImperativeHandle(ref, () => ({ disable, enable }), [disable, enable])
 
   useEffect(() => {
     if (!state.enabled || focusSequence === 0) return

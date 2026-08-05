@@ -1072,14 +1072,14 @@ describe('useChatVirtualizerRuntime', () => {
     const range = document.createRange()
     range.selectNodeContents(text)
     const getRangeRect = vi.fn(() => ({
-      top: 290,
-      bottom: 310,
+      top: 90,
+      bottom: 110,
       left: 0,
       right: 100,
       width: 100,
       height: 20,
       x: 0,
-      y: 290
+      y: 90
     }))
     Object.defineProperty(range, 'getBoundingClientRect', {
       configurable: true,

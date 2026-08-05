@@ -1,6 +1,6 @@
-import { MESSAGE_SEARCH_EXCLUDED_ELEMENT_SELECTOR } from './messageSearchText'
-
 const MESSAGE_PART_SELECTOR = '[data-message-part-id]'
+const MESSAGE_SEARCH_EXCLUDED_ELEMENT_SELECTOR =
+  'button,[role="button"],[data-citation],[data-message-search-exclude],[aria-hidden="true"],[data-streamdown="code-block-header"],.code-block-header,.code-toolbar,script,style'
 
 function getRangeElement(range: Range): HTMLElement | null {
   const container = range.commonAncestorContainer

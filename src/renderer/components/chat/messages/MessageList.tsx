@@ -35,14 +35,9 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { defaultMessageRenderConfig, type MessageListItem } from './types'
+import { defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
-import {
-  getEffectiveMultiModelMessageStyle,
-  getPreferredMultiModelMessage,
-  isAssistantMultiModelGroup,
-  shouldUseWideLayoutForMessageGroup
-} from './utils/messageGroupLayout'
+import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
@@ -66,11 +61,6 @@ const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
 interface ActiveMessageOutline {
   messageId: string
   multiModelMessageStyle: MultiModelMessageStyle
-}
-
-interface MessageGroupSelectionTopology {
-  activeBranchMessageId?: string
-  messageIds: readonly string[]
 }
 
 type TopicImageRuntimeAction = 'copy' | 'export'
@@ -168,7 +158,6 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.narrowMode === next.narrowMode &&
     previous.railGutterPx === next.railGutterPx &&
     previous.messages === next.messages &&
-    previous.selectedMessageId === next.selectedMessageId &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
@@ -216,9 +205,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const isLoadingMoreRef = useRef(false)
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
-  const [selectedMessageIdsByGroup, setSelectedMessageIdsByGroup] = useState<Record<string, string>>({})
-  const groupSelectionTopologyRef = useRef<Map<string, MessageGroupSelectionTopology>>(new Map())
-  const persistedSelectedMessageIdsByGroupRef = useRef<Record<string, string>>({})
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
   const topicImageCaptureActionsRef = useRef<PendingTopicImageRuntimeAction[]>([])
 
@@ -245,7 +231,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
-  const isSearchBlockedByStreaming = useMemo(
+  const isSearchStreaming = useMemo(
     () => liveMessageIds.length > 0 || messages.some((message) => message.status === 'pending'),
     [liveMessageIds.length, messages]
   )
@@ -284,118 +270,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   )
   const messageListNarrowMode = renderConfig.narrowMode && !useWideMessageLayout
   const shouldTrackMessageOutline = renderConfig.showMessageOutline && !isMultiSelectMode
-  const getSelectedGroupMessage = useCallback(
-    (groupKey: string, groupMessages: MessageListItem[]) => {
-      const selectedMessageId = selectedMessageIdsByGroup[groupKey]
-      return (
-        groupMessages.find((message) => message.id === selectedMessageId) ??
-        getPreferredMultiModelMessage(groupMessages, getMessageUiState)
-      )
-    },
-    [getMessageUiState, selectedMessageIdsByGroup]
-  )
-  const updateSelectedGroupMessage = useCallback((groupKey: string, messageId: string) => {
-    setSelectedMessageIdsByGroup((current) =>
-      current[groupKey] === messageId ? current : { ...current, [groupKey]: messageId }
-    )
-  }, [])
-  useEffect(() => {
-    if (!enableSearch) {
-      groupSelectionTopologyRef.current = new Map()
-      setSelectedMessageIdsByGroup((current) => (Object.keys(current).length === 0 ? current : {}))
-      return
-    }
-
-    const previousTopology = groupSelectionTopologyRef.current
-    const nextTopology = new Map<string, MessageGroupSelectionTopology>()
-
-    setSelectedMessageIdsByGroup((current) => {
-      let next = current
-      const updateSelection = (groupKey: string, messageId: string) => {
-        if (next[groupKey] === messageId) return
-        if (next === current) next = { ...current }
-        next[groupKey] = messageId
-      }
-
-      for (const [groupKey, groupMessages] of groupedMessages) {
-        if (isMultiSelectMode || !isAssistantMultiModelGroup(groupMessages)) continue
-
-        const messageIds = groupMessages.map((message) => message.id)
-        const activeBranchMessageId = groupMessages.find((message) => message.isActiveBranch)?.id
-        const previous = previousTopology.get(groupKey)
-        nextTopology.set(groupKey, { activeBranchMessageId, messageIds })
-
-        const selectedMessageId = current[groupKey]
-        const hasSelectedMessage = groupMessages.some((message) => message.id === selectedMessageId)
-        const activeBranchChanged = previous && previous.activeBranchMessageId !== activeBranchMessageId
-        if (!selectedMessageId) {
-          const preferred = getPreferredMultiModelMessage(groupMessages, getMessageUiState)
-          if (preferred) updateSelection(groupKey, preferred.id)
-          continue
-        }
-        if (activeBranchChanged && activeBranchMessageId) {
-          updateSelection(groupKey, activeBranchMessageId)
-          continue
-        }
-        if (selectedMessageId && !hasSelectedMessage) {
-          const preferred = getPreferredMultiModelMessage(groupMessages, getMessageUiState)
-          if (preferred) updateSelection(groupKey, preferred.id)
-          continue
-        }
-        if (previous) {
-          const previousMessageIds = new Set(previous.messageIds)
-          const addedMessages = groupMessages.filter((message) => !previousMessageIds.has(message.id))
-          const preferredAddedMessage = getPreferredMultiModelMessage(addedMessages, getMessageUiState)
-          if (preferredAddedMessage) updateSelection(groupKey, preferredAddedMessage.id)
-        }
-      }
-
-      for (const groupKey of Object.keys(next)) {
-        if (nextTopology.has(groupKey)) continue
-        if (next === current) next = { ...current }
-        delete next[groupKey]
-      }
-
-      return next
-    })
-    groupSelectionTopologyRef.current = nextTopology
-  }, [enableSearch, getMessageUiState, groupedMessages, isMultiSelectMode])
-  useEffect(() => {
-    if (!enableSearch) return
-
-    const previous = persistedSelectedMessageIdsByGroupRef.current
-    for (const [groupKey, messageId] of Object.entries(selectedMessageIdsByGroup)) {
-      const previousMessageId = previous[groupKey]
-      if (previousMessageId === messageId) continue
-      if (previousMessageId) actions.updateMessageUiState?.(previousMessageId, { foldSelected: false })
-      actions.updateMessageUiState?.(messageId, { foldSelected: true })
-    }
-    persistedSelectedMessageIdsByGroupRef.current = selectedMessageIdsByGroup
-  }, [actions, enableSearch, selectedMessageIdsByGroup])
-  const searchableMessages = useMemo(() => {
-    if (!enableSearch || isSearchBlockedByStreaming) return []
-
-    return groupedMessages.flatMap(([key, groupMessages]) => {
-      if (isMultiSelectMode || !isAssistantMultiModelGroup(groupMessages)) return groupMessages
-
-      const style =
-        groupLayoutOverrides[key] ??
-        getEffectiveMultiModelMessageStyle(groupMessages, getMessageUiState, renderConfig.multiModelMessageStyle)
-      if (style !== 'fold') return groupMessages
-
-      const selectedMessage = getSelectedGroupMessage(key, groupMessages)
-      return selectedMessage ? [selectedMessage] : []
-    })
-  }, [
-    enableSearch,
-    getMessageUiState,
-    getSelectedGroupMessage,
-    groupLayoutOverrides,
-    groupedMessages,
-    isMultiSelectMode,
-    isSearchBlockedByStreaming,
-    renderConfig.multiModelMessageStyle
-  ])
 
   useEffect(() => {
     setForceWideLayout(useWideMessageLayout)
@@ -864,11 +738,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
           {beforeList}
         </NarrowLayout>
       )}
-      {enableSearch && !isSearchBlockedByStreaming && (
+      {enableSearch && (
         <MessageListSearch
-          messages={searchableMessages}
+          messages={messages}
           partsByMessageId={partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID}
           renderUserTextAsMarkdown={renderConfig.renderInputMessageAsMarkdown}
+          excludedMessageIds={liveMessageIdSet}
+          isStreaming={isSearchStreaming}
           locateMessage={scrollToMessageById}
           scrollToRange={scrollToRange}
           getOuterScroller={getOuterScroller}
@@ -897,8 +773,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
                 messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
                   ? messageTail
                   : undefined
-              const controlsGroupSelection =
-                enableSearch && !isMultiSelectMode && isAssistantMultiModelGroup(groupMessages)
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
@@ -908,10 +782,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
                 messages: groupMessages,
-                selectedMessageId: controlsGroupSelection ? getSelectedGroupMessage(key, groupMessages)?.id : undefined,
-                onSelectedMessageChange: controlsGroupSelection
-                  ? (messageId) => updateSelectedGroupMessage(key, messageId)
-                  : undefined,
                 partsByMessageId:
                   index < firstLiveGroupIndex && streamingLayers
                     ? streamingLayers.historyPartsByMessageId
@@ -954,11 +824,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
                 isLatestAssistantGroup={key === latestAssistantGroupKey}
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
-                selectedMessageId={
-                  enableSearch && isAssistantMultiModelGroup(groupMessages)
-                    ? getSelectedGroupMessage(key, groupMessages)?.id
-                    : undefined
-                }
                 partsByMessageId={partsByMessageId}
               />
             </NarrowLayout>

@@ -1,19 +1,15 @@
-/**
- * Pure data projection for virtualized message search.
- *
- * Search operates on the same result projection as MessagePartsRenderer. This
- * keeps process history, reasoning, tools, and hidden transport parts out of
- * the result set before any DOM navigation is attempted.
- */
+/** Coarse data matching for loaded messages outside the virtualized DOM. */
 import { findTextMatches } from '@renderer/utils/contentSearch'
+import { markdownToPlainText } from '@renderer/utils/markdown'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { type PartEntry, projectCompletedMessageParts } from '../blocks/messagePartLayouts'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import type { MessageListItem } from '../types'
-import { projectMarkdownSearchText } from './messageSearchText'
+import { groupMessageListItems } from '../utils/messageGroupKey'
+import { isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 
-export interface MessageSearchDocument {
+interface MessageSearchDocument {
   messageId: string
   partId: string
   role: MessageListItem['role']
@@ -21,7 +17,8 @@ export interface MessageSearchDocument {
   sourcePart: CherryMessagePart
 }
 
-export interface MessageSearchMatch {
+export interface MessageTextSearchMatch {
+  type: 'text'
   key: string
   messageId: string
   partId: string
@@ -30,11 +27,21 @@ export interface MessageSearchMatch {
   occurrence: number
 }
 
+export interface MessageGroupSearchMatch {
+  type: 'message-group'
+  key: string
+  messageId: string
+  role: 'assistant'
+}
+
+export type MessageSearchMatch = MessageTextSearchMatch | MessageGroupSearchMatch
+
 export interface MessageSearchOptions {
   caseSensitive: boolean
   wholeWord: boolean
   includeUser: boolean
   renderUserTextAsMarkdown: boolean
+  excludedMessageIds?: ReadonlySet<string>
 }
 
 interface CachedPartMatches {
@@ -52,19 +59,12 @@ interface CachedSearchText {
 const partMatchCache = new WeakMap<object, CachedPartMatches>()
 const searchTextCache = new WeakMap<object, CachedSearchText>()
 
-export { findTextMatches } from '@renderer/utils/contentSearch'
-
-export function toMessageSearchText(source: string, renderAsMarkdown = true): string {
-  if (!renderAsMarkdown) return source
-  return projectMarkdownSearchText(source)
-}
-
 function getPartSearchText(part: Extract<CherryMessagePart, { type: 'text' }>, renderAsMarkdown: boolean): string {
   const source = part.text ?? ''
   const cached = searchTextCache.get(part as object)
   if (cached?.source === source && cached.renderAsMarkdown === renderAsMarkdown) return cached.text
 
-  const text = toMessageSearchText(source, renderAsMarkdown)
+  const text = renderAsMarkdown ? markdownToPlainText(source) : source
   searchTextCache.set(part as object, { renderAsMarkdown, source, text })
   return text
 }
@@ -73,12 +73,13 @@ function getTopLevelPartEntries(parts: readonly CherryMessagePart[]): PartEntry[
   return parts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }]))
 }
 
-export function projectMessageSearchDocuments(
+function projectMessageSearchDocuments(
   messages: readonly MessageListItem[],
   partsByMessageId: Readonly<Record<string, CherryMessagePart[]>>,
   options: MessageSearchOptions
 ): MessageSearchDocument[] {
   return messages.flatMap((message) => {
+    if (options.excludedMessageIds?.has(message.id)) return []
     if (message.role !== 'assistant' && !(options.includeUser && message.role === 'user')) return []
     if (message.role === 'assistant' && message.status === 'pending') return []
 
@@ -125,14 +126,37 @@ export function computeMessageSearchMatches(
   const trimmed = searchText.trim()
   if (!trimmed) return []
 
-  return projectMessageSearchDocuments(messages, partsByMessageId, options).flatMap((document) => {
-    const count = getMatchCount(document, trimmed, options)
-    return Array.from({ length: count }, (_, occurrence) => ({
-      key: `${document.partId}:${occurrence}`,
-      messageId: document.messageId,
-      partId: document.partId,
-      role: document.role,
-      occurrence
-    }))
+  const groupedMessages = groupMessageListItems(messages as MessageListItem[])
+  return Object.entries(groupedMessages).flatMap(([groupKey, groupMessages]): MessageSearchMatch[] => {
+    const documents = projectMessageSearchDocuments(groupMessages, partsByMessageId, options)
+
+    // Multi-model replies are one visual component. Search their loaded data,
+    // but keep navigation at component granularity instead of selecting a model
+    // branch or trying to map hidden text to a DOM range.
+    if (isAssistantMultiModelGroup(groupMessages)) {
+      const matchedDocument = documents.find((document) => getMatchCount(document, trimmed, options) > 0)
+      return matchedDocument
+        ? [
+            {
+              type: 'message-group' as const,
+              key: `message-group:${groupKey}`,
+              messageId: matchedDocument.messageId,
+              role: 'assistant' as const
+            }
+          ]
+        : []
+    }
+
+    return documents.flatMap((document) => {
+      const count = getMatchCount(document, trimmed, options)
+      return Array.from({ length: count }, (_, occurrence) => ({
+        type: 'text' as const,
+        key: `${document.partId}:${occurrence}`,
+        messageId: document.messageId,
+        partId: document.partId,
+        role: document.role,
+        occurrence
+      }))
+    })
   })
 }
