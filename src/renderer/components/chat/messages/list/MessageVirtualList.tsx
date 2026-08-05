@@ -25,10 +25,6 @@ export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
 const KEYBOARD_ACTIVATION_SELECTOR = 'button,a,input,textarea,select,[role="button"]'
-// A nested scroller's scroll event counts as reading intent only when it
-// follows real input (pointer, key). Scroll events fired by layout or
-// streaming content must not flip the outer list out of following.
-const NESTED_SCROLL_INPUT_WINDOW_MS = 250
 
 function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): boolean {
   if (KEYBOARD_SCROLL_KEYS.has(event.key)) return true
@@ -48,6 +44,16 @@ function ownsVerticalWheel(element: HTMLElement, deltaY: number): boolean {
   // range, preserving their existing behavior.
   if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
   return deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < maxScrollTop
+}
+
+function isInsideNestedScroller(target: EventTarget | null, scroller: HTMLElement): boolean {
+  let element = target instanceof HTMLElement ? target : null
+  while (element && element !== scroller) {
+    const overflowY = getComputedStyle(element).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && element.scrollHeight > element.clientHeight) return true
+    element = element.parentElement
+  }
+  return false
 }
 
 function isWheelOwnedByNestedScroller(event: WheelEvent, scroller: HTMLElement): boolean {
@@ -166,31 +172,26 @@ export function MessageVirtualList<T>({
       // vertical intent — it must not take scroll ownership away.
       if (event.deltaY === 0) return
       if (isWheelOwnedByNestedScroller(event, scrollerElement)) {
-        takeUserControl('nested-scroll', event.target instanceof Element ? event.target : null)
         return
       }
       onWheel(event)
     }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
-  }, [onWheel, scrollerElement, takeUserControl])
+  }, [onWheel, scrollerElement])
 
-  // Only actual scrolling expresses viewport intent. Ordinary pointer and key
-  // interactions leave following unchanged; scrollbar drags and scroll keys
-  // merely seed intent for the resulting scroll event.
+  // Inner scrollers own their input independently. Only input aimed at the
+  // outer list seeds its single scroll runtime.
   const pointerDownInsideScrollerRef = useRef(false)
-  const lastLocalInputAtRef = useRef(0)
   useEffect(() => {
     if (!scrollerElement) return
     const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
-      pointerDownInsideScrollerRef.current = true
-      lastLocalInputAtRef.current = performance.now()
+      pointerDownInsideScrollerRef.current = !isInsideNestedScroller(event.target, scrollerElement)
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
     const onPointerMove = (event: PointerEvent) => {
       if (event.buttons !== 0 && pointerDownInsideScrollerRef.current) {
-        lastLocalInputAtRef.current = performance.now()
         markUserInput()
       }
     }
@@ -201,38 +202,24 @@ export function MessageVirtualList<T>({
       endScrollbarDrag()
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isInsideNestedScroller(event.target, scrollerElement)) return
       if (isKeyboardScrollIntent(event, scrollerElement)) {
-        lastLocalInputAtRef.current = performance.now()
         markUserInput()
       }
-    }
-    // Nested scrollers swallow their own scrollbar drags, scroll keys and touch
-    // pans — none of those reach the outer wheel/scroll handlers. Scroll events
-    // do not bubble, but the capture phase still sees them, so an input-driven
-    // nested scroll converts the outer list to reading like nested wheel does.
-    const onScrollCapture = (event: Event) => {
-      const target = event.target
-      if (!(target instanceof HTMLElement) || target === scrollerElement) return
-      if (!scrollerElement.contains(target)) return
-      if (target.scrollHeight <= target.clientHeight) return
-      if (performance.now() - lastLocalInputAtRef.current > NESTED_SCROLL_INPUT_WINDOW_MS) return
-      takeUserControl('nested-scroll', target)
     }
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
     scrollerElement.addEventListener('pointermove', onPointerMove, { passive: true })
     ownerDocument.addEventListener('pointerup', onPointerEnd, { passive: true })
     ownerDocument.addEventListener('pointercancel', onPointerEnd, { passive: true })
     scrollerElement.addEventListener('keydown', onKeyDown)
-    scrollerElement.addEventListener('scroll', onScrollCapture, { capture: true, passive: true })
     return () => {
       scrollerElement.removeEventListener('pointerdown', onPointerDown)
       scrollerElement.removeEventListener('pointermove', onPointerMove)
       ownerDocument.removeEventListener('pointerup', onPointerEnd)
       ownerDocument.removeEventListener('pointercancel', onPointerEnd)
       scrollerElement.removeEventListener('keydown', onKeyDown)
-      scrollerElement.removeEventListener('scroll', onScrollCapture, { capture: true })
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement, takeUserControl])
+  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom()

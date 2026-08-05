@@ -219,7 +219,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 50
     fireEvent.wheel(content, { deltaY: 40 })
     expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', content)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     region.scrollTop = 200
     fireEvent.wheel(content, { deltaY: 40 })
@@ -248,7 +248,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 200
     fireEvent.wheel(content, { deltaY: 40 })
     expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', content)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     scrollHeight = 100
     region.scrollTop = 0
@@ -256,7 +256,7 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
   })
 
-  it('converts input-driven nested scrolling into reading ownership', () => {
+  it('keeps nested scrollbar and keyboard scrolling independent from the outer runtime', () => {
     render(
       <MessageVirtualList
         items={['message-1']}
@@ -279,12 +279,15 @@ describe('MessageVirtualList', () => {
     fireEvent.scroll(region)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
-    // A nested scrollbar drag: the pointer press seeds intent, and the nested
-    // scroll it produces converts the outer list to reading — scroll does not
-    // bubble, so this rides the capture phase.
+    // Pointer drags and keyboard input owned by the nested scroller must not
+    // seed the outer runtime either.
     fireEvent.pointerDown(region)
+    fireEvent.pointerMove(region, { buttons: 1 })
     fireEvent.scroll(region)
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', region)
+    fireEvent.keyDown(region, { key: 'PageDown' })
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+    fireEvent.pointerUp(document)
 
     // The outer scroller's own scroll events stay with the runtime's handlers.
     runtimeMockState.takeUserControl.mockClear()

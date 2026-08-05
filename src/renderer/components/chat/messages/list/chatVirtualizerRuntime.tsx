@@ -345,6 +345,7 @@ export function useChatVirtualizerRuntime<T>({
       frozen.elementViewportTop != null &&
       frozen.element.isConnected &&
       content?.contains(frozen.element) &&
+      frozen.element.getClientRects().length > 0 &&
       elementItemKey === frozen.itemKey
     ) {
       const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top

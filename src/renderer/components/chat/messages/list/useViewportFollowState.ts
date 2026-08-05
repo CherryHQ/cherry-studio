@@ -2,13 +2,7 @@ import { useCallback, useMemo, useRef } from 'react'
 
 export type FollowingReason = 'restored-bottom' | 'scroll-to-bottom' | 'user-reached-bottom'
 
-export type ReadingReason =
-  | 'disclosure'
-  | 'initializing'
-  | 'nested-scroll'
-  | 'navigation'
-  | 'restored-anchor'
-  | 'user-scrolled-up'
+export type ReadingReason = 'disclosure' | 'initializing' | 'navigation' | 'restored-anchor' | 'user-scrolled-up'
 
 export type ViewportFollowState =
   | { readonly mode: 'following'; readonly reason: FollowingReason }

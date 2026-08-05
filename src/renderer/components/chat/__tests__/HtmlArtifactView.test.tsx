@@ -606,7 +606,7 @@ describe('HtmlArtifactView', () => {
     expect(scrollRoot.style.getPropertyValue('overscroll-behavior-y')).toBe('')
   })
 
-  it('replays wheels from inside the iframe onto the message scroller', () => {
+  it('replays boundary wheels from inside the iframe onto the message scroller', () => {
     const scrollerWheels: number[] = []
     const { container } = render(
       <div data-message-virtual-list-scroller onWheel={(event) => scrollerWheels.push(event.deltaY)}>
@@ -625,6 +625,31 @@ describe('HtmlArtifactView', () => {
     frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
 
     expect(scrollerWheels).toEqual([-120])
+  })
+
+  it('keeps wheels consumed by an iframe scroller independent from the message scroller', () => {
+    const scrollerWheels: number[] = []
+    render(
+      <div data-message-virtual-list-scroller onWheel={(event) => scrollerWheels.push(event.deltaY)}>
+        <HtmlArtifactView html="<main>Page</main>" title="Preview" />
+      </div>
+    )
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const region = frameDocument.createElement('div')
+    region.style.overflowY = 'auto'
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+    Object.defineProperty(region, 'scrollTop', { configurable: true, value: 50, writable: true })
+    frameDocument.body.append(region)
+
+    region.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true }))
+
+    expect(scrollerWheels).toEqual([])
   })
 
   it('delays iframe scrolling after hover and locks it again on mouse leave', () => {

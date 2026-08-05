@@ -122,10 +122,9 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
     }
     const canScroll = (element, deltaY, isRoot = false) => {
       if (!element || element.scrollHeight <= element.clientHeight + 1) return false
-      if (!isRoot) {
-        const overflowY = getComputedStyle(element).overflowY
-        if (!/(auto|scroll|overlay)/.test(overflowY)) return false
-      }
+      const style = getComputedStyle(element)
+      if (!isRoot && !/(auto|scroll|overlay)/.test(style.overflowY)) return false
+      if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
       if (deltaY < 0) return element.scrollTop > 0
       return element.scrollTop + element.clientHeight < element.scrollHeight - 1
     }
@@ -194,6 +193,35 @@ function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string):
   }
 }
 
+function canElementConsumeVerticalWheel(element: Element | null, deltaY: number, isRoot = false): boolean {
+  if (!element || element.scrollHeight <= element.clientHeight + 1) return false
+
+  const view = element.ownerDocument.defaultView
+  if (!view) return false
+
+  const style = view.getComputedStyle(element)
+  if (!isRoot && !/(auto|scroll|overlay)/.test(style.overflowY)) return false
+  if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
+  if (deltaY < 0) return element.scrollTop > 0
+  return element.scrollTop + element.clientHeight < element.scrollHeight - 1
+}
+
+function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
+  const targetNode = event.target as Node | null
+  let element =
+    targetNode?.nodeType === Node.ELEMENT_NODE ? (targetNode as Element) : (targetNode?.parentElement ?? null)
+  const frameDocument = element?.ownerDocument
+  if (!frameDocument) return false
+
+  while (element && element !== frameDocument.documentElement) {
+    if (canElementConsumeVerticalWheel(element, event.deltaY)) return true
+    element = element.parentElement
+  }
+
+  const root = frameDocument.scrollingElement ?? frameDocument.documentElement
+  return canElementConsumeVerticalWheel(root, event.deltaY, true)
+}
+
 function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
   try {
     const frameDocument = iframe.contentDocument
@@ -241,7 +269,7 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
 }
 
 /**
- * Replays a wheel that happened inside the preview onto the message list's scroller.
+ * Replays a boundary wheel from the preview onto the message list's scroller.
  *
  * A wheel inside the preview never reaches that scroller by itself: an iframe dispatches it in
  * its own document, and the webview is a separate process. The list stamps user scroll intent
@@ -249,8 +277,9 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
  * just produced as drift -- so on an already user-owned viewport it answers by re-asserting the
  * frozen scrollTop before the next paint (`chatVirtualizerRuntime.tsx`, the non-user-initiated
  * branch of `onScroll`). Every further wheel chains again and is undone again, which is the
- * jitter. This carries the intent only: the scroll itself still comes from native chaining
- * (iframe) or the explicit `scrollBy` below (webview), since a synthetic wheel scrolls nothing.
+ * jitter. Wheels that the embedded document can consume stay entirely inside it. This carries
+ * outer intent only: the scroll itself still comes from native chaining (iframe) or the explicit
+ * `scrollBy` below (webview), since a synthetic wheel scrolls nothing.
  */
 function replayWheelIntentOnScroller(viewport: HTMLElement, deltaY: number): void {
   const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
@@ -388,6 +417,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
         return
       }
 
+      if (isWheelConsumedByEmbeddedDocument(wheelEvent)) return
       replayWheelIntentOnScroller(viewport, wheelEvent.deltaY)
     }
 
