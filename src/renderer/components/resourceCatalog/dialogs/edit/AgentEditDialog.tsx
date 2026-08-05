@@ -62,7 +62,6 @@ import {
   FieldLabelWithHelp,
   KnowledgeBaseField,
   type ModelLabels,
-  PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
@@ -459,7 +458,7 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} portalContainer={dialogContentElement} />
+          <AgentPromptField form={form} />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
@@ -698,13 +697,7 @@ function HeartbeatSettingsField({
   )
 }
 
-function AgentPromptField({
-  form,
-  portalContainer
-}: {
-  form: UseFormReturn<AgentEditFormValues>
-  portalContainer: HTMLElement | null
-}) {
+function AgentPromptField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
@@ -721,13 +714,7 @@ function AgentPromptField({
 
         return (
           <PromptEditorField
-            label={
-              <FieldLabelWithHelp
-                label={t('library.config.agent.field.instructions.label')}
-                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} hidden />}
-                formLabel={false}
-              />
-            }
+            label={<FieldLabelWithHelp label={t('library.config.agent.field.instructions.label')} formLabel={false} />}
             value={field.value}
             onChange={field.onChange}
             placeholder={t('library.config.agent.field.instructions.placeholder')}
