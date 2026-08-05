@@ -61,6 +61,8 @@ function buildStdioEnvironment(
   serverEnv: Record<string, string>
 ): Record<string, string> {
   const env = { ...loginShellEnv, ...serverEnv }
+  if (process.platform !== 'win32') return env
+
   const serverPathKey = Object.keys(serverEnv)
     .filter((key) => key.toLowerCase() === 'path')
     .at(-1)
@@ -617,8 +619,8 @@ export class McpRuntimeService extends BaseService {
             const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
-              // The SDK prepends process.env.PATH before this object. Always use
-              // the same canonical key so our fresh shell PATH replaces it on Windows.
+              // On Windows the SDK prepends process.env.PATH before this object, so use
+              // one canonical key to ensure our fresh shell PATH replaces the stale value.
               env: buildStdioEnvironment(loginShellEnv, connectEnv),
               stderr: 'pipe'
             }

@@ -163,9 +163,11 @@ describe('McpRuntimeService stdio environment', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.stdioTransports.length = 0
+    shellEnvMock.getShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
   })
 
   it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const service = new McpRuntimeService()
     const server = {
       id: 'stdio-server',
@@ -181,6 +183,29 @@ describe('McpRuntimeService stdio environment', () => {
     const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
     expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
     expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
+    platformSpy.mockRestore()
+  })
+
+  it('preserves distinct PATH key casing on POSIX', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      env: { Path: 'server-metadata' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(transportEnv?.PATH).toBe('/shell/bin')
+    expect(transportEnv?.Path).toBe('server-metadata')
+    platformSpy.mockRestore()
   })
 })
 
