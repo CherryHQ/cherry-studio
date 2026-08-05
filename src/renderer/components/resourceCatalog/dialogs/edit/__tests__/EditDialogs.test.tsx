@@ -760,7 +760,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
-    await expectVariablesHelpOnOpen()
+    expect(screen.queryByRole('button', { name: 'System variables' })).not.toBeInTheDocument()
     expect(screen.getByText('Instructions')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
