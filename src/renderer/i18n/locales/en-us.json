@@ -1350,6 +1350,9 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "error": {
+      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again."
+    },
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -3867,6 +3870,7 @@
       "pasted_text": "Pasted Text"
     },
     "backup": {
+      "cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
       "failed": "Backup failed",
       "start": {
         "success": "Backup started"
@@ -6159,6 +6163,7 @@
         },
         "pathSelector": {
           "currentPath": "Current Path",
+          "fetchError": "Failed to load the Nutstore folder list",
           "return": "Return",
           "title": "Nutstore Storage Path"
         },
