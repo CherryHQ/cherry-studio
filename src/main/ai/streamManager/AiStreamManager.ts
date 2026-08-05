@@ -7,6 +7,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
+import { t } from '@main/i18n'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
@@ -160,6 +161,14 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
 
 function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
+}
+
+function incompleteToolApprovalReplayError(): SerializedError {
+  return {
+    name: 'StreamReplayError',
+    message: t('ai.stream.approval_replay_incomplete'),
+    stack: null
+  }
 }
 
 /**
@@ -1352,6 +1361,17 @@ export class AiStreamManager extends BaseService {
       return { status: 'error', error: firstError }
     }
 
+    const incompleteApprovals = [...stream.executions.values()]
+      .map((exec) => ({ modelId: exec.modelId, toolCallIds: this.findIncompleteApprovalToolCallIds(exec) }))
+      .filter(({ toolCallIds }) => toolCallIds.length > 0)
+    if (incompleteApprovals.length > 0) {
+      logger.error('attach: pending tool approval cannot be replayed from the surviving buffer', {
+        topicId: req.topicId,
+        executions: incompleteApprovals
+      })
+      return { status: 'error', error: incompleteToolApprovalReplayError() }
+    }
+
     // Reconnect: compact-replay each execution's buffer in isolation so
     // text-delta / reasoning-delta merging stays per-execution.
     const listener = new WebContentsListener(sender, req.topicId)
@@ -1434,6 +1454,30 @@ export class AiStreamManager extends BaseService {
     })
 
     return exec
+  }
+
+  private findIncompleteApprovalToolCallIds(exec: StreamExecution): string[] {
+    const pendingApprovalToolCallIds = exec.pendingApprovalToolCallIds
+    if (!pendingApprovalToolCallIds?.size) return []
+
+    const inputs = new Set<string>()
+    const complete = new Set<string>()
+    for (const { chunk } of exec.buffer) {
+      if (
+        (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') &&
+        pendingApprovalToolCallIds.has(chunk.toolCallId)
+      ) {
+        inputs.add(chunk.toolCallId)
+      } else if (
+        chunk.type === 'tool-approval-request' &&
+        pendingApprovalToolCallIds.has(chunk.toolCallId) &&
+        inputs.has(chunk.toolCallId)
+      ) {
+        complete.add(chunk.toolCallId)
+      }
+    }
+
+    return [...pendingApprovalToolCallIds].filter((toolCallId) => !complete.has(toolCallId))
   }
 
   private async runExecutionLoop(

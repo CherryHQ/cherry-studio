@@ -1010,6 +1010,87 @@ describe('AiStreamManager', () => {
       const late = new FakeListener('late:a')
       ringMgr.addListener('a', late)
       expect(late.chunks.map((c: any) => c.delta)).toEqual(['2', '3', '4'])
+
+      // Ordinary overflow without a pending approval remains attachable.
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      expect(ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' }).status).toBe('attached')
+    })
+
+    it('attaches when the surviving ring contains a complete pending approval', () => {
+      const approvalMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(approvalMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      for (let i = 0; i < 5; i++) {
+        approvalMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'call-1'
+      } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-delta',
+        'tool-input-available',
+        'tool-approval-request'
+      ])
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ delta: '4' })
+    })
+
+    it('returns an error when a pending approval cannot be replayed from the surviving ring', () => {
+      const approvalMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(approvalMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-missing',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      for (let i = 0; i < 2; i++) {
+        approvalMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-missing',
+        toolCallId: 'call-missing'
+      } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+
+      expect(response).toMatchObject({ status: 'error', error: { name: 'StreamReplayError' } })
+      expect(approvalMgr.inspect('a')!.executions[0].abortSignal.aborted).toBe(false)
+      expect(approvalMgr.inspect('a')!.listenerIds).toEqual(['l:a'])
     })
 
     it('stream remains accessible during grace period', async () => {

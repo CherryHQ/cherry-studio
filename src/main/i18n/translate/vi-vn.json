@@ -13,6 +13,11 @@
       }
     }
   },
+  "ai": {
+    "stream": {
+      "approval_replay_incomplete": "[to be translated]:This tool approval can no longer be displayed because the stream data is incomplete, possibly after the page closed or crashed. Please retry the request."
+    }
+  },
   "apiGateway": {
     "docs": {
       "description": "HTTP API của Cherry Studio tương thích với OpenAI, Anthropic và Gemini, cùng các endpoint riêng của Cherry (mô hình, cơ sở tri thức)",

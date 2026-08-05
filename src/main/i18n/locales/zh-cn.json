@@ -13,6 +13,11 @@
       }
     }
   },
+  "ai": {
+    "stream": {
+      "approval_replay_incomplete": "由于流数据不完整（可能是页面关闭或崩溃后重连导致），此工具审批已无法显示。请重新发送请求。"
+    }
+  },
   "apiGateway": {
     "docs": {
       "description": "与 OpenAI、Anthropic、Gemini 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
