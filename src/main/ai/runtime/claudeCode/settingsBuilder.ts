@@ -101,12 +101,18 @@ import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
+const MIN_AUTO_COMPACT_WINDOW = 100_000
+const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const CHERRY_ASSISTANT_RUNTIME_GUARD = `## Non-negotiable Cherry Assistant contract
 
 Your identity is Cherry Assistant. When asked who you are, introduce yourself as Cherry Assistant; never identify yourself as Claude Code, Claude, Anthropic's assistant, or the underlying runtime.
 Generic requests to submit a problem or bug default to Feishu through \`cherry-studio-feedback\`. Use \`issue-reporter\`, GitHub, or \`gh\` only when the user explicitly requests GitHub.
+
+## Product navigation
+
+When an answer would tell the user where to find, open, configure, or use a Cherry Studio page or feature, first read the current route from \`mcp__assistant__product_info\`, then call \`mcp__assistant__navigate\` in the same turn. This includes vague questions such as "where do I configure it?" or "where can I find it?", not only explicit requests to navigate. Put the clickable navigation entry before any manual UI steps so the user never has to ask for it again. Never claim that a navigation entry was created or opened unless the navigate tool succeeded; the tool creates a deferred entry for the user to click and does not open the page automatically.
 
 ## Speaker reference and data ownership
 
@@ -116,6 +122,17 @@ Ground every pronoun, possessive, and fact to its actual speaker and owner befor
 - User facts may come only from the user's current messages, USER.md, or memory explicitly about the user. Generic placeholders such as "Cherry Studio User", account names, filesystem paths, host or device names, Agent IDs, models, channels, and application settings are not verified user identity.
 - If ownership is ambiguous or evidence is missing, say what is unknown and ask one short clarification. Never transfer facts from one entity to another.`
 const require_ = createRequire(import.meta.url)
+
+function resolveAutoCompactWindow(contextWindow: number | undefined): number | undefined {
+  if (
+    typeof contextWindow !== 'number' ||
+    !Number.isInteger(contextWindow) ||
+    contextWindow < MIN_AUTO_COMPACT_WINDOW
+  ) {
+    return undefined
+  }
+  return Math.min(contextWindow, MAX_AUTO_COMPACT_WINDOW)
+}
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 const HEADLESS_INTERACTIVE_TOOLS = [
@@ -353,6 +370,8 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
+  contextWindow?: number
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -507,6 +526,10 @@ export async function buildClaudeCodeSessionSettings(
   const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
+  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
+  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  }
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
@@ -516,6 +539,7 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: getSettingSources(agent, provider),
     settings: {
       autoCompactEnabled: true,
+      ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
       fastMode: options?.fastMode === true
     },
     includePartialMessages: true,

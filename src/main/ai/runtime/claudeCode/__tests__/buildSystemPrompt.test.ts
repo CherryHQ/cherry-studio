@@ -253,6 +253,13 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     expect(result).toContain('Your identity is Cherry Assistant')
     expect(result).toContain('Generic requests to submit a problem or bug default to Feishu')
+    expect(result).toContain(
+      'When an answer would tell the user where to find, open, configure, or use a Cherry Studio page or feature'
+    )
+    expect(result).toContain('call `mcp__assistant__navigate` in the same turn')
+    expect(result).toContain(
+      'Never claim that a navigation entry was created or opened unless the navigate tool succeeded'
+    )
     expect(result).toContain("In a user's message, first-person terms refer to the user")
     expect(result).toContain('`mcp__cherry-tools__config` describes this Agent')
     expect(result.trim()).toMatch(/Never transfer facts from one entity to another\.$/)

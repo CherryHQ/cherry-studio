@@ -62,6 +62,8 @@ describe('Cherry Assistant guide', () => {
 
     expect(instructions).toContain('mcp__assistant__product_info')
     expect(agent.instructions['zh-CN']).toContain('不能仅因问题与 Cherry Studio 无关而拒答')
+    expect(guide).toContain('必须在同一轮调用 `mcp__assistant__navigate`')
+    expect(guide).toContain('不得声称已经生成入口或已经打开页面')
     expect(instructions).not.toMatch(/\/(?:app|settings)\//)
     expect(agent.accessible_paths).toEqual(['#{PROJECT_ROOT}'])
   })
