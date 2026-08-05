@@ -1108,6 +1108,52 @@ describe('ResourceList', () => {
     )
   })
 
+  it('allows section drops only when the group guards explicitly opt in', () => {
+    const onReorder = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        canDragGroup={(group) => group.id.startsWith('section:')}
+        canDropGroup={({ activeGroupId, overGroupId }) =>
+          activeGroupId.startsWith('section:') && overGroupId.startsWith('section:')
+        }
+        dragCapabilities={{ groups: true, items: false }}
+        groupBy={(item) => ({ id: `inner:${item.kind}`, label: item.kind })}
+        sectionBy={(item) => ({ id: `section:${item.kind}`, label: `${item.kind} section` })}
+        onReorder={onReorder}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(dndMocks.sortableData.has('group:section:session')).toBe(true)
+    expect(dndMocks.sortableData.has('group:section:topic')).toBe(true)
+    expect(dndMocks.sortableData.has('group:inner:session')).toBe(false)
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData('group:section:session'), id: 'group:section:session' },
+      over: { data: sortableData('group:section:topic'), id: 'group:section:topic' }
+    })
+
+    expect(onReorder).toHaveBeenCalledWith({
+      type: 'group',
+      activeGroupId: 'section:session',
+      overGroupId: 'section:topic',
+      overType: 'group',
+      sourceIndex: 0,
+      targetIndex: 2
+    })
+  })
+
   it('keeps grouped virtual items stable during drag over and reorders only on drop', () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>

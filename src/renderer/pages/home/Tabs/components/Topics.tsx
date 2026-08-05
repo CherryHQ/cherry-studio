@@ -11,6 +11,7 @@ import type {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
+  buildResourceListGroupDropAnchor,
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
@@ -37,7 +38,7 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -159,6 +160,13 @@ function resolveAssistantIdForTopicGroup(
   }
 
   return assistantId
+}
+
+function getAssistantGroupIdFromTopicSectionId(sectionId: string) {
+  if (!sectionId.startsWith(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX)) return null
+
+  const groupId = sectionId.slice(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX.length)
+  return groupId && groupId !== 'ungrouped' ? groupId : null
 }
 
 function AssistantGroupMoreMenu({
@@ -327,6 +335,7 @@ export function Topics({
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -1149,10 +1158,15 @@ export function Topics({
     (group: { id: string }) => {
       if (!isAssistantDisplayMode) return false
 
+      const assistantGroupId = getAssistantGroupIdFromTopicSectionId(group.id)
+      if (assistantGroupId) {
+        return isGroupGrouping && assistantGroupById.has(assistantGroupId)
+      }
+
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const canDropTopicGroup = useCallback(
@@ -1168,6 +1182,18 @@ export function Topics({
     }) => {
       if (!isAssistantDisplayMode) return false
 
+      const activeAssistantGroupId = getAssistantGroupIdFromTopicSectionId(activeGroupId)
+      const overAssistantGroupId = getAssistantGroupIdFromTopicSectionId(overGroupId)
+      if (activeAssistantGroupId || overAssistantGroupId) {
+        return (
+          isGroupGrouping &&
+          !!activeAssistantGroupId &&
+          !!overAssistantGroupId &&
+          assistantGroupById.has(activeAssistantGroupId) &&
+          assistantGroupById.has(overAssistantGroupId)
+        )
+      }
+
       const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
       const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
 
@@ -1179,7 +1205,7 @@ export function Topics({
 
       return !isGroupGrouping || (activeAssistant.groupId ?? null) === (overAssistant.groupId ?? null)
     },
-    [assistantById, isAssistantDisplayMode, isGroupGrouping]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const handleTopicReorder = useCallback(
@@ -1187,6 +1213,30 @@ export function Topics({
       if (!isAssistantDisplayMode) return
 
       if (payload.type === 'group') {
+        const activeGroupId = getAssistantGroupIdFromTopicSectionId(payload.activeGroupId)
+        const overGroupId = getAssistantGroupIdFromTopicSectionId(payload.overGroupId)
+
+        if (activeGroupId || overGroupId) {
+          if (
+            !isGroupGrouping ||
+            !activeGroupId ||
+            !overGroupId ||
+            !assistantGroupById.has(activeGroupId) ||
+            !assistantGroupById.has(overGroupId)
+          ) {
+            return
+          }
+
+          try {
+            await reorderAssistantGroup(activeGroupId, buildResourceListGroupDropAnchor(payload, overGroupId))
+          } catch (err) {
+            logger.error('Failed to reorder assistant group section', { activeGroupId, err, overGroupId })
+            toast.error(formatErrorMessageWithPrefix(err, t('assistants.reorder.error.failed')))
+          }
+
+          return
+        }
+
         const activeAssistantId = getAssistantIdFromTopicGroupId(payload.activeGroupId)
         const overAssistantId = getAssistantIdFromTopicGroupId(payload.overGroupId)
 
@@ -1257,7 +1307,18 @@ export function Topics({
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
       }
     },
-    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
+    [
+      assistantById,
+      assistantGroupById,
+      isAssistantDisplayMode,
+      isGroupGrouping,
+      moveTopic,
+      orderedAssistants,
+      refreshAssistants,
+      reorderAssistantGroup,
+      t,
+      topics
+    ]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
