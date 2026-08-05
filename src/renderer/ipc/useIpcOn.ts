@@ -21,6 +21,6 @@ export function useIpcOn<E extends IpcEventName>(event: E, handler: (payload: Ev
     return ipcApi.on(event, onEvent)
     // `onEvent` is an Effect Event — useEffectEvent returns a fresh reference every
     // render, so it MUST be excluded from deps; only `event` should re-subscribe.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [event])
 }

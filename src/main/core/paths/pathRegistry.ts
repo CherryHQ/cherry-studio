@@ -5,7 +5,7 @@
  * Default to `feature.*` for new keys; cherry/sys/app are effectively closed.
  *
  * **File constraint**: No object literals besides the registry itself — the
- * ESLint rule `data-schema-key/valid-key` validates every string-keyed property.
+ * Oxlint rule `cherry/valid-schema-key` validates every string-keyed property.
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
@@ -198,7 +198,7 @@ export function buildPathRegistry() {
 
     // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    // Nested ternary (not object literal) to satisfy file-level ESLint constraint
+    // Nested ternary (not object literal) to satisfy the file-level Oxlint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac

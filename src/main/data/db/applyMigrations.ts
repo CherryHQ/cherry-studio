@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 // The one sanctioned call site: this module is what wraps migrate() in the foreign-key
 // handling that the ban points every other caller to.
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+// oxlint-disable-next-line no-restricted-imports
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 
 import { loggerService } from '@logger'

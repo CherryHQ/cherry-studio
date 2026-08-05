@@ -534,8 +534,8 @@ export class CacheService extends BaseService {
    * - For template subscriptions, the third callback argument is the actual
    *   concrete key that changed; placeholder names are not used for matching.
    * - Concrete dynamic segments must satisfy `[A-Za-z0-9_\-]+` — this mirrors
-   *   the cache key naming convention enforced by ESLint rule
-   *   `data-schema-key/valid-key`.
+   *   the cache key naming convention enforced by Oxlint rule
+   *   `cherry/valid-schema-key`.
    *
    * @returns unsubscribe function (compatible with `registerDisposable`)
    */

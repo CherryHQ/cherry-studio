@@ -204,7 +204,7 @@ const MessageGroup = ({
     return () => {
       document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [messages, selectedIndex, isGrouped, messageLength, captureMode])
 
   useEffect(() => {

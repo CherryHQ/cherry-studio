@@ -60,7 +60,7 @@ const AiDiagnosisSectionWithStatus = memo(
       if (status === 'loading' && !cachedDiagnosis) {
         void runDiagnosis()
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on mount
+      // oxlint-disable-next-line react/exhaustive-deps -- only run on mount
     }, [])
 
     const runDiagnosis = useCallback(async () => {

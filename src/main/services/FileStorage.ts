@@ -20,7 +20,7 @@ import WordExtractor from 'word-extractor'
  * functionality through `FileManager` instead. Existing consumers should be
  * migrated off this module as part of the ongoing migration.
  */
-/* eslint-disable filepath-brand/no-as-filepath -- v1 raw-path regime: every
+/* oxlint-disable cherry/no-as-filepath -- v1 raw-path regime: every
  * public method here takes a bare `string` path straight from legacy IPC or an
  * Electron dialog, with no validation layer of its own. Introducing
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is

@@ -28,6 +28,7 @@ function getWebHostname(href?: string): string {
 }
 
 function hasFaviconChild(children: React.ReactNode): boolean {
+  // oxlint-disable-next-line react/no-react-children -- rendered citation children must be inspected by element type.
   return React.Children.toArray(children).some((child) => React.isValidElement(child) && child.type === Favicon)
 }
 

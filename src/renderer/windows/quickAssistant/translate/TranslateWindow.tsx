@@ -38,7 +38,7 @@ const Translate: FC<Props> = ({ text }) => {
     translateCurrentText()
     // `translateCurrentText` is an Effect Event that reads the latest request functions.
     // Only primitive request inputs should start or replace a translation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [text, targetLanguage, translateModel?.id])
 
   useHotkeys('c', () => {

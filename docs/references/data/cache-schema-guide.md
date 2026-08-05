@@ -15,7 +15,7 @@ Complex value types go in `src/shared/data/cache/cacheValueTypes.ts` and are imp
 
 ## Naming Convention
 
-Enforced by ESLint rule `data-schema-key/valid-key`. Pattern: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`.
+Enforced by Oxlint rule `cherry/valid-schema-key`. Pattern: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`.
 
 | Valid                                 | Invalid                          | Why                         |
 | ------------------------------------- | -------------------------------- | --------------------------- |
@@ -104,7 +104,7 @@ The placeholder name is documentation-only. `${topicId}` and `${id}` compile to 
 
 | Check                        | Command / location                                     |
 | ---------------------------- | ------------------------------------------------------ |
-| ESLint naming rule           | `pnpm lint` (rule: `data-schema-key/valid-key`)        |
+| Oxlint naming rule           | `pnpm lint` (rule: `cherry/valid-schema-key`)          |
 | Template matching unit tests | `src/shared/data/cache/__tests__/templateKey.test.ts` |
 | Schema exhaustiveness        | TypeScript compiler — default map must satisfy the schema type |
 

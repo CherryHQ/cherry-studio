@@ -96,7 +96,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       scrollElement.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', checkScrollability)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, dependencies)
 
   return (

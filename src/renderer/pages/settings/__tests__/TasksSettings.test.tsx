@@ -492,7 +492,7 @@ vi.mock('@cherrystudio/ui', () => {
     DropdownMenuTrigger: ({ children }: { asChild?: boolean; children?: React.ReactNode }) => {
       const context = React.use(DropdownContext)
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger behavior
+        // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild trigger behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)
@@ -566,7 +566,7 @@ vi.mock('@cherrystudio/ui', () => {
     InputGroupText: passthrough('span'),
     Item: ({ asChild, children }: { asChild?: boolean; children?: React.ReactNode; size?: string }) => {
       if (asChild && React.isValidElement(children)) {
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces the public Item asChild contract
+        // oxlint-disable-next-line react/no-clone-element -- mock reproduces the public Item asChild contract
         return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
           'data-slot': 'item'
         })

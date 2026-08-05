@@ -1,4 +1,3 @@
-/* eslint-disable @eslint-react/naming-convention/context-name */
 import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

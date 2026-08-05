@@ -482,7 +482,7 @@ function useCacheKeysSelector<Values, Selection>(
   const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
   const stableKeys = useMemo<readonly string[]>(
     () => [...keys],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
+    // oxlint-disable-next-line react/exhaustive-deps -- keysDep is the content identity of `keys`
     [keysDep]
   )
 

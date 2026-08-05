@@ -1,4 +1,3 @@
-/* oxlint-disable @typescript-eslint/no-empty-function */
 import { vi } from 'vitest'
 
 /**

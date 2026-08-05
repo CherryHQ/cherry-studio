@@ -438,8 +438,8 @@ immediately obvious which kinds each IPC method supports, which aids auditing.
 **Boundary enforcement**: the `src/main/services/file/index.ts` barrel does not
 re-export general `internal/` implementation. `dispatchHandle` is the temporary
 documented exception while legacy handlers remain; path-arm operations are
-implemented in `utils/*` and re-exported through the barrel. ESLint's
-`barrel/closed` rule rejects deep imports.
+implemented in `utils/*` and re-exported through the barrel. Oxlint's
+`cherry/barrel-closed` rule rejects deep imports.
 
 #### 1.6.7 Design Trade-offs
 

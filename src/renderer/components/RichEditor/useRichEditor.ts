@@ -259,7 +259,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           showTableActionMenu('column', colIndex, position)
         }
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
   )
 

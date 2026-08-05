@@ -908,7 +908,7 @@ const ChatComposerInner = ({
     }
 
     restoreEditableMessageDraft(editingMessageForCurrentTopic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
   }, [
     actionsRef,
     editingMessageForCurrentTopic,

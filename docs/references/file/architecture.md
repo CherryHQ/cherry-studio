@@ -147,7 +147,7 @@ The file module has **two top-level primitives** — `FileManager` and `Director
 | `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
 | `internal/*` | **File module implementation only** | FileManager owns most imports. Temporary exception: File IPC adapters may import `internal/dispatch.ts` while legacy FileManager IPC handlers still exist. Move `dispatchHandle` to the IPC adapter layer once FileManager no longer registers any IPC handlers. Do not make `internal/*` a general business-service surface. |
 
-Boundary enforcement: `src/main/services/file/index.ts` re-exports only reviewed public helpers. General `internal/*` and `utils/*` implementation remains unreachable through `@main/services/file`; ESLint's `barrel/closed` rule rejects deep imports.
+Boundary enforcement: `src/main/services/file/index.ts` re-exports only reviewed public helpers. General `internal/*` and `utils/*` implementation remains unreachable through `@main/services/file`; Oxlint's `cherry/barrel-closed` rule rejects deep imports.
 
 ### 1.3 Out of Scope
 
