@@ -5,7 +5,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockPrefetch } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -826,19 +826,22 @@ describe('AgentPage', () => {
     expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
   })
 
-  it('warms the visible agent model from the agent list', () => {
+  it('warms the visible agent model and provider from the agent list in the active tab', async () => {
+    agentPageMocks.isActiveTab = true
     agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-a::model-a', name: 'Agent A' }]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
 
-    // AgentChat is mocked in this suite, so the enabled model query can only come from AgentPage's list hint.
-    expect(
-      mockUseQuery.mock.calls.some(
-        ([path, options]) => path === '/models/provider-a::model-a' && options?.enabled !== false
-      )
-    ).toBe(true)
+    await waitFor(() => {
+      expect(mockPrefetch).toHaveBeenCalledWith('/models/:uniqueModelId*', {
+        params: { uniqueModelId: 'provider-a::model-a' }
+      })
+      expect(mockPrefetch).toHaveBeenCalledWith('/providers/:providerId', {
+        params: { providerId: 'provider-a' }
+      })
+    })
   })
 
   it('shows both agent and session panes by default when sessions are on the right', () => {
