@@ -864,7 +864,7 @@ const AgentPage = () => {
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
   useEffect(() => {
-    if (initialEmptySessionEvaluatedRef.current) {
+    if (initialEmptySessionEvaluatedRef.current && !isEntrySessionMissing) {
       return
     }
 

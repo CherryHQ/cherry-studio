@@ -626,7 +626,11 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
+    if (
+      !shouldAutoCreateTopic ||
+      (!isEntryTopicMissing && (initialTopicStartStateRef.current.firstLaunchStarted || state?.topic))
+    )
+      return
     if (activeTopic || isActiveTopicLoading) return
     // A bound target with a non-NOT_FOUND error keeps its identity while DataApi/SWR retries. Only a
     // confirmed missing target may fall through to latest/create recovery.

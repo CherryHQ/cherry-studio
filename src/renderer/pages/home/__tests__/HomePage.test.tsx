@@ -1313,6 +1313,39 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('recovers when a mounted tab is rebound from a resolved topic to a deleted topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.currentTab = { id: 'home' }
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-a' }
+
+    const { rerender } = render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
+
+    homeMocks.currentTab = {
+      id: 'home',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-deleted' }
+    }
+    homeMocks.activeTopicLoading = true
+    homeMocks.forceActiveTopicUndefined = true
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-deleted'))
+
+    homeMocks.activeTopicLoading = false
+    homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', 'topic-deleted')
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest' }
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.activeTopicOverride?.id).toBe('topic-latest'))
+    homeMocks.forceActiveTopicUndefined = false
+    rerender(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest')
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('keeps a bound topic on non-NOT_FOUND DataApi errors', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')

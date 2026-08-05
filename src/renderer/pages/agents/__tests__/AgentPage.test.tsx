@@ -1451,6 +1451,34 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
+  it('recovers when a mounted tab is rebound from a resolved session to a deleted session', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.currentTab = { metadata: { instanceAppId: 'agents', instanceKey: 'session-a' } }
+    agentPageMocks.latestSessionOverride = { ...agentPageMocks.persistedSession, id: 'session-latest' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-a'))
+
+    agentPageMocks.currentTab = { metadata: { instanceAppId: 'agents', instanceKey: 'session-deleted' } }
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.isLoading = true
+    rerender(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-deleted'))
+
+    activeSessionMocks.isLoading = false
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-deleted')
+    rerender(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
   it('keeps a bound session on non-NOT_FOUND DataApi errors', () => {
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.routeSearch = {}
