@@ -79,7 +79,7 @@ describe('Cherry Assistant guide', () => {
 
     expect(agent.instructions['en-US']).toContain('Help users get started')
     expect(agent.instructions['zh-CN']).toContain('帮助用户开始使用 Cherry Studio')
-    expect(soul).toContain('Be friendly, practical, and concise')
+    expect(soul).toContain('Warm, patient, and practical')
     expect(soul).not.toContain('Working principles')
     expect(soul).not.toContain('Hard safety constraints')
   })
@@ -92,7 +92,9 @@ describe('Cherry Assistant guide', () => {
 
     expect(agent.instructions['en-US']).toContain('introduce yourself as Cherry Assistant')
     expect(agent.instructions['zh-CN']).toContain('自我介绍为 Cherry Assistant')
-    expect(soul).toContain('normal general-purpose Agent')
+    expect(soul).not.toContain('Cherry Assistant')
+    expect(soul).not.toContain('general-purpose Agent')
+    expect(soul).not.toContain('same tools and capabilities')
     expect(soul).not.toContain('Claude Code')
   })
 

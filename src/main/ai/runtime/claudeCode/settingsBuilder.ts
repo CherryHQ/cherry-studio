@@ -493,6 +493,10 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
+      // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
+      // Disable Claude Code's separate auto-memory store so the preset does not introduce a
+      // second, conflicting memory contract.
+      autoMemoryEnabled: false,
       ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
       fastMode: options?.fastMode === true
     },
@@ -1369,13 +1373,6 @@ export async function buildSystemPrompt(
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
-  const workspaceBlock = [
-    '## Current Workspace',
-    `Current working directory: ${JSON.stringify(cwd)}`,
-    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
-  ].join('\n')
-  const workspaceContextBlock = `\n\n${workspaceBlock}`
-
   // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
@@ -1386,11 +1383,25 @@ export async function buildSystemPrompt(
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return {
-    type: 'preset',
-    preset: 'claude_code',
-    append: `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  // The Claude Code preset already owns its dynamic cwd/git context. Only a full custom
+  // system.md replacement needs Cherry to restore the workspace contract explicitly.
+  const workspaceContextBlock =
+    soulPrompt.base === 'custom'
+      ? `\n\n${[
+          '## Current Workspace',
+          `Current working directory: ${JSON.stringify(cwd)}`,
+          'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+        ].join('\n')}`
+      : ''
+  const cherryContext = `${soulPrompt.content}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+
+  // No workspace system.md: keep the Claude Code SDK's default system prompt (the source of the
+  // agent's full default capabilities) and append the Cherry-owned context. An explicit system.md
+  // is a deliberate full replacement, so pass the composed string straight through.
+  if (soulPrompt.base === 'preset') {
+    return { type: 'preset', preset: 'claude_code', append: cherryContext }
   }
+  return cherryContext
 }
 
 export function buildMcpServers(

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -28,6 +29,7 @@ const TEMPLATE_AGENT_JSON = JSON.stringify({
   configuration: { permission_mode: 'default' },
   skills: ['cherry-assistant-guide']
 })
+const RC5_STOCK_SOUL_PATH = fileURLToPath(new URL('./fixtures/cherry-assistant-rc5-soul.md', import.meta.url))
 
 function writeFile(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -127,6 +129,25 @@ describe('BuiltinAgentProvisioner', () => {
 
     expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
     expect(fs.readFileSync(path.join(agentDataPath, 'USER.md'), 'utf-8')).toBe('TEMPLATE_USER')
+  })
+
+  it('migrates the exact restrictive SOUL.md bundled in v2.0.0-rc.5', async () => {
+    writeFile(path.join(agentDataPath, 'SOUL.md'), fs.readFileSync(RC5_STOCK_SOUL_PATH, 'utf-8'))
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
+  })
+
+  it('preserves a user edit made to the legacy bundled SOUL.md', async () => {
+    const stockSoul = fs.readFileSync(RC5_STOCK_SOUL_PATH, 'utf-8')
+    const customizedSoul = stockSoul.replace('warm, patient', 'warm, direct ')
+    expect(Buffer.byteLength(customizedSoul)).toBe(Buffer.byteLength(stockSoul))
+    writeFile(path.join(agentDataPath, 'SOUL.md'), customizedSoul)
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe(customizedSoul)
   })
 
   it('initializes missing memory templates after the agent data directory creates memory', async () => {

@@ -34,7 +34,7 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT')
+  mockBuildPrompt: vi.fn().mockResolvedValue({ base: 'preset', content: 'SOUL_PROMPT' })
 }))
 
 vi.mock('@logger', () => ({
@@ -96,11 +96,6 @@ const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
 const WORKSPACE_MARKER = '## Current Workspace'
 
-function getPresetAppend(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
-  expect(prompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
-  return (prompt as { append: string }).append
-}
-
 beforeEach(() => {
   vi.unstubAllGlobals()
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
@@ -108,7 +103,7 @@ beforeEach(() => {
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
-  mockBuildPrompt.mockClear()
+  mockBuildPrompt.mockReset().mockResolvedValue({ base: 'preset', content: 'SOUL_PROMPT' })
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -120,8 +115,19 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return { id: 'agent-1', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
 }
 
+function promptText(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
+  if (typeof prompt === 'string') return prompt
+  if (Array.isArray(prompt)) return prompt.join('\n')
+  return prompt?.append ?? ''
+}
+
+function expectClaudeCodePreset(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
+  expect(prompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+  return promptText(prompt)
+}
+
 describe('buildSystemPrompt — current workspace', () => {
-  it('loads prompt identity and memory from agent data while keeping workspace context on cwd', async () => {
+  it('loads prompt identity and memory from agent data while leaving cwd context to the preset', async () => {
     const result = await buildSystemPrompt(
       makeSession(),
       makeAgent(),
@@ -136,20 +142,20 @@ describe('buildSystemPrompt — current workspace', () => {
       false,
       '/data/Agents/agent-1'
     )
-    expect(getPresetAppend(result)).toContain('"/workspace/project-a"')
+    expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
+    expect(promptText(result)).not.toContain(WORKSPACE_MARKER)
+    expect(promptText(result)).not.toContain('"/workspace/project-a"')
   })
 
-  it('injects the current workspace and default path resolution for regular agents', async () => {
+  it('does not duplicate the preset-owned workspace context for regular agents', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
 
-    const append = getPresetAppend(result)
-    expect(append).toContain(WORKSPACE_MARKER)
-    expect(append).toContain('"/workspace/project-a"')
-    expect(append).toContain('resolve unspecified or relative paths against it')
-    expect(append).not.toContain('Work outside it only when the user explicitly asks')
+    const text = expectClaudeCodePreset(result)
+    expect(text).not.toContain(WORKSPACE_MARKER)
+    expect(text).not.toContain('"/workspace/project-a"')
   })
 
-  it('injects the current workspace for the built-in assistant path', async () => {
+  it('does not duplicate the preset-owned workspace context for the built-in assistant', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
       configuration: { builtin_role: 'assistant' } as never
@@ -157,22 +163,36 @@ describe('buildSystemPrompt — current workspace', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
 
-    expect(result as string).toContain(WORKSPACE_MARKER)
-    expect(result as string).toContain('"/workspace/assistant"')
+    expect(promptText(result)).not.toContain(WORKSPACE_MARKER)
+    expect(promptText(result)).not.toContain('"/workspace/assistant"')
   })
 
-  it('resolves the workspace dynamically on every prompt build', async () => {
+  it('resolves the workspace dynamically for every custom system.md build', async () => {
     const agent = makeAgent()
+    mockBuildPrompt.mockResolvedValue({ base: 'custom', content: 'CUSTOM SYSTEM PROMPT' })
 
     const first = await buildSystemPrompt(makeSession(), agent, '/workspace/project-a')
     const second = await buildSystemPrompt(makeSession(), agent, '/workspace/project-b')
 
-    const firstAppend = getPresetAppend(first)
-    const secondAppend = getPresetAppend(second)
-    expect(firstAppend).toContain('"/workspace/project-a"')
-    expect(firstAppend).not.toContain('"/workspace/project-b"')
-    expect(secondAppend).toContain('"/workspace/project-b"')
-    expect(secondAppend).not.toContain('"/workspace/project-a"')
+    expect(first).toContain('"/workspace/project-a"')
+    expect(first).not.toContain('"/workspace/project-b"')
+    expect(second).toContain('"/workspace/project-b"')
+    expect(second).not.toContain('"/workspace/project-a"')
+  })
+
+  it('keeps an explicit workspace system.md as a full custom replacement', async () => {
+    mockBuildPrompt.mockResolvedValueOnce({ base: 'custom', content: 'CUSTOM SYSTEM PROMPT' })
+
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({ instructions: 'Agent instructions.' }),
+      '/tmp/cwd'
+    )
+
+    expect(typeof result).toBe('string')
+    expect(result).toContain('CUSTOM SYSTEM PROMPT')
+    expect(result).toContain('Agent instructions.')
+    expect(result).toContain(WORKSPACE_MARKER)
   })
 })
 
@@ -183,15 +203,15 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
 
   it('appends the report_artifacts prompt to the Claude Code preset with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    const append = getPresetAppend(result)
-    expect(append).toContain('SOUL_PROMPT')
-    expect(append).toContain('Do the task.')
-    expect(append).toContain(ARTIFACTS_MARKER)
+    const text = expectClaudeCodePreset(result)
+    expect(text).toContain('SOUL_PROMPT')
+    expect(text).toContain('Do the task.')
+    expect(text).toContain(ARTIFACTS_MARKER)
   })
 
   it('appends the report_artifacts prompt without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    expect(getPresetAppend(result)).toContain(ARTIFACTS_MARKER)
+    expect(expectClaudeCodePreset(result)).toContain(ARTIFACTS_MARKER)
   })
 
   it('appends it for the Cherry Assistant like every other Agent', async () => {
@@ -200,7 +220,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
+    expect(promptText(result)).toContain(ARTIFACTS_MARKER)
   })
 })
 
@@ -211,20 +231,19 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
 
   it('steers the agent to bun/uv with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    const append = getPresetAppend(result)
-    expect(append).toContain(RUNTIME_MARKER)
+    expect(promptText(result)).toContain(RUNTIME_MARKER)
     // The model is told to use bun / uv explicitly, not node/npm/pip.
-    expect(append).toContain('bun')
-    expect(append).toContain('uv run python')
+    expect(promptText(result)).toContain('bun')
+    expect(promptText(result)).toContain('uv run python')
   })
 
   it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    expect(getPresetAppend(result)).toContain(RUNTIME_MARKER)
+    expect(promptText(result)).toContain(RUNTIME_MARKER)
   })
 
   it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
-    const result = getPresetAppend(await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd'))
+    const result = promptText(await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd'))
 
     expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
     expect(result).toContain('Install reusable CLIs only with `cli_install`')
@@ -240,7 +259,7 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    expect(result as string).toContain(RUNTIME_MARKER)
+    expect(promptText(result)).toContain(RUNTIME_MARKER)
   })
 })
 
@@ -255,7 +274,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
 
-    const result = (await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')) as string
+    const result = promptText(await buildSystemPrompt(makeSession(), agent, '/tmp/cwd'))
 
     expect(result).toContain('SOUL_PROMPT')
     expect(result).toContain('Assistant instructions.')
@@ -273,8 +292,8 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(en as string).toContain('English bundled instructions')
-    expect(zh as string).toContain('中文内置指令')
+    expect(promptText(en)).toContain('English bundled instructions')
+    expect(promptText(zh)).toContain('中文内置指令')
     expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
   })
 
@@ -319,7 +338,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant', false, '/data/Agents/agent-1')
 
-    expect(result as string).toContain('SOUL_PROMPT')
+    expect(promptText(result)).toContain('SOUL_PROMPT')
     expect(mockBuildPrompt).toHaveBeenCalledWith(
       '/workspace/assistant',
       expect.anything(),
@@ -353,8 +372,8 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(result as string).toContain('User instructions')
-    expect(result as string).not.toContain('Bundled instructions')
+    expect(promptText(result)).toContain('User instructions')
+    expect(promptText(result)).not.toContain('Bundled instructions')
     expect(mockLoadBuiltinAgentDefinition).not.toHaveBeenCalled()
   })
 
@@ -364,7 +383,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(result as string).toContain("You are Cherry Assistant, Cherry Studio's built-in onboarding agent")
+    expect(promptText(result)).toContain("You are Cherry Assistant, Cherry Studio's built-in onboarding agent")
   })
 
   it('applies the external channel security policy for linked assistant sessions', async () => {
@@ -376,7 +395,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(result as string).toContain(CHANNEL_SECURITY_PROMPT)
+    expect(promptText(result)).toContain(CHANNEL_SECURITY_PROMPT)
   })
 
   it('does not apply the external channel security policy for unlinked assistant sessions', async () => {
@@ -387,6 +406,17 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(result as string).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(promptText(result)).not.toContain(CHANNEL_SECURITY_PROMPT)
+  })
+
+  it('injects the bundled Assistant role exactly once', async () => {
+    const role = "You are Cherry Studio's built-in onboarding Agent."
+    mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: role })
+    mockBuildPrompt.mockResolvedValue({ base: 'preset', content: '## Personality\n\nFriendly and concise.' })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(promptText(result).split(role)).toHaveLength(2)
   })
 })

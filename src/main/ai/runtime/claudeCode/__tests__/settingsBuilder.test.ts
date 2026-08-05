@@ -205,9 +205,14 @@ const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSe
   '../settingsBuilder'
 )
 
-function getPresetAppend(systemPrompt: unknown): string {
-  expect(systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
-  return (systemPrompt as { append: string }).append
+function systemPromptText(systemPrompt: unknown): string {
+  if (typeof systemPrompt === 'string') return systemPrompt
+  if (Array.isArray(systemPrompt)) return systemPrompt.join('\n')
+  if (systemPrompt && typeof systemPrompt === 'object' && 'append' in systemPrompt) {
+    const append = (systemPrompt as { append?: unknown }).append
+    return typeof append === 'string' ? append : ''
+  }
+  return ''
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
@@ -272,7 +277,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
-    mocks.buildPrompt.mockResolvedValue('soul prompt')
+    mocks.buildPrompt.mockResolvedValue({ base: 'preset', content: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
@@ -334,8 +339,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       true,
       '/app/feature.agents.data/agent-1'
     )
-    expect(getPresetAppend(settings.systemPrompt)).toContain('"/workspace/project"')
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, fastMode: true })
+    expect(settings.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Workspace')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
   })
@@ -908,7 +914,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    const systemPrompt = getPresetAppend(settings.systemPrompt)
+    const systemPrompt = systemPromptText(settings.systemPrompt)
     expect(systemPrompt).toContain('## Citations')
     expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
     expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
@@ -932,7 +938,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
@@ -957,7 +963,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       knowledgeBaseIds: ['kb-selected']
     })
 
-    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
@@ -978,7 +984,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
@@ -1001,7 +1007,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
-    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
@@ -1546,7 +1552,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
     )
-    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('exposes CLI management tools to a normal Agent session', async () => {
@@ -1592,7 +1598,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(systemPromptText(settings.systemPrompt)).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -1790,8 +1796,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt as string).not.toContain('## Current Environment')
-    expect(settings.systemPrompt as string).not.toContain('proxy.example')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Environment')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('proxy.example')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

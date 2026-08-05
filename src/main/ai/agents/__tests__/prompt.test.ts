@@ -104,12 +104,15 @@ describe('PromptBuilder', () => {
     vi.clearAllMocks()
   })
 
-  it('returns default basic prompt when no workspace files exist', async () => {
+  it('uses the SDK preset base and emits no identity preamble when no workspace files exist', async () => {
     setupFiles({})
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { base, content: result } = await builder.buildSystemPrompt('/workspace')
 
-    expect(result).toContain('You are a personal assistant running inside Cherry Studio')
+    // No system.md → keep the Claude Code preset as the base and append Cherry content;
+    // the old embedded "personal assistant" preamble must be gone.
+    expect(base).toBe('preset')
+    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
     expect(result).toContain('`/workspace/SOUL.md`')
   })
@@ -117,7 +120,7 @@ describe('PromptBuilder', () => {
   it('no longer embeds the always-injected tool-usage handbook (now a lazy builtin skill)', async () => {
     setupFiles({})
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     // The autonomy / memory-handbook / web-search handbook headings and their
     // tool-strategy text ship lazily via the `cherry-tool-guide` builtin skill,
@@ -139,15 +142,16 @@ describe('PromptBuilder', () => {
     expect(result).toContain('append-only log')
   })
 
-  it('overrides basic prompt with system.md from workspace', async () => {
+  it('uses the custom base and leads with system.md when the workspace provides one', async () => {
     setupFiles({
       '/workspace/system.md': 'You are CustomBot, a specialized assistant.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { base, content: result } = await builder.buildSystemPrompt('/workspace')
 
-    expect(result).toContain('You are CustomBot')
-    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
+    // An explicit system.md is a full replacement of the SDK preset.
+    expect(base).toBe('custom')
+    expect(result.startsWith('You are CustomBot')).toBe(true)
   })
 
   it('includes soul.md in memories section', async () => {
@@ -155,7 +159,7 @@ describe('PromptBuilder', () => {
       '/workspace/soul.md': 'Warm but direct. Lead with answers.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('## Memories')
     expect(result).toContain('<soul>')
@@ -169,7 +173,7 @@ describe('PromptBuilder', () => {
       '/workspace/user.md': 'Name: V\nTimezone: UTC+8'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
@@ -182,7 +186,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/FACT.md': '# Active Projects\n\n- Cherry Studio'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
@@ -197,7 +201,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/FACT.md': 'Project: Cherry Studio'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('<soul>')
     expect(result).toContain('<user>')
@@ -229,7 +233,7 @@ describe('PromptBuilder', () => {
       '/workspace/soul.md': 'Sharp and efficient.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('You are CustomBot.')
     expect(result).toContain('<soul>')
@@ -243,7 +247,7 @@ describe('PromptBuilder', () => {
       '/agent-data/memory/FACT.md': 'Persistent agent fact.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace', undefined, false, '/agent-data')
+    const { content: result } = await builder.buildSystemPrompt('/workspace', undefined, false, '/agent-data')
 
     expect(result).toContain('Workspace-local system prompt.')
     expect(result).toContain('Persistent agent identity.')
@@ -256,7 +260,7 @@ describe('PromptBuilder', () => {
   it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
     setupFiles({})
 
-    const result = await builder.buildSystemPrompt('/workspace', baseConfig, true, '/agent-data')
+    const { content: result } = await builder.buildSystemPrompt('/workspace', baseConfig, true, '/agent-data')
 
     expect(result).not.toContain('## Bootstrap Mode')
     expect(result).toContain('## Memories')
@@ -280,7 +284,7 @@ describe('PromptBuilder', () => {
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).not.toContain('must not be read')
   })
@@ -293,7 +297,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/fact.md': 'Lowercase facts'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const { content: result } = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('<soul>')
     expect(result).toContain('Uppercase soul')
@@ -322,7 +326,7 @@ describe('PromptBuilder', () => {
     it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const { content: result } = await builder.buildSystemPrompt('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('complete_bootstrap')
@@ -331,7 +335,10 @@ describe('PromptBuilder', () => {
     it('injects bootstrap instructions when bootstrap_completed is false', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: false })
+      const { content: result } = await builder.buildSystemPrompt('/workspace', {
+        ...baseConfig,
+        bootstrap_completed: false
+      })
 
       expect(result).toContain('## Bootstrap Mode')
     })
@@ -341,7 +348,11 @@ describe('PromptBuilder', () => {
       // That explicit reset must override the instruction-based skip, or the tool's promise is a lie.
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: false }, true)
+      const { content: result } = await builder.buildSystemPrompt(
+        '/workspace',
+        { ...baseConfig, bootstrap_completed: false },
+        true
+      )
 
       expect(result).toContain('## Bootstrap Mode')
     })
@@ -349,7 +360,10 @@ describe('PromptBuilder', () => {
     it('skips bootstrap when bootstrap_completed is true', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: true })
+      const { content: result } = await builder.buildSystemPrompt('/workspace', {
+        ...baseConfig,
+        bootstrap_completed: true
+      })
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -357,7 +371,7 @@ describe('PromptBuilder', () => {
     it('skips bootstrap when the agent already has non-blank user instructions', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', baseConfig, true)
+      const { content: result } = await builder.buildSystemPrompt('/workspace', baseConfig, true)
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -369,7 +383,7 @@ describe('PromptBuilder', () => {
         '/workspace/SOUL.md': `# Soul\n\n> Template header\n\n${realContent}`
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const { content: result } = await builder.buildSystemPrompt('/workspace')
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -380,7 +394,7 @@ describe('PromptBuilder', () => {
           '# Soul\n\n> This file defines who you are. Update it as your personality evolves.\n\n## Personality\n\n\n## Tone\n\n'
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const { content: result } = await builder.buildSystemPrompt('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
     })
@@ -391,7 +405,7 @@ describe('PromptBuilder', () => {
         '/workspace/user.md': 'Name: V'
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const { content: result } = await builder.buildSystemPrompt('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('## Memories')

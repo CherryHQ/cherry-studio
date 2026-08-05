@@ -57,9 +57,29 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry Studio.
+/**
+ * How the agent's base system prompt should be established, decided from the
+ * workspace alone and kept free of any SDK type:
+ *
+ * - `'preset'` — no workspace `system.md`. The runtime keeps the Claude Code
+ *   SDK's default preset as the base and *appends* {@link AgentSystemPrompt.content}
+ *   to it, so the agent retains its full default capabilities.
+ * - `'custom'` — an explicit workspace `system.md` fully *replaces* the base.
+ *   {@link AgentSystemPrompt.content} already begins with that file's body.
+ */
+export type AgentPromptBase = 'preset' | 'custom'
 
-`
+export interface AgentSystemPrompt {
+  base: AgentPromptBase
+  /**
+   * Cherry-owned prompt content: the `custom` base leads with the workspace
+   * `system.md` body; both bases then carry the bootstrap block (when active)
+   * and the persona/memory section. It never synthesizes a replacement base
+   * identity — that is the SDK preset's job in the `preset` case and the
+   * user's `system.md` in the `custom` case.
+   */
+  content: string
+}
 
 function memoriesTemplate(agentDataPath: string, sections: string): string {
   return `## Memories
@@ -84,13 +104,16 @@ ${sections}`
 }
 
 /**
- * PromptBuilder assembles the system prompt for CherryStudio agents.
+ * PromptBuilder assembles the Cherry-owned system prompt for CherryStudio agents.
  *
- * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
- * entirely. Includes the basic identity, bootstrap instructions when needed,
- * and the agent data files (SOUL.md / USER.md / FACT.md). Tool-usage guidance
- * (autonomy, memory, web) is no longer injected here — it ships lazily via the
- * default-enabled `cherry-tool-guide` builtin skill.
+ * {@link buildSystemPrompt} — returns an {@link AgentSystemPrompt} describing
+ * whether the base should be the SDK preset (append) or an explicit `system.md`
+ * replacement, plus the Cherry-owned content (bootstrap instructions when
+ * needed, and the agent data files SOUL.md / USER.md / FACT.md). It deliberately
+ * emits no identity preamble in the `preset` case so the Claude Code default
+ * prompt stays authoritative. Tool-usage guidance (autonomy, memory, web) is not
+ * injected here — it ships lazily via the default-enabled `cherry-tool-guide`
+ * builtin skill.
  *
  * Memory files layout:
  *   {agentData}/SOUL.md          — personality, tone, communication style
@@ -106,13 +129,15 @@ export class PromptBuilder {
     config?: AgentConfiguration,
     hasUserInstructions = false,
     agentDataPath = workspacePath
-  ): Promise<string> {
+  ): Promise<AgentSystemPrompt> {
     const parts: string[] = []
 
-    // Basic prompt: workspace system.md (case-insensitive) > embedded default
+    // Base selection: an explicit workspace system.md (case-insensitive) REPLACES
+    // the SDK preset; its absence keeps the Claude Code default preset and appends
+    // the Cherry content instead of substituting a thin identity line.
     const systemPath = await resolveFile(workspacePath, 'system.md')
-    const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
-    parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
+    const customBase = systemPath ? await this.readCachedFile(systemPath) : undefined
+    if (customBase) parts.push(customBase)
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
@@ -127,7 +152,7 @@ export class PromptBuilder {
     // loaded file-content blocks inside the section are conditional.
     parts.push(await this.buildMemoriesSection(agentDataPath))
 
-    return parts.join('\n\n')
+    return { base: customBase ? 'custom' : 'preset', content: parts.join('\n\n') }
   }
 
   /**
