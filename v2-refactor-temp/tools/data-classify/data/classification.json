@@ -1422,7 +1422,7 @@
         {
           "originalKey": "messageNavigation",
           "type": "PreferenceTypes.ChatMessageNavigationMode",
-          "defaultValue": "none",
+          "defaultValue": "anchor",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.navigation_mode"

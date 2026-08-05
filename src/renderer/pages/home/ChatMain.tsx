@@ -53,7 +53,7 @@ const ChatMain: FC<ChatMainProps> = ({
   })
   return (
     <MessageListProvider value={value}>
-      <MessageList />
+      <MessageList enableSearch />
     </MessageListProvider>
   )
 }

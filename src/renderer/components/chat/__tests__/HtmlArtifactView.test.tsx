@@ -443,6 +443,51 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {
+    render(<HtmlArtifactView html="<main><p>Page</p></main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const wrapper = frameDocument.createElement('main')
+    const paragraph = frameDocument.createElement('p')
+    paragraph.style.marginBottom = '16px'
+    wrapper.append(paragraph)
+    body.replaceChildren(wrapper)
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 183 })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => Math.max(221, iframe.clientHeight)
+    })
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({
+      bottom: 204.6875,
+      height: 183.25,
+      width: 100
+    } as DOMRect)
+    vi.spyOn(paragraph, 'getBoundingClientRect').mockReturnValue({
+      bottom: 204.6875,
+      height: 20,
+      width: 100
+    } as DOMRect)
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '221px' })
+
+    for (const callback of mocks.resizeObserverCallbacks) {
+      act(() => callback([], {} as ResizeObserver))
+      expect(surface).toHaveStyle({ height: '221px' })
+    }
+  })
+
   it('renders a streaming fragment as a restricted DOM preview without controls', () => {
     const html = '<div><script>document.body.textContent = "interactive"</script></div>'
     render(<HtmlArtifactView html={html} title="Preview" kind="fragment" isStreaming />)
