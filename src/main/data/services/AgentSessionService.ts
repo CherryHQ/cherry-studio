@@ -115,8 +115,8 @@ export class AgentSessionService {
   }
 
   /**
-   * Transactional create for seed-time composition. DbService is not marked ready
-   * while seeders run, so create() would fail through DbService.withWriteTx().
+   * DB-only create primitive for caller-owned transaction composition.
+   * The caller supplies the reserved id and owns the outer commit boundary.
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
