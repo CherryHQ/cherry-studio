@@ -84,4 +84,32 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
     expect(urls.minLength).toBeUndefined()
     expect(urls.maxLength).toBeUndefined()
   })
+
+  // `tool_invoke` carries an open `params` object (additionalProperties:true) so the model can pass
+  // arbitrary sub-tool arguments; the same schema is echoed in Anthropic `input_examples`, which the
+  // API strict-validates. The sanitizer otherwise force-closes every object node, turning `params`
+  // into a `false` schema that rejects every example ("Example at index 0 is invalid: False schema
+  // does not allow ..." → 400). It must preserve an explicit `additionalProperties:true`.
+  it('preserves an explicit additionalProperties:true on a nested object while defaulting others closed', async () => {
+    const req = await captureWithFetch((fetch) =>
+      createAihubmix({ apiKey: 'sk', fetch })
+        .languageModel('claude-sonnet-4-6')
+        .doStream(
+          callOptionsWithToolSchema({
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              params: { type: 'object', additionalProperties: true, description: 'Tool input arguments' }
+            },
+            required: ['name'],
+            additionalProperties: false
+          })
+        )
+    )
+
+    const inputSchema = (req.body as { tools: Array<{ input_schema: Record<string, unknown> }> }).tools[0].input_schema
+    const params = (inputSchema.properties as Record<string, { additionalProperties?: unknown }>).params
+    expect(params.additionalProperties).toBe(true) // open params survive → examples validate
+    expect(inputSchema.additionalProperties).toBe(false) // outer object still closed by default
+  })
 })

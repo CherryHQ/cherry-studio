@@ -5,8 +5,9 @@
 
 import * as z from 'zod'
 
+import { VENDOR_PATTERNS, type VendorKey } from '../patterns/vendor-patterns'
 import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
-import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
+import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
@@ -47,6 +48,20 @@ export const ApiFeaturesSchema = z.object({
  * how the provider carries an enabled Fast request.
  */
 export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
+
+/** A provider-native tool plus the scope of models on which the host serves it. */
+export const ServerToolConfigSchema = z.object({
+  id: z.enum(objectValues(SERVER_TOOL)),
+  modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT),
+  /**
+   * Vendor families the host actually serves the tool for, when narrower than
+   * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the
+   * vertex-anthropic SDK exposes no webFetch tool). Absent ⇒ no narrowing.
+   */
+  vendors: z.array(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
+})
+
+export type ServerToolConfig = z.infer<typeof ServerToolConfigSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Reasoning Format
@@ -171,6 +186,8 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
+    /** Provider-native (server-executed) built-in tools served by this host. */
+    serverTools: z.array(ServerToolConfigSchema).default([]),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /**

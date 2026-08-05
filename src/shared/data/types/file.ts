@@ -456,13 +456,15 @@ export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObje
 //
 // `sourceId` uses `MessageIdSchema = z.uuid()` (not `z.uuidv7()`) because v1
 // legacy message IDs are UUIDv4 and are preserved verbatim during migration;
-// both formats are valid UUIDs, so `z.uuid()` accepts both. `role` is
-// `'attachment'` for both image blocks and file blocks — the single meaningful
-// relationship a file can have with a message at this stage.
+// both formats are valid UUIDs, so `z.uuid()` accepts both. Roles:
+// - `'attachment'` — image blocks and file blocks attached to the message.
+// - `'tool_output'` — a persisted oversized tool-result blob referenced by a
+//   `$persistedToolOutput` envelope in `message.data` (the blob is the only
+//   full copy; the ref keeps it alive until the message is deleted).
 
 export const chatMessageSourceType = 'chat_message' as const
 
-export const chatMessageRoles = ['attachment'] as const
+export const chatMessageRoles = ['attachment', 'tool_output'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 
 export const chatMessageRefFields = {

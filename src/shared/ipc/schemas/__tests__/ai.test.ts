@@ -61,3 +61,22 @@ describe('ai.agent.create IPC schema', () => {
     })
   })
 })
+
+describe('ai.agent.feedback_session.create IPC schema', () => {
+  const createFeedbackSession = aiRequestSchemas['ai.agent.feedback_session.create'].input
+  const createFeedbackSessionResult = aiRequestSchemas['ai.agent.feedback_session.create'].output
+
+  it('accepts only a void command payload', () => {
+    expect(createFeedbackSession.safeParse(undefined).success).toBe(true)
+    expect(createFeedbackSession.safeParse({}).success).toBe(false)
+  })
+
+  it('returns only the created session id', () => {
+    expect(createFeedbackSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+      sessionId: 'feedback-session'
+    })
+    expect(
+      createFeedbackSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-assistant' }).success
+    ).toBe(false)
+  })
+})

@@ -1598,7 +1598,6 @@
         "image_or_document": "Bild oder Dokument hochladen",
         "upload_from_local": "Lokale Datei hochladen..."
       },
-      "url_context": "Webseiten-Kontext",
       "web_search": {
         "builtin": {
           "disabled_content": "Aktuelles Modell unterstützt keine Websuche",
@@ -1620,8 +1619,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
-        "url_context": "Gemini unterstützt nicht die gleichzeitige Verwendung von Webseiten-Kontext und Funktionsaufrufen"
+        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen"
       }
     },
     "message": {

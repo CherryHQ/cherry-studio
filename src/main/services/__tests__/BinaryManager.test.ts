@@ -1761,7 +1761,9 @@ describe('BinaryManager', () => {
 
       await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])).resolves.toBeUndefined()
 
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      expect(miseArgs).toContainEqual(['prune', 'fd'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
@@ -1778,6 +1780,22 @@ describe('BinaryManager', () => {
       await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, undefined, [])).rejects.toThrow(
         'not runnable'
       )
+    })
+
+    it('keeps a verified update successful when obsolete-version cleanup fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'prune') throw new Error('cleanup failed')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['prune', 'fd'])
     })
   })
 

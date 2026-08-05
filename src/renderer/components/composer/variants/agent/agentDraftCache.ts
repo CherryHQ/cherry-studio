@@ -72,6 +72,10 @@ export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
   return getCacheableAgentDraft({ text: cached.text, tokens: cached.tokens })
 }
 
+export function hasAgentDraftCache(cacheKey: string): boolean {
+  return cacheService.hasCasual(cacheKey)
+}
+
 export function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
   const cacheableDraft = getCacheableAgentDraft({ text, tokens: [...tokens] })
   cacheService.setCasual<AgentComposerDraftCache>(cacheKey, cacheableDraft, DRAFT_CACHE_TTL)

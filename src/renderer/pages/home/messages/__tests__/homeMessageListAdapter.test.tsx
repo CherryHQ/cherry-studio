@@ -48,6 +48,7 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
   }
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
+const openRouteMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -105,6 +106,10 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: commandHandlerMock
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -255,7 +260,6 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
-  localSendGeneration,
   streamingLayers,
   messages = [],
   onBindRuntime,
@@ -265,7 +269,6 @@ function MessageListAdapterHarness({
   topic
 }: {
   imageActionConsumer?: 'capture'
-  localSendGeneration?: number
   streamingLayers?: MessageListProviderValue['state']['streamingLayers']
   messages?: CherryUIMessage[]
   onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
@@ -280,7 +283,6 @@ function MessageListAdapterHarness({
     messages,
     partsByMessageId,
     streamingLayers,
-    localSendGeneration,
     imageActionConsumer,
     onBindRuntime,
     onStartBranchDraft
@@ -317,20 +319,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
-  it('forwards the local-send generation to the shared list state', () => {
-    let value: MessageListProviderValue | undefined
-
-    render(
-      <MessageListAdapterHarness
-        topic={createTopic('topic-a')}
-        localSendGeneration={3}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
-
-    expect(value?.state.localSendGeneration).toBe(3)
-  })
-
   it('loads translation languages only after the message menu requests them', async () => {
     let value: MessageListProviderValue | undefined
 
@@ -353,6 +341,16 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => value?.actions.retryTranslationLanguages?.())
 
     expect(refetchTranslationLanguagesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens navigation entries in an application tab', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
+
+    expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {
@@ -413,7 +411,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),
@@ -518,7 +515,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),

@@ -140,65 +140,103 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('shows the failure inline without a second toast (the install hook already toasts)', async () => {
+  it('shows the localized install prefix with the original ZIP error', async () => {
     const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const originalError = 'No skill directory found in /tmp/CherryStudio/skill-install/zip-install-123'
+    installFromZip.mockRejectedValue(new Error(originalError))
+
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+
+    expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
+    expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:1:1')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('shows the localized install prefix with the original directory error', async () => {
+    const user = userEvent.setup()
+    const originalError = 'SKILL.md or skill.md not found in skill folder'
+    vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
+    installFromDirectory.mockRejectedValue(new Error(originalError))
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
+
+    expect(await screen.findByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('truncates a long import name and wraps a long error while preserving their titles', async () => {
+    const user = userEvent.setup()
+    const longName = `Xiao_Yue_Complete_Internal_Documentation_${'1'.repeat(120)}.zip`
+    const localizedError = `settings.skills.installFailed:${longName}: corrupt archive`
+    vi.mocked(window.api.file.select).mockResolvedValue([{ name: longName, path: `/tmp/${longName}` }] as any)
     installFromZip.mockRejectedValue(new Error('corrupt archive'))
 
     render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    // The dialog surfaces the error inline...
-    await waitFor(() => expect(screen.getByText('corrupt archive')).toBeInTheDocument())
-    // ...and does NOT add its own toast on top of the hook's `reportAndRethrowSkillMutationError`.
-    expect(toast.error).not.toHaveBeenCalled()
+    const fileName = await screen.findByTitle(longName)
+    expect(fileName).toHaveTextContent(longName)
+    expect(fileName).toHaveClass('truncate')
+    const errorMessage = await screen.findByTitle(localizedError)
+    expect(errorMessage).toHaveTextContent(localizedError)
+    expect(errorMessage).toHaveClass('whitespace-normal', 'break-words', '[overflow-wrap:anywhere]')
   })
 
-  it('uses the marketplace success toast without a duplicate success banner', async () => {
+  it('closes after a successful install while keeping the marketplace success toast', async () => {
     const user = userEvent.setup()
+    const onOpenChange = vi.fn()
     installFromZip.mockResolvedValue({ id: 'agentic-engineering', name: 'agentic-engineering' })
 
-    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith('settings.skills.installSuccess:agentic-engineering')
     )
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('agentic-engineering')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(screen.queryByText('settings.skills.installSuccess:agentic-engineering')).not.toBeInTheDocument()
   })
 
-  it('installs every selected ZIP and keeps batch results visible', async () => {
+  it('closes only after every selected ZIP installs successfully', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
+    let resolveSecondInstall: (skill: { id: string; name: string }) => void = () => {}
     vi.mocked(window.api.file.select).mockResolvedValue([
       { name: 'one.zip', path: '/tmp/one.zip' },
       { name: 'two.zip', path: '/tmp/two.zip' }
     ] as any)
     installFromZip
       .mockResolvedValueOnce({ id: 'skill-one', name: 'Skill One' })
-      .mockResolvedValueOnce({ id: 'skill-two', name: 'Skill Two' })
+      .mockReturnValueOnce(new Promise((resolve) => (resolveSecondInstall = resolve)))
 
     render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
     await waitFor(() => expect(installFromZip).toHaveBeenCalledTimes(2))
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    resolveSecondInstall({ id: 'skill-two', name: 'Skill Two' })
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(window.api.file.select).toHaveBeenCalledWith(
       expect.objectContaining({ properties: ['openFile', 'multiSelections'] })
     )
     expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
     expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
     expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
     expect(screen.queryByText('settings.skills.batchInstallComplete:2')).not.toBeInTheDocument()
-    expect(document.querySelectorAll('[data-slot="dialog-overlay"]')).toHaveLength(1)
-    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('installs every selected directory and keeps batch results visible', async () => {
+  it('installs every selected directory through the directory route', async () => {
     const user = userEvent.setup()
     vi.mocked(window.api.file.select).mockResolvedValue([
       { name: 'skill-one', path: '/tmp/skill-one' },
@@ -218,8 +256,6 @@ describe('ImportSkillDialog', () => {
     )
     expect(installFromDirectory).toHaveBeenNthCalledWith(1, '/tmp/skill-one')
     expect(installFromDirectory).toHaveBeenNthCalledWith(2, '/tmp/skill-two')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
     expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
   })
 
@@ -244,12 +280,11 @@ describe('ImportSkillDialog', () => {
     expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
     expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
     expect(installFromDirectory).not.toHaveBeenCalled()
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill One')
-    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('Skill Two')
     expect(toast.success).toHaveBeenCalledWith('settings.skills.batchInstallComplete:2')
   })
 
   it('keeps per-file errors for invalid dropped files mixed with ZIPs and directories', async () => {
+    const onOpenChange = vi.fn()
     const files = [
       new File(['skill'], 'skill-dir', { type: '' }),
       new File(['zip'], 'plugin.zip', { type: 'application/zip' }),
@@ -261,7 +296,7 @@ describe('ImportSkillDialog', () => {
     installFromDirectory.mockResolvedValueOnce({ id: 'skill-dir', name: 'Directory Skill' })
     installFromZip.mockResolvedValueOnce({ id: 'skill-zip', name: 'Zip Skill' })
 
-    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
 
     await dropSkillFiles(files)
 
@@ -274,9 +309,10 @@ describe('ImportSkillDialog', () => {
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('readme.txt')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.invalidFormat')
     expect(screen.getByText('settings.skills.batchInstallPartialFailed:2:3:1')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('shows invalid format status for invalid-only dropped files without installing', async () => {
+  it('shows invalid-only dropped files once per item without a duplicate status banner', async () => {
     const files = [
       new File(['one'], 'one.txt', { type: 'text/plain' }),
       new File(['two'], 'two.txt', { type: 'text/plain' }),
@@ -292,7 +328,7 @@ describe('ImportSkillDialog', () => {
     expect(installFromDirectory).not.toHaveBeenCalled()
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('two.txt')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('three.txt')
-    expect(screen.getAllByText('settings.skills.invalidFormat')).toHaveLength(4)
+    expect(screen.getAllByText('settings.skills.invalidFormat')).toHaveLength(3)
     expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:3:3')).not.toBeInTheDocument()
   })
 })

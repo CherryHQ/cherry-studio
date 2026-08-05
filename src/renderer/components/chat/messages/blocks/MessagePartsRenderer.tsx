@@ -34,6 +34,7 @@ import {
   convertReferencesToCitationReferences,
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -73,7 +74,6 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
-import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -535,7 +535,7 @@ function renderPart(
     }
 
     case 'data-compaction-anchor':
-      return <CompactionAnchorBlock key={partId} />
+      return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
@@ -1345,15 +1345,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   message,
   messageParts
 }: MessagePartsRendererContentProps) {
-  const requestFollowRecovery = useRequestScrollFollowRecovery()
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const wasActiveTurnProcessingRef = React.useRef(isActiveTurnProcessing)
-  React.useEffect(() => {
-    if (wasActiveTurnProcessingRef.current && !isActiveTurnProcessing) requestFollowRecovery()
-    wasActiveTurnProcessingRef.current = isActiveTurnProcessing
-  }, [isActiveTurnProcessing, requestFollowRecovery])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()

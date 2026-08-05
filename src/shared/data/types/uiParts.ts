@@ -22,7 +22,7 @@
  * - data-code (code blocks)
  */
 
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -62,7 +62,7 @@ export interface CompactPartData {
 }
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */
-export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+export type CompactionAnchorPartData = CompactionAnchorData
 
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
