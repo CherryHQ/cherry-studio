@@ -261,6 +261,11 @@ const HomePage: FC = () => {
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
+  const reenterChatRoute = useCallback(() => {
+    initialTopicStartStateRef.current.firstLaunchStarted = false
+    clearActiveTopic()
+    void navigate({ to: '/app/chat', search: {}, replace: true })
+  }, [clearActiveTopic, navigate])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -269,19 +274,14 @@ const HomePage: FC = () => {
     if (!routeTopicId || activeTopicId !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
-    // Re-arm first-entry create: if the interceptor also finds nothing (library emptied
-    // elsewhere), the bare landing must still produce a fresh topic.
-    initialTopicStartStateRef.current.firstLaunchStarted = false
-    clearActiveTopic()
-    void navigate({ to: '/app/chat', search: {}, replace: true })
+    reenterChatRoute()
   }, [
     activeTopic,
     activeTopicError,
     activeTopicId,
-    clearActiveTopic,
     isActiveTopicLoading,
     isMessageOnlyView,
-    navigate,
+    reenterChatRoute,
     routeTopicId
   ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
@@ -565,13 +565,13 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicWithReusePayload) => {
       const created = await createAndActivateEmptyTopic(payload)
       // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
-      // fails, the active topic still points at the just-deleted topic — clear it so the awaiting delete
-      // handler doesn't strand the view on a deleted conversation.
+      // fails, the active topic still points at the just-deleted topic — re-enter through the bare
+      // route so local state and the URL both stop identifying the deleted conversation.
       if (!created && payload?.excludeReuseTopicId) {
-        clearActiveTopic()
+        reenterChatRoute()
       }
     },
-    [clearActiveTopic, createAndActivateEmptyTopic]
+    [createAndActivateEmptyTopic, reenterChatRoute]
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
@@ -622,14 +622,14 @@ const HomePage: FC = () => {
       const created = await createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
       // Creation failed → don't leave the view on a topic that belonged to the deleted assistant.
       if (!created) {
-        clearActiveTopic()
+        reenterChatRoute()
       }
     },
     [
       allTopics,
-      clearActiveTopic,
       createAndActivateEmptyTopic,
       lastUsedAssistantId,
+      reenterChatRoute,
       setActiveTopicAndCloseResourceView,
       setLastUsedAssistantId
     ]

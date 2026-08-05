@@ -2,15 +2,17 @@ import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrys
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
+import type { TabRouterContext } from '@renderer/types/router'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab
   isActive: boolean
   onUrlChange: (url: string) => void
+  hasOtherConversationTab: TabRouterContext['hasOtherConversationTab']
 }
 
 /**
@@ -19,13 +21,25 @@ interface TabRouterProps {
  * Each tab maintains its own router instance with isolated history,
  * enabling true KeepAlive behavior via React 19's Activity component.
  */
-export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
+export const TabRouter = ({ tab, isActive, onUrlChange, hasOtherConversationTab }: TabRouterProps) => {
+  const hasOtherConversationTabRef = useRef(hasOtherConversationTab)
+  useLayoutEffect(() => {
+    hasOtherConversationTabRef.current = hasOtherConversationTab
+  }, [hasOtherConversationTab])
+
   // Create independent router instance per tab (only once)
   const router = useMemo(() => {
     const history = createMemoryHistory({ initialEntries: [tab.url] })
     // defaultErrorComponent contains a route render error to its tab; without it the
     // error bubbles to the window-level boundary and tears down the whole window.
-    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
+    return createRouter({
+      routeTree,
+      history,
+      defaultErrorComponent: RouteErrorFallback,
+      context: {
+        hasOtherConversationTab: (appId) => hasOtherConversationTabRef.current(appId)
+      }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 

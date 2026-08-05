@@ -79,6 +79,7 @@ const tab = (id: string, url: string, overrides: Partial<Tab> = {}): Tab => ({
   type: 'route',
   ...overrides
 })
+const noOtherConversationTab = () => false
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -97,7 +98,14 @@ afterEach(() => {
 
 describe('TabRouter route error containment wiring', () => {
   it('wires RouteErrorFallback as the router defaultErrorComponent', () => {
-    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
+    render(
+      <TabRouter
+        tab={tab('a', '/a')}
+        isActive
+        onUrlChange={() => {}}
+        hasOtherConversationTab={noOtherConversationTab}
+      />
+    )
 
     expect(vi.mocked(createRouter)).toHaveBeenCalledWith(
       expect.objectContaining({ defaultErrorComponent: RouteErrorFallback })
@@ -107,7 +115,14 @@ describe('TabRouter route error containment wiring', () => {
 
 describe('TabRouter portal container', () => {
   it('provides the tab root as a scoped portal container, not document.body', async () => {
-    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
+    render(
+      <TabRouter
+        tab={tab('a', '/a')}
+        isActive
+        onUrlChange={() => {}}
+        hasOtherConversationTab={noOtherConversationTab}
+      />
+    )
 
     await waitFor(() =>
       expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
@@ -125,8 +140,18 @@ describe('TabRouter PageSidePanel portal isolation', () => {
   function Shell({ activeId }: { activeId: string }) {
     return (
       <main>
-        <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
-        <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
+        <TabRouter
+          tab={tab('a', '/a')}
+          isActive={activeId === 'a'}
+          onUrlChange={() => {}}
+          hasOtherConversationTab={noOtherConversationTab}
+        />
+        <TabRouter
+          tab={tab('b', '/b')}
+          isActive={activeId === 'b'}
+          onUrlChange={() => {}}
+          hasOtherConversationTab={noOtherConversationTab}
+        />
       </main>
     )
   }
@@ -240,6 +265,32 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
+  it('reads the latest conversation-tab predicate through the stable router context', () => {
+    const { rerender } = render(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat')}
+        isActive
+        onUrlChange={vi.fn()}
+        hasOtherConversationTab={() => false}
+      />
+    )
+    const routerOptions = vi.mocked(createRouter).mock.calls[0][0]
+
+    expect(routerOptions.context.hasOtherConversationTab('assistants')).toBe(false)
+
+    rerender(
+      <TabRouter
+        tab={tab('chat-tab', '/app/chat')}
+        isActive
+        onUrlChange={vi.fn()}
+        hasOtherConversationTab={() => true}
+      />
+    )
+
+    expect(createRouter).toHaveBeenCalledTimes(1)
+    expect(routerOptions.context.hasOtherConversationTab('assistants')).toBe(true)
+  })
+
   it('uses the tab entry URL even when instance metadata points to another key', () => {
     render(
       <TabRouter
@@ -254,6 +305,7 @@ describe('TabRouter', () => {
         })}
         isActive
         onUrlChange={vi.fn()}
+        hasOtherConversationTab={noOtherConversationTab}
       />
     )
 
@@ -275,6 +327,7 @@ describe('TabRouter', () => {
         })}
         isActive
         onUrlChange={vi.fn()}
+        hasOtherConversationTab={noOtherConversationTab}
       />
     )
 
@@ -291,6 +344,7 @@ describe('TabRouter', () => {
         })}
         isActive
         onUrlChange={vi.fn()}
+        hasOtherConversationTab={noOtherConversationTab}
       />
     )
     routerMocks.navigate.mockClear()
@@ -308,6 +362,7 @@ describe('TabRouter', () => {
         })}
         isActive
         onUrlChange={vi.fn()}
+        hasOtherConversationTab={noOtherConversationTab}
       />
     )
 

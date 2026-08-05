@@ -8,6 +8,7 @@ import {
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
+  hasOtherConversationAppTab,
   removeSidebarMiniApp,
   reorderLaunchpadApps,
   reorderSidebarFavorites,
@@ -133,6 +134,24 @@ describe('sidebar config helpers', () => {
   it('does not mark the launchpad sidebar item active for concrete mini app routes', () => {
     expect(resolveSidebarActiveItem('/app/mini-app')).toBe('mini_app')
     expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
+  })
+
+  it('finds only other normal conversation tabs for the requested app', () => {
+    const tabs = [
+      { id: 'current', type: 'route' as const, url: '/app/chat' },
+      { id: 'message', type: 'route' as const, url: '/app/chat?topicId=message&view=message' },
+      { id: 'agent', type: 'route' as const, url: '/app/agents?sessionId=agent-session' }
+    ]
+
+    expect(hasOtherConversationAppTab(tabs, 'current', 'assistants')).toBe(false)
+    expect(hasOtherConversationAppTab(tabs, 'current', 'agents')).toBe(true)
+    expect(
+      hasOtherConversationAppTab(
+        [...tabs, { id: 'other-chat', type: 'route' as const, url: '/app/chat' }],
+        'current',
+        'assistants'
+      )
+    ).toBe(true)
   })
 })
 

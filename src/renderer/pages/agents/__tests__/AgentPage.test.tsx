@@ -537,6 +537,9 @@ vi.mock('../AgentSidePanel', () => ({
           }}>
           Select session next
         </button>
+        <button type="button" onClick={() => setActiveSessionId?.(null)}>
+          Clear panel session
+        </button>
         {onOpenHistoryRecords && (
           <button type="button" onClick={onOpenHistoryRecords}>
             Open history records
@@ -1327,6 +1330,28 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: {},
+      replace: true
+    })
+  })
+
+  it('returns to the bare route when the session panel clears its active session', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-a' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear panel session' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: {},
+        replace: true
+      })
+    )
   })
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {

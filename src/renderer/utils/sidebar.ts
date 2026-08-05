@@ -5,6 +5,7 @@ import {
 } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -133,6 +134,23 @@ export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {
  */
 export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
   return url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
+}
+
+export function hasOtherConversationAppTab(
+  tabs: readonly Pick<Tab, 'id' | 'type' | 'url'>[],
+  currentTabId: string,
+  appId: TabInstanceAppId
+): boolean {
+  const app = getSidebarApp(appId)
+  if (!app) return false
+
+  return tabs.some(
+    (tab) =>
+      tab.id !== currentTabId &&
+      tab.type === 'route' &&
+      tabBelongsToApp(app, tab.url) &&
+      !isMessageOnlyConversationUrl(tab.url)
+  )
 }
 
 export function getSidebarAppTabInstanceKey(app: SidebarApp, tab: Pick<Tab, 'metadata' | 'url'>): string | undefined {

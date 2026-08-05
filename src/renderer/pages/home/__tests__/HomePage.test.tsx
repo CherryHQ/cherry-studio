@@ -1232,6 +1232,11 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
     await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: {},
+      replace: true
+    })
   })
 
   it('creates and activates an empty topic after selecting an existing assistant from the classic-layout picker', async () => {
@@ -1918,6 +1923,11 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
     await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: {},
+      replace: true
+    })
   })
 
   it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {

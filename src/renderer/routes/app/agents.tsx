@@ -7,11 +7,14 @@ export const Route = createFileRoute('/app/agents')({
   validateSearch: (search) => parseAgentRouteSearch(search),
   // Bare entries resolve their session here, before the page mounts, so the page
   // renders the final conversation in one pass. Explicit targets and the
-  // feedback / message-only entries pass through untouched. No resolvable
-  // session → fall through bare; the page creates the first session itself.
-  beforeLoad: async ({ search }) => {
-    if (search.sessionId || search.intent === 'feedback' || search.view === 'message') return
-    const sessionId = await resolveAgentEntrySessionId()
+  // feedback entries pass through untouched. Message-only entries already
+  // carry a session id; a stray `view=message` without one is still a bare entry.
+  // No resolvable session → fall through bare; the page creates the first session itself.
+  beforeLoad: async ({ context, search }) => {
+    if (search.sessionId || search.intent === 'feedback') return
+    const sessionId = await resolveAgentEntrySessionId({
+      allowLatest: !context.hasOtherConversationTab('agents')
+    })
     if (sessionId) throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
   },
   component: AgentPage

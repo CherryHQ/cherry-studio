@@ -270,6 +270,11 @@ const AgentPage = () => {
     activeSessionId,
     setActiveSessionId
   })
+  const reenterAgentRoute = useCallback(() => {
+    initialEmptySessionEvaluatedRef.current = false
+    clearActiveSession()
+    void navigate({ to: '/app/agents', search: {}, replace: true })
+  }, [clearActiveSession, navigate])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -278,18 +283,15 @@ const AgentPage = () => {
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
-    initialEmptySessionEvaluatedRef.current = false
-    clearActiveSession()
-    void navigate({ to: '/app/agents', search: {}, replace: true })
+    reenterAgentRoute()
   }, [
     activeSession,
     activeSessionError,
     activeSessionId,
-    clearActiveSession,
     isActiveSessionLoading,
     isFeedbackIntent,
     isMessageOnlyView,
-    navigate,
+    reenterAgentRoute,
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
@@ -909,10 +911,14 @@ const AgentPage = () => {
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
       closeSurface()
-      if (sessionId) setMissingAgentSelection(false)
+      if (!sessionId) {
+        reenterAgentRoute()
+        return
+      }
+      setMissingAgentSelection(false)
       selectSession(sessionId, session)
     },
-    [closeSurface, selectSession]
+    [closeSurface, reenterAgentRoute, selectSession]
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
@@ -934,10 +940,10 @@ const AgentPage = () => {
       const created = await createDefaultEmptySession({ excludedAgentIds: [deletedAgentId] })
       // Creation failed → don't leave the view on a session that belonged to the deleted agent.
       if (!created) {
-        setActiveSessionId(null)
+        reenterAgentRoute()
       }
     },
-    [agentSessions, createDefaultEmptySession, setActiveSessionAndClearTransient, setActiveSessionId]
+    [agentSessions, createDefaultEmptySession, reenterAgentRoute, setActiveSessionAndClearTransient]
   )
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {

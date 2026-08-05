@@ -507,9 +507,9 @@ export function useActiveTopic({
   passive = false
 }: UseActiveTopicOptions) {
   // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
-  // without waiting for the full topic history to paginate in. The rail keeps its own
-  // loadAll source; this hook only needs the one active row.
+  // loadAll `/topics` list. The entry route chooses the id without waiting for topic
+  // history pagination; this hook then loads only that active row while the rail keeps
+  // its own loadAll source.
   const {
     topic: apiActiveTopic,
     isLoading: isActiveTopicQueryLoading,

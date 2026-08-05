@@ -8,7 +8,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
+import { hasOtherConversationAppTab, resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -109,6 +109,7 @@ export const SubWindowAppShell = () => {
                   tab={tab}
                   isActive={tab.id === activeTabId}
                   onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                  hasOtherConversationTab={(appId) => hasOtherConversationAppTab(tabs, tab.id, appId)}
                 />
               ))}
           </ResourceViewSourceProvider>
