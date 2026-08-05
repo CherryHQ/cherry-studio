@@ -187,7 +187,28 @@ function createDbMock({
     }))
   }))
 
-  return { select, update, updateCalls }
+  // Mirrors drizzle's sync better-sqlite3 transaction: the callback runs synchronously and its
+  // tx writes only land in updateCalls if the whole callback returns — a throw rolls them back,
+  // so tests can pin the all-or-nothing snapshot-pin contract.
+  const transaction = vi.fn((callback: (tx: unknown) => unknown) => {
+    const txCalls: Array<{ values: Record<string, unknown> }> = []
+    const tx = {
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => ({
+          where: vi.fn(() => ({
+            run: vi.fn(() => {
+              txCalls.push({ values })
+            })
+          }))
+        }))
+      }))
+    }
+    const result = callback(tx)
+    updateCalls.push(...txCalls)
+    return result
+  })
+
+  return { select, update, transaction, updateCalls }
 }
 
 function createMigrationCtx({
@@ -2343,14 +2364,16 @@ describe('KnowledgeVectorMigrator', () => {
       expect(validateResult.errors).toStrictEqual([])
     })
 
-    it('keeps the built store and credits skippedCount when the snapshot-pin UPDATE throws after the build', async () => {
-      // The url snapshot store is built in place at its runtime path and the snapshot file is written
-      // before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the base's
-      // units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation still
-      // balances and the migration survives — but the built store is left in place at the runtime path
-      // with the row unpinned (storePromoted is already true, so the catch does not wipe it). Narrow,
-      // recoverable window: the next migration re-run re-pins it. Pin the behavior so it can't regress
-      // into an aborted migration or a silently dropped base.
+    it('rolls back every snapshot pin atomically and keeps the built store when a pin UPDATE throws', async () => {
+      // The url snapshot store is built in place at its runtime path and the snapshot files are
+      // written before the row-pin transaction runs. If any pin UPDATE throws, the WHOLE pin
+      // transaction must roll back — a base must never publish with only SOME items pinned, which
+      // would desync item rows from the store's material paths. The per-base catch then credits
+      // the base's units to skippedCount and drops it from successfulBaseIds, so the engine
+      // reconciliation still balances and the migration survives; the built store stays in place
+      // (storePromoted is already true, so the catch does not wipe it) with ALL rows unpinned
+      // until a re-run re-pins them.
+      const SECOND_URL_ITEM_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {
           id: 'legacy-url-0',
@@ -2358,6 +2381,13 @@ describe('KnowledgeVectorMigrator', () => {
           uniqueLoaderId: 'loader-url-a',
           source: 'https://example.com/guide',
           vector: [1, 2]
+        },
+        {
+          id: 'legacy-url-1',
+          pageContent: '# Other Guide',
+          uniqueLoaderId: 'loader-url-b',
+          source: 'https://example.com/other',
+          vector: [3, 4]
         }
       ])
 
@@ -2367,26 +2397,56 @@ describe('KnowledgeVectorMigrator', () => {
           createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
             type: 'url',
             data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          }),
+          createMigratedItem(SECOND_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/other', url: 'https://example.com/other' }
           })
         ],
+        knowledgeItemIdRemap: new Map([
+          ['item-url-a', MIGRATED_SITEMAP_URL_ITEM_ID],
+          ['item-url-b', SECOND_URL_ITEM_ID]
+        ]),
         reduxData: {
           knowledge: {
             bases: [
               {
                 id: LEGACY_KNOWLEDGE_BASE_ID,
                 name: 'Base 1',
-                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+                items: [
+                  { id: 'item-url-a', type: 'url', uniqueId: 'loader-url-a' },
+                  { id: 'item-url-b', type: 'url', uniqueId: 'loader-url-b' }
+                ]
               }
             ]
           }
         }
       })
-      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
-      migrationCtx.db.update = vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
-        }))
-      })) as any
+      // Fail the SECOND pin inside the transaction. The first tx write is only committed to
+      // updateCalls if the whole callback returns, so a migrator that pinned rows one
+      // transaction each would leak the first pin into updateCalls and fail the assertion below.
+      migrationCtx.db.transaction = vi.fn((callback: (tx: unknown) => unknown) => {
+        const txCalls: Array<{ values: Record<string, unknown> }> = []
+        let runs = 0
+        const tx = {
+          update: () => ({
+            set: (values: Record<string, unknown>) => ({
+              where: () => ({
+                run: () => {
+                  runs += 1
+                  if (runs === 2) {
+                    throw new Error('pin update failed')
+                  }
+                  txCalls.push({ values })
+                }
+              })
+            })
+          })
+        }
+        const result = callback(tx)
+        migrationCtx.db.updateCalls.push(...txCalls)
+        return result
+      }) as any
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
@@ -2396,6 +2456,9 @@ describe('KnowledgeVectorMigrator', () => {
       expect(executeResult.success).toBe(true)
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
       expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
+
+      // NO row was pinned: the transaction rolled the first UPDATE back with the failed second.
+      expect(migrationCtx.db.updateCalls).toHaveLength(0)
 
       // The built store survives at the runtime path (storePromoted is true, so the catch does not
       // wipe it), so the vectors are not lost — merely left unpinned until a re-run.

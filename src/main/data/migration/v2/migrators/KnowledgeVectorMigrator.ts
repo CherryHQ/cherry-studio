@@ -1160,9 +1160,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         // Pin each url/note item row to the snapshot file the build loop already wrote, so the
         // runtime's ensure-snapshot step reads it offline at {baseDir}/raw/{relativePath} (a url
-        // instead of re-fetching the page, a note instead of re-deriving from data).
-        for (const pin of materialSnapshotPins) {
-          await ctx.db.update(knowledgeItemTable).set({ data: pin.data }).where(eq(knowledgeItemTable.id, pin.itemId))
+        // instead of re-fetching the page, a note instead of re-deriving from data). One
+        // transaction for the whole base: a mid-loop failure must not leave SOME rows pinned
+        // against a store whose other rows are not — all-or-nothing keeps the published state
+        // self-consistent (zero pins is recoverable: a re-run re-pins, and the runtime can
+        // re-capture a snapshot from the raw/ file the build already wrote).
+        if (materialSnapshotPins.length > 0) {
+          ctx.db.transaction((tx) => {
+            for (const pin of materialSnapshotPins) {
+              tx.update(knowledgeItemTable).set({ data: pin.data }).where(eq(knowledgeItemTable.id, pin.itemId)).run()
+            }
+          })
         }
 
         this.successfulBaseIds.add(plan.baseId)
