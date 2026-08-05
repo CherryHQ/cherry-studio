@@ -279,6 +279,16 @@
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "Invalid workspace path"
+        },
+        "load_error": {
+          "description": "Make sure the work directory still exists and is accessible, then try again.",
+          "title": "Couldn't load workspace files"
+        }
+      },
       "unavailable": {
         "description": "This file couldn't be opened — it may have been moved or deleted.",
         "title": "File unavailable"
@@ -2509,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "AI diagnosis is temporarily unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",

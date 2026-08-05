@@ -279,6 +279,16 @@
         "description": "文件超过 {{limit}} 预览上限。",
         "title": "文件太大，无法预览"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "文件面板需要有效的本地绝对路径，请重新选择工作目录。",
+          "title": "工作区路径无效"
+        },
+        "load_error": {
+          "description": "请确认工作目录仍然存在且可以访问，然后重试。",
+          "title": "无法加载工作区文件"
+        }
+      },
       "unavailable": {
         "description": "无法打开此文件，它可能已被移动或删除。",
         "title": "文件不可用"
@@ -2509,6 +2519,7 @@
       "content": "消息内容被安全系统拦截，请修改后重试",
       "context_length": "对话上下文过长，请清理历史消息或开启新对话",
       "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "free_model_unavailable": "AI 诊断暂时不可用",
       "go_to_settings": "前往设置",
       "knowledge": "知识库向量化失败",
       "mcp": "MCP 服务器连接失败，请检查服务是否已启动",

@@ -1764,6 +1764,26 @@ describe('Sessions', () => {
     )
   })
 
+  it('closes the rename dialog without updating when its session is deleted', async () => {
+    const { rerender } = render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Edit task name' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    const sourceWithoutTarget = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })]
+    }
+    rerender(<SessionsForTest agentSessionsSource={sourceWithoutTarget} />)
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
+  })
+
   it('opens a session message page in a new app tab from the context menu', async () => {
     render(<SessionsForTest />)
 

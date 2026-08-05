@@ -205,6 +205,11 @@ const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSe
   '../settingsBuilder'
 )
 
+function getPresetAppend(systemPrompt: unknown): string {
+  expect(systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+  return (systemPrompt as { append: string }).append
+}
+
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     // The per-session snapshot registry is module-level state; reset session-1 (reused across
@@ -329,7 +334,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       true,
       '/app/feature.agents.data/agent-1'
     )
-    expect(settings.systemPrompt as string).toContain('"/workspace/project"')
+    expect(getPresetAppend(settings.systemPrompt)).toContain('"/workspace/project"')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
@@ -891,7 +896,33 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
     // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
-    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__*']))
+    expect(settings.allowedTools).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
+    )
+  })
+
+  it('does not auto-approve disabled MCP tools', async () => {
+    const disabledTools = ['mcp__cherry-tools__web_fetch', 'mcp__agent-memory__memory']
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools,
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(disabledTools))
+    for (const toolName of disabledTools) expect(settings.allowedTools).not.toContain(toolName)
+    expect(settings.allowedTools).toContain('mcp__cherry-tools__web_search')
   })
 
   it('appends web-only citation guidance to the system prompt by default', async () => {
@@ -903,7 +934,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    const systemPrompt = settings.systemPrompt as string
+    const systemPrompt = getPresetAppend(settings.systemPrompt)
     expect(systemPrompt).toContain('## Citations')
     expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
     expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
@@ -927,7 +958,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
@@ -952,7 +983,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       knowledgeBaseIds: ['kb-selected']
     })
 
-    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
@@ -973,7 +1004,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.systemPrompt as string).not.toContain('## Citations')
+    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
@@ -996,7 +1027,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
-    expect(settings.systemPrompt as string).not.toContain('## Citations')
+    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {

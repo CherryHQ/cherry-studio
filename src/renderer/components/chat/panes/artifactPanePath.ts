@@ -1,5 +1,5 @@
 import { joinPath } from '@renderer/utils/path'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
@@ -70,18 +70,20 @@ export const resolveArtifactPaneFileSelection = (
   const normalized = normalizeTreePath(rawPath)
   if (!normalized) return null
 
-  if (workspacePath) {
-    const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
+  const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  if (parsedWorkspacePath?.success) {
+    const validWorkspacePath = parsedWorkspacePath.data
+    const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)
     if (workspaceFilePath) {
       if (!hasParentTraversal(workspaceFilePath)) {
-        return { workspacePath, filePath: workspaceFilePath }
+        return { workspacePath: validWorkspacePath, filePath: workspaceFilePath }
       }
       // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
       // agent legitimately creates files outside the workspace — but re-root it to the resolved
       // file's directory (like the absolute-path branch below) so the displayed tree root and the
       // previewed file stay consistent, instead of showing the workspace while reading outside it.
       // Sandboxing, if ever needed, is the consumer's responsibility at the trust boundary.
-      const resolvedAbsolute = joinPath(normalizeTreePath(workspacePath), workspaceFilePath)
+      const resolvedAbsolute = joinPath(normalizeTreePath(validWorkspacePath), workspaceFilePath)
       const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
       const escapedFilePath = getPathBasename(resolvedAbsolute)
       return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath
