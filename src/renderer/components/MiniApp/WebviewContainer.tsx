@@ -17,12 +17,14 @@ const WebviewContainer = memo(
   ({
     appid,
     url,
+    reloadIgnoringCacheOnNavigation = false,
     onSetRefCallback,
     onLoadedCallback,
     onNavigateCallback
   }: {
     appid: string
     url: string
+    reloadIgnoringCacheOnNavigation?: boolean
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
     onNavigateCallback: (appid: string, url: string) => void
@@ -51,6 +53,7 @@ const WebviewContainer = memo(
 
       let loadCallbackFired = false
       let loadCallbackTimer: ReturnType<typeof setTimeout> | null = null
+      let cacheBypassPhase: 'pending' | 'reloading' | 'done' = reloadIgnoringCacheOnNavigation ? 'pending' : 'done'
 
       const clearLoadCallbackTimer = () => {
         if (loadCallbackTimer === null) return
@@ -59,6 +62,15 @@ const WebviewContainer = memo(
       }
 
       const handleLoaded = () => {
+        if (cacheBypassPhase === 'pending') {
+          cacheBypassPhase = 'reloading'
+          webview.reloadIgnoringCache()
+          return
+        }
+        if (cacheBypassPhase === 'reloading') {
+          cacheBypassPhase = 'done'
+        }
+
         logger.debug(`WebView did-finish-load for app: ${appid}`)
         // Only fire callback once per load cycle
         if (!loadCallbackFired) {
@@ -74,6 +86,7 @@ const WebviewContainer = memo(
 
       // Additional callback for when page is ready to show
       const handleReadyToShow = () => {
+        if (cacheBypassPhase !== 'done') return
         logger.debug(`WebView ready-to-show for app: ${appid}`)
         if (!loadCallbackFired) {
           loadCallbackFired = true
@@ -120,7 +133,7 @@ const WebviewContainer = memo(
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appid, url])
+    }, [appid, reloadIgnoringCacheOnNavigation, url])
 
     // Setup keyboard shortcuts handler for print and save
     useIpcOn('webview.search_hotkey_pressed', async (payload) => {

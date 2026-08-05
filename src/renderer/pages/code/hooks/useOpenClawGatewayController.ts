@@ -54,8 +54,8 @@ export function useOpenClawGatewayController({
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
     const url = new URL(dashboardUrl)
-    // A fresh document navigation recovers a keep-alive WebView whose first
-    // OpenClaw bundle load failed while the gateway was restarting.
+    // Changing the URL triggers WebviewContainer's OpenClaw-only navigation,
+    // which reloads with Electron's HTTP cache bypass after the document commits.
     url.searchParams.set('cherry_cache_bust', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',

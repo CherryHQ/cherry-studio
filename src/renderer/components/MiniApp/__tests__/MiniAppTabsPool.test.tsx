@@ -6,8 +6,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // instantiate. Stub it with a div carrying the same `data-mini-app-id` so DOM
 // order assertions still work.
 vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
-  default: ({ appid, url }: { appid: string; url: string }) => (
-    <div data-mini-app-id={appid} data-testid={`webview-${appid}`} data-url={url} />
+  default: ({
+    appid,
+    url,
+    reloadIgnoringCacheOnNavigation
+  }: {
+    appid: string
+    url: string
+    reloadIgnoringCacheOnNavigation?: boolean
+  }) => (
+    <div
+      data-mini-app-id={appid}
+      data-testid={`webview-${appid}`}
+      data-url={url}
+      data-reload-ignoring-cache={reloadIgnoringCacheOnNavigation || undefined}
+    />
   )
 }))
 
@@ -113,5 +126,14 @@ describe('MiniAppTabsPool', () => {
 
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
     expect(renderedAppUrls(container)).toEqual(['https://renamed-alpha.example.com', 'https://bravo.example.com'])
+  })
+
+  it('enables cache-bypassing navigation only for the OpenClaw dashboard', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('openclaw-dashboard'), stubApp('alpha')]
+
+    const { getByTestId } = render(<MiniAppTabsPool />)
+
+    expect(getByTestId('webview-openclaw-dashboard')).toHaveAttribute('data-reload-ignoring-cache', 'true')
+    expect(getByTestId('webview-alpha')).not.toHaveAttribute('data-reload-ignoring-cache')
   })
 })

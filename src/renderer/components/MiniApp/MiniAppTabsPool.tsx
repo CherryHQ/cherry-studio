@@ -132,6 +132,7 @@ const MiniAppTabsPool: React.FC = () => {
           <WebviewContainer
             appid={app.appId}
             url={app.url}
+            reloadIgnoringCacheOnNavigation={app.appId === 'openclaw-dashboard'}
             onSetRefCallback={handleSetRef}
             onLoadedCallback={handleLoaded}
             onNavigateCallback={handleNavigate}

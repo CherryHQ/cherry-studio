@@ -38,9 +38,10 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Import mocked modules
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 const mockClearWebviewState = vi.mocked(clearWebviewState)
+const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
 
 // Import hooks AFTER mocks
 import { useMiniAppPopup } from '../useMiniAppPopup'
@@ -80,6 +81,7 @@ describe('useMiniAppPopup', () => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
+    mockSetWebviewLoaded.mockClear()
     mockTabs.tabs = []
     mockTabs.hasContext = true
     mockTabs.closeTab.mockClear()
@@ -462,6 +464,7 @@ describe('useMiniAppPopup', () => {
       expect(list).toHaveLength(3)
       expect(list.map((app) => app.appId)).toEqual(['first', 'openclaw-dashboard', 'last'])
       expect(list[1].url).toBe('http://127.0.0.1:18790?cherry_cache_bust=1#token=fresh')
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('openclaw-dashboard', false)
       expect(mockClearWebviewState).not.toHaveBeenCalled()
     })
 
@@ -485,6 +488,7 @@ describe('useMiniAppPopup', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue(KEEP_ALIVE_KEY)).toBe(seeded)
+      expect(mockSetWebviewLoaded).not.toHaveBeenCalled()
     })
 
     it('should still activate the app tab when the keep-alive entry already exists', async () => {
