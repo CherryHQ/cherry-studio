@@ -239,6 +239,20 @@ describe('AiStreamManager', () => {
     vi.useRealTimers()
   })
 
+  describe('streamPrompt', () => {
+    it('forwards context ownership to AiService.streamText', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1'),
+        contextOwner: 'caller'
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
+    })
+  })
+
   // ── send (start path) ──────────────────────────────────────────────
 
   describe('send (start)', () => {

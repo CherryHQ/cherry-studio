@@ -44,8 +44,10 @@ export interface MessageVirtualListHandle {
   scrollToBottom(): void
   scrollToTop(behavior?: ScrollBehavior): void
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
-  /** Smooth-scroll `element`'s top to the viewport top, then freeze the viewport on it. */
+  /** Smooth-scroll `element` to the requested viewport alignment, then freeze the viewport on it. */
   scrollToElement(element: HTMLElement, align?: 'start' | 'center'): void
+  /** Center an exact text range immediately, then freeze the viewport on its rendered content. */
+  scrollToRange(range: Range): void
   isFollowing(): boolean
   getScrollElement(): HTMLElement | null
 }
@@ -264,12 +266,11 @@ export function useChatVirtualizerRuntime<T>({
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
-    const isMoreThanOneViewportAway = el ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
-    const nextVisible = !smoothScroll.isAnimating() && isMoreThanOneViewportAway
+    const nextVisible = el ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
     if (isScrollToBottomButtonVisibleRef.current === nextVisible) return
     isScrollToBottomButtonVisibleRef.current = nextVisible
     setIsScrollToBottomButtonVisible(nextVisible)
-  }, [smoothScroll])
+  }, [])
 
   // ---- user-held viewport freeze --------------------------------------
 
@@ -809,6 +810,36 @@ export function useChatVirtualizerRuntime<T>({
     [navigateForReading]
   )
 
+  const scrollToRange = useCallback(
+    (range: Range) => {
+      const getRangeElement = () => {
+        const container = range.commonAncestorContainer
+        const element = container instanceof Element ? container : container.parentElement
+        return element?.isConnected ? element : null
+      }
+      const scroller = scrollerRef.current
+      if (!scroller || !getRangeElement()) return
+
+      navigateForReading(
+        (currentScroller) => {
+          if (!getRangeElement()) return currentScroller.scrollTop
+
+          const rangeRect = range.getBoundingClientRect()
+          const scrollerRect = currentScroller.getBoundingClientRect()
+          return (
+            currentScroller.scrollTop +
+            rangeRect.top -
+            scrollerRect.top -
+            (currentScroller.clientHeight - rangeRect.height) / 2
+          )
+        },
+        'instant',
+        getRangeElement
+      )
+    },
+    [navigateForReading]
+  )
+
   useImperativeHandle(
     handleRef,
     (): MessageVirtualListHandle => ({
@@ -847,6 +878,7 @@ export function useChatVirtualizerRuntime<T>({
         })
       },
       scrollToElement,
+      scrollToRange,
       isFollowing: viewportFollow.isFollowing,
       getScrollElement: () => scrollerRef.current
     }),
@@ -856,6 +888,7 @@ export function useChatVirtualizerRuntime<T>({
       navigateForReading,
       scrollToBottom,
       scrollToElement,
+      scrollToRange,
       scrollToTop,
       topPadding,
       viewportFollow.isFollowing
