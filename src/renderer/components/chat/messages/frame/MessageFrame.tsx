@@ -12,7 +12,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
-import { useScrollRuntimeNavigation } from '../blocks/ScrollOwnershipContext'
+import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
