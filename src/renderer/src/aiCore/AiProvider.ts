@@ -450,7 +450,11 @@ export default class AiProvider {
     if (result.images) {
       for (const image of result.images) {
         if (image.base64) {
-          images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          if (image.base64.startsWith('http://') || image.base64.startsWith('https://')) {
+            images.push(image.base64)
+          } else {
+            images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          }
         }
       }
     }
