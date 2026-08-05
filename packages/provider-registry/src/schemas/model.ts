@@ -73,6 +73,24 @@ export const ReasoningControlSchema = z.discriminatedUnion('kind', [
 export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
 
 /**
+ * Which dialect variant of its endpoint's native protocol a model generation
+ * speaks. NOT a wire format — the format still follows the serving endpoint.
+ * This only disambiguates when one protocol carries two mutually exclusive
+ * parameter shapes across model generations, and the older generation
+ * hard-rejects the newer field:
+ *  - `google-generate-content`: Gemini 3 `thinkingLevel` vs 2.x `thinkingBudget`
+ *  - `anthropic-messages`: Claude 4.6+ `thinking.type=adaptive` vs <=4.5
+ *    `thinking.type=enabled` + `budget_tokens`
+ *
+ * It has effect only where the format profile declares a `budgetWire`
+ * alternative, so open-weight models on openai-compatible endpoints are
+ * unaffected (their dialect really does follow the provider — see the rule
+ * on {@link ReasoningFamilyRuleSchema}).
+ */
+export const ReasoningWireDialectSchema = z.enum(['effort', 'budget'])
+export type ReasoningWireDialect = z.infer<typeof ReasoningWireDialectSchema>
+
+/**
  * A creator-declared reasoning FAMILY rule — ID-pattern knowledge as DATA
  * (#16598). Creators declare these next to their models (`Creator.
  * reasoningFamilies`); generation compiles them into per-model `controls`
@@ -91,7 +109,12 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  *
  * A rule carries MODEL KNOBS ONLY — never a reasoning format/wire field:
  * open-weight models are served by many providers and the serialization
- * dialect follows the serving endpoint, not a runtime model-id match.
+ * dialect follows the serving endpoint, not a runtime model-id match. The one
+ * narrow exception is `wireDialect`, which does NOT name a format: it picks
+ * between the two generation-dialects a single first-party protocol defines
+ * for itself (see {@link ReasoningWireDialectSchema}). That fact is the
+ * vendor's own API contract and holds across every provider proxying it, so
+ * it belongs to the model, not the endpoint.
  *
  * Matching: `pattern` is a case-insensitive regex SOURCE tested against the
  * lowercased, namespace-stripped id (vocabulary part) and the raw id string
@@ -133,11 +156,17 @@ export const ReasoningFamilyRuleSchema = z
       .refine((b) => b.min <= b.max, { message: 'budget min must be <= max' })
       .optional(),
     /** Knob-shape template for a broad family — contributes NO membership. */
-    template: z.literal(true).optional()
+    template: z.literal(true).optional(),
+    /** Native-protocol dialect for this model generation. */
+    wireDialect: ReasoningWireDialectSchema.optional()
   })
   .refine(
     (rule) =>
-      rule.template !== true || rule.effort !== undefined || rule.toggle !== undefined || rule.budget !== undefined,
+      rule.template !== true ||
+      rule.effort !== undefined ||
+      rule.toggle !== undefined ||
+      rule.budget !== undefined ||
+      rule.wireDialect !== undefined,
     { message: 'a template rule with no knobs declares nothing — drop it or make it a profile' }
   )
 export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
@@ -151,7 +180,10 @@ export const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
   supportedEfforts: z.array(ReasoningEffortSchema).optional(),
   /** What the API does when no reasoning param is sent. */
-  defaultEffort: ReasoningEffortSchema.optional()
+  defaultEffort: ReasoningEffortSchema.optional(),
+  /** Native-protocol dialect this model generation speaks, when its protocol
+   *  defines more than one. Selects the endpoint profile's wire variant. */
+  wireDialect: ReasoningWireDialectSchema.optional()
 }
 
 /**

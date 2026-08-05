@@ -1,4 +1,5 @@
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -260,16 +261,14 @@ describe('useAgentSessionParts', () => {
       updatedAt: '2026-01-01T00:00:00.000Z'
     } as AgentSessionMessageEntity
     mockAgentSessionPartsDataApi([{ items: [row] }])
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1', {
-      'message-1': [
-        ...(row.data.parts ?? []),
-        {
-          type: 'text',
-          text: 'Subagent finished',
-          providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
-        }
-      ]
-    })
+    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', [
+      ...(row.data.parts ?? []),
+      {
+        type: 'text',
+        text: 'Subagent finished',
+        providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+      }
+    ])
 
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
 
@@ -281,5 +280,69 @@ describe('useAgentSessionParts', () => {
         providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
       })
     ])
+  })
+
+  it('reprojects only the message whose live flow parts changed', () => {
+    const rowFor = (id: string): AgentSessionMessageEntity =>
+      ({
+        id,
+        sessionId: 'session-1',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: `Persisted ${id}` }] },
+        searchableText: '',
+        status: 'success',
+        modelId: null,
+        messageSnapshot: null,
+        stats: null,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }) as AgentSessionMessageEntity
+    const firstRow = rowFor('message-1')
+    const secondRow = rowFor('message-2')
+    mockAgentSessionPartsDataApi([{ items: [firstRow, secondRow] }])
+    const firstLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'First live' }]
+    const secondLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'Second live' }]
+    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', firstLiveParts)
+    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-2', secondLiveParts)
+
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+    const originalFirstMessage = result.current.messages[0]
+    const originalSecondMessage = result.current.messages[1]
+    const updatedFirstParts: CherryMessagePart[] = [{ type: 'text', text: 'First live updated' }]
+
+    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', updatedFirstParts)
+    rerender()
+
+    expect(result.current.messages[0]).not.toBe(originalFirstMessage)
+    expect(result.current.messages[0].parts).toBe(updatedFirstParts)
+    expect(result.current.messages[1]).toBe(originalSecondMessage)
+    expect(result.current.messages[1].parts).toBe(secondLiveParts)
+  })
+
+  it('reads an existing flow overlay when its message row loads later', () => {
+    const liveParts: CherryMessagePart[] = [{ type: 'text', text: 'Already streaming' }]
+    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', liveParts)
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+    expect(result.current.messages).toEqual([])
+
+    const row = {
+      id: 'message-1',
+      sessionId: 'session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'Persisted' }] },
+      searchableText: '',
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [row] }])
+    rerender()
+
+    expect(result.current.messages[0].parts).toBe(liveParts)
   })
 })

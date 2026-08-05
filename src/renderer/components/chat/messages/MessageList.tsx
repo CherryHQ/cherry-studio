@@ -8,6 +8,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
@@ -17,6 +18,7 @@ import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
+import { MessageListSearch } from './list/MessageListSearch'
 import MessageNavigation from './list/MessageNavigation'
 import {
   MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
@@ -37,6 +39,7 @@ import { defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
+import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
@@ -53,6 +56,7 @@ const RAIL_GUTTER_START_PX = 700
 /** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
 const RAIL_GUTTER_FADE_PX = 120
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
+const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
 
 interface ActiveMessageOutline {
   messageId: string
@@ -163,7 +167,11 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   )
 })
 
-const MessageList = () => {
+interface MessageListProps {
+  enableSearch?: boolean
+}
+
+const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -191,6 +199,7 @@ const MessageList = () => {
   // fades into space that was already there, with no content jump.
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
+  const messageListScopeRef = useRef<HTMLDivElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
@@ -201,6 +210,11 @@ const MessageList = () => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
+  // needs a projection that only changes when its topology does — otherwise its
+  // `memo` never bails and every chunk re-renders all of its ticks.
+  const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
+  const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
@@ -217,6 +231,10 @@ const MessageList = () => {
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
+  const isSearchStreaming = useMemo(
+    () => liveMessageIds.length > 0 || messages.some((message) => message.status === 'pending'),
+    [liveMessageIds.length, messages]
+  )
   const firstLiveGroupIndex = useMemo(() => {
     if (!streamingLayers) return 0
     if (liveMessageIds.length === 0) return groupedMessages.length
@@ -293,6 +311,12 @@ const MessageList = () => {
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
   }, [])
+
+  const scrollToRange = useCallback((range: Range) => {
+    messageListRef.current?.scrollToRange(range)
+  }, [])
+
+  const getOuterScroller = useCallback(() => messageListRef.current?.getScrollElement() ?? null, [])
 
   const updateActiveMessageOutline = useCallback(() => {
     if (!shouldTrackMessageOutline) {
@@ -714,8 +738,21 @@ const MessageList = () => {
           {beforeList}
         </NarrowLayout>
       )}
+      {enableSearch && (
+        <MessageListSearch
+          messages={messages}
+          partsByMessageId={partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID}
+          renderUserTextAsMarkdown={renderConfig.renderInputMessageAsMarkdown}
+          excludedMessageIds={liveMessageIdSet}
+          isStreaming={isSearchStreaming}
+          locateMessage={scrollToMessageById}
+          scrollToRange={scrollToRange}
+          getOuterScroller={getOuterScroller}
+          scopeRef={messageListScopeRef}
+        />
+      )}
       <SelectionContextMenu>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
             items={groupedMessages}
@@ -795,9 +832,13 @@ const MessageList = () => {
       )}
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
-          messages={messages}
+          messages={anchorMessages}
           activeMessageId={activeAnchorMessageId}
           hasOlder={hasOlder}
+          historyPartsByMessageId={
+            streamingLayers?.historyPartsByMessageId ?? partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID
+          }
+          liveMessageIds={liveMessageIds}
           railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
           scrollToMessageId={scrollToMessageById}
         />

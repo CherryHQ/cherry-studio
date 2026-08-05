@@ -514,6 +514,43 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
   })
 
+  it('keeps the scroll-to-bottom button visible during reading navigation while still far from bottom', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      render(
+        <RuntimeProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+
+      runtime!.scrollerRef.current = {
+        scrollTop: 500,
+        scrollHeight: 2000,
+        clientHeight: 400
+      } as HTMLDivElement
+
+      act(() => runtime!.takeUserControl('navigation'))
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+        runtime!.scrollerProps.onScroll(500)
+      })
+
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('shows the scroll-to-bottom button when content growth leaves more than one viewport below', () => {
     const originalResizeObserver = globalThis.ResizeObserver
     const callbacks: ResizeObserverCallback[] = []
@@ -996,6 +1033,64 @@ describe('useChatVirtualizerRuntime', () => {
       restoreResizeObserver()
       raf.restore()
     }
+  })
+
+  it('measures an exact range once and completes its navigation immediately', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    let scrollTop = 1000
+    render(
+      <RuntimeDomProbe
+        items={['message-a']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+    const scroller = runtime!.scrollerRef.current!
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value
+      }
+    })
+    setElementMetric(scroller, 'clientHeight', () => 400)
+    setElementMetric(scroller, 'scrollHeight', () => 1600)
+    Object.defineProperty(scroller, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ top: 0, bottom: 400, left: 0, right: 800, width: 800, height: 400, x: 0, y: 0 })
+    })
+
+    const message = document.createElement('div')
+    message.dataset.messageKey = 'message-a'
+    const text = document.createTextNode('matched text')
+    message.append(text)
+    runtime!.contentRef.current!.prepend(message)
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const getRangeRect = vi.fn(() => ({
+      top: 90,
+      bottom: 110,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: 20,
+      x: 0,
+      y: 90
+    }))
+    Object.defineProperty(range, 'getBoundingClientRect', {
+      configurable: true,
+      value: getRangeRect
+    })
+    act(() => handle!.scrollToBottom())
+    expect(handle!.isFollowing()).toBe(true)
+    act(() => handle!.scrollToRange(range))
+    expect(scrollTop).toBe(1100)
+    expect(getRangeRect).toHaveBeenCalledTimes(1)
+    expect(handle!.isFollowing()).toBe(false)
   })
 
   it('keeps key navigation aimed at the same message when history is prepended mid-animation', () => {

@@ -29,7 +29,9 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -53,6 +55,19 @@ type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+}
+
+interface EnsureBuiltinAgentInput {
+  builtinRole: string
+  configuration: AgentConfiguration
+  name: string
+  preferredModelId: UniqueModelId | null
+  type: AgentType
+}
+
+export interface EnsureBuiltinAgentResult {
+  agent: AgentEntity
+  created: boolean
 }
 
 function getAgentDescription(description: string, configuration: unknown): string {
@@ -312,6 +327,94 @@ export class AgentService {
       ? (modelService.getNamesByUniqueIdsTx(tx, [agent.model]).get(agent.model) ?? null)
       : null
     return { agent, modelName }
+  }
+
+  /**
+   * Find a built-in Agent by its server-owned capability role.
+   *
+   * Seeders use `includeDeleted` so a prior user deletion remains durable, while
+   * runtime restore flows look only for an active row.
+   */
+  findBuiltinAgentByRoleTx(
+    tx: DbOrTx,
+    builtinRole: string,
+    options: { includeDeleted?: boolean } = {}
+  ): AgentRow | null {
+    const roleCondition = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const [agent] = tx
+      .select()
+      .from(agentsTable)
+      .where(options.includeDeleted ? roleCondition : and(isNull(agentsTable.deletedAt), roleCondition))
+      .limit(1)
+      .all()
+    return agent ?? null
+  }
+
+  /**
+   * Return the active built-in Agent or restore one inside the caller's transaction.
+   *
+   * The reserved role is injected here, inside the table-owning service, so no
+   * renderer or generic Agent create path can forge the built-in identity. The
+   * read-before-write transaction makes repeated or concurrent ensure commands
+   * converge on one active system Agent.
+   */
+  ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
+    const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
+
+    if (existing) {
+      const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const modelName = existing.model
+        ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
+        : null
+      return {
+        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        created: false
+      }
+    }
+
+    const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
+    const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
+    const agentId = uuidv4()
+    const created = this.createAgentTx(tx, agentId, {
+      id: agentId,
+      type: input.type,
+      name: input.name.trim() || 'Built-in Agent',
+      description: '',
+      instructions: '',
+      model,
+      configuration: {
+        ...input.configuration,
+        builtin_role: input.builtinRole
+      }
+    })
+
+    if (!created) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restore built-in Agent',
+        'insert succeeded but select returned no row'
+      )
+    }
+
+    return {
+      agent: rowToAgent(created.agent, created.modelName, [], []),
+      created: true
+    }
+  }
+
+  /** Publish an Agent creation only after the caller-owned transaction commits. */
+  emitAgentCreated(agent: AgentEntity): void {
+    this._onAgentCreated.fire({ agentId: agent.id, agent })
+  }
+
+  /** Return the active built-in Agent or restore one from trusted package defaults. */
+  ensureBuiltinAgent(input: EnsureBuiltinAgentInput): AgentEntity {
+    const result = application.get('DbService').withWriteTx((tx) => this.ensureBuiltinAgentTx(tx, input))
+
+    if (result.created) {
+      this.emitAgentCreated(result.agent)
+    }
+    return result.agent
   }
 
   private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {

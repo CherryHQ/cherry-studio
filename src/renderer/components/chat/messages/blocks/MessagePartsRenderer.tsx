@@ -34,6 +34,7 @@ import {
   convertReferencesToCitationReferences,
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -129,7 +130,8 @@ const AnimatedBlockWrapper: React.FC<{
   enableAnimation: boolean
   className?: string
   animation?: 'slide' | 'fade'
-}> = ({ className, children, enableAnimation, animation = 'slide' }) => {
+  messagePartId?: string
+}> = ({ className, children, enableAnimation, animation = 'slide', messagePartId }) => {
   const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
 
   // Latch: Once a block has entered the motion.div branch during streaming (enableAnimation === true),
@@ -146,7 +148,7 @@ const AnimatedBlockWrapper: React.FC<{
 
   if (!hasEverAnimated) {
     return (
-      <div className={wrapperClassName}>
+      <div className={wrapperClassName} data-message-part-id={messagePartId}>
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
       </div>
     )
@@ -155,6 +157,7 @@ const AnimatedBlockWrapper: React.FC<{
   return (
     <motion.div
       className={wrapperClassName}
+      data-message-part-id={messagePartId}
       variants={variants}
       initial={enableAnimation ? 'hidden' : false}
       animate={enableAnimation ? 'visible' : 'static'}>
@@ -534,7 +537,7 @@ function renderPart(
     }
 
     case 'data-compaction-anchor':
-      return <CompactionAnchorBlock key={partId} />
+      return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
@@ -861,7 +864,11 @@ function renderGroupedEntry(
         : undefined
 
   return (
-    <AnimatedBlockWrapper key={partId} enableAnimation={enableAnimation} className={wrapperClassName}>
+    <AnimatedBlockWrapper
+      key={partId}
+      enableAnimation={enableAnimation}
+      className={wrapperClassName}
+      messagePartId={entry.part.type === 'text' ? partId : undefined}>
       {rendered}
     </AnimatedBlockWrapper>
   )

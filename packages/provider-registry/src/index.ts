@@ -42,7 +42,7 @@ export type {
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES } from './reasoningProfiles'
+export { REASONING_FORMAT_PROFILES, selectFormatWire } from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -54,6 +54,7 @@ export type {
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningControl,
   ReasoningSupport,
+  ReasoningWireDialect,
   SupportSpec
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'

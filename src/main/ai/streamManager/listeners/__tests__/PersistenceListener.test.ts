@@ -400,13 +400,13 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
   })
 
-  it('persists only runtimeTiming and leaves usage/cost to the record projection', async () => {
+  it('persists runtimeTiming and contextTokens while leaving usage/cost to the record projection', async () => {
     const finalMessage = {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
       metadata: {
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, contextTokens: 13 }
       }
     } as unknown as CherryUIMessage
 
@@ -428,7 +428,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [{ type: 'text', text: 'hi' }] },
       status: 'success',
-      runtimeStats: { runtimeTiming }
+      runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })

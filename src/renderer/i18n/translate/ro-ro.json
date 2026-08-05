@@ -1350,6 +1350,9 @@
       "label": "Ești sigur că vrei să faci backup la date?"
     },
     "content": "Se face backup la toate datele, inclusiv istoricul chat-ului, setările și baza de cunoștințe. Te rugăm să reții că procesul de backup poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "error": {
+      "active_data_writers": "O conversație sau un agent este încă în execuție. Așteptați să se termine, apoi încercați din nou."
+    },
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
@@ -3840,6 +3843,7 @@
       "pasted_text": "Text lipit"
     },
     "backup": {
+      "cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",
       "failed": "Backup eșuat",
       "start": {
         "success": "Backup început"
@@ -6112,6 +6116,7 @@
         },
         "pathSelector": {
           "currentPath": "Cale curentă",
+          "fetchError": "Nu s-a putut încărca lista de foldere Nutstore",
           "return": "Înapoi",
           "title": "Cale stocare Nutstore"
         },

@@ -163,6 +163,7 @@ function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
   deleteAgentDisabled,
+  deleteTasksOnly,
   pinDisabled,
   pinned,
   onDeleteAgent,
@@ -173,6 +174,7 @@ function AgentGroupMoreMenu({
   agentId: string
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
+  deleteTasksOnly?: boolean
   pinDisabled?: boolean
   pinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
@@ -185,6 +187,7 @@ function AgentGroupMoreMenu({
     agentId,
     assistantIconType,
     deleteAgentDisabled,
+    deleteTasksOnly,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -389,6 +392,7 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
+    deleteSessions,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -1075,6 +1079,11 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
+      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
+      const sessionIds = deleteTasksOnly
+        ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
+        : []
+
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
         ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
@@ -1083,8 +1092,8 @@ const Sessions = ({
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t('agent.delete.title'),
-          content: t('agent.delete.content'),
+          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
+          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -1094,8 +1103,12 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-        closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        if (deleteTasksOnly) {
+          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+        } else {
+          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          closeConversationTabs('agents', result.deletedSessionIds ?? [])
+        }
         if (currentActiveSession?.agentId === agentId) {
           if (onActiveAgentDeleted) {
             await onActiveAgentDeleted(agentId)
@@ -1105,7 +1118,7 @@ const Sessions = ({
           }
         }
 
-        await refetchAgents()
+        if (!deleteTasksOnly) await refetchAgents()
         await reload()
         await refetchWorkspaces()
         toast.success(t('common.delete_success'))
@@ -1118,7 +1131,9 @@ const Sessions = ({
     },
     [
       closeConversationTabs,
+      agentById,
       deleteAgent,
+      deleteSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
@@ -1483,6 +1498,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
+                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1649,6 +1665,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
+          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,

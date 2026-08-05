@@ -59,8 +59,8 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: () => <div data-testid="citations-panel" />
 }))
 
-vi.mock('@renderer/components/ContentSearch', () => ({
-  ContentSearch: () => <div data-testid="content-search" />
+vi.mock('@renderer/components/FindBar', () => ({
+  FindBar: () => <div data-testid="content-search" />
 }))
 
 vi.mock('@renderer/components/popups/PromptPopup', () => ({
