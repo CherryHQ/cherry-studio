@@ -13,14 +13,16 @@ const logger = loggerService.withContext('PromptBuilder')
  * Resolve a filename within a directory using case-insensitive matching.
  * Returns the full path if found (preferring exact match), or undefined.
  */
-async function resolveFile(dir: string, name: string): Promise<string | undefined> {
+async function resolveFile(dir: string, name: string, failOnError = false): Promise<string | undefined> {
   const exact = path.join(dir, name)
   try {
     const fileStat = await lstat(exact)
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return exact
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: exact })
+    if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${exact}`)
     return undefined
-  } catch {
+  } catch (error) {
+    if (failOnError && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     // exact match not found, try case-insensitive
   }
 
@@ -33,8 +35,10 @@ async function resolveFile(dir: string, name: string): Promise<string | undefine
     const fileStat = await lstat(matchedPath)
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return matchedPath
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: matchedPath })
+    if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${matchedPath}`)
     return undefined
-  } catch {
+  } catch (error) {
+    if (failOnError) throw error
     return undefined
   }
 }
@@ -128,9 +132,9 @@ export class PromptBuilder {
 
     // File presence is the explicit choice: even an empty system.md replaces only
     // the SDK base preset, while Cherry-owned context remains appended separately.
-    const systemPath = await resolveFile(workspacePath, 'system.md')
+    const systemPath = await resolveFile(workspacePath, 'system.md', true)
     const base: AgentPromptBase = systemPath
-      ? { kind: 'custom', content: (await this.readCachedFile(systemPath)) ?? '' }
+      ? { kind: 'custom', content: await this.readCachedFile(systemPath, path.dirname(systemPath), true) }
       : { kind: 'claude_code' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
@@ -252,16 +256,33 @@ ${content}
   /**
    * Read a file with mtime-based caching. Returns undefined if the file does not exist.
    */
-  private async readCachedFile(filePath: string, expectedRoot = path.dirname(filePath)): Promise<string | undefined> {
+  private async readCachedFile(filePath: string, expectedRoot: string, failOnError: true): Promise<string>
+  private async readCachedFile(
+    filePath: string,
+    expectedRoot?: string,
+    failOnError?: false
+  ): Promise<string | undefined>
+  private async readCachedFile(
+    filePath: string,
+    expectedRoot = path.dirname(filePath),
+    failOnError = false
+  ): Promise<string | undefined> {
+    const fail = (error: unknown): undefined => {
+      if (failOnError) {
+        throw new Error(`Failed to read required agent prompt file: ${filePath}`, { cause: error })
+      }
+      return undefined
+    }
+
     let fileStat
     try {
       fileStat = await lstat(filePath)
       if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
         logger.warn('Ignoring non-regular file in agent prompt data', { path: filePath })
-        return undefined
+        return fail(new Error('Path is not a regular file'))
       }
-    } catch {
-      return undefined
+    } catch (error) {
+      return fail(error)
     }
 
     try {
@@ -269,10 +290,10 @@ ${content}
       const relative = path.relative(resolvedRoot, resolvedFile)
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         logger.warn('Ignoring agent prompt file outside its expected root', { path: filePath, expectedRoot })
-        return undefined
+        return fail(new Error('Path resolves outside its expected root'))
       }
-    } catch {
-      return undefined
+    } catch (error) {
+      return fail(error)
     }
 
     const cached = this.cache.get(filePath)
@@ -296,7 +317,7 @@ ${content}
       return trimmed
     } catch (error) {
       logger.error(`Failed to read ${filePath}`, error as Error)
-      return undefined
+      return fail(error)
     } finally {
       await handle?.close().catch(() => undefined)
     }

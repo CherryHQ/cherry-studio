@@ -163,6 +163,30 @@ describe('PromptBuilder', () => {
     expect(context).toContain('## Memories')
   })
 
+  it('fails prompt construction when an explicit system.md cannot be opened', async () => {
+    setupFiles({ '/workspace/system.md': 'Custom base' })
+    mockedOpen.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
+
+    await expect(builder.buildPromptParts('/workspace')).rejects.toThrow(
+      'Failed to read required agent prompt file: /workspace/system.md'
+    )
+  })
+
+  it('fails prompt construction when an explicit system.md cannot be read', async () => {
+    setupFiles({ '/workspace/system.md': 'Custom base' })
+    mockedOpen.mockResolvedValueOnce({
+      stat: async () => ({ mtimeMs: 1000, isFile: () => true }),
+      readFile: async () => {
+        throw Object.assign(new Error('EIO'), { code: 'EIO' })
+      },
+      close: async () => undefined
+    } as any)
+
+    await expect(builder.buildPromptParts('/workspace')).rejects.toThrow(
+      'Failed to read required agent prompt file: /workspace/system.md'
+    )
+  })
+
   it('includes soul.md in memories section', async () => {
     setupFiles({
       '/workspace/soul.md': 'Warm but direct. Lead with answers.'
