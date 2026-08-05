@@ -322,6 +322,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
@@ -404,6 +405,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })

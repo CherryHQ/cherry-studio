@@ -41,8 +41,8 @@ import { defineRoute } from '../define'
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
- * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
- * are deliberately absent. Outputs reuse the canonical entity schemas
+ * `AbortSignal`, `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe),
+ * and main-internal `contextOwner` are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
  * AI SDK / transport types (usage, stream responses) — the router never parses
  * `output`, and these are built by trusted main, so a field mirror buys nothing
@@ -248,9 +248,9 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
-  'ai.agent.builtin_assistant.ensure': defineRoute({
+  'ai.agent.feedback_session.create': defineRoute({
     input: z.void(),
-    output: AgentEntitySchema
+    output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),

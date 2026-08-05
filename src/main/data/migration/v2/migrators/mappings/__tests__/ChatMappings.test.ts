@@ -143,6 +143,29 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(tree.get('a2')!.siblingsGroupId)
   })
 
+  it('does not link multi-model responses to an askId that appears later', async () => {
+    const messages = [
+      msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('u1', 'user')
+    ]
+
+    const tree = buildMessageTree(messages)
+
+    // The future u1 cannot be the responses' parent. Both responses use the
+    // orphan-group fallback, then u1 follows the selected response.
+    expect(tree.get('a1')?.parentId).toBeNull()
+    expect(tree.get('a2')?.parentId).toBeNull()
+    expect(tree.get('u1')?.parentId).toBe('a1')
+
+    const indexById = new Map(messages.map((message, index) => [message.id, index]))
+    for (const [id, node] of tree) {
+      if (node.parentId) {
+        expect(indexById.get(node.parentId)).toBeLessThan(indexById.get(id)!)
+      }
+    }
+  })
+
   it('handles mixed: some askIds valid, some pointing to deleted messages', async () => {
     const messages = [
       msg('u1', 'user'),

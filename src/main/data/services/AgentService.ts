@@ -57,10 +57,17 @@ type AgentCreateInput = AgentBase & {
   skillIds?: string[]
 }
 
-export interface EnsureBuiltinAssistantInput {
+interface EnsureBuiltinAgentInput {
+  builtinRole: string
   configuration: AgentConfiguration
-  defaultModelId: UniqueModelId | null
   name: string
+  preferredModelId: UniqueModelId | null
+  type: AgentType
+}
+
+export interface EnsureBuiltinAgentResult {
+  agent: AgentEntity
+  created: boolean
 }
 
 function getAgentDescription(description: string, configuration: unknown): string {
@@ -323,70 +330,89 @@ export class AgentService {
   }
 
   /**
-   * Return the active Cherry Assistant or restore one from trusted package defaults.
+   * Find a built-in Agent by its server-owned capability role.
+   *
+   * Seeders use `includeDeleted` so a prior user deletion remains durable, while
+   * runtime restore flows look only for an active row.
+   */
+  findBuiltinAgentByRoleTx(
+    tx: DbOrTx,
+    builtinRole: string,
+    options: { includeDeleted?: boolean } = {}
+  ): AgentRow | null {
+    const roleCondition = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const [agent] = tx
+      .select()
+      .from(agentsTable)
+      .where(options.includeDeleted ? roleCondition : and(isNull(agentsTable.deletedAt), roleCondition))
+      .limit(1)
+      .all()
+    return agent ?? null
+  }
+
+  /**
+   * Return the active built-in Agent or restore one inside the caller's transaction.
    *
    * The reserved role is injected here, inside the table-owning service, so no
    * renderer or generic Agent create path can forge the built-in identity. The
    * read-before-write transaction makes repeated or concurrent ensure commands
    * converge on one active system Agent.
    */
-  ensureBuiltinAssistant(input: EnsureBuiltinAssistantInput): AgentEntity {
-    const result = application.get('DbService').withWriteTx((tx) => {
-      const [existing] = tx
-        .select()
-        .from(agentsTable)
-        .where(
-          and(
-            isNull(agentsTable.deletedAt),
-            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant'`
-          )
-        )
-        .limit(1)
-        .all()
+  ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
+    const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
 
-      if (existing) {
-        const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
-        const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
-        const modelName = existing.model
-          ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
-          : null
-        return {
-          agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
-          created: false
-        }
-      }
-
-      const defaultModel = input.defaultModelId ? modelService.findByIdTx(tx, input.defaultModelId) : null
-      const model = defaultModel && isGatewayRoutableModel(defaultModel) ? input.defaultModelId : null
-      const agentId = uuidv4()
-      const created = this.createAgentTx(tx, agentId, {
-        id: agentId,
-        type: 'claude-code',
-        name: input.name.trim() || 'Cherry Assistant',
-        description: '',
-        instructions: '',
-        model,
-        configuration: {
-          ...input.configuration,
-          builtin_role: 'assistant'
-        }
-      })
-
-      if (!created) {
-        throw DataApiErrorFactory.invalidOperation(
-          'restore Cherry Assistant',
-          'insert succeeded but select returned no row'
-        )
-      }
-
+    if (existing) {
+      const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const modelName = existing.model
+        ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
+        : null
       return {
-        agent: rowToAgent(created.agent, created.modelName, [], []),
-        created: true
+        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        created: false
+      }
+    }
+
+    const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
+    const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
+    const agentId = uuidv4()
+    const created = this.createAgentTx(tx, agentId, {
+      id: agentId,
+      type: input.type,
+      name: input.name.trim() || 'Built-in Agent',
+      description: '',
+      instructions: '',
+      model,
+      configuration: {
+        ...input.configuration,
+        builtin_role: input.builtinRole
       }
     })
 
+    if (!created) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restore built-in Agent',
+        'insert succeeded but select returned no row'
+      )
+    }
+
+    return {
+      agent: rowToAgent(created.agent, created.modelName, [], []),
+      created: true
+    }
+  }
+
+  /** Publish an Agent creation only after the caller-owned transaction commits. */
+  emitAgentCreated(agent: AgentEntity): void {
+    this._onAgentCreated.fire({ agentId: agent.id, agent })
+  }
+
+  /** Return the active built-in Agent or restore one from trusted package defaults. */
+  ensureBuiltinAgent(input: EnsureBuiltinAgentInput): AgentEntity {
+    const result = application.get('DbService').withWriteTx((tx) => this.ensureBuiltinAgentTx(tx, input))
+
     if (result.created) {
-      this._onAgentCreated.fire({ agentId: result.agent.id, agent: result.agent })
+      this.emitAgentCreated(result.agent)
     }
     return result.agent
   }
