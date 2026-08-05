@@ -843,6 +843,26 @@ describe('AgentRightPane', () => {
     })
   })
 
+  it('rejects direct relative artifact opening from a relative workspace before metadata lookup', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="relative/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
   it('ignores a stale artifact metadata resolution after the workspace switches', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace-a',

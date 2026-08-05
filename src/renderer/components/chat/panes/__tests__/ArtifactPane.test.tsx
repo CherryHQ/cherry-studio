@@ -679,6 +679,10 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('rejects a workspace-relative artifact when the workspace path is relative', () => {
+    expect(resolveArtifactPaneFileSelection('relative/workspace', 'report.md')).toBeNull()
+  })
+
   it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
     // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
     // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
@@ -714,7 +718,12 @@ describe('ArtifactPane', () => {
   })
 
   it('shows a localized invalid-path state without requesting the filesystem', async () => {
-    render(<ArtifactPane workspacePath="relative/workspace" />)
+    render(
+      <ArtifactPane
+        workspacePath="relative/workspace"
+        previewFileSelection={{ workspacePath: 'relative/workspace', filePath: 'report.md' }}
+      />
+    )
 
     await waitFor(() =>
       expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
@@ -722,6 +731,9 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent(
       'agent.preview_pane.tree_error.invalid_path.description'
     )
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
     expect(mocks.treeCreate).not.toHaveBeenCalled()
     expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })

@@ -21,6 +21,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -167,16 +168,26 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const { refresh, reloadExpandedDirectories } = model
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
-  const treeErrorKeys = model.errorKind ? ARTIFACT_FILE_TREE_ERROR_KEYS[model.errorKind] : undefined
-  const hasInvalidWorkspacePath = model.errorKind === 'invalid_path'
+  const previewSelectionWorkspacePath = previewFileSelection?.workspacePath
+  const parsedPreviewWorkspacePath = useMemo(
+    () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
+    [previewSelectionWorkspacePath]
+  )
+  const hasInvalidPreviewSelection = Boolean(previewFileSelection && !parsedPreviewWorkspacePath?.success)
+  const validPreviewFileSelection = parsedPreviewWorkspacePath?.success ? previewFileSelection : null
+  const effectiveTreeErrorKind: ArtifactFileTreeErrorKind | undefined = hasInvalidPreviewSelection
+    ? 'invalid_path'
+    : model.errorKind
+  const treeErrorKeys = effectiveTreeErrorKind ? ARTIFACT_FILE_TREE_ERROR_KEYS[effectiveTreeErrorKind] : undefined
+  const hasInvalidWorkspacePath = effectiveTreeErrorKind === 'invalid_path'
   const overlaySelection = useMemo(
     () =>
-      previewFileSelection
-        ? previewFileSelection
+      validPreviewFileSelection
+        ? validPreviewFileSelection
         : workspacePath && !hasInvalidWorkspacePath && selectedFile
           ? { workspacePath, filePath: selectedFile }
           : null,
-    [hasInvalidWorkspacePath, previewFileSelection, selectedFile, workspacePath]
+    [hasInvalidWorkspacePath, selectedFile, validPreviewFileSelection, workspacePath]
   )
   const overlayWorkspacePath = overlaySelection?.workspacePath
   const overlayFilePath = overlaySelection?.filePath
