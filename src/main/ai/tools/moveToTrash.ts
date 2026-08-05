@@ -2,12 +2,13 @@ import type { BigIntStats } from 'node:fs'
 import { lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
+import { shell } from 'electron'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { shell } from 'electron'
-import * as z from 'zod'
 
 import { assertWorkspacePathUnchanged, isErrno, relativeWorkspacePath } from './assistantFileSafety'
 

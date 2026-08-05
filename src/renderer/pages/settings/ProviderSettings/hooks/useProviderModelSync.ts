@@ -1,10 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { useCallback } from 'react'
 
 import { chunkArray } from '../utils/chunkArray'
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../utils/modelSync'

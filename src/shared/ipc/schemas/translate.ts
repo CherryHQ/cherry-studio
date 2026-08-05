@@ -1,5 +1,6 @@
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
+
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
 

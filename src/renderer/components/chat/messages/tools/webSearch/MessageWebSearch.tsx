@@ -1,8 +1,9 @@
+import { useTranslation } from 'react-i18next'
+
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
-import { useTranslation } from 'react-i18next'
 
 import Link from '../../markdown/Link'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
@@ -34,9 +35,9 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
   // Only in-flight states get the spinner; an errored call must not spin forever.
   if (toolResponse.status === 'error') {
     return (
-      <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-muted-foreground leading-5">
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] leading-5 text-muted-foreground">
         <span className="min-w-0 truncate">{query}</span>
-        <span className="shrink-0 text-danger">{t('message.tools.error')}</span>
+        <span className="text-danger shrink-0">{t('message.tools.error')}</span>
       </span>
     )
   }
@@ -56,7 +57,7 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
 
   // Query on the left, result count on the right (mirrors the reference layout).
   return (
-    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-muted-foreground leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] leading-5 text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground">
       <span className="min-w-0 truncate">{query || resultText}</span>
       {query && <span className="shrink-0 text-foreground-tertiary">{resultText}</span>}
     </span>

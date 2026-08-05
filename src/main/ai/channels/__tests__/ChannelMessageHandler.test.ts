@@ -1,12 +1,14 @@
+import { EventEmitter } from 'events'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'

@@ -1,3 +1,7 @@
+import { useState } from 'react'
+import { type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import { FormField, FormItem } from '@cherrystudio/ui'
 import { PromptEditorField } from '@renderer/components/PromptEditorField'
 import {
@@ -9,9 +13,6 @@ import {
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
-import { useState } from 'react'
-import { type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 

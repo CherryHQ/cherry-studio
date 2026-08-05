@@ -1,10 +1,11 @@
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { useForm } from 'react-hook-form'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
 import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import { useForm } from 'react-hook-form'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { BasicInfoStep } from '../BasicInfoStep'

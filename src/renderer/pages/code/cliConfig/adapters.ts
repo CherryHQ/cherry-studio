@@ -1,3 +1,5 @@
+import { stringify as stringifyToml } from 'smol-toml'
+
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
@@ -15,7 +17,6 @@ import {
   OPENCODE_CONFIG_PATH,
   QWEN_CONFIG_PATH
 } from '@shared/utils/cliConfig'
-import { stringify as stringifyToml } from 'smol-toml'
 
 import {
   buildClaudeConfig,

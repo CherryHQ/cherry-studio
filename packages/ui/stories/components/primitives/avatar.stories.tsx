@@ -1,6 +1,7 @@
-import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bot, User } from 'lucide-react'
+
+import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Avatar> = {
   title: 'Components/Primitives/Avatar',

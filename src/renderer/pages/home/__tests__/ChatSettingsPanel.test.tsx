@@ -1,8 +1,9 @@
-import type { Topic } from '@renderer/types/topic'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
 

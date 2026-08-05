@@ -1,6 +1,7 @@
-import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 
 import type { StreamDoneResult, StreamPausedResult } from '../../types'
 import { ChannelAdapterListener } from '../ChannelAdapterListener'

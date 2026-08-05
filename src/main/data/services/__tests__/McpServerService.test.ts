@@ -1,9 +1,10 @@
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()

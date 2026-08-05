@@ -5,10 +5,13 @@
  * per-execution `PersistenceListener`s.
  */
 
-import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
+
+import { application } from '@application'
+import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
@@ -20,7 +23,6 @@ import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
@@ -34,7 +36,6 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'

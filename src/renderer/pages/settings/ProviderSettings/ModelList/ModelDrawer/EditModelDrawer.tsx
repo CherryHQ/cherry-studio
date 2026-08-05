@@ -1,3 +1,7 @@
+import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Input,
@@ -16,9 +20,6 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderField from '../../primitives/ProviderField'
@@ -531,7 +532,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                    <span className="truncate text-[13px] leading-5 font-normal text-muted-foreground">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>

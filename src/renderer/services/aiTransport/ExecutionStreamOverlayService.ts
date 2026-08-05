@@ -1,3 +1,5 @@
+import { isToolUIPart, readUIMessageStream } from 'ai'
+
 /**
  * Window-level owner of streaming overlay state shared by topic and agent-session
  * consumers (execution readers, live snapshots, rAF-batched flushes). Extracted
@@ -44,7 +46,6 @@ import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { isToolUIPart, readUIMessageStream } from 'ai'
 
 import { TopicStreamSubscription } from './TopicStreamSubscription'
 

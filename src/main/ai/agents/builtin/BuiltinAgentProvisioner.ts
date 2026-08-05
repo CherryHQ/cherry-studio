@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 /**
  * BuiltinAgentProvisioner
  *
@@ -7,8 +10,6 @@
  */
 import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import fs from 'fs'
-import path from 'path'
 
 import {
   type BuiltinAgentDefinition,

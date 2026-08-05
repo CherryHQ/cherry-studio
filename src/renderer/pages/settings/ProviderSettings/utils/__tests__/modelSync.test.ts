@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import {
   fetchProviderCatalogModels,

@@ -1,8 +1,9 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export type CheckedState = CheckboxPrimitive.CheckedState
 
@@ -16,7 +17,7 @@ const checkboxVariants = cva(
     'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
     'focus-visible:border-primary',
-    'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
+    'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
     'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
   ),
   {
@@ -33,7 +34,7 @@ const checkboxVariants = cva(
   }
 )
 
-const checkboxIconVariants = cva('animate-checkbox-icon-in  motion-reduce:animate-none', {
+const checkboxIconVariants = cva('animate-checkbox-icon-in motion-reduce:animate-none', {
   variants: {
     size: {
       sm: 'size-3',

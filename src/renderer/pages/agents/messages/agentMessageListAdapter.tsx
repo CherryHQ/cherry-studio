@@ -1,4 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
@@ -33,8 +36,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {

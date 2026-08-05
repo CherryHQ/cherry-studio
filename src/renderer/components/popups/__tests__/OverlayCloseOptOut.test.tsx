@@ -1,12 +1,13 @@
-import { PopupHost } from '@renderer/components/PopupHost'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactModule from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 
 const mocks = vi.hoisted(() => ({
   backup: vi.fn()

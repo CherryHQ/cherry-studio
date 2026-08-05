@@ -4,17 +4,18 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { UIMessage } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
+
+import { application } from '@application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import type { UIMessage } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'

@@ -1,8 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
+import type { ReactNode } from 'react'
+
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { AgentEntity } from '@shared/data/types/agent'
-import type { ReactNode } from 'react'
 
 import Tools from './Tools'
 

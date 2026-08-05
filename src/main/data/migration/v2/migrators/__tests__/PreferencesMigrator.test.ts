@@ -4,11 +4,12 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../../utils/DexieSettingsReader'

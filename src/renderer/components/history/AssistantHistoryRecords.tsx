@@ -1,3 +1,7 @@
+import { Bot } from 'lucide-react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
@@ -28,9 +32,6 @@ import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'

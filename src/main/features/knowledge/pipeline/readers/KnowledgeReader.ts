@@ -1,5 +1,6 @@
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
+
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../../items'
 import { loadFileDocuments } from './KnowledgeFileReader'

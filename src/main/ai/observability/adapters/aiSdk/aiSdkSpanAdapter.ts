@@ -5,10 +5,11 @@
  * Note the AI SDK hierarchy: ai.xxx is one level, ai.xxx.xxx is a child of that level.
  */
 
-import { loggerService } from '@logger'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('AiSdkSpanAdapter')
 

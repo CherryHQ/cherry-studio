@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,

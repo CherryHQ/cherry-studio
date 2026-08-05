@@ -1,10 +1,11 @@
+import { Check, SaveIcon } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { Check, SaveIcon } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface UseSaveToolProps {
   enabled?: boolean

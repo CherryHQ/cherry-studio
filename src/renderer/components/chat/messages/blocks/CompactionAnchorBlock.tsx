@@ -1,7 +1,8 @@
-import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { Loader2 } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 
 interface Props {
   /** Absent for anchors persisted before the part carried a payload. */
@@ -36,7 +37,7 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
     const compacting = data.status === 'compacting'
     return (
       <div
-        className="flex items-center gap-2 py-0.5 text-muted-foreground text-xs"
+        className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground"
         role={compacting ? 'status' : undefined}
         aria-live={compacting ? 'polite' : undefined}>
         {compacting ? (
@@ -58,26 +59,26 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   if (data?.status === 'compacting') {
     return (
       <div
-        className="my-3 flex w-full items-center gap-2 text-muted-foreground text-xs"
+        className="my-3 flex w-full items-center gap-2 text-xs text-muted-foreground"
         role="status"
         aria-live="polite">
-        <span className="h-px min-w-6 flex-1 border-border-subtle border-t border-dashed" aria-hidden />
+        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
         <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
         <span className="shrink-0">{t('chat.compaction.compacting')}</span>
-        <span className="h-px min-w-6 flex-1 border-border-subtle border-t border-dashed" aria-hidden />
+        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
       </div>
     )
   }
 
   return (
     <div className="my-3 flex w-full items-center gap-3 text-muted-foreground" role="separator">
-      <span className="h-px min-w-6 flex-1 border-border-subtle border-t border-dashed" aria-hidden />
+      <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
       {saved === undefined ? (
         <span className="size-1.5 shrink-0 rounded-full bg-border" aria-hidden />
       ) : (
         <span className="shrink-0 text-xs">{t('chat.compaction.compacted', { count: saved })}</span>
       )}
-      <span className="h-px min-w-6 flex-1 border-border-subtle border-t border-dashed" aria-hidden />
+      <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
     </div>
   )
 }

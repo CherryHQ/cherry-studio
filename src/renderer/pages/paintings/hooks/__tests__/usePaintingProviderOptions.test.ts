@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model } from '@shared/data/types/model'
 import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import { buildPaintingProviderOptions } from '../usePaintingProviderOptions'
 

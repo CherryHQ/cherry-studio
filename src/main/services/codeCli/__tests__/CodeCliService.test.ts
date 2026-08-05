@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),

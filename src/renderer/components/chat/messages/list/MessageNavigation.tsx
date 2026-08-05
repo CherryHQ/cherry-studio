@@ -1,9 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, X } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { useTimer } from '@renderer/hooks/useTimer'
 
 import type { MessageListItem } from '../types'
 

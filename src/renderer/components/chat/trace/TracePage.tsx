@@ -199,26 +199,26 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
           {showList ? (
             <div
               data-testid="trace-list-scroll"
-              className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+              className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3">
               {pollError ? (
-                <div className="flex h-full min-h-40 items-center justify-center text-destructive text-xs">
+                <div className="flex h-full min-h-40 items-center justify-center text-xs text-destructive">
                   {t('trace.pollError')}: {pollError}
                 </div>
               ) : spans.length === 0 ? (
-                <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
+                <div className="flex h-full min-h-40 items-center justify-center text-xs text-muted-foreground">
                   {t('trace.noTraceList')}
                 </div>
               ) : (
                 <div
                   data-testid="trace-table"
                   className="min-w-0 overflow-hidden rounded-md border border-border-subtle bg-card">
-                  <div className={`${TRACE_ROW_GRID} sticky top-0 z-[2] w-full border-border border-b-[0.5px] bg-card`}>
-                    <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 text-left font-medium text-muted-foreground text-xs max-[520px]:px-1">
+                  <div className={`${TRACE_ROW_GRID} sticky top-0 z-[2] w-full border-b-[0.5px] border-border bg-card`}>
+                    <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 text-left text-xs font-medium text-muted-foreground max-[520px]:px-1">
                       <span tabIndex={0} className="min-w-0 truncate">
                         {t('trace.name')}
                       </span>
                     </div>
-                    <div className="flex h-8 min-w-0 items-center justify-center bg-background-subtle px-2 text-center font-medium text-muted-foreground text-xs max-[520px]:px-1">
+                    <div className="flex h-8 min-w-0 items-center justify-center bg-background-subtle px-2 text-center text-xs font-medium text-muted-foreground max-[520px]:px-1">
                       <span className="min-w-0 truncate">{t('trace.spendTime')}</span>
                     </div>
                     <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 max-[520px]:px-1" />

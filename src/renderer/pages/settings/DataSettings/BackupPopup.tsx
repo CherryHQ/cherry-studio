@@ -1,3 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CircularProgress,
@@ -7,15 +11,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Props = PopupInjectedProps<any>
 

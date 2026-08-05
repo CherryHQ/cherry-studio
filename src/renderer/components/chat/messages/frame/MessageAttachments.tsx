@@ -1,10 +1,11 @@
+import { Paperclip } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
-import { Paperclip } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
@@ -50,8 +51,8 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           onClick={previewFile ? handlePreview : undefined}
           title={fileName}
           aria-label={fileName}>
-          <div className="truncate text-foreground text-sm">{fileName}</div>
-          <div className="text-muted-foreground text-xs">
+          <div className="truncate text-sm text-foreground">{fileName}</div>
+          <div className="text-xs text-muted-foreground">
             {formatFileSize(file.size)} · {fileSuffix}
           </div>
         </button>

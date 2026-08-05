@@ -8,20 +8,21 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
-import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { loggerService } from '@logger'
-import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import QRCode from 'qrcode'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
-import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 

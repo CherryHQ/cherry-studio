@@ -10,10 +10,11 @@
  * those make sense as chat targets).
  */
 
+import { useMemo } from 'react'
+
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
-import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 

@@ -1,10 +1,3 @@
-import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
-import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { ChevronDown, RotateCcw, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -18,6 +11,14 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
+import { getProviderDisplayName } from '@renderer/hooks/useProvider'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 interface SelectedModelsTriggerProps extends Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> {
   models: Model[]
@@ -186,7 +187,7 @@ export const SelectedModelsTrigger = ({
 
   const content = (
     <div className="w-82 max-w-[calc(100vw-2rem)] text-popover-foreground" data-testid="selected-models-popover">
-      <div className="px-3 pt-2 pb-1 font-medium text-[11px] text-muted-foreground">{selectedModelsLabel}</div>
+      <div className="px-3 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">{selectedModelsLabel}</div>
       {models.length > 0 ? (
         <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
           {models.map((model) => {
@@ -205,29 +206,29 @@ export const SelectedModelsTrigger = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex h-4 min-w-0 items-center">
-                    <span className="truncate font-medium text-[12px] leading-4">{model.name}</span>
+                    <span className="truncate text-[12px] leading-4 font-medium">{model.name}</span>
                   </div>
                   <div
                     className={cn(
-                      'mt-0.5 flex h-3.5 min-w-0 items-center gap-1.5 text-[11px] text-foreground-tertiary leading-3.5',
+                      'mt-0.5 flex h-3.5 min-w-0 items-center gap-1.5 text-[11px] leading-3.5 text-foreground-tertiary',
                       !hasTags && 'invisible'
                     )}>
                     {hasTags ? <SelectedModelTags tags={tags} /> : null}
                   </div>
                 </div>
                 <div className="grid max-w-24 shrink-0 justify-items-end">
-                  <span className="h-4 max-w-24 truncate text-[11px] text-foreground-tertiary leading-4">
+                  <span className="h-4 max-w-24 truncate text-[11px] leading-4 text-foreground-tertiary">
                     {providerName}
                   </span>
                   <span
                     className={cn(
-                      'mt-0.5 h-3.5 max-w-24 truncate text-[11px] text-foreground-tertiary leading-3.5',
+                      'mt-0.5 h-3.5 max-w-24 truncate text-[11px] leading-3.5 text-foreground-tertiary',
                       !hasRightMeta && 'invisible'
                     )}>
                     {hasRightMeta ? t('models.selection.context_window', { count: model.contextWindow }) : null}
                   </span>
                 </div>
-                <div className="flex h-8 w-0 items-center justify-center overflow-hidden opacity-0 transition-[width,opacity] focus-within:w-4 focus-within:opacity-100 group-hover:w-4 group-hover:opacity-100">
+                <div className="flex h-8 w-0 items-center justify-center overflow-hidden opacity-0 transition-[width,opacity] group-hover:w-4 group-hover:opacity-100 focus-within:w-4 focus-within:opacity-100">
                   <Button
                     type="button"
                     variant="ghost"
@@ -243,7 +244,7 @@ export const SelectedModelsTrigger = ({
           })}
         </Scrollbar>
       ) : null}
-      <div className="mt-1 border-border border-t px-1.5 pt-1 pb-1">
+      <div className="mt-1 border-t border-border px-1.5 pt-1 pb-1">
         <Button
           type="button"
           variant="ghost"

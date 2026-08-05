@@ -3,6 +3,10 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -10,9 +14,6 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
   () => ({

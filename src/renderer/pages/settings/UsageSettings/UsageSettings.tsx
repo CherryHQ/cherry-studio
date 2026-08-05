@@ -1,3 +1,7 @@
+import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, EmptyState, Popover, PopoverContent, PopoverTrigger, SegmentedControl } from '@cherrystudio/ui'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
@@ -9,9 +13,6 @@ import type {
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   CHART_TYPE_LABEL_KEYS,
@@ -392,7 +393,7 @@ function UsageSettings() {
           <UsageSectionHeader>
             <div className="min-w-0">
               <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
-              <p className="mt-1 text-muted-foreground text-sm">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {t('settings.usage.summary', {
                   window: t(WINDOW_LABEL_KEYS[windowKey]),
                   tokens: formatCompactNumber(totalTokens),
@@ -430,7 +431,7 @@ function UsageSettings() {
             {isInitialLoading ? (
               <MetricStripSkeleton />
             ) : (
-              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+              <div className="grid min-w-0 grid-cols-1 gap-px border-b border-border bg-border @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4">
                 <MetricCell
                   label={t('settings.usage.cards.totalCost')}
                   trendValues={costTrendValues}
@@ -480,7 +481,7 @@ function UsageSettings() {
             )}
 
             {!isInitialLoading && hasUsage && (
-              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+              <div className="grid min-w-0 grid-cols-1 gap-px border-b border-border bg-border @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4">
                 <InsightCell
                   label={t('settings.usage.cards.activeDays')}
                   value={activeDays}
@@ -513,7 +514,7 @@ function UsageSettings() {
             )}
 
             {hasUsage && (
-              <div className="@[640px]/usage:p-4 p-3">
+              <div className="p-3 @[640px]/usage:p-4">
                 <UsageHeatmap
                   buckets={timelineBuckets}
                   selectedDate={selectedDate}
@@ -528,7 +529,7 @@ function UsageSettings() {
             )}
 
             {!hasUsage && !isInitialLoading && (
-              <div className="@[640px]/usage:p-4 p-3">
+              <div className="p-3 @[640px]/usage:p-4">
                 <EmptyState
                   compact
                   preset="no-result"
@@ -549,7 +550,7 @@ function UsageSettings() {
                   : t('settings.usage.explore.title')}
               </UsageSectionTitle>
               {selectedDateLabel && (
-                <div className="mt-1 flex items-center gap-2 text-foreground-tertiary text-xs">
+                <div className="mt-1 flex items-center gap-2 text-xs text-foreground-tertiary">
                   <span>{t('settings.usage.explore.selectedDate', { date: selectedDateLabel })}</span>
                   <Button
                     variant="ghost"
@@ -567,10 +568,10 @@ function UsageSettings() {
           <div className="flex min-w-0 flex-col gap-3">
             <UsagePanel>
               <UsagePanelHeader className="flex min-w-0 flex-col gap-3">
-                <div className="flex min-w-0 @[760px]/usage:flex-row flex-col @[760px]/usage:items-start @[760px]/usage:justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-3 @[760px]/usage:flex-row @[760px]/usage:items-start @[760px]/usage:justify-between">
                   <div className="min-w-0">
                     <UsagePanelTitle>{t('settings.usage.explore.analysis')}</UsagePanelTitle>
-                    <div className="mt-1 text-foreground-tertiary text-xs">
+                    <div className="mt-1 text-xs text-foreground-tertiary">
                       {analysisSummary} / {formatChartValue(totalExploreMetric)}
                     </div>
                   </div>
@@ -579,7 +580,7 @@ function UsageSettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="max-w-full justify-between gap-2 @[760px]/usage:self-auto self-start">
+                        className="max-w-full justify-between gap-2 self-start @[760px]/usage:self-auto">
                         <span className="inline-flex min-w-0 items-center gap-2">
                           <SlidersHorizontal className="size-4 shrink-0" />
                           <span className="min-w-0 truncate">{analysisSummary}</span>

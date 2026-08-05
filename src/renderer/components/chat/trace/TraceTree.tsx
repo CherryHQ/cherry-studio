@@ -1,7 +1,8 @@
-import { Button } from '@cherrystudio/ui'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 import { useState } from 'react'
+
+import { Button } from '@cherrystudio/ui'
 
 import { ProgressBar } from './ProgressBar'
 import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
@@ -69,12 +70,12 @@ const TraceTree: React.FC<TraceTreeProps> = ({ node, handleClick, treeData, padd
             <span
               role="button"
               tabIndex={0}
-              className={`${node.status === 'ERROR' ? 'text-destructive' : 'text-foreground'} min-w-0 flex-1 cursor-pointer select-none [overflow-wrap:anywhere]`}>
+              className={`${node.status === 'ERROR' ? 'text-destructive' : 'text-foreground'} min-w-0 flex-1 cursor-pointer [overflow-wrap:anywhere] select-none`}>
               {node.name}
             </span>
           </div>
         </div>
-        <div className="min-w-0 whitespace-nowrap text-center">
+        <div className="min-w-0 text-center whitespace-nowrap">
           <span>{usedTime}</span>
         </div>
         <div className="min-w-0 px-1 py-2 text-center">

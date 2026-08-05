@@ -1,9 +1,11 @@
+import fs from 'fs'
+import path from 'path'
+
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
-import { app } from 'electron'
-import fs from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('AppService')
 

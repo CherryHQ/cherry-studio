@@ -1,11 +1,26 @@
 {
   "name": "@cherrystudio/extension-table-plus",
-  "description": "table extension for tiptap forked from tiptap/extension-table",
   "version": "3.0.12",
+  "description": "table extension for tiptap forked from tiptap/extension-table",
+  "keywords": [
+    "tiptap",
+    "tiptap extension"
+  ],
   "homepage": "https://cherry-ai.com",
-  "keywords": ["tiptap", "tiptap extension"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CherryHQ/cherry-studio",
+    "directory": "packages/extension-table-plus"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
   "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": {
@@ -56,33 +71,22 @@
       "require": "./dist/row/index.cjs"
     }
   },
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": ["src", "dist"],
+  "scripts": {
+    "build": "tsdown",
+    "lint": "pnpm --workspace-root exec oxfmt --write packages/extension-table-plus/src && eslint --fix ./src/",
+    "prepublishOnly": "pnpm build"
+  },
   "devDependencies": {
-    "@biomejs/biome": "2.2.4",
     "@tiptap/core": "3.26.1",
     "@tiptap/pm": "3.26.1",
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
     "tsdown": "^0.22.14"
   },
   "peerDependencies": {
     "@tiptap/core": "^3.0.9",
     "@tiptap/pm": "^3.0.9"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/CherryHQ/cherry-studio",
-    "directory": "packages/extension-table-plus"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "lint": "biome format ./src/ --write && eslint --fix ./src/",
-    "prepublishOnly": "pnpm build"
   },
   "packageManager": "pnpm@10.27.0"
 }

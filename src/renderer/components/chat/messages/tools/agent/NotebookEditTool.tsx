@@ -1,5 +1,6 @@
-import { Badge } from '@cherrystudio/ui'
 import { Streamdown } from 'streamdown'
+
+import { Badge } from '@cherrystudio/ui'
 
 import type { NotebookEditToolInput, NotebookEditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'

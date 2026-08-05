@@ -1,8 +1,9 @@
-import type { ConfirmDialog } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import type { ComponentProps } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { ConfirmDialog } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 interface RemoveCliToolDialogController {
   removeDialogProps: ComponentProps<typeof ConfirmDialog>

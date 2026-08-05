@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
-import { useTranslation } from 'react-i18next'
 
 // Category names are free-form English strings produced by the Claude Code CLI
 // (SDKControlGetContextUsageResponse); unknown names fall back to the raw value.
@@ -69,7 +70,7 @@ export function ContextUsageSummary({
             <span className="min-w-0 truncate">{usage.model}</span>
           </div>
           {visibleCategories.length > 0 && (
-            <div className="space-y-1 border-border-subtle border-t pt-2">
+            <div className="space-y-1 border-t border-border-subtle pt-2">
               {visibleCategories.map((category) => {
                 // Share of used context (totalTokens), so proportions stay meaningful
                 // even when the window (maxTokens) is huge and barely filled.

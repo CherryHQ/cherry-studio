@@ -109,7 +109,7 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
             className="h-full w-full border-0 bg-white"
           />
         ) : emptyText ? (
-          <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">
+          <div className="flex h-full w-full items-center justify-center bg-muted text-sm text-muted-foreground">
             <p>{emptyText}</p>
           </div>
         ) : null}

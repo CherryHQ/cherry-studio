@@ -1,6 +1,5 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
-
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
@@ -10,15 +9,16 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
-import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
+import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }

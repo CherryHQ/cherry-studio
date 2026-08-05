@@ -4,10 +4,12 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
-import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
@@ -19,7 +21,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'

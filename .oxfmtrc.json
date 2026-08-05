@@ -1,0 +1,89 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "arrowParens": "always",
+  "bracketSameLine": true,
+  "bracketSpacing": true,
+  "endOfLine": "lf",
+  "ignorePatterns": [
+    "**/*.md",
+    ".claude/**",
+    ".conductor/**",
+    ".yarn/**",
+    "build/**",
+    "coverage/**",
+    "dist/**",
+    "out/**",
+    "resources/**",
+    "storybook-static/**",
+    "v2-refactor-temp/**",
+    "**/dist/**",
+    "**/storybook-static/**",
+    "**/vendor/**",
+    "migrations/**",
+    "patches/**",
+    "packages/ui/src/components/icons/**",
+    "packages/ui/src/styles/theme.css",
+    "src/main/integration/**",
+    "src/main/services/nutstore/sso/lib/**",
+    "src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts",
+    "src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts",
+    "src/preload/globals.d.ts",
+    "src/renderer/routeTree.gen.ts",
+    "src/shared/data/bootConfig/bootConfigSchemas.ts",
+    "src/shared/data/preference/preferenceSchemas.ts",
+    "src/shared/utils/codeLanguages.ts",
+    "src/shared/utils/systemProviderId.ts"
+  ],
+  "jsxSingleQuote": false,
+  "printWidth": 120,
+  "proseWrap": "preserve",
+  "quoteProps": "as-needed",
+  "semi": false,
+  "singleQuote": true,
+  "sortImports": {
+    "internalPattern": [
+      "@application",
+      "@logger",
+      "@main/",
+      "@renderer/",
+      "@shared/",
+      "@types/",
+      "@cherrystudio/",
+      "@/",
+      "~/",
+      "#"
+    ]
+  },
+  "sortPackageJson": {
+    "sortScripts": true
+  },
+  "tabWidth": 2,
+  "trailingComma": "none",
+  "useTabs": false,
+  "overrides": [
+    {
+      "files": ["src/renderer/**/*.{js,jsx,ts,tsx}"],
+      "options": {
+        "sortTailwindcss": {
+          "functions": ["clsx", "cn", "cva", "twMerge"],
+          "stylesheet": "./src/renderer/assets/styles/tailwind.css"
+        }
+      }
+    },
+    {
+      "files": ["packages/ui/**/*.{js,jsx,ts,tsx}"],
+      "options": {
+        "sortTailwindcss": {
+          "functions": ["clsx", "cn", "cva", "twMerge"],
+          "stylesheet": "./packages/ui/stories/tailwind.css"
+        }
+      }
+    },
+    {
+      "files": ["**/*.{yml,yaml}"],
+      "options": {
+        "singleQuote": false
+      }
+    }
+  ]
+}

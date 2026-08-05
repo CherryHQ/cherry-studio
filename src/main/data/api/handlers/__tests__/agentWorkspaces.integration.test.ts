@@ -1,4 +1,5 @@
-import { application } from '@application'
+import path from 'path'
+
 import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -6,11 +7,12 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import path from 'path'
 import { beforeEach, describe, expect, it, type Mock } from 'vitest'
+
+import { application } from '@application'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
 describe('agentWorkspaceHandlers integration', () => {
   const dbh = setupTestDatabase()

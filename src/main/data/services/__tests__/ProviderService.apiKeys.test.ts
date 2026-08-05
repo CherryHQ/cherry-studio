@@ -1,17 +1,18 @@
 import { resolve } from 'node:path'
 
-import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api/errors'
-import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { ErrorCode } from '@shared/data/api/errors'
+import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 // The API-key mutators are synchronous under better-sqlite3: failing calls throw
 // inline instead of rejecting a promise. Capture the thrown error to assert its shape.

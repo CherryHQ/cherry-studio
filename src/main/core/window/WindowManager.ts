@@ -1,5 +1,8 @@
 import { join } from 'node:path'
 
+import { app, BrowserWindow, screen, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
@@ -30,8 +33,6 @@ import {
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import { app, BrowserWindow, screen, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 

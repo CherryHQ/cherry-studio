@@ -1,7 +1,8 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 const useProviderMock = vi.fn()
 const updateProviderMock = vi.fn()

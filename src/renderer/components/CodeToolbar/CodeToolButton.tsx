@@ -1,6 +1,7 @@
+import { memo, useCallback, useMemo, useState } from 'react'
+
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import type { ActionTool } from '@renderer/components/ActionTools'
-import { memo, useCallback, useMemo, useState } from 'react'
 
 import { ToolWrapper } from './styles'
 

@@ -7,9 +7,10 @@
  */
 import fs from 'node:fs/promises'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/documentToMarkdown/handler'
 import { mineruDocumentToMarkdownHandler } from '../mineru/documentToMarkdown/handler'

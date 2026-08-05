@@ -1,3 +1,8 @@
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
@@ -13,10 +18,6 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
@@ -71,7 +72,7 @@ const DataSettings: FC = () => {
   return (
     <RowFlex className="flex-1">
       <div
-        className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+        className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:leading-4 [&_.iconfont]:text-current`}>
         <PageHeader title={t('settings.data.title')} />
         <Scrollbar className="min-h-0 flex-1">
           <MenuList className={settingsSubmenuListClassName}>

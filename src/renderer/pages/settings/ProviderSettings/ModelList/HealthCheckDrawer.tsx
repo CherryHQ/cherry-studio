@@ -1,3 +1,7 @@
+import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Avatar,
@@ -20,9 +24,6 @@ import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/he
 import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
-import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -206,7 +207,7 @@ export default function HealthCheckDrawer({
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-foreground-tertiary" />
                 </div>
-                <span className="text-foreground-tertiary text-xs">
+                <span className="text-xs text-foreground-tertiary">
                   {t('settings.models.check.outcome_success_short', { count: successCount })}
                 </span>
               </div>
@@ -215,7 +216,7 @@ export default function HealthCheckDrawer({
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-error-subtle">
                     <XCircle size={9} className="text-error" />
                   </div>
-                  <span className="text-error text-xs">
+                  <span className="text-xs text-error">
                     {t('settings.models.check.outcome_fail_short', { count: failCount })}
                   </span>
                 </div>
@@ -225,12 +226,12 @@ export default function HealthCheckDrawer({
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                     <Info size={9} className="text-foreground-tertiary" />
                   </div>
-                  <span className="text-foreground-tertiary text-xs">
+                  <span className="text-xs text-foreground-tertiary">
                     {t('settings.models.check.outcome_skipped_short', { count: skippedCount })}
                   </span>
                 </div>
               ) : null}
-              <span className="ml-auto shrink-0 text-foreground-tertiary text-xs">
+              <span className="ml-auto shrink-0 text-xs text-foreground-tertiary">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
               </span>
             </div>
@@ -251,7 +252,7 @@ export default function HealthCheckDrawer({
                   rightCell = (
                     <Tooltip
                       content={
-                        <span className="block max-w-full whitespace-pre-wrap text-left text-[12px] leading-snug">
+                        <span className="block max-w-full text-left text-[12px] leading-snug whitespace-pre-wrap">
                           {skipReasonText}
                         </span>
                       }
@@ -267,7 +268,7 @@ export default function HealthCheckDrawer({
                 } else if (checking) {
                   statusCell = <Loader2 className="size-4 shrink-0 animate-spin text-warning" aria-hidden />
                   rightCell = (
-                    <span className="shrink-0 font-medium text-[12px] text-warning">
+                    <span className="shrink-0 text-[12px] font-medium text-warning">
                       {t('settings.models.check.status_checking')}
                     </span>
                   )
@@ -295,7 +296,7 @@ export default function HealthCheckDrawer({
                     errText !== '' ? (
                       <Tooltip
                         content={
-                          <span className="block max-w-full whitespace-pre-wrap break-all text-left text-[12px] leading-snug">
+                          <span className="block max-w-full text-left text-[12px] leading-snug break-all whitespace-pre-wrap">
                             {errText}
                           </span>
                         }
@@ -343,7 +344,7 @@ export default function HealthCheckDrawer({
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
+              <span className="text-sm text-foreground">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
                 size="sm"
                 value={keyCheckMode}
@@ -356,7 +357,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="text-foreground text-sm">{t('settings.models.check.enable_concurrent')}</span>
+              <span className="text-sm text-foreground">{t('settings.models.check.enable_concurrent')}</span>
               <SegmentedControl
                 size="sm"
                 value={isConcurrent ? 'on' : 'off'}
@@ -369,7 +370,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="text-foreground text-sm">{t('settings.models.check.timeout')}</span>
+              <span className="text-sm text-foreground">{t('settings.models.check.timeout')}</span>
               <div className="flex w-28 items-center gap-2">
                 <Input
                   type="number"
@@ -378,7 +379,7 @@ export default function HealthCheckDrawer({
                   value={String(timeoutSeconds)}
                   onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
                 />
-                <span className="text-foreground-tertiary text-xs">s</span>
+                <span className="text-xs text-foreground-tertiary">s</span>
               </div>
             </div>
           </div>

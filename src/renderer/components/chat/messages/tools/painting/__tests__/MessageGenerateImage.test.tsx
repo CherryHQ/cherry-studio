@@ -1,6 +1,7 @@
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 
 const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 

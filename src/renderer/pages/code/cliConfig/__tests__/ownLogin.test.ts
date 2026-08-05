@@ -1,5 +1,6 @@
-import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CodeCli } from '@shared/types/codeCli'
 
 import { readOwnLoginCliConfigDraft } from '../index'
 import {

@@ -1,6 +1,7 @@
-import { cn } from '@renderer/utils/style'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { Streamdown } from 'streamdown'
+
+import { cn } from '@renderer/utils/style'
 
 const RELEASE_NOTE_CATEGORY_PREFIX = 'release-note-category:'
 const RELEASE_NOTE_CATEGORY_PATTERN = /^(\s*[-*+]\s+)\[([^\]`\r\n]{1,32})\](?=\s)/gm
@@ -18,7 +19,7 @@ function ReleaseNoteInlineCode({ children, node, ...props }: ComponentPropsWitho
 
   if (value.startsWith(RELEASE_NOTE_CATEGORY_PREFIX)) {
     return (
-      <span className="inline-flex items-center whitespace-nowrap rounded-sm border border-border-subtle bg-background-subtle px-1.5 py-0.5 align-middle font-medium text-foreground text-xs leading-4">
+      <span className="inline-flex items-center rounded-sm border border-border-subtle bg-background-subtle px-1.5 py-0.5 align-middle text-xs leading-4 font-medium whitespace-nowrap text-foreground">
         {value.slice(RELEASE_NOTE_CATEGORY_PREFIX.length)}
       </span>
     )
@@ -35,7 +36,7 @@ type ReleaseNotesProps = {
 export const ReleaseNotes: FC<ReleaseNotesProps> = ({ content, className }) => (
   <div
     className={cn(
-      'markdown text-muted-foreground text-sm leading-6 [&>div>p:first-child]:text-[15px] [&>div>p:not(:first-child)]:pt-2 [&>div>p]:font-medium [&>div>p]:text-foreground [&>div]:space-y-3 [&_li]:my-0! [&_li]:py-1 [&_ol]:my-0! [&_ol]:list-outside [&_ol]:pl-5 [&_p]:m-0! [&_ul]:my-0! [&_ul]:list-outside [&_ul]:pl-5',
+      'markdown text-sm leading-6 text-muted-foreground [&_li]:my-0! [&_li]:py-1 [&_ol]:my-0! [&_ol]:list-outside [&_ol]:pl-5 [&_p]:m-0! [&_ul]:my-0! [&_ul]:list-outside [&_ul]:pl-5 [&>div]:space-y-3 [&>div>p]:font-medium [&>div>p]:text-foreground [&>div>p:first-child]:text-[15px] [&>div>p:not(:first-child)]:pt-2',
       className
     )}>
     <Streamdown mode="static" components={{ inlineCode: ReleaseNoteInlineCode }}>

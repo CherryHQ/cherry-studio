@@ -1,3 +1,5 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -14,7 +16,6 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 

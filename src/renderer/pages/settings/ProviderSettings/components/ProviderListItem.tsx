@@ -1,11 +1,12 @@
-import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils/style'
-import type { Provider } from '@shared/data/types/provider'
 import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { cn } from '@renderer/utils/style'
+import type { Provider } from '@shared/data/types/provider'
 
 interface ProviderListItemProps {
   provider: Provider
@@ -84,7 +85,7 @@ export default function ProviderListItem({
           {provider.id === 'radeon-cloud' && (
             <span
               data-testid="radeon-cloud-free-badge"
-              className="inline-flex h-4 shrink-0 items-center rounded bg-success/10 px-1 font-medium text-[9px] text-success leading-none">
+              className="inline-flex h-4 shrink-0 items-center rounded bg-success/10 px-1 text-[9px] leading-none font-medium text-success">
               {t('models.type.free')}
             </span>
           )}

@@ -1,4 +1,5 @@
 import { prefetch } from '@data/hooks/useDataApi'
+
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 

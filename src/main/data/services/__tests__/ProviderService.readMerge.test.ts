@@ -1,13 +1,13 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
-
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
-import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+
+import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 // Stub the registry loader with CherryIN plus a future `my-relay` preset.
 // `google-generate-content` is deliberately present for CherryIN but ABSENT

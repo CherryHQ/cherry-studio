@@ -1,5 +1,6 @@
-import type * as FsUtils from '@main/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as FsUtils from '@main/utils/file'
 
 const { loadDataMock, readFileMock } = vi.hoisted(() => ({
   loadDataMock: vi.fn(),

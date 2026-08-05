@@ -1,8 +1,9 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic } from '@shared/data/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Topic } from '@shared/data/types/topic'
 
 import enUS from '../../../i18n/locales/en-us.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'

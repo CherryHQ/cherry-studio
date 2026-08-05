@@ -1,11 +1,12 @@
+import { NotebookPen } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { projectNotesTree } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
-import { NotebookPen } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { NoteItem } from '../types'
 
@@ -34,7 +35,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
   const renderBody = () => {
     if (isLoading) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center text-foreground-tertiary text-xs leading-4">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center text-xs leading-4 text-foreground-tertiary">
           {t('knowledge.data_source.add_dialog.note.loading')}
         </div>
       )
@@ -44,7 +45,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
     // is not told to "create some notes" when the real problem is a read failure.
     if (error) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-subtle p-4 text-center text-error-subtle-foreground text-xs leading-4">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-subtle p-4 text-center text-xs leading-4 text-error-subtle-foreground">
           {t('notes.tree_load_failed')}
         </div>
       )
@@ -52,13 +53,13 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
 
     if (noteFiles.length === 0) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-border-subtle border-dashed p-4 text-center text-foreground-tertiary">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-dashed border-border-subtle p-4 text-center text-foreground-tertiary">
           <div className="flex min-w-0 flex-col items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-tertiary">
               <NotebookPen className="size-4" />
             </div>
             <div className="min-w-0 space-y-1">
-              <p className="text-foreground text-sm leading-5">
+              <p className="text-sm leading-5 text-foreground">
                 {t('knowledge.data_source.add_dialog.note.empty_title')}
               </p>
               <p className="max-w-60 text-xs leading-5">
@@ -77,18 +78,18 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
             <label
               key={note.externalPath}
               role="listitem"
-              className="grid min-w-0 max-w-full cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,max-content)] items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1.5 hover:bg-accent/40">
+              className="grid max-w-full min-w-0 cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,max-content)] items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1.5 hover:bg-accent/40">
               <Checkbox
                 size="sm"
                 checked={selectedPaths.has(note.externalPath)}
                 onCheckedChange={() => onToggle({ name: note.name, externalPath: note.externalPath })}
               />
               <NotebookPen className="size-3.5 shrink-0 text-foreground-tertiary" />
-              <span className="min-w-0 truncate text-foreground text-xs leading-4" title={note.name}>
+              <span className="min-w-0 truncate text-xs leading-4 text-foreground" title={note.name}>
                 {note.name}
               </span>
               <span
-                className="min-w-0 max-w-60 truncate text-foreground-tertiary text-xs leading-4"
+                className="max-w-60 min-w-0 truncate text-xs leading-4 text-foreground-tertiary"
                 title={note.treePath}>
                 {note.treePath}
               </span>
@@ -102,11 +103,11 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-muted-foreground text-xs leading-4">
+        <p className="text-xs leading-4 text-muted-foreground">
           {t('knowledge.data_source.add_dialog.note.description')}
         </p>
         {noteFiles.length > 0 && (
-          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-foreground text-xs leading-4">
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs leading-4 text-foreground">
             <Checkbox
               size="sm"
               checked={allNotesSelected ? true : someNotesSelected ? 'indeterminate' : false}

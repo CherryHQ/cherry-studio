@@ -1,3 +1,7 @@
+import { useEffect, useState } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   AvatarField,
   CompactModelField,
@@ -5,9 +9,6 @@ import {
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model } from '@shared/data/types/model'
-import { useEffect, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 

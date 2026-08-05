@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'

@@ -1,8 +1,9 @@
-import type { ThinkingOption } from '@renderer/types/reasoning'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ThinkingOption } from '@renderer/types/reasoning'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { ComposerSpeedControl, resolveComposerReasoningEffort } from '../ComposerSpeedControl'
 

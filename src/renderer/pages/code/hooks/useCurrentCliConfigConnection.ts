@@ -1,10 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
+import { useEffect, useMemo, useState } from 'react'
+
 import { useModels } from '@renderer/hooks/useModel'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { useEffect, useMemo, useState } from 'react'
 
 import {
   type CliConfigConnection,

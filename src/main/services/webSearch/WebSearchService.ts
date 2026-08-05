@@ -1,9 +1,10 @@
+import { TraceMethod } from '@mcp-trace/trace-core'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
   WebSearchExecutionConfig,

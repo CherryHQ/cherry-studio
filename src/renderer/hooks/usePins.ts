@@ -6,9 +6,10 @@
  */
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
 

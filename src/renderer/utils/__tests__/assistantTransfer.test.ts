@@ -1,5 +1,6 @@
-import type { Assistant } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
 
 import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
 

@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import {
   type CreateTreeIpcResult,
@@ -10,7 +12,6 @@ import {
   type TreeMutationPushPayload,
   type TreeNode
 } from '@shared/utils/file'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useDirectoryTree')
 

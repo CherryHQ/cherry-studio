@@ -2,6 +2,10 @@
  * Provider/model migration transforms for Redux llm -> SQLite user tables.
  */
 
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   CURRENCY,
   type Currency,
@@ -11,13 +15,10 @@ import {
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
-import type { InsertUserModelRow } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
 

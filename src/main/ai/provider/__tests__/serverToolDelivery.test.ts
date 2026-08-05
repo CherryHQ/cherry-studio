@@ -11,8 +11,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { extensionRegistry, type ToolCapability } from '@cherrystudio/ai-core/provider'
 import { describe, expect, it } from 'vitest'
+
+import { extensionRegistry, type ToolCapability } from '@cherrystudio/ai-core/provider'
 
 import { extensions } from '../extensions'
 

@@ -1,5 +1,6 @@
-import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { McpTool } from '@shared/types/mcp'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'

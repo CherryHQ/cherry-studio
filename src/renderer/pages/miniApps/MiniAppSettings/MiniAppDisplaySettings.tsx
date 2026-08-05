@@ -1,12 +1,13 @@
-import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import Selector from '@renderer/components/Selector'
-import { toast } from '@renderer/services/toast'
-import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import Selector from '@renderer/components/Selector'
+import { toast } from '@renderer/services/toast'
+import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 
 const DEFAULT_MAX_KEEPALIVE = 3
 
@@ -99,7 +100,7 @@ const MiniAppDisplaySettings: FC = () => {
               onValueChange={(v) => handleCacheChange(v[0])}
               showValueLabel
             />
-            <span className="w-6 text-right text-muted-foreground text-xs">{maxKeepAlive}</span>
+            <span className="w-6 text-right text-xs text-muted-foreground">{maxKeepAlive}</span>
           </div>
         </PageSidePanelItem>
       </div>

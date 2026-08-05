@@ -1,5 +1,6 @@
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
   silly: vi.fn(),

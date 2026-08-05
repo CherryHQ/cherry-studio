@@ -1,7 +1,8 @@
 import { bearer } from '@elysia/bearer'
-import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
+
+import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'

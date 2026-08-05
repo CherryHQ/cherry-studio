@@ -4,6 +4,9 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
+import type { JSONValue } from 'ai'
+import { merge } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import {
@@ -26,8 +29,6 @@ import {
 } from '@shared/utils/model'
 import { isSupportFastMode, isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import type { JSONValue } from 'ai'
-import { merge } from 'es-toolkit/compat'
 
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'

@@ -1,9 +1,10 @@
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { v4 as uuidv4 } from 'uuid'
 
 import { loadBuiltinAssistantEnsureInput } from './ensureBuiltinAssistant'
 

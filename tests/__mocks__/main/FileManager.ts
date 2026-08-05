@@ -1,6 +1,7 @@
+import { vi } from 'vitest'
+
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FileUrlString } from '@shared/types/file'
-import { vi } from 'vitest'
 
 /**
  * Minimal FileManager mock. The DataApi read models project an uploaded logo's

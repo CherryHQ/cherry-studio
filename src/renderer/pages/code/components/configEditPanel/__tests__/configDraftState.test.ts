@@ -1,8 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ConfigDraft } from '../types'
 

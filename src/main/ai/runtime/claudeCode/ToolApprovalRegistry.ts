@@ -1,4 +1,5 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')

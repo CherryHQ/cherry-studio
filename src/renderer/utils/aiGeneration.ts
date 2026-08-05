@@ -3,6 +3,9 @@
  * generic text generation plus topic/note auto-naming. Stateless request/response.
  */
 import { preferenceService } from '@data/PreferenceService'
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
@@ -15,8 +18,6 @@ import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model } from '@shared/data/types/model'
-import { isFileUIPart } from 'ai'
-import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
 

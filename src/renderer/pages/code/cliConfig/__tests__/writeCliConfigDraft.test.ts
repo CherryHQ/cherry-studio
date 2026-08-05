@@ -1,9 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 

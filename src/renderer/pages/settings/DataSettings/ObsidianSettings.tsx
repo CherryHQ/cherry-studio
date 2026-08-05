@@ -1,3 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   EmptyState,
   RowFlex,
@@ -8,7 +13,6 @@ import {
   SelectValue,
   Spinner
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
@@ -18,9 +22,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ObsidianSettings')
 

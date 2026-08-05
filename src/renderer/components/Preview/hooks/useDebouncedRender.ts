@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import { debounce } from 'es-toolkit/compat'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('useDebouncedRender')
 

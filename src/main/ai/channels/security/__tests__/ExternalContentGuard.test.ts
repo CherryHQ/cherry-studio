@@ -11,9 +11,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { wrapExternalContent, sanitizeInvisibleChars, detectSuspiciousPatterns } = await import(
-  '../ExternalContentGuard'
-)
+const { wrapExternalContent, sanitizeInvisibleChars, detectSuspiciousPatterns } =
+  await import('../ExternalContentGuard')
 
 const metadata = {
   chatId: 'chat_123',

@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback } from 'react'
+
 import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt } from '@shared/data/types/prompt'
-import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 

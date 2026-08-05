@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
@@ -9,7 +11,6 @@ import {
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../pathStorage'
 

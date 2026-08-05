@@ -1,8 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
+import type { FC, ReactNode } from 'react'
+
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { NavbarHeader } from '@renderer/components/Navbar'
-import type { FC, ReactNode } from 'react'
 
 interface HeaderNavbarProps {
   conversationControls?: ReactNode

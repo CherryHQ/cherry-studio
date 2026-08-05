@@ -14,11 +14,12 @@ import { pinService } from '@data/services/PinService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { createUniqueModelId } from '@shared/data/types/model'
-import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { Pin } from '@shared/data/types/pin'
 
 describe('ProviderService.delete — preset protection boundary', () => {
   const dbh = setupTestDatabase()

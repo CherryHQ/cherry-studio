@@ -1,11 +1,12 @@
+import { format as formatDate } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
+import * as React from 'react'
+
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { Calendar, type CalendarProps } from '@cherrystudio/ui/components/primitives/calendar'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { format as formatDate } from 'date-fns'
-import { CalendarIcon } from 'lucide-react'
-import * as React from 'react'
 
 export type DateTimeGranularity = 'day' | 'hour' | 'minute' | 'second'
 
@@ -185,7 +186,7 @@ function DateTimePicker({
             endMonth={calendarProps?.endMonth ?? new Date(2100, 11)}
           />
           {granularity !== 'day' && (
-            <div className="grid grid-cols-3 gap-2 border-border border-t p-3">
+            <div className="grid grid-cols-3 gap-2 border-t border-border p-3">
               <TimeInput
                 label={mergedLabels.hour}
                 value={selectedDate?.getHours() ?? 0}

@@ -2,9 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { PathStaleVersionError } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '../content'
 

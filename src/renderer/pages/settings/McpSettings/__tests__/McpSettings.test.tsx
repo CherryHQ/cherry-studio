@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import McpSettings from '../McpSettings'
 

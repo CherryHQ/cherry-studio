@@ -49,6 +49,8 @@
  * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
+import * as z from 'zod'
+
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
 import {
@@ -57,7 +59,6 @@ import {
   FileEntryOriginSchema,
   FileRefSourceTypeSchema
 } from '@shared/data/types/file'
-import * as z from 'zod'
 
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.

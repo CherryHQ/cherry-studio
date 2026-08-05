@@ -1,8 +1,9 @@
+import i18next from 'i18next'
+
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { messageToPlainText } from '@renderer/utils/export'
-import i18next from 'i18next'
 
 import { topicToMarkdown, topicToPlainText } from './ExportService'
 

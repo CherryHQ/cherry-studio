@@ -3,8 +3,12 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { Mutex } from 'async-mutex'
+import { net } from 'electron'
+import StreamZip from 'node-stream-zip'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -25,9 +29,6 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import { Mutex } from 'async-mutex'
-import { net } from 'electron'
-import StreamZip from 'node-stream-zip'
 
 import { SkillInstaller } from './SkillInstaller'
 import { buildSystemSkillSources } from './systemSkillSources'

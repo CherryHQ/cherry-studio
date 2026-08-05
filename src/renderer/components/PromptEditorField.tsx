@@ -1,18 +1,18 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { usePreference } from '@data/hooks/usePreference'
 import { tags } from '@lezer/highlight'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { cn } from '@renderer/utils/style'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
+
+import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { cn } from '@renderer/utils/style'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 const PROMPT_EDITOR_SECONDARY_COLOR = 'var(--muted-foreground)'
 const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'var(--foreground-tertiary)'
@@ -158,7 +158,7 @@ export function PromptEditorField({
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] text-xs font-normal text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
@@ -176,7 +176,7 @@ export function PromptEditorField({
           )}>
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn('markdown overflow-auto p-3 text-xs text-foreground', fill && 'min-h-0 flex-1')}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>
@@ -201,7 +201,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground text-xs">
+        <div className="flex justify-between text-xs text-muted-foreground">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

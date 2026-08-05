@@ -44,10 +44,11 @@ import path from 'node:path'
 import { addAbortSignal, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
+import mime from 'mime'
+
 import { loggerService } from '@logger'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
 

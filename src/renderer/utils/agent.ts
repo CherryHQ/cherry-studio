@@ -1,8 +1,9 @@
+import type { TFunction } from 'i18next'
+
 import type { PermissionModeCard } from '@renderer/types/agent'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 

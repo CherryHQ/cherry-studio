@@ -1,12 +1,14 @@
+import fs from 'fs'
+import path from 'path'
+
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import fs from 'fs'
-import path from 'path'
 
 import { applyMigrations } from './applyMigrations'
 import { checkpointTruncateAssert } from './restore/checkpoint'

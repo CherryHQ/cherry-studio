@@ -1,12 +1,13 @@
 import { dataApiService } from '@data/DataApiService'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string }>,

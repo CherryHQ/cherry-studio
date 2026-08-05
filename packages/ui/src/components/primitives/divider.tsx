@@ -1,7 +1,8 @@
 'use client'
 
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface DividerProps extends React.HTMLAttributes<HTMLDivElement> {
   orientation?: 'horizontal' | 'vertical'
@@ -19,8 +20,8 @@ const Divider: React.FC<DividerProps> = ({ className, orientation = 'horizontal'
       className={cn(
         'shrink-0 border-0',
         orientation === 'horizontal'
-          ? 'h-px w-full my-2.5 border-t-[0.5px] border-solid border-(--color-border)'
-          : 'w-px h-full mx-2.5 border-l-[0.5px] border-solid border-(--color-border)',
+          ? 'my-2.5 h-px w-full border-t-[0.5px] border-solid border-(--color-border)'
+          : 'mx-2.5 h-full w-px border-l-[0.5px] border-solid border-(--color-border)',
         className
       )}
       {...props}

@@ -1,9 +1,10 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 import { CodeXml, Eye, SquarePen } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 
 interface UseViewSourceToolProps {
   canEdit: boolean

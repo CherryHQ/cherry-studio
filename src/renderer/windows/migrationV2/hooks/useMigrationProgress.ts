@@ -2,6 +2,8 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import {
   type MigrationDiagnosticSavePayload,
@@ -12,7 +14,6 @@ import {
   type MigratorStatus,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }

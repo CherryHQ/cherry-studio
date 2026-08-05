@@ -1,9 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu } from '@renderer/components/command'
-import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback } from 'react'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu } from '@renderer/components/command'
+import { cn } from '@renderer/utils/style'
 
 import {
   type ResourceListGroup,
@@ -65,7 +66,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
       ref={ref}
       style={style}
       className={cn(
-        'group/resource-list-section flex w-full items-center text-foreground text-sm',
+        'group/resource-list-section flex w-full items-center text-sm text-foreground',
         RESOURCE_LIST_ROW_HEIGHT_CLASS,
         className
       )}
@@ -81,7 +82,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           aria-expanded={!collapsed}
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none focus-visible:text-foreground"
           onClick={() => actions.toggleGroup(section.id)}>
-          <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
+          <span className="min-w-0 truncate text-left text-[13px] leading-5 font-semibold text-inherit">
             {section.label}
           </span>
           <ChevronRight
@@ -97,7 +98,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
               'ml-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
-                : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100'
+                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'
             )}>
             {sectionHeaderAction}
           </div>
@@ -159,7 +160,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
 
   if (!group.label) return null
   const groupHeaderLabelClassName = cn(
-    'min-w-0 truncate text-left text-[13px] text-inherit leading-5',
+    'min-w-0 truncate text-left text-[13px] leading-5 text-inherit',
     clickBehavior === 'select-first-then-toggle' ? 'font-normal' : 'font-medium'
   )
   const groupHeaderActionYieldClassName = groupHeaderAction
@@ -226,7 +227,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       )}
       {groupHeaderAction && (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+          className="pointer-events-none absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
           onPointerDown={stopEventPropagation}
@@ -241,7 +242,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       ref={ref}
       style={style}
       className={cn(
-        'group/resource-list-group flex w-full items-center text-foreground text-sm',
+        'group/resource-list-group flex w-full items-center text-sm text-foreground',
         RESOURCE_LIST_ROW_HEIGHT_CLASS,
         className
       )}
@@ -294,7 +295,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground leading-4 transition-colors duration-150 hover:text-inherit focus-visible:bg-sidebar-accent focus-visible:text-inherit focus-visible:outline-none"
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-[11px] leading-4 font-medium text-muted-foreground transition-colors duration-150 hover:text-inherit focus-visible:bg-sidebar-accent focus-visible:text-inherit focus-visible:outline-none"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)

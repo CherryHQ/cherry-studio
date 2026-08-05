@@ -42,7 +42,7 @@ export function PdfFilePreviewToolbar({
       </FilePreviewToolbarButton>
       <span
         aria-live="polite"
-        className="min-w-14 px-1 text-center text-muted-foreground text-xs tabular-nums"
+        className="min-w-14 px-1 text-center text-xs text-muted-foreground tabular-nums"
         data-testid="pdf-preview-page-indicator">
         {currentPage} / {pageCount}
       </span>
@@ -57,7 +57,7 @@ export function PdfFilePreviewToolbar({
         <ZoomOut aria-hidden />
       </FilePreviewToolbarButton>
       <span
-        className="min-w-12 px-1 text-center text-muted-foreground text-xs tabular-nums"
+        className="min-w-12 px-1 text-center text-xs text-muted-foreground tabular-nums"
         data-testid="pdf-preview-zoom-value">
         {zoomLabel}
       </span>

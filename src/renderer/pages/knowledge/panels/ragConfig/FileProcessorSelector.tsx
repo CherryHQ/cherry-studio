@@ -1,3 +1,6 @@
+import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
+import { useState } from 'react'
+
 import { Button, type CompoundIcon } from '@cherrystudio/ui'
 import { Doc2x, Mineru, Mistral, Paddleocr } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -6,8 +9,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
-import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
-import { useState } from 'react'
 
 export type FileProcessorSelectorOption = KnowledgeSelectOption & {
   disabled: boolean
@@ -88,7 +89,7 @@ export const FileProcessorSelector = ({
           variant="outline"
           aria-label={ariaLabel}
           className={cn(
-            'h-8 w-full min-w-0 justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+            'h-8 w-full min-w-0 justify-between gap-2 rounded-md px-3 text-sm font-normal shadow-none',
             selectedOption ? 'text-foreground' : 'text-muted-foreground'
           )}>
           <span className="flex min-w-0 flex-1 items-center gap-2">

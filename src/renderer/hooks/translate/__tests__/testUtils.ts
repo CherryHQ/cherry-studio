@@ -1,6 +1,7 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 
 type LanguageFixture = Pick<TranslateLanguage, 'emoji' | 'value'> & { langCode: string }
 

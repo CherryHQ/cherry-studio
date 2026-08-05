@@ -1,4 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import type {
   CliProviderConfig,
@@ -7,7 +9,6 @@ import type {
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 

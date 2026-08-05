@@ -1,3 +1,7 @@
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
@@ -8,9 +12,6 @@ import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,

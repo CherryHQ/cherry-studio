@@ -1,6 +1,7 @@
-import { computeHeadTailExcerpt, Offloader } from '@cherrystudio/ai-core'
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { computeHeadTailExcerpt, Offloader } from '@cherrystudio/ai-core'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }

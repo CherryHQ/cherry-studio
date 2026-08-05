@@ -1,5 +1,6 @@
-import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UIMessageChunk } from 'ai'
+
+import type { StreamChunkPayload } from '@shared/ai/transport'
 
 type PendingDelta = StreamChunkPayload & {
   chunk:

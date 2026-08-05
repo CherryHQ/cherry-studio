@@ -1,8 +1,9 @@
-import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
-import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 

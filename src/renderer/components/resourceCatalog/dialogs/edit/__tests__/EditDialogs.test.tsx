@@ -1,11 +1,12 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { Assistant } from '@shared/data/types/assistant'
 
 const {
   createGroupMock,

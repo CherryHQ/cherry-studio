@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,

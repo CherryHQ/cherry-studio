@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
+
+import { BaseService } from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {

@@ -1,4 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import {
   type CommandHandler,
@@ -13,7 +15,6 @@ import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('CommandProvider')
 

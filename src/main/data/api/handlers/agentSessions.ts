@@ -8,6 +8,8 @@
  */
 
 import { agentSessionService } from '@data/services/AgentSessionService'
+import * as z from 'zod'
+
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -19,7 +21,6 @@ import {
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import type { HandlersFor } from '@shared/data/api/types'
-import * as z from 'zod'
 
 const AgentSessionsParamsSchema = z.strictObject({
   agentId: z.string().min(1)

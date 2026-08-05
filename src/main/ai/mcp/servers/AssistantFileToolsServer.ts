@@ -1,4 +1,9 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -20,13 +25,9 @@ import {
   saveAttachmentToWorkspace
 } from '@main/ai/tools/saveAttachment'
 import { isAbortError } from '@main/utils/error'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
 import { AGENT_SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('McpServer:AssistantFileTools')
 

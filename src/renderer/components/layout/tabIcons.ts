@@ -1,4 +1,3 @@
-import type { Tab } from '@renderer/hooks/tab'
 import {
   Code,
   FileSearch,
@@ -14,6 +13,8 @@ import {
   ScanSearch,
   Settings
 } from 'lucide-react'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 

@@ -1,8 +1,9 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30

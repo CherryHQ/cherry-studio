@@ -1,9 +1,10 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import dayjs from 'dayjs'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
-import dayjs from 'dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   buildGlobalMessageSearchGroups,

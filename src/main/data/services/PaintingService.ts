@@ -11,12 +11,15 @@
  * cascade from `painting_file_ref.sourceId`.
  */
 
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import type { SQL } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -29,8 +32,6 @@ import type {
 import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
-import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'

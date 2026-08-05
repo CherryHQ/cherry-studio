@@ -1,10 +1,11 @@
-import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type { InstalledSkill } from '@shared/types/skill'
 import type { TFunction } from 'i18next'
 import { Clock, ToolCase } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type { InstalledSkill } from '@shared/types/skill'
 
 interface Props {
   skill: InstalledSkill | null
@@ -88,13 +89,13 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="border-0 bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground text-xs">
+                  className="border-0 bg-warning-subtle px-2 py-0.5 text-xs text-warning-subtle-foreground">
                   {t('library.type.skill')}
                 </Badge>
-                <span className="text-foreground-tertiary text-xs">{skill.source}</span>
-                {skill.author ? <span className="text-foreground-tertiary text-xs">{skill.author}</span> : null}
+                <span className="text-xs text-foreground-tertiary">{skill.source}</span>
+                {skill.author ? <span className="text-xs text-foreground-tertiary">{skill.author}</span> : null}
                 {sourceTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-foreground-tertiary text-xs">
+                  <span key={tag} className="text-xs text-foreground-tertiary">
                     {tag}
                   </span>
                 ))}
@@ -103,16 +104,16 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
+        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
           <Badge
             variant="secondary"
-            className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
+            className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-xs text-success-subtle-foreground">
             <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
             {t('library.skill_detail.installed')}
           </Badge>
           <section className="flex flex-col gap-3">
-            <h3 className="font-medium text-muted-foreground text-sm">{t('library.skill_detail.description')}</h3>
-            <p className="min-h-10 text-muted-foreground text-sm leading-6">
+            <h3 className="text-sm font-medium text-muted-foreground">{t('library.skill_detail.description')}</h3>
+            <p className="min-h-10 text-sm leading-6 text-muted-foreground">
               {skill.description || t('library.skill_detail.no_description')}
             </p>
           </section>
@@ -121,15 +122,15 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
 
           <section className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-muted-foreground text-sm">{t('library.skill_detail.created_at')}</span>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <span className="text-sm font-medium text-muted-foreground">{t('library.skill_detail.created_at')}</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock size={13} />
                 <span>{formatDate(skill.createdAt)}</span>
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-muted-foreground text-sm">{t('library.skill_detail.updated_at')}</span>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <span className="text-sm font-medium text-muted-foreground">{t('library.skill_detail.updated_at')}</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock size={13} />
                 <span>
                   {formatDate(skill.updatedAt)} ({timeAgo(t, skill.updatedAt)})

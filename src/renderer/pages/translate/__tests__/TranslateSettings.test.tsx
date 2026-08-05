@@ -1,11 +1,12 @@
-import { toast } from '@renderer/services/toast'
-import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const translateLanguageMutationsMock = vi.hoisted(() => ({
   add: vi.fn(),

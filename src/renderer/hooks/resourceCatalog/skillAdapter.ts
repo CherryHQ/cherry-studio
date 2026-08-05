@@ -1,9 +1,10 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 

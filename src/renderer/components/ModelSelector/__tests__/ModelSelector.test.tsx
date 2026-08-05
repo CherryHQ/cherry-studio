@@ -1,11 +1,12 @@
-import { toast } from '@renderer/services/toast'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'

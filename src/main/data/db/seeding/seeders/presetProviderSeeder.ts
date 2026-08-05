@@ -1,7 +1,8 @@
+import { providerService } from '@data/services/ProviderService'
+
 import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import { providerService } from '@data/services/ProviderService'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'

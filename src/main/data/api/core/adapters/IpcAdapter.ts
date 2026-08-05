@@ -1,10 +1,11 @@
+import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 
 import type { ApiServer } from '../ApiServer'
 

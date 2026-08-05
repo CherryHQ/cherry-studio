@@ -1,3 +1,22 @@
+import {
+  Activity,
+  Bot,
+  CheckCircle,
+  Circle,
+  CircleStop,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  Package,
+  Terminal,
+  Waypoints,
+  Workflow
+} from 'lucide-react'
+import type { ReactNode } from 'react'
+import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
@@ -53,24 +72,6 @@ import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
-import {
-  Activity,
-  Bot,
-  CheckCircle,
-  Circle,
-  CircleStop,
-  FileText,
-  FolderOpen,
-  GitBranch,
-  Loader2,
-  Package,
-  Terminal,
-  Waypoints,
-  Workflow
-} from 'lucide-react'
-import type { ReactNode } from 'react'
-import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
@@ -847,7 +848,7 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
               {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
               </div>
               <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
@@ -897,16 +898,16 @@ function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sess
             className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
             <TaskStatusIcon status={task.status} />
             <div className="min-w-0 flex-1">
-              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+              <div className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.workflowName ?? task.title}
               </div>
               {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted-foreground">
                   {task.summary}
                 </div>
               ) : null}
               {activity && activity !== task.title && activity !== task.summary ? (
-                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-muted-foreground leading-4">
+                <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted-foreground">
                   {activity}
                 </div>
               ) : null}
@@ -1009,7 +1010,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       {status.tasks.length > 0 && (
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
+            <h3 className="text-sm font-medium text-foreground">{t('agent.right_pane.status.tasks')}</h3>
             <Badge variant="outline" className="text-[11px]">
               {t('agent.right_pane.status.task_count', {
                 completed: status.completedTaskCount,
@@ -1026,7 +1027,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
                 <div className="min-w-0 flex-1">
                   <div
                     className={cn(
-                      'wrap-break-word text-foreground text-xs leading-5',
+                      'text-xs leading-5 wrap-break-word text-foreground',
                       task.status === 'completed' && 'text-muted-foreground line-through'
                     )}>
                     {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
@@ -1141,10 +1142,10 @@ function AgentRightPaneHighlightSection({
       className={cn(
         'space-y-1.5',
         compact
-          ? 'border-border-subtle border-t pt-2.5 first:border-t-0 first:pt-0'
+          ? 'border-t border-border-subtle pt-2.5 first:border-t-0 first:pt-0'
           : 'rounded-md border border-border-subtle px-3 py-2'
       )}>
-      <h3 className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+      <h3 className="flex items-center gap-1.5 text-xs font-medium text-foreground">
         {icon}
         {title}
       </h3>
@@ -1187,7 +1188,7 @@ function AgentRightPaneHighlights({
                 <TaskStatusIcon status={task.status} />
                 <span
                   className={cn(
-                    'wrap-break-word min-w-0 flex-1 text-xs leading-5',
+                    'min-w-0 flex-1 text-xs leading-5 wrap-break-word',
                     task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-muted-foreground'
                   )}>
                   {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}

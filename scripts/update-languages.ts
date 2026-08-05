@@ -1,8 +1,9 @@
 import { exec } from 'child_process'
 import * as fs from 'fs/promises'
-import * as linguistLanguages from 'linguist-languages'
 import * as path from 'path'
 import { promisify } from 'util'
+
+import * as linguistLanguages from 'linguist-languages'
 
 const execAsync = promisify(exec)
 
@@ -75,17 +76,17 @@ export const codeLanguages: Record<string, LanguageData> = ${languagesObjectStri
 }
 
 /**
- * Formats a file using Biome.
+ * Formats a file using Oxfmt.
  * @param filePath The path to the file to format.
  */
 async function format(filePath: string): Promise<void> {
-  console.log('🎨 Formatting file with Biome...')
+  console.log('🎨 Formatting file with Oxfmt...')
   try {
-    await execAsync(`pnpm biome format --write ${filePath}`)
-    console.log('✅ Biome formatting complete.')
+    await execAsync(`pnpm oxfmt --write ${filePath}`)
+    console.log('✅ Oxfmt formatting complete.')
   } catch (e: any) {
-    console.error('❌ Biome formatting failed:', e.stdout || e.stderr)
-    throw new Error('Biome formatting failed.')
+    console.error('❌ Oxfmt formatting failed:', e.stdout || e.stderr)
+    throw new Error('Oxfmt formatting failed.')
   }
 }
 

@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'

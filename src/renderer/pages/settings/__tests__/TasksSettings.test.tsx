@@ -1,10 +1,11 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
 

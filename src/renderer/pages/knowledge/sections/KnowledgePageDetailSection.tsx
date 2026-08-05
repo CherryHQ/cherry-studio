@@ -1,10 +1,11 @@
+import { ArrowLeft } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, PageSidePanel } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { ArrowLeft } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'
@@ -104,7 +105,7 @@ const KnowledgePageDetailSection = () => {
                     onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>
-                  <span className="min-w-0 flex-1 truncate text-foreground text-sm">{filePreview.fileName}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{filePreview.fileName}</span>
                 </>
               }
             />

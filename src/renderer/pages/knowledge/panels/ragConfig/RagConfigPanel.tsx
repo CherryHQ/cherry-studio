@@ -1,3 +1,7 @@
+import { RotateCcw } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -11,9 +15,6 @@ import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBas
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { RotateCcw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
@@ -231,7 +232,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         </div>
       </Scrollbar>
 
-      <KnowledgeDialogFooter className="shrink-0 border-border-subtle border-t px-6 py-4">
+      <KnowledgeDialogFooter className="shrink-0 border-t border-border-subtle px-6 py-4">
         <Button
           type="button"
           variant="ghost"

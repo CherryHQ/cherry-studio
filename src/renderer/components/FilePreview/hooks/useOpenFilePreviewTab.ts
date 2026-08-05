@@ -1,3 +1,5 @@
+import { useCallback } from 'react'
+
 import { useTabs } from '@renderer/hooks/tab'
 import {
   createFilePreviewTabTarget,
@@ -5,7 +7,6 @@ import {
   getFilePreviewRefreshKey
 } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { useCallback } from 'react'
 
 export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?: string) => string {
   const { openTab, tabs, updateTab } = useTabs()

@@ -1,4 +1,7 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { splitApiKeyString } from '@renderer/utils/api'
@@ -11,8 +14,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearch')
 

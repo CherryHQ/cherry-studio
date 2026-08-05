@@ -1,8 +1,9 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()

@@ -1,5 +1,6 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'

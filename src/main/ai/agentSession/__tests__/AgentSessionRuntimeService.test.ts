@@ -1,7 +1,8 @@
-import { BaseService } from '@main/core/lifecycle/BaseService'
-import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),

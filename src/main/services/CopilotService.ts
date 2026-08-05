@@ -1,8 +1,10 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
+
+import { net, safeStorage } from 'electron'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('CopilotService')
 

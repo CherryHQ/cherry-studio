@@ -1,12 +1,13 @@
-import { Button, Input } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { useIpcOn } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 type FoundInPageResult = Electron.FoundInPageResult
 
@@ -306,7 +307,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-11 text-center text-muted-foreground text-sm tabular-nums"
+        className="min-w-11 text-center text-sm text-muted-foreground tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"

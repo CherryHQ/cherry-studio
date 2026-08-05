@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import { ProtocolMcpInstallRequestSchema } from '@shared/data/types/mcpProtocolInstall'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

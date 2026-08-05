@@ -1,5 +1,9 @@
-import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -10,9 +14,6 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   SettingDivider,

@@ -6,6 +6,8 @@
 // The code is messy, need to refactor all the backup related code
 
 import { preferenceService } from '@data/PreferenceService'
+import dayjs from 'dayjs'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
@@ -14,7 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { AutoBackupType } from '@shared/types/backup'
-import dayjs from 'dayjs'
 
 import { notificationService } from './notification'
 

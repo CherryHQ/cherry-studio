@@ -1,8 +1,9 @@
 import fs, { createReadStream } from 'node:fs'
 
+import { net } from 'electron'
+
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { GB } from '@shared/utils/constants'
-import { net } from 'electron'
 
 import type {
   Doc2xExportStatusResponse,

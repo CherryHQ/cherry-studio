@@ -1,10 +1,11 @@
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
@@ -87,7 +88,7 @@ function InspectableMetricBar({
               onPointerEnter={() => setActiveSegmentId(segment.id)}>
               <span
                 className={cn(
-                  '-translate-y-1/2 absolute inset-x-0 top-1/2 h-2 transition-opacity duration-150',
+                  'absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 transition-opacity duration-150',
                   index === 0 && 'rounded-l-full',
                   index === visibleSegments.length - 1 && 'rounded-r-full',
                   segment.colorClassName,
@@ -103,7 +104,7 @@ function InspectableMetricBar({
         {visibleSegments.map((segment) => (
           <div
             key={segment.id}
-            className="inline-flex items-center gap-1.5 text-[11px] text-foreground-tertiary leading-4">
+            className="inline-flex items-center gap-1.5 text-[11px] leading-4 text-foreground-tertiary">
             <span className={cn('size-1.5 rounded-full', segment.colorClassName)} aria-hidden="true" />
             <span>{segment.label}</span>
             {showAllDetails ? (
@@ -195,7 +196,7 @@ function PerformanceTimeline({
         const intervals = performance.intervals.filter((interval) => interval.lane === lane.id)
         return (
           <div key={lane.id} className="grid grid-cols-[4.5rem_1fr] items-center gap-2">
-            <span className="truncate text-[11px] text-foreground-tertiary leading-4">{laneLabel(lane.id)}</span>
+            <span className="truncate text-[11px] leading-4 text-foreground-tertiary">{laneLabel(lane.id)}</span>
             <div className="relative h-3 overflow-hidden rounded-sm bg-background-subtle">
               {intervals.map((interval) => {
                 const left = Math.max(0, ((interval.startedAt - performance.startedAt!) / total) * 100)
@@ -323,22 +324,22 @@ const MessageTokenDetailsCard = ({
           <ModelAvatar
             model={model}
             size={32}
-            className="-outline-offset-1 shrink-0 outline outline-1 outline-border"
+            className="shrink-0 outline outline-1 -outline-offset-1 outline-border"
           />
         ) : null}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground text-sm leading-5" title={model?.name}>
+          <div className="truncate text-sm leading-5 font-medium text-foreground" title={model?.name}>
             {model?.name ?? model?.id ?? message.modelId}
           </div>
           {providerName ? (
-            <div className="truncate text-muted-foreground text-xs leading-5" title={providerName}>
+            <div className="truncate text-xs leading-5 text-muted-foreground" title={providerName}>
               {providerName}
             </div>
           ) : null}
           {createdAtLabel ? (
             <time
               dateTime={message.createdAt}
-              className="block truncate text-[11px] text-foreground-tertiary leading-4"
+              className="block truncate text-[11px] leading-4 text-foreground-tertiary"
               title={createdAtLabel}>
               {createdAtLabel}
             </time>
@@ -346,7 +347,7 @@ const MessageTokenDetailsCard = ({
         </div>
       </header>
 
-      <div className="space-y-2 border-border-subtle border-t p-3">
+      <div className="space-y-2 border-t border-border-subtle p-3">
         {costLabel ? (
           <div
             data-testid="message-cost"
@@ -354,7 +355,7 @@ const MessageTokenDetailsCard = ({
             <span className="truncate text-muted-foreground">{t('chat.message.token_details.cost')}</span>
             <span className="flex shrink-0 items-baseline gap-1.5">
               {costSourceLabel ? (
-                <span className="text-[11px] text-foreground-tertiary leading-4">{costSourceLabel}</span>
+                <span className="text-[11px] leading-4 text-foreground-tertiary">{costSourceLabel}</span>
               ) : null}
               <span className="text-foreground tabular-nums">{costLabel}</span>
             </span>
@@ -404,7 +405,7 @@ const MessageTokenDetailsCard = ({
         {performance.modelTokensPerSecond !== undefined ||
         performance.endToEndTokensPerSecond !== undefined ||
         performance.totalDurationMs !== undefined ? (
-          <section className="space-y-1 border-border-subtle border-t pt-2" data-testid="message-performance-summary">
+          <section className="space-y-1 border-t border-border-subtle pt-2" data-testid="message-performance-summary">
             {performance.modelTokensPerSecond !== undefined ? (
               <div className="flex items-center justify-between gap-3 text-xs leading-5">
                 <span className="text-muted-foreground">{t('chat.message.token_details.model_throughput')}</span>

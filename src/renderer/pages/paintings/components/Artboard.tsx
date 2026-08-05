@@ -1,7 +1,3 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import CopyButton from '@renderer/components/CopyButton'
-import ImageViewer from '@renderer/components/ImageViewer'
 import { ImageDown, ImageUp, Palette, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   type FC,
@@ -15,6 +11,11 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import CopyButton from '@renderer/components/CopyButton'
+import ImageViewer from '@renderer/components/ImageViewer'
 
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
@@ -109,8 +110,8 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
   useEffect(() => cancelPromptPopoverClose, [cancelPromptPopoverClose])
 
   return (
-    <div className="mb-2 flex w-full min-w-0 items-center justify-between gap-2 text-muted-foreground text-xs">
-      <div className="min-w-0 max-w-xs flex-1 overflow-hidden">
+    <div className="mb-2 flex w-full min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="max-w-xs min-w-0 flex-1 overflow-hidden">
         <Popover
           open={isPromptPopoverOpen}
           onOpenChange={(open) => {
@@ -169,7 +170,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
             }}
             role="dialog"
             aria-label={t('common.prompt')}
-            className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-neutral-50 text-xs leading-relaxed shadow-md">
+            className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-xs leading-relaxed text-neutral-50 shadow-md">
             <CopyButton
               textToCopy={prompt}
               aria-label={t('common.copy')}
@@ -179,7 +180,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
               hoverColor="inherit"
               className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:bg-neutral-50/10 focus-visible:text-neutral-50 focus-visible:outline-none [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
             />
-            <span className="select-text whitespace-pre-wrap break-words">{prompt}</span>
+            <span className="break-words whitespace-pre-wrap select-text">{prompt}</span>
           </PopoverContent>
         </Popover>
       </div>
@@ -484,7 +485,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center [container-type:size]">
+      <div className="[container-type:size] relative flex min-h-0 flex-1 flex-col items-center justify-center">
         {isLoading || activeReveal ? (
           <PaintingImageSkeleton
             imageUrl={activeReveal?.status === 'ready' ? activeReveal.imageUrl : undefined}
@@ -520,7 +521,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
               <ImageViewer
                 alt=""
                 data-testid="artboard-image-transform"
-                className={`max-h-full min-h-0 max-w-full select-none rounded-md object-contain ${
+                className={`max-h-full min-h-0 max-w-full rounded-md object-contain select-none ${
                   isDraggingImage
                     ? 'cursor-grabbing transition-none will-change-transform'
                     : 'cursor-grab transition-transform duration-150'
@@ -577,7 +578,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
                 <RefreshCcw className="size-4" />
               </ArtboardToolButton>
             </div>
-            <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-foreground/60 px-2 py-1 text-xs text-background">
               {displayedImageIndex + 1} / {painting.files.length}
             </div>
           </div>

@@ -1,5 +1,6 @@
-import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { describe, expect, it } from 'vitest'
+
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
 import { builtinMcpServers } from '../builtinMcpServers'
 

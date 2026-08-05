@@ -1,3 +1,8 @@
+import { Upload } from 'lucide-react'
+import type { ChangeEvent, FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -19,10 +24,6 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Upload } from 'lucide-react'
-import type { ChangeEvent, FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean
@@ -177,7 +178,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
             <div className="flex flex-col items-center gap-3">
               <button
                 type="button"
-                className="rounded-md outline-none transition-opacity focus-visible:opacity-80"
+                className="rounded-md transition-opacity outline-none focus-visible:opacity-80"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label={t('settings.miniApps.custom.logo_upload_label')}>
                 <MiniAppLogoAvatar logo={logoValue} size={64} />

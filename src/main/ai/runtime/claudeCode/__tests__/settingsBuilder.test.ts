@@ -3,6 +3,8 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -11,7 +13,6 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -201,9 +202,8 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
-  '../settingsBuilder'
-)
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } =
+  await import('../settingsBuilder')
 
 function getPresetAppend(systemPrompt: unknown): string {
   expect(systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })

@@ -1,9 +1,10 @@
+import { net } from 'electron'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CherryInBalance, CherryInProfile } from '@shared/ipc/schemas/cherryin'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { net } from 'electron'
-import * as z from 'zod'
 
 import { CherryInOAuthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
 import { describeOAuthError, OAuthTransientError } from './errors'

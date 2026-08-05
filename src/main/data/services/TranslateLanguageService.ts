@@ -4,15 +4,16 @@
  * langCode is the primary key (immutable after creation).
  */
 
-import { application } from '@application'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { asc, eq } from 'drizzle-orm'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { asc, eq } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
 

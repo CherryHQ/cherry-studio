@@ -1,12 +1,13 @@
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
-import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface ProviderCardProps {
   provider: Provider
@@ -72,17 +73,17 @@ export const ProviderCard: FC<ProviderCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-foreground text-sm">{providerName}</span>
+            <span className="min-w-0 truncate text-sm text-foreground">{providerName}</span>
             {modelName && (
               <>
-                <span aria-hidden className="shrink-0 text-foreground-tertiary text-xs">
+                <span aria-hidden className="shrink-0 text-xs text-foreground-tertiary">
                   ｜
                 </span>
                 <span className="min-w-0 truncate font-mono text-[11px] text-foreground-tertiary">{modelName}</span>
               </>
             )}
           </div>
-          {description && <p className="mt-0.5 truncate text-muted-foreground text-xs">{description}</p>}
+          {description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">

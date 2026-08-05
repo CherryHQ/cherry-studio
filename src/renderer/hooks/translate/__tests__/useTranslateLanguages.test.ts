@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import { useTranslateLanguages } from '../useTranslateLanguages'
 import { setLanguagesQuery } from './testUtils'

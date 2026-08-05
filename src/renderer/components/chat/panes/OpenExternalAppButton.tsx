@@ -1,3 +1,8 @@
+import { usePersistCache } from '@data/hooks/useCache'
+import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
+import { type ReactNode, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ButtonGroup,
@@ -8,7 +13,6 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@cherrystudio/ui'
-import { usePersistCache } from '@data/hooks/useCache'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
@@ -19,9 +23,6 @@ import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
-import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const FILE_MANAGER_TARGET = 'file_manager' as const
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'

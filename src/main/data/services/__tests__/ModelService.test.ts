@@ -2,7 +2,6 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
-import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -11,6 +10,11 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { setupTestDatabase } from '@test-helpers/db'
+import { and, eq, or } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -19,9 +23,6 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq, or } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 

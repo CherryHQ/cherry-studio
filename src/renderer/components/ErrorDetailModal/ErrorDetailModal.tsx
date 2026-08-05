@@ -1,3 +1,7 @@
+import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -33,9 +37,6 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
 import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
@@ -87,13 +88,13 @@ const ErrorDetailItem = ({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 )
 
 const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('font-semibold text-[14px] text-foreground', className)} {...props} />
+  <div className={cn('text-[14px] font-semibold text-foreground', className)} {...props} />
 )
 
 const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[4px] border border-border bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
+      'rounded-[4px] border border-border bg-background-subtle p-2 text-[12px] font-[var(--code-font-family)] [word-break:break-word] text-foreground',
       className
     )}
     {...props}
@@ -103,7 +104,7 @@ const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[6px] border border-error-border bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      'rounded-[6px] border border-error-border bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:text-[12px] [&_pre]:leading-[1.4] [&_pre]:font-[var(--code-font-family)] [&_pre]:[word-break:break-word] [&_pre]:whitespace-pre-wrap [&_pre]:text-error',
       className
     )}
     {...props}
@@ -112,7 +113,7 @@ const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 
 const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
-    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-warning', className)}
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 text-[10px] font-normal text-warning', className)}
     style={{
       background: 'var(--warning-subtle)',
       ...style

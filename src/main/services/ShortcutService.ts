@@ -1,3 +1,6 @@
+import type { BrowserWindow } from 'electron'
+import { globalShortcut } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -20,8 +23,6 @@ import {
   REGISTERED_KEYBINDINGS,
   resolveCommandKeybinding
 } from '@shared/utils/command'
-import type { BrowserWindow } from 'electron'
-import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
 type ShortcutHandler = (window?: BrowserWindow) => void

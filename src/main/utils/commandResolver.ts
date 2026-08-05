@@ -1,8 +1,9 @@
-import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+
+import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 
 import { getBundledGitPath } from './bundledGit'
 import { getShellEnv } from './shellEnv'

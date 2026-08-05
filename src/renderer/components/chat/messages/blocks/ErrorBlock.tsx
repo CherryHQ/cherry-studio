@@ -1,3 +1,8 @@
+import { Link } from '@tanstack/react-router'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -6,10 +11,6 @@ import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/labe
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
@@ -213,7 +214,7 @@ const MessageErrorInfo: React.FC<{
   return (
     <div
       className={cn(
-        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
+        'group relative my-2 rounded-lg border border-l-[3px] border-border border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
         canOpenDetail && 'cursor-pointer'
       )}
       onClick={canOpenDetail ? showErrorDetail : undefined}>
@@ -234,12 +235,12 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pr-5 text-[13px] leading-[1.4] font-medium">{aiSummary || t(classification.i18nKey)}</div>
       </div>
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
+        className="ml-5.75 line-clamp-3 text-xs leading-normal wrap-break-word [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>

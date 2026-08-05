@@ -1,7 +1,8 @@
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { render, screen } from '@testing-library/react'
 import type { TFunction } from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 
 const mocks = vi.hoisted(() => ({
   registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),

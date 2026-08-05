@@ -1,8 +1,8 @@
 import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
+import { createRoot } from 'react-dom/client'
 
 import { prepareWindow } from '@renderer/windows/prepareWindow'
-import { createRoot } from 'react-dom/client'
 
 import QuickAssistantApp from './QuickAssistantApp'
 

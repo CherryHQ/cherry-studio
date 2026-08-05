@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Button,
@@ -12,8 +15,6 @@ import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ImportPopup')
 

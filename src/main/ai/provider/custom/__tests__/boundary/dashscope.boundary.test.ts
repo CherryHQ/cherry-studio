@@ -1,6 +1,7 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
+
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'

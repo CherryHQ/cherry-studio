@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { useCallback, useMemo } from 'react'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeTopicMenuAction,
@@ -25,8 +28,6 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>

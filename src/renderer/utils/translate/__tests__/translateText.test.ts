@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`

@@ -1,14 +1,15 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { debounce } from 'es-toolkit/compat'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import type { ThemedToken } from 'shiki/core'
+
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { debounce } from 'es-toolkit/compat'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { ThemedToken } from 'shiki/core'
 
 const logger = loggerService.withContext('CodeViewer')
 
@@ -628,15 +629,15 @@ const VirtualizedRow = memo(
         }}>
         {showLineNumbers && (
           <span
-            className="line-number mr-4 shrink-0 select-none overflow-hidden text-right font-[inherit] tabular-nums opacity-[0.35]"
+            className="line-number mr-4 shrink-0 overflow-hidden text-right font-[inherit] tabular-nums opacity-[0.35] select-none"
             style={{ width: 'var(--gutter-width, 1.2ch)' }}>
             {index + 1}
           </span>
         )}
         <span
           className={cn(
-            'line-content flex-1 whitespace-pre pr-[1em]',
-            wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
+            'line-content flex-1 pr-[1em] whitespace-pre',
+            wrapped ? '[&_*]:break-words [&_*]:whitespace-pre-wrap' : '[&_*]:break-normal [&_*]:whitespace-pre'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
             <span key={tokenIndex} style={getReactStyleFromToken(token, { isDarkTheme })}>

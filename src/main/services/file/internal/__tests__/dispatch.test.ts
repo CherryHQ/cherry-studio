@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { FileEntryId, FileHandle } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it, vi } from 'vitest'
 
 import { dispatchHandle } from '../dispatch'
 

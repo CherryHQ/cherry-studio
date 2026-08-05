@@ -1,9 +1,10 @@
-import { Divider, type MarkdownSource } from '@cherrystudio/ui'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { Divider, type MarkdownSource } from '@cherrystudio/ui'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 
@@ -27,7 +28,7 @@ const MessageTranslate: FC<Props> = ({ block }) => {
     <Fragment>
       <div className="relative mb-2.5">
         <Divider />
-        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-background px-2">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2">
           <Languages size={14} className="text-muted-foreground" />
         </div>
       </div>

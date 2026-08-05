@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url'
 
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
 

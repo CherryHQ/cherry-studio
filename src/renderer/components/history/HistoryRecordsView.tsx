@@ -1,5 +1,6 @@
-import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { ReactNode } from 'react'
+
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 
 import AgentHistoryRecords from './AgentHistoryRecords'
 import AssistantHistoryRecords from './AssistantHistoryRecords'

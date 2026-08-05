@@ -1,3 +1,6 @@
+import { useEffect, useEffectEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { setBackupSyncState } from '@renderer/services/BackupService'
@@ -6,8 +9,6 @@ import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
-import { useEffect, useEffectEvent } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAutoBackupEvents')
 const latestEventIds = new Map<AutoBackupType, number>()

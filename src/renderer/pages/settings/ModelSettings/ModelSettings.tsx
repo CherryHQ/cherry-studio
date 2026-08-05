@@ -1,5 +1,10 @@
-import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
   SettingContainer,
@@ -20,10 +25,6 @@ import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { DefaultModelSelector } from './DefaultModelSelector'
 import { TopicNamingSettings } from './TopicNamingSettings'

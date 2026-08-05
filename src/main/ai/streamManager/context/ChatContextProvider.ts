@@ -6,6 +6,7 @@
  */
 
 import type { Span } from '@opentelemetry/api'
+
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'

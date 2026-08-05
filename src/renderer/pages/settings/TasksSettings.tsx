@@ -1,3 +1,23 @@
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  CircleSlash,
+  Folder,
+  MoreHorizontal,
+  PencilLine,
+  Play,
+  Plus,
+  Trash2
+} from 'lucide-react'
+import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Alert,
@@ -93,25 +113,6 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { TFunction } from 'i18next'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  CalendarClock,
-  ChevronDown,
-  ChevronRight,
-  CircleSlash,
-  Folder,
-  MoreHorizontal,
-  PencilLine,
-  Play,
-  Plus,
-  Trash2
-} from 'lucide-react'
-import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
 const ALL_TASKS_FILTER = 'all'
@@ -945,7 +946,7 @@ const TaskDetail: FC<{
             <SettingDivider />
             <Item variant="muted">
               <ItemContent>
-                <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">
+                <ItemDescription className="line-clamp-none break-words whitespace-pre-wrap">
                   {task.prompt}
                 </ItemDescription>
               </ItemContent>
@@ -1552,7 +1553,7 @@ const TasksSettings: FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
+      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
         {tasks.length === 0 ? (
           <EmptyState
             preset={agents.length === 0 ? 'no-agent' : 'no-result'}

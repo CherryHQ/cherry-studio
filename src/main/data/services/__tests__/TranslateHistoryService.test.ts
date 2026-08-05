@@ -1,8 +1,9 @@
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
-import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
+
+import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
 
 describe('TranslateHistoryService', () => {
   const dbh = setupTestDatabase()

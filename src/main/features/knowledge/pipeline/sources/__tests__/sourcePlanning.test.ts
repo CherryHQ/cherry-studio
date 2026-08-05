@@ -1,5 +1,6 @@
-import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
 

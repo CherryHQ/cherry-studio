@@ -1,3 +1,7 @@
+import { Bot, ChevronRight, ClipboardList, Github } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Dialog,
@@ -17,9 +21,6 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
-import { Bot, ChevronRight, ClipboardList, Github } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export const FEEDBACK_SURVEY_URL = 'https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnsjfFkx4gy6wx9LQ70tMaKe'
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'

@@ -1,8 +1,9 @@
-import { Flex } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
+
+import { Flex } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface QuickPanelRowData {
   id?: string
@@ -93,7 +94,7 @@ export function QuickPanelFooter({
       ref={containerRef}
       data-testid="quick-panel-footer"
       className={cn('flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]', className)}>
-      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
+      <div className="overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground">
         {title || ''}
       </div>
       <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
@@ -117,7 +118,7 @@ export function QuickPanelFooter({
 export function QuickPanelReadOnlyHeader({ onClose, title }: QuickPanelReadOnlyHeaderProps) {
   return (
     <div className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[7px]">
-      <div className="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-[13px] text-foreground">
+      <div className="overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-foreground">
         {title || ''}
       </div>
       <button
@@ -196,7 +197,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
             {item.icon}
           </span>
         ) : null}
-        <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
+        <span className="flex-1 shrink-0 overflow-hidden text-[13px] leading-4 text-ellipsis whitespace-nowrap">
           {item.label}
         </span>
       </div>

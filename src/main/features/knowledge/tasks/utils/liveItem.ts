@@ -1,4 +1,5 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 

@@ -1,9 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
 import { Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -16,6 +10,13 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 
 import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
@@ -237,7 +238,7 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
+        'nodrag group relative flex h-[30px] max-w-[160px] min-w-[56px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         // While closing, pin the tone the tab had when the close started — losing
         // the active/hover state mid-collapse reads as a white flash.
@@ -252,7 +253,7 @@ const NormalTabButton = ({
       )}>
       <TabIcon tab={tab} size={14} className="shrink-0" />
       <span
-        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        className="min-w-0 flex-1 overflow-hidden text-left text-xs leading-none font-normal whitespace-nowrap"
         style={{
           maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
@@ -290,7 +291,7 @@ const NormalTabButton = ({
             // matches once pointer events are off, and the handover cleared isActive.
             isActive || isClosing
               ? 'w-[18px] opacity-100'
-              : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
+              : 'pointer-events-none w-0 opacity-0 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100'
           )}>
           <X size={10} />
         </div>
@@ -761,7 +762,7 @@ export const AppShellTabBar = ({
         ref={tabBarRef}
         data-ui="app.tab-bar"
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full items-center gap-2 select-none [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>

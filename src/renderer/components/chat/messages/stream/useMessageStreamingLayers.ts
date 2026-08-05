@@ -6,10 +6,11 @@
  * two surfaces cannot drift.
  */
 
+import { useMemo } from 'react'
+
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useMemo } from 'react'
 
 import type { TranslationOverlayEntry } from '../blocks/MessagePartsContext'
 import type { MessageStreamingLayers } from '../types'

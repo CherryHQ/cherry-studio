@@ -1,5 +1,6 @@
-import type { ManagedWindow, WindowBehavior, WindowOptions, WindowType } from '@main/core/window/types'
 import type { BrowserWindow } from 'electron'
+
+import type { ManagedWindow, WindowBehavior, WindowOptions, WindowType } from '@main/core/window/types'
 
 /**
  * Apply the declarative {@link WindowBehavior} layer to a freshly-created window.

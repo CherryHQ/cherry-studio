@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import OpenExternalAppButton from '../OpenExternalAppButton'
 

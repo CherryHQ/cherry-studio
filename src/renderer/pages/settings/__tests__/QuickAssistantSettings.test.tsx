@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'

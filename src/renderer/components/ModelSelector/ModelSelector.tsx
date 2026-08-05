@@ -1,15 +1,3 @@
-import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
-import { loggerService } from '@logger'
-import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
-import { isDev } from '@renderer/utils/platform'
-import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
 import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
@@ -24,6 +12,19 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
+import { loggerService } from '@logger'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { isDev } from '@renderer/utils/platform'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
@@ -237,11 +238,11 @@ function ModelRow({
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
+        <span className="max-w-full min-w-0 shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
         {item.isPinned && (
-          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
+          <span className="min-w-0 flex-[1_999_0%] truncate text-xs text-muted-foreground" title={providerName}>
             | {providerName}
           </span>
         )}
@@ -698,7 +699,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition group-hover:opacity-60 hover:opacity-100!"
                   onClick={(event) => {
                     event.stopPropagation()
                     handleNavigateToProviderSettings(item.provider!.id)
@@ -878,7 +879,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             </div>
           ) : (
             <div
-              className="flex items-center justify-center px-3 py-4 text-muted-foreground text-xs"
+              className="flex items-center justify-center px-3 py-4 text-xs text-muted-foreground"
               style={{ height: visibleListHeight }}
               data-testid="model-selector-empty">
               {t('models.no_matches')}

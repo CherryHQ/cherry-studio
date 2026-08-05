@@ -1,3 +1,6 @@
+import { sortBy } from 'es-toolkit/compat'
+import { useCallback, useMemo } from 'react'
+
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
@@ -8,8 +11,6 @@ import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerS
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
-import { sortBy } from 'es-toolkit/compat'
-import { useCallback, useMemo } from 'react'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
 import type {

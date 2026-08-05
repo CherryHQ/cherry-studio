@@ -1,8 +1,9 @@
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 

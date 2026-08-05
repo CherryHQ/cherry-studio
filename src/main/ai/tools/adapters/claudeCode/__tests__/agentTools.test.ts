@@ -6,6 +6,8 @@
  * `disallowedTools`, so the live gate and the fresh-connection block stay consistent.
  */
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -19,7 +21,6 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   findMcpServer: vi.fn(),

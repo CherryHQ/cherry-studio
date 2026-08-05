@@ -1,7 +1,13 @@
-import { Alert, Badge, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { ArrowLeft, SaveIcon } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Badge, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -21,11 +27,6 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
@@ -561,7 +562,7 @@ const McpSettings: React.FC = () => {
     children: (
       <LogList>
         {logs.length === 0 && (
-          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+          <span className="text-sm text-foreground-tertiary">{t('settings.mcp.noLogs', 'No logs yet')}</span>
         )}
         {logs.map((log, idx) => (
           <LogItem key={`${log.timestamp}-${idx}`}>
@@ -632,7 +633,7 @@ const McpSettings: React.FC = () => {
                   options={tabs.map((tab) => ({ value: tab.key, label: tab.label }))}
                   onValueChange={setActiveTab}
                   size="sm"
-                  className="min-w-0 max-w-full overflow-x-auto border-0 bg-muted/60"
+                  className="max-w-full min-w-0 overflow-x-auto border-0 bg-muted/60"
                   aria-label={t('settings.mcp.title')}
                 />
                 {activeTabValue === 'tools' && tools.length > 0 && (
@@ -660,13 +661,13 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
+            <div className="flex min-h-14 shrink-0 items-center border-t border-border-subtle px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-mt-1 -ml-2 rounded-full text-destructive opacity-60 hover:!bg-destructive hover:!text-destructive-foreground hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -716,17 +717,17 @@ const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
+  <span className={cn('shrink-0 text-xs text-foreground-tertiary', className)} {...props} />
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
+  <span className={cn('text-[13px] leading-normal wrap-break-word', className)} {...props} />
 )
 
 const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={cn(
-      'wrap-break-word mt-1.5 whitespace-pre-wrap rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
+      'mt-1.5 rounded-md border border-border bg-background px-2 py-2 text-xs wrap-break-word whitespace-pre-wrap text-foreground',
       className
     )}
     {...props}
@@ -766,7 +767,7 @@ function mergeServerLogs(
 }
 
 const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
-  <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />
+  <span className={cn('shrink-0 text-[11px] leading-4 text-muted-foreground', className)} {...props} />
 )
 
 const McpRuntimeStatusBadge = ({

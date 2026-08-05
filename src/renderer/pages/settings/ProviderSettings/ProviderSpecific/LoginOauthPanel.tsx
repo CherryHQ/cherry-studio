@@ -1,13 +1,14 @@
+import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LoginOauthPanel')
 
@@ -97,7 +98,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
 
   if (loggedIn === null) {
     return (
-      <div className="flex items-center gap-2 pt-3.75 text-foreground-tertiary text-xs">
+      <div className="flex items-center gap-2 pt-3.75 text-xs text-foreground-tertiary">
         <RefreshCw className="size-4 animate-spin" aria-hidden />
         {t('common.loading')}
       </div>

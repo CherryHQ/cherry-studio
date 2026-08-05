@@ -1,3 +1,7 @@
+import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Center,
@@ -14,9 +18,6 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 
@@ -135,7 +136,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         size="xl"
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="skill-marketplace-dialog">
-        <div className="shrink-0 border-border-subtle border-b px-6 pt-5 pb-4">
+        <div className="shrink-0 border-b border-border-subtle px-6 pt-5 pb-4">
           <DialogHeader className="text-left">
             <DialogTitle>{t('library.skill_marketplace.title')}</DialogTitle>
           </DialogHeader>
@@ -154,7 +155,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
                     <>
                       {source}
                       {count > 0 ? (
-                        <span className="text-foreground-tertiary text-xs tabular-nums">{count}</span>
+                        <span className="text-xs text-foreground-tertiary tabular-nums">{count}</span>
                       ) : null}
                     </>
                   )
@@ -165,7 +166,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
               value={query}
               onValueChange={handleSearchChange}
               placeholder={t('library.skill_marketplace.search_placeholder')}
-              className="ml-auto min-w-0 max-w-[560px] flex-1"
+              className="ml-auto max-w-[560px] min-w-0 flex-1"
             />
           </div>
         </div>
@@ -225,7 +226,7 @@ function SkillSearchBody({
 
   if (searching) {
     return (
-      <Center className="min-h-0 flex-1 text-foreground-tertiary text-sm">
+      <Center className="min-h-0 flex-1 text-sm text-foreground-tertiary">
         <Spinner text={t('common.loading')} />
       </Center>
     )
@@ -261,7 +262,7 @@ function SkillSearchBody({
       overscan={6}
       getItemKey={getResultKey}
       role="list"
-      className="[&::-webkit-scrollbar]:!w-0.75 box-border px-6 pt-1 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full">
+      className="box-border px-6 pt-1 pb-1 [&::-webkit-scrollbar]:!w-0.75 [&::-webkit-scrollbar-thumb]:rounded-full">
       {(result, index) => (
         <SkillSearchResultRow
           result={result}
@@ -294,10 +295,10 @@ function SkillSearchResultRow({
   return (
     <div
       role="listitem"
-      className={`mx-auto flex min-h-[56px] w-full max-w-3xl items-center gap-4 px-2 py-2 ${last ? '' : 'border-border-subtle border-b'}`}>
+      className={`mx-auto flex min-h-[56px] w-full max-w-3xl items-center gap-4 px-2 py-2 ${last ? '' : 'border-b border-border-subtle'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex h-4 min-w-0 items-center gap-1.5 text-[13px] leading-4">
-          <div className="min-w-0 truncate font-semibold text-foreground leading-4">{result.name}</div>
+          <div className="min-w-0 truncate leading-4 font-semibold text-foreground">{result.name}</div>
           {result.sourceUrl ? (
             <Tooltip content={t('settings.skills.viewSource')} delay={300}>
               <Button
@@ -312,7 +313,7 @@ function SkillSearchResultRow({
           ) : null}
         </div>
         {hasMeta ? (
-          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-tertiary leading-[14px]">
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-[14px] text-foreground-tertiary">
             {result.stars > 0 ? (
               <span className="flex shrink-0 items-center gap-0.5">
                 <Star className="size-3" />

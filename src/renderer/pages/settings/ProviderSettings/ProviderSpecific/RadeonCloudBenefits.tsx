@@ -15,8 +15,8 @@ export default function RadeonCloudBenefits() {
       role="note">
       <Gift className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-foreground text-sm">{t('settings.provider.radeon_cloud.benefits.title')}</div>
-        <div className="mt-1 text-foreground-muted text-xs leading-relaxed">
+        <div className="text-sm font-medium text-foreground">{t('settings.provider.radeon_cloud.benefits.title')}</div>
+        <div className="text-foreground-muted mt-1 text-xs leading-relaxed">
           {t('settings.provider.radeon_cloud.benefits.description')}
         </div>
         <ProviderHelpLink

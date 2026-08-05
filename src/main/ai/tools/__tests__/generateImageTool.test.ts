@@ -1,6 +1,7 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { buildGenerateImageToolSchema, generateImageInputSchema } from '../generateImageTool'
 

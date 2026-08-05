@@ -1,7 +1,8 @@
-import { Scrollbar } from '@cherrystudio/ui'
 import { Check, Copy, NotebookPen } from 'lucide-react'
 import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
 
 import IconButton from './IconButton'
 
@@ -59,7 +60,7 @@ const TranslateOutputPane = ({
         </IconButton>
       </div>
       <div className="flex shrink-0 items-center px-3 py-4">
-        {translatedContent && <span className="text-foreground-tertiary text-xs">{translatedContent.length}</span>}
+        {translatedContent && <span className="text-xs text-foreground-tertiary">{translatedContent.length}</span>}
         <IconButton
           size="sm"
           onClick={onExportToNotes}

@@ -1,3 +1,7 @@
+import { ArrowRight } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
@@ -11,9 +15,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -119,7 +120,7 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
         </Scrollbar>
       ) : (
-        <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
+        <div className="py-2 text-xs text-muted-foreground">{t('message.tools.noData')}</div>
       )}
     </div>
   )
@@ -143,10 +144,10 @@ function getPermissionRequestSubtitle(request: PermissionRequestComposerRequest)
 
 function PermissionPreviewHeader({ toolName, description }: { toolName: string; description?: string }) {
   return (
-    <div className="min-w-0 text-foreground text-sm">
+    <div className="min-w-0 text-sm text-foreground">
       <div className="truncate font-medium">{toolName}</div>
       {description ? (
-        <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</div>
+        <div className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground">{description}</div>
       ) : null}
     </div>
   )
@@ -172,7 +173,7 @@ function PermissionOption({
       type="button"
       variant="ghost"
       className={cn(
-        'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
+        'group h-auto min-h-11 w-full justify-start gap-3 rounded-[12px] px-3 py-2 text-left whitespace-normal shadow-none',
         'hover:bg-muted focus-visible:bg-muted'
       )}
       disabled={disabled}
@@ -180,7 +181,7 @@ function PermissionOption({
       onClick={onSelect}>
       <span
         className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
+          'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors',
           'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
         )}>
         {index}
@@ -188,7 +189,7 @@ function PermissionOption({
 
       <span
         className={cn(
-          'block min-w-0 flex-1 truncate font-semibold text-foreground text-sm leading-5',
+          'block min-w-0 flex-1 truncate text-sm leading-5 font-semibold text-foreground',
           destructive && 'text-destructive'
         )}>
         {label}
@@ -259,17 +260,17 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
+            <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 text-sm leading-5 font-semibold text-foreground">
               <span className="inline-flex shrink-0 text-muted-foreground">
                 <ToolIcon aria-hidden="true" className="size-4" />
               </span>
               <span className="truncate">{toolTitle}</span>
             </h2>
             {subtitle ? (
-              <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
+              <div className="mt-0.5 line-clamp-1 text-xs leading-4 text-muted-foreground">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
+          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 text-[11px] font-medium text-warning-subtle-foreground">
             {t('agent.toolPermission.pending')}
           </div>
         </div>

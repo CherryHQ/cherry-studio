@@ -1,14 +1,15 @@
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import { FolderOpen, MoreHorizontal } from 'lucide-react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
-import { FolderOpen, MoreHorizontal } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
 

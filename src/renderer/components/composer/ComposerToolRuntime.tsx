@@ -1,3 +1,7 @@
+import { Plus } from 'lucide-react'
+import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { getAllTools, getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import {
   ComposerToolDerivedStateProvider,
@@ -24,9 +28,6 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
-import { Plus } from 'lucide-react'
-import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
@@ -374,7 +375,7 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
         <button
           key={launcher.id}
           type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
           data-active
           disabled={launcher.disabled}
           aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}

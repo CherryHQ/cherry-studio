@@ -1,10 +1,11 @@
+import * as z from 'zod'
+
 import {
   LOCAL_MODEL_DOWNLOAD_RESULTS,
   LOCAL_MODEL_KINDS,
   LOCAL_MODEL_STATUSES,
   type LocalModelKind
 } from '@shared/data/presets/localModel'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

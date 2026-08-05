@@ -1,10 +1,11 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type InputCapability, usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
 

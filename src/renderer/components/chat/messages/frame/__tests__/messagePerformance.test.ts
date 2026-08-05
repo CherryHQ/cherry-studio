@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 import type { MessageStats } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { buildMessagePerformanceViewModel, getMessageModelTokensPerSecond } from '../messagePerformance'
 

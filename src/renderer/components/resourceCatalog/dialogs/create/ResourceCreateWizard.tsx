@@ -1,11 +1,12 @@
-import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import {
   resourceDialogCloseButtonClassName,
@@ -81,8 +82,8 @@ function WizardFooter({
   const canProceed = stepIndex !== 0 || basicValid
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-6 py-3">
+      {rootError ? <span className="mr-auto text-xs text-destructive">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -289,7 +290,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-44 shrink-0 space-y-1 border-border-subtle border-r p-3">
+              <ol className="w-44 shrink-0 space-y-1 border-r border-border-subtle p-3">
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex
@@ -307,7 +308,7 @@ export function ResourceCreateWizard({
                         )}>
                         <span
                           className={cn(
-                            'flex size-6 shrink-0 items-center justify-center rounded-full font-medium text-xs',
+                            'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium',
                             active
                               ? 'bg-foreground text-background'
                               : done

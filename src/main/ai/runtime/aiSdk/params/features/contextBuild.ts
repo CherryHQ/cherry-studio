@@ -1,3 +1,5 @@
+import { messageService } from '@data/services/MessageService'
+
 /**
  * Context-build feature: wires the aiCore context middleware into the AI SDK
  * plugin chain. The role is "build / shape the context the model sees on
@@ -24,7 +26,6 @@
  */
 import type { ContextMiddlewareOptions, TruncateOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { createContextMiddleware, definePlugin, groupIntoTurns } from '@cherrystudio/ai-core'
-import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import {
   APPROX_CHARS_PER_TOKEN,

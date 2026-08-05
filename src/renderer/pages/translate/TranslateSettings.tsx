@@ -1,3 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ConfirmDialog,
@@ -20,7 +26,6 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
@@ -35,10 +40,6 @@ import type {
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './components/IconButton'
 import LanguagePicker from './components/LanguagePicker'
@@ -302,7 +303,7 @@ const TranslatePromptField: FC = () => {
           <button
             type="button"
             onClick={onReset}
-            className="rounded-md text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
+            className="rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
             {t('common.reset')}
           </button>
         )
@@ -310,7 +311,7 @@ const TranslatePromptField: FC = () => {
       <textarea
         value={local}
         onChange={(e) => schedulePersist(e.target.value)}
-        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-muted-foreground text-sm leading-relaxed outline-none transition-colors focus:border-ring"
+        className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground transition-colors outline-none focus:border-ring"
       />
     </PageSidePanelSection>
   )
@@ -338,7 +339,7 @@ const CustomLanguageList: FC = () => {
       title={t('translate.custom.label')}
       actions={
         customLanguages.length > 0 && (
-          <span className="text-foreground-tertiary text-xs">{t('code.count', { count: customLanguages.length })}</span>
+          <span className="text-xs text-foreground-tertiary">{t('code.count', { count: customLanguages.length })}</span>
         )
       }>
       <div className="flex flex-col gap-1">
@@ -346,7 +347,7 @@ const CustomLanguageList: FC = () => {
           <CustomLanguageRow key={language.langCode} language={language} />
         ))}
         {customLanguages.length === 0 && !isAdding && (
-          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-muted-foreground text-sm">
+          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-sm text-muted-foreground">
             {t('common.no_results')}
           </p>
         )}
@@ -479,7 +480,7 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
         {error?.field === 'code' ? (
           <FieldDescription className="text-destructive">{t(error.messageKey)}</FieldDescription>
         ) : (
-          <FieldDescription className="text-muted-foreground text-xs leading-4">
+          <FieldDescription className="text-xs leading-4 text-muted-foreground">
             {t('settings.translate.custom.langCode.help')}
           </FieldDescription>
         )}
@@ -545,13 +546,13 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
     return (
       <>
         <div className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
-          <span className="shrink-0 font-mono text-foreground-tertiary text-xs">{language.langCode}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground">{language.value}</span>
+          <span className="shrink-0 font-mono text-xs text-foreground-tertiary">{language.langCode}</span>
           <IconButton
             size="xs"
             onClick={() => setEditing(true)}
             aria-label={t('common.edit')}
-            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-transparent">
             <PenLine size={10} />
           </IconButton>
           <IconButton
@@ -559,7 +560,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             tone="destructive"
             onClick={() => setConfirmOpen(true)}
             aria-label={t('common.delete')}
-            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-transparent">
             <X size={10} />
           </IconButton>
         </div>

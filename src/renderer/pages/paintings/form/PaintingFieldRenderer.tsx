@@ -1,6 +1,7 @@
-import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'

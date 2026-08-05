@@ -1,7 +1,8 @@
-import { PopupHost } from '@renderer/components/PopupHost'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 

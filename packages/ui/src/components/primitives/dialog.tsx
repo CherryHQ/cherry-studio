@@ -1,9 +1,10 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 
 import { PortalContainerProvider, useDialogPortalContainer } from './portal-container'
 
@@ -30,8 +31,8 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
       data-slot="dialog-overlay"
       className={cn(
         'fixed inset-0 z-[80] bg-black/50',
-        'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:animation-duration-[220ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+        'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[220ms] data-[state=open]:fade-in-0',
+        'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0',
         'fill-mode-both motion-reduce:animate-none',
         className
       )}
@@ -119,11 +120,11 @@ function DialogContent({
         ref={handleRef}
         data-slot="dialog-content"
         className={cn(
-          'bg-card text-card-foreground fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl',
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99 data-[state=open]:animation-duration-[260ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+          'fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 bg-card p-6 text-card-foreground shadow-xl',
+          'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99',
+          'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99',
           motion === 'directional' &&
-            'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4',
+            'data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4',
           'fill-mode-both motion-reduce:animate-none',
           dialogContentSizeClass[size],
           className
@@ -137,7 +138,7 @@ function DialogContent({
           {showCloseButton && (
             <DialogPrimitive.Close
               data-slot="dialog-close"
-              className="data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+              className="absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
               <XIcon />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
@@ -182,7 +183,7 @@ function DialogDescription({ className, ...props }: React.ComponentProps<typeof 
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     />
   )

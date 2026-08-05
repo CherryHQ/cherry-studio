@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 const getByIdMock = vi.fn()
 const updateMock = vi.fn()

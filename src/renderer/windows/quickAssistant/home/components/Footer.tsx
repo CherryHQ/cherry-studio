@@ -1,8 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { ArrowLeft, CircleArrowLeft, Copy, Loader2, Pin } from 'lucide-react'
 import type { ButtonHTMLAttributes, FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
 
 interface FooterProps {
   route: string
@@ -41,8 +42,8 @@ const Footer: FC<FooterProps> = ({
   }
 
   return (
-    <div className="drag flex flex-row justify-between py-1.5 text-muted-foreground text-xs">
-      <div className="flex items-center justify-center gap-1 text-muted-foreground text-xs">
+    <div className="drag flex flex-row justify-between py-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
         <FooterAction onClick={onEsc}>
           {loading ? (
             <Loader2 size={12} className="animate-spin text-error" />

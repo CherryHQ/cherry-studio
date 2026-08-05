@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'

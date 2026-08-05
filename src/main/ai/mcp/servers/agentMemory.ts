@@ -4,12 +4,13 @@ import { lstat, open, readdir, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
-import { loggerService } from '@logger'
-import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { isWin } from '@main/core/platform'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+
+import { loggerService } from '@logger'
+import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { isWin } from '@main/core/platform'
 
 const logger = loggerService.withContext('McpServer:AgentMemory')
 

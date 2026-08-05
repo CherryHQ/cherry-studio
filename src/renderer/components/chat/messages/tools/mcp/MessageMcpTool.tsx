@@ -1,14 +1,15 @@
-import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useTimer } from '@renderer/hooks/useTimer'
-import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import {
   useMessageRenderConfig,
@@ -136,7 +137,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
       extra: (isDone || isError) && copyText && (
         <Tooltip content={t('common.copy')} delay={500}>
           <ActionButton
-            className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+            className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
             onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
             aria-label={t('common.copy')}>
             {copiedMap[id] ? t('common.copied') : t('common.copy')}

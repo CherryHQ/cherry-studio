@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))

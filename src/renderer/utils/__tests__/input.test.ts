@@ -1,5 +1,6 @@
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '../input'
 

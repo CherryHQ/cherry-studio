@@ -1,10 +1,11 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 const API_GATEWAY_PREFERENCE_KEYS = {
   enabled: 'feature.api_gateway.enabled',

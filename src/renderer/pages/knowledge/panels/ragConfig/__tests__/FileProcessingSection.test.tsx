@@ -1,7 +1,8 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn()

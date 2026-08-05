@@ -1,8 +1,9 @@
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
-import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
@@ -52,7 +53,7 @@ const DocumentProcessingSettings: FC = () => {
   return (
     <SettingsContentColumn theme={themeMode} innerClassName={documentProcessingFieldClassName}>
       {availableProcessors.status === 'error' ? (
-        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+        <div className="flex h-full min-h-55 items-center justify-center text-sm text-foreground-tertiary">
           {t('settings.tool.file_processing.errors.load_processors_failed')}
         </div>
       ) : activeEntry ? (
@@ -66,7 +67,7 @@ const DocumentProcessingSettings: FC = () => {
           onSetLanguageOptions={setLanguageOptions}
         />
       ) : (
-        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+        <div className="flex h-full min-h-55 items-center justify-center text-sm text-foreground-tertiary">
           {t('common.no_results')}
         </div>
       )}

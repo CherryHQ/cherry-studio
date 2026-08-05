@@ -1,7 +1,8 @@
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 import CherryInOauth from '../ProviderSpecific/CherryInOauth'
 

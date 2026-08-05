@@ -6,9 +6,10 @@ import { link, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { exists } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeChildProcess>()

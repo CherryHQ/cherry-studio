@@ -1,8 +1,9 @@
+import type { FC } from 'react'
+
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
-import type { FC } from 'react'
 
 import type { Tab } from '../../hooks/tab'
 import { getTabIcon } from './tabIcons'
@@ -40,7 +41,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
         src={tab.icon}
         alt=""
         draggable={false}
-        className={cn('select-none rounded-[3px] object-cover', className)}
+        className={cn('rounded-[3px] object-cover select-none', className)}
         style={{ width: size, height: size }}
       />
     )

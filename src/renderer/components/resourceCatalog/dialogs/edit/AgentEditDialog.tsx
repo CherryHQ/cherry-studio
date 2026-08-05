@@ -1,3 +1,8 @@
+import { ToolCase, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   EditableNumber,
@@ -43,10 +48,6 @@ import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { ToolCase, Wrench } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import {
@@ -506,7 +507,7 @@ function AgentBasicFields({
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+    <div className="divide-y divide-border-subtle border-b border-border-subtle [&>*:first-child]:pt-0">
       <AvatarField
         form={form}
         emojiPickerOpen={emojiPickerOpen}
@@ -811,7 +812,7 @@ function AgentToolsFields({
         <div className="grid gap-5">
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
-              <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
+              <div className="text-xs font-medium text-muted-foreground">{section.label}</div>
               <CatalogToggleGrid
                 items={section.items}
                 enabledIds={enabledToolIds}
@@ -854,7 +855,7 @@ function AgentToolsFields({
               type="button"
               variant="ghost"
               onClick={openSkillsSettingsTab}
-              className="h-full min-h-11 w-full rounded-lg border border-border-subtle border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
+              className="h-full min-h-11 w-full rounded-lg border border-dashed border-border-subtle px-2.5 py-1.5 text-sm font-normal text-muted-foreground shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
               <ToolCase size={14} strokeWidth={1.7} />
               {t('agent.settings.skills.addMore')}
             </Button>

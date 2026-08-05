@@ -1,3 +1,10 @@
+import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   Button,
   IndicatorLight,
@@ -20,12 +27,6 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
 const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
@@ -294,7 +295,7 @@ const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
+  <div className={cn('mt-2 max-w-140 text-xs leading-5 text-foreground-tertiary', className)} {...props} />
 )
 
 const StatusCard = ({
@@ -347,13 +348,13 @@ const StatusText = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
   <div
-    className={cn('font-medium text-sm', $running ? 'text-success-subtle-foreground' : 'text-foreground', className)}
+    className={cn('text-sm font-medium', $running ? 'text-success-subtle-foreground' : 'text-foreground', className)}
     {...props}
   />
 )
 
 const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('truncate text-muted-foreground text-xs', className)} {...props} />
+  <div className={cn('truncate text-xs text-muted-foreground', className)} {...props} />
 )
 
 const StatusActions = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -2,8 +2,9 @@ import { realpathSync } from 'node:fs'
 import { isAbsolute, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { application } from '@application'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
+
+import { application } from '@application'
 
 /** Whether `childPath` is `parentDir` itself or nested inside it (no prefix-only matches). */
 function isPathInside(childPath: string, parentDir: string): boolean {

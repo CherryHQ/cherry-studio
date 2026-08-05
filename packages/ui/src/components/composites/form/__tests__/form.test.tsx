@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, render, screen } from '@testing-library/react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'

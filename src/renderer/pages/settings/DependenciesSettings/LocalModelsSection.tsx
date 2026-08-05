@@ -1,11 +1,12 @@
-import { Badge, Button } from '@cherrystudio/ui'
-import { useLocalModel } from '@renderer/hooks/useLocalModel'
-import { cn } from '@renderer/utils/style'
-import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Button } from '@cherrystudio/ui'
+import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { cn } from '@renderer/utils/style'
+import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
@@ -101,14 +102,14 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-foreground text-sm">{name}</span>
+            <span className="truncate text-sm text-foreground">{name}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
         {ready && (
           <Button
@@ -132,7 +133,7 @@ const ModelCard: FC<ModelCardProps> = ({
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
           </div>
-          <div className="flex items-center justify-between text-muted-foreground text-xs">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{t('settings.dependencies.localModels.status.downloading')}</span>
             <span>{percent}%</span>
           </div>
@@ -140,7 +141,7 @@ const ModelCard: FC<ModelCardProps> = ({
       )}
 
       {!ready && (
-        <div className="mt-3 border-border border-t pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           {downloading ? (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
               <X className="size-3.5" />
@@ -174,16 +175,16 @@ const LocalModelsSection: FC = () => {
 
   return (
     <div className="min-w-0">
-      <h2 className="font-semibold text-[15px] text-foreground leading-6">
+      <h2 className="text-[15px] leading-6 font-semibold text-foreground">
         {t('settings.dependencies.localModels.title')}
       </h2>
-      <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
+      <p className="mt-1 mb-3 text-xs leading-5 text-muted-foreground">
         {t('settings.dependencies.localModels.description')}
       </p>
       {unsupported ? (
         <div
           role="status"
-          className="rounded-xl border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-xs leading-5"
+          className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs leading-5 text-muted-foreground"
           style={{
             backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
           }}>

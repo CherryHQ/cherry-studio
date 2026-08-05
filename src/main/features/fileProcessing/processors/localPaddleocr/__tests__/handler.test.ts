@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),

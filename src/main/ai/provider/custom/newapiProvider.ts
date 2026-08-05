@@ -14,15 +14,16 @@
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
-import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
 import {
   OpenAICompatibleChatLanguageModel,
   OpenAICompatibleEmbeddingModel,
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
+import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const

@@ -1,4 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -6,8 +9,6 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { parseConfiguredModelId } from '../cliConfig'
 

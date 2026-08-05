@@ -1,7 +1,8 @@
-import type { Pin } from '@shared/data/types/pin'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Pin } from '@shared/data/types/pin'
 
 import { usePins } from '../usePins'
 

@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+
 import { loggerService } from '@logger'
 
 import { isApprovalGated } from '../../isApprovalGated'

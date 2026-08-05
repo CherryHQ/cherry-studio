@@ -1,5 +1,6 @@
-import { getSidebarApp, getSidebarAppTabInstanceKey, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 import { useCallback } from 'react'
+
+import { getSidebarApp, getSidebarAppTabInstanceKey, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 
 import { useOptionalTabsContext } from './useTabsContext'
 

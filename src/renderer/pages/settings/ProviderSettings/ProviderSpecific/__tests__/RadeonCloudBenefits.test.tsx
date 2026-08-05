@@ -1,7 +1,8 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import RadeonCloudBenefits from '../RadeonCloudBenefits'
 

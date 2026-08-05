@@ -1,9 +1,10 @@
-import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {

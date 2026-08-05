@@ -1,9 +1,10 @@
 import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
-import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 import FormData from 'form-data'
+
+import { MB } from '@shared/utils/constants'
 
 import type { PreparedOpenMineruContext } from './types'
 

@@ -1,8 +1,8 @@
 /* oxlint-disable no-case-declarations */
 // ExportService
 
-import { loggerService } from '@logger'
-import { t } from '@main/i18n'
+import fs from 'fs'
+
 import {
   AlignmentType,
   BorderStyle,
@@ -20,8 +20,10 @@ import {
   WidthType
 } from 'docx'
 import { dialog } from 'electron'
-import fs from 'fs'
 import MarkdownIt from 'markdown-it'
+
+import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {

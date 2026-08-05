@@ -1,4 +1,6 @@
 import type { CreateModelInput } from '@data/services/ModelService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
   BulkUpdateModelsSchema,
@@ -7,7 +9,6 @@ import {
   MODELS_BATCH_MAX_ITEMS,
   MODELS_DELETE_MAX_IDS
 } from '@shared/data/api/schemas/models'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 

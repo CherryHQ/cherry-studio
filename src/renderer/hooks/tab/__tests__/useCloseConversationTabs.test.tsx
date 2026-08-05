@@ -1,10 +1,11 @@
+import { act, renderHook } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 // @vitest-environment jsdom
 import type { TabsContextValue } from '@renderer/hooks/tab'
 import { TabsContext } from '@renderer/hooks/tab/useTabsContext'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { act, renderHook } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCloseConversationTabs } from '../useCloseConversationTabs'
 

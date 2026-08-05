@@ -1,8 +1,9 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { isWin } from '@renderer/utils/platform'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { isWin } from '@renderer/utils/platform'
 
 interface SelectionFilterListModalProps {
   open: boolean
@@ -47,7 +48,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
             : t('selection.settings.filter_modal.user_tips.mac')}
         </div>
         <Textarea.Input
-          className="field-sizing-content mt-4 w-full"
+          className="mt-4 field-sizing-content w-full"
           rows={6}
           spellCheck={false}
           autoFocus

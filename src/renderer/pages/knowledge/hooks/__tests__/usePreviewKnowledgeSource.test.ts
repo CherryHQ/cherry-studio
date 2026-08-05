@@ -1,3 +1,7 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   createDirectoryItem,
   createFileItem,
@@ -6,9 +10,6 @@ import {
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePreviewKnowledgeSource } from '../usePreviewKnowledgeSource'
 

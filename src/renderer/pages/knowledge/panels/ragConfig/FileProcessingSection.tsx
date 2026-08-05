@@ -1,5 +1,6 @@
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { useTranslation } from 'react-i18next'
+
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'
 import { RagFieldLabel } from './panelPrimitives'

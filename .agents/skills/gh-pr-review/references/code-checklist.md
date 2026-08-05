@@ -208,7 +208,7 @@ Coding standards and documentation consistency.
 > for an excluded issue type, that type is **not excluded** — review per project rules.
 
 1. Pure style preferences within formatting tool scope (not required by project rules)
-2. Formatting already handled by Biome (indentation, whitespace, trailing commas, etc.)
+2. Formatting already handled by Oxfmt (indentation, whitespace, trailing commas, etc.)
 3. Suggestions based on assumed future requirements, not current code
 4. Code following project's existing style but not matching some external standard
 5. Priority C issues in test code (unless project rules require otherwise)

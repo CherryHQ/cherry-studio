@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { deriveRootSpanId } from '@shared/data/types/trace'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   startupMock,

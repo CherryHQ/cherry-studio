@@ -1,8 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
@@ -129,7 +130,7 @@ export const FileGrid = memo(function FileGrid({
                         <Icon size={24} strokeWidth={1.2} className={typeIconColors[file.type]} />
                       )}
                       {!isImage && (
-                        <span className="absolute top-1.5 left-1.5 rounded bg-background/70 px-1.5 py-px font-medium text-muted-foreground text-xs tracking-wide backdrop-blur-sm">
+                        <span className="absolute top-1.5 left-1.5 rounded bg-background/70 px-1.5 py-px text-xs font-medium tracking-wide text-muted-foreground backdrop-blur-sm">
                           {getFormatLabel(file.format)}
                         </span>
                       )}
@@ -150,7 +151,7 @@ export const FileGrid = memo(function FileGrid({
                             file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
                           }
                           title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                          className="!text-muted-foreground hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
+                          className="size-6 min-h-0 rounded bg-background/80 p-0 !text-muted-foreground shadow-xs backdrop-blur-sm transition-colors hover:!text-destructive">
                           <Trash2 className="size-3" />
                         </Button>
                       </div>
@@ -164,12 +165,12 @@ export const FileGrid = memo(function FileGrid({
                           className="w-full px-1.5 text-center"
                         />
                       ) : (
-                        <p className="truncate font-medium text-foreground text-sm leading-5" title={file.name}>
+                        <p className="truncate text-sm leading-5 font-medium text-foreground" title={file.name}>
                           {file.name}
                         </p>
                       )}
                       <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground text-xs leading-4">{file.size}</span>
+                        <span className="text-xs leading-4 text-muted-foreground">{file.size}</span>
                       </div>
                     </div>
                   </div>

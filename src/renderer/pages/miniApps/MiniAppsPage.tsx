@@ -1,3 +1,9 @@
+import { Menu, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
+
 import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
@@ -5,11 +11,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Menu, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 import MiniAppDisplaySettings from './MiniAppSettings/MiniAppDisplaySettings'
 import MiniAppListPair from './MiniAppSettings/MiniAppListPair'
@@ -97,7 +98,7 @@ const MiniAppsPage: FC = () => {
                 <BeatLoader color={MINI_APPS_LOADING_COLOR} size={8} />
               </div>
             ) : error ? (
-              <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">
+              <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
                 {isDataApiError(error) ? error.message : t('common.error')}
               </div>
             ) : filteredApps.length === 0 ? (

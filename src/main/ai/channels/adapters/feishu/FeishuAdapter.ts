@@ -1,5 +1,6 @@
-import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
+
+import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'

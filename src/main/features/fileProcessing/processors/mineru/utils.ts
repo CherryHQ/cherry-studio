@@ -1,10 +1,11 @@
 import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
+import { net } from 'electron'
+
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FileInfo } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
-import { net } from 'electron'
 
 import {
   MineruApiResponseSchema,

@@ -1,5 +1,6 @@
-import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { SuccessStatus } from '@shared/data/api/types'
 
 const {
   listMock,

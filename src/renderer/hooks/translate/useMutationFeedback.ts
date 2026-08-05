@@ -1,7 +1,8 @@
-import type { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 
 /**
  * Shared options for translate mutation hooks. All flags default to each hook's

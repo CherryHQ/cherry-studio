@@ -1,9 +1,10 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProvider'
-import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { useProvider } from '@renderer/hooks/useProvider'
+import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'

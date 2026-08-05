@@ -1,11 +1,12 @@
-import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
-import { CommandHint } from '@renderer/components/command'
-import { cn } from '@renderer/utils/style'
-import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
+import { CommandHint } from '@renderer/components/command'
+import { cn } from '@renderer/utils/style'
+import type { CommandId } from '@shared/utils/command'
 
 import {
   getResourceListOptionDomId,
@@ -66,7 +67,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-r-[0.5px] border-border p-1.5 text-sidebar-foreground',
         className
       )}
       {...props}
@@ -88,7 +89,7 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
     <div className={wrapperClassName}>
       <div className="relative">
         {searchIcon && (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-tertiary">
+          <span className="pointer-events-none absolute top-1/2 left-2 flex -translate-y-1/2 text-foreground-tertiary">
             {searchIcon}
           </span>
         )}
@@ -126,9 +127,9 @@ function Header({ actions, children, className, count, icon, ref, title, ...prop
             <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary">{icon}</span>
           )}
           <div className="flex min-w-0 flex-1 items-baseline gap-1">
-            {title && <span className="truncate font-medium text-[12px] text-muted-foreground leading-4">{title}</span>}
+            {title && <span className="truncate text-[12px] leading-4 font-medium text-muted-foreground">{title}</span>}
             {count !== undefined && (
-              <span className="shrink-0 font-medium text-[12px] text-foreground-tertiary tabular-nums leading-4">
+              <span className="shrink-0 text-[12px] leading-4 font-medium text-foreground-tertiary tabular-nums">
                 {count}
               </span>
             )}
@@ -161,14 +162,14 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none transition-all duration-150 outline-none hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
           command ? 'w-full shrink' : 'flex-1',
           className
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-5 font-medium text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
         {command && <CommandHint command={command} />}
@@ -191,7 +192,7 @@ function HeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'text-muted-foreground! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
+        'leading-none text-muted-foreground! hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
         className
       )}
       {...props}
@@ -212,7 +213,7 @@ function GroupHeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-muted-foreground! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 leading-none text-muted-foreground! shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -393,7 +394,7 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-foreground transition-all duration-150 outline-none has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
         rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-foreground',
@@ -521,7 +522,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left text-[13px] leading-5 font-normal text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
@@ -568,8 +569,8 @@ function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
-        'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
+        'pointer-events-none absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0 opacity-0 transition-opacity duration-150',
+        'group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
         className
       )}
       {...props}
@@ -683,7 +684,7 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
       ref={ref}
       role="alert"
       className={cn(
-        'm-2 rounded-md border border-error-border bg-error-subtle p-3 text-error-subtle-foreground text-sm',
+        'm-2 rounded-md border border-error-border bg-error-subtle p-3 text-sm text-error-subtle-foreground',
         className
       )}
       {...props}>

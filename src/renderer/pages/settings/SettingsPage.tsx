@@ -1,16 +1,3 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import {
-  settingsSubmenuDividerClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuSectionTitleClassName
-} from '@renderer/pages/settings/settingsStyles'
-import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   Activity,
@@ -36,6 +23,20 @@ import {
 import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuSectionTitleClassName
+} from '@renderer/pages/settings/settingsStyles'
+import { cn } from '@renderer/utils/style'
+
 const SettingsPage: FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -57,7 +58,7 @@ const SettingsPage: FC = () => {
       <div className="flex min-h-0 flex-1 flex-row">
         <div
           data-ui="settings.navigation"
-          className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
+          className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-r-[0.5px] border-border">
           <PageHeader title={t('title.settings')} className="mb-1" />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>

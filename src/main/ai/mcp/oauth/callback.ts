@@ -1,8 +1,9 @@
-import { loggerService } from '@logger'
-import { t } from '@main/i18n'
 import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
+
+import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 
 import type { OAuthCallbackServerOptions } from './types'
 

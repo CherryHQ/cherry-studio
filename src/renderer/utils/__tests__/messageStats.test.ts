@@ -1,5 +1,6 @@
-import type { MessageStats } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { MessageStats } from '@shared/data/types/message'
 
 import { getCacheTokenStats, statsToMetrics, statsToUsage } from '../messageStats'
 

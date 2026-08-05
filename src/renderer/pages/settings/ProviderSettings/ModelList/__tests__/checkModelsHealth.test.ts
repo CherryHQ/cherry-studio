@@ -1,7 +1,8 @@
-import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
-import { aggregateApiKeyResults } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { aggregateApiKeyResults } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 
 import { checkModelsHealth } from '../checkModelsHealth'
 

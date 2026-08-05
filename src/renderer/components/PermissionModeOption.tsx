@@ -1,8 +1,9 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
-import type { PermissionMode, PermissionModeCard } from '@renderer/types/agent'
 import type { TFunction } from 'i18next'
 import { FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { PermissionMode, PermissionModeCard } from '@renderer/types/agent'
 
 /**
  * Shared presentation for the agent permission modes.

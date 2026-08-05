@@ -1,3 +1,6 @@
+import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
 import {
   chatMessageRoles,
   chatMessageSourceType,
@@ -9,8 +12,6 @@ import {
   paintingSourceType,
   providerLogoRef
 } from '@shared/data/types/file'
-import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
-import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { fileEntryTable } from './file'

@@ -1,6 +1,10 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
+import type { Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -15,9 +19,6 @@ import {
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {

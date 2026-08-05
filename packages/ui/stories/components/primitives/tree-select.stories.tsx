@@ -1,8 +1,9 @@
-import { TreeSelect, type TreeSelectOption } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { FileText, Folder } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { useState } from 'react'
+
+import { TreeSelect, type TreeSelectOption } from '@cherrystudio/ui'
 
 const treeData: TreeSelectOption[] = [
   {

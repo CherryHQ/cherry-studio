@@ -14,9 +14,10 @@
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
 
+import type { FinishReason, UIMessageChunk } from 'ai'
+
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
-import type { FinishReason, UIMessageChunk } from 'ai'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'

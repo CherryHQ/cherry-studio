@@ -3,6 +3,8 @@ import { useCache } from '@data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -13,7 +15,6 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * Data Flow Design:

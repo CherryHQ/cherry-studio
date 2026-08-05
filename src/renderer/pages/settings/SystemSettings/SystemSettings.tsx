@@ -1,5 +1,9 @@
-import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import Selector from '@renderer/components/Selector'
 import {
@@ -16,9 +20,6 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -210,7 +211,7 @@ const SystemSettings: FC = () => {
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
+                <span className="text-right font-mono text-xs break-all text-foreground-tertiary select-text">
                   {clientId}
                 </span>
                 <CopyButton textToCopy={clientId} successFeedback="icon" />

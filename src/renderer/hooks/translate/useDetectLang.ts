@@ -1,4 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { franc } from 'franc-min'
+import i18n from 'i18next'
+import { useCallback, useRef } from 'react'
+import { estimateTokenCount, sliceByTokens } from 'tokenx'
+
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
@@ -13,10 +18,6 @@ import {
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { isQwenMTModel } from '@shared/utils/model'
-import { franc } from 'franc-min'
-import i18n from 'i18next'
-import { useCallback, useRef } from 'react'
-import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useTranslateLanguages'
 

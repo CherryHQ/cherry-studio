@@ -1,9 +1,10 @@
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Check, ChevronDown } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { isValidElement, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface SelectorOption<V = string | number> {
   label: string | ReactNode
@@ -158,7 +159,7 @@ const Selector = <V extends string | number>({
       if (isGroup) {
         return (
           <div key={String(option.value)} className="py-1">
-            <div className="px-2 py-1 font-medium text-muted-foreground text-xs">{option.label}</div>
+            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{option.label}</div>
             <div className={cn(level > 0 && 'pl-2')}>{renderOptions(option.options || [], level + 1)}</div>
           </div>
         )

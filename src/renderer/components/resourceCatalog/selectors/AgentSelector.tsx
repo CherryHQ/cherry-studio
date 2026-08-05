@@ -1,3 +1,6 @@
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import {
   ResourceCreateWizard,
@@ -13,8 +16,6 @@ import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/reso
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 

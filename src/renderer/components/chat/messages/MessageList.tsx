@@ -1,3 +1,5 @@
+import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -9,7 +11,6 @@ import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/i
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'

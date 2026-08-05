@@ -1,10 +1,11 @@
 import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'

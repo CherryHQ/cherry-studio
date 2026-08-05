@@ -1,3 +1,8 @@
+import { Copy, LoaderCircle, X } from 'lucide-react'
+import type { KeyboardEvent, Ref } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
@@ -6,10 +11,6 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Copy, LoaderCircle, X } from 'lucide-react'
-import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useLayoutEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
 
@@ -87,7 +88,7 @@ const TranslateInputPane = ({
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
-            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base leading-relaxed text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
           />
         </Scrollbar>
         <IconButton
@@ -105,7 +106,7 @@ const TranslateInputPane = ({
           onClick={onSelectFile}
           disabled={disabled || selecting}
           aria-label={t('translate.files.upload')}
-          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:border-border-strong focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
+          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border-subtle px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:border-border-strong focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
           <span className="text-sm">{t('translate.files.upload')}</span>
           <span className="flex items-center gap-6">
             {uploadIcons.map((icon) => (
@@ -119,15 +120,15 @@ const TranslateInputPane = ({
           <button
             type="button"
             onClick={handleClear}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
         </div>
       )}
       {isDragging && (
-        <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-subtle border-dashed">
+        <div className="pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150 fade-in-0">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-border-subtle">
             {/* Drawn as a single path so the translucent foreground token paints
                 evenly: lucide's Plus uses two crossing paths, which composites
                 the alpha twice and darkens the center. */}
@@ -148,9 +149,9 @@ const TranslateInputPane = ({
         </div>
       )}
       {ocrProcessing && (
-        <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
+        <div className="absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150 fade-in-0">
           <div className="flex flex-col items-center gap-3">
-            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-tertiary text-sm">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-foreground-tertiary">
               <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
               <span>{t('ocr.processing')}</span>
             </div>

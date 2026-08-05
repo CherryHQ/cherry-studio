@@ -1,9 +1,10 @@
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import type { MessageStats } from '@shared/data/types/message'
 
 import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -22,7 +23,7 @@ function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () =>
   return (
     <button
       type="button"
-      className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+      className="message-tokens cursor-pointer text-right text-xs leading-5 text-muted-foreground tabular-nums transition-colors duration-150 select-text hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
       onClick={onLocate}>
       {label}
     </button>
@@ -72,7 +73,7 @@ function AssistantMessageTokens({
         <button
           type="button"
           aria-describedby={showAllDetails ? contentId : undefined}
-          className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+          className="message-tokens cursor-pointer text-right text-xs leading-5 text-muted-foreground tabular-nums transition-colors duration-150 select-text hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
           onFocus={() => setShowAllDetails(true)}
           onBlur={() => setShowAllDetails(false)}
           onClick={onLocate}>

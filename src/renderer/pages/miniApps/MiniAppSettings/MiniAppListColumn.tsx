@@ -1,9 +1,10 @@
-import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 interface Props {
   title: string
@@ -37,7 +38,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
         <span className="text-xs tabular-nums">{count}</span>
       </div>
       {apps.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-muted-foreground text-xs">
+        <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-xs text-muted-foreground">
           {emptyText}
         </div>
       ) : (
@@ -73,7 +74,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                      * MiniAppLogoAvatar branches between the brand icon and the image.
                      */}
                     <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} />
-                    <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
+                    <span className="min-w-0 flex-1 truncate text-left text-sm text-foreground">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-foreground-tertiary"
                       aria-hidden="true">

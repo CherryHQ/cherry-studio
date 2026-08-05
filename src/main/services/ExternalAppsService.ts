@@ -1,6 +1,7 @@
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
 import type { ExternalAppConfig, ExternalAppInfo } from '@shared/types/externalApp'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('ExternalAppsService')
 

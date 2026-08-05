@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { app } from 'electron'
 
 // Main process owns an independent, statically-imported locale catalog (this
 // directory), mirroring the renderer's locales/ (human) + translate/ (machine)

@@ -20,6 +20,9 @@
  * don't go through this hook.
  */
 
+import { useCallback, useEffect, useRef } from 'react'
+import { v4 as uuid } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   useOptionalTranslationOverlaySetter,
@@ -28,8 +31,6 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { useCallback, useEffect, useRef } from 'react'
-import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('useTranslateMessage')
 

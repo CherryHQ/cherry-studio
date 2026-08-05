@@ -1,5 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
+import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -10,9 +14,6 @@ import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/
 import { cn } from '@renderer/utils/style'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
-import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export type GlobalSearchMessagePreviewTarget =
   | {
@@ -318,7 +319,7 @@ export function GlobalSearchMessagePreviewPanel({
 
   return (
     <aside className={cn('relative flex min-h-0 flex-col bg-background', className)}>
-      <div className="flex h-14 shrink-0 items-center gap-3 border-border-subtle border-b px-5">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border-subtle px-5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
           {target.sourceType === 'topic' ? (
             <MessageSquare className="size-4" />
@@ -327,8 +328,8 @@ export function GlobalSearchMessagePreviewPanel({
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground text-sm">{target.title || t('common.unnamed')}</div>
-          <div className="text-muted-foreground text-xs">{t(getTargetMessageType(target))}</div>
+          <div className="truncate text-sm font-medium text-foreground">{target.title || t('common.unnamed')}</div>
+          <div className="text-xs text-muted-foreground">{t(getTargetMessageType(target))}</div>
         </div>
         <button
           type="button"
@@ -341,15 +342,15 @@ export function GlobalSearchMessagePreviewPanel({
 
       <div ref={scrollContainerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20">
         {isLoading && messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {t('common.loading')}
           </div>
         ) : error && messageItems.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {t('globalSearch.error')}
           </div>
         ) : messageItems.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {t('common.no_results')}
           </div>
         ) : (
@@ -362,12 +363,12 @@ export function GlobalSearchMessagePreviewPanel({
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
+                  className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-xs leading-4 text-error-subtle-foreground">
                   {t('globalSearch.error')}
                 </div>
               )}
               {isLoadingMore && (
-                <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>
+                <div className="py-2 text-center text-xs text-muted-foreground">{t('common.loading')}</div>
               )}
               {messageItems.map((message) => (
                 <div
@@ -386,7 +387,7 @@ export function GlobalSearchMessagePreviewPanel({
                     '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
                     message.id === activeMessageId && 'border-border-selected bg-accent/55'
                   )}>
-                  <div className="mb-1 font-medium text-muted-foreground text-xs">
+                  <div className="mb-1 text-xs font-medium text-muted-foreground">
                     {t(getMessageRoleLabelKey(message.role))}
                   </div>
                   <div data-global-search-preview-message-body="true">
@@ -403,7 +404,7 @@ export function GlobalSearchMessagePreviewPanel({
         <Button
           type="button"
           variant="ghost"
-          className="pointer-events-auto h-8 gap-1.5 rounded-full border border-border-subtle bg-background/95 px-3 font-medium text-xs shadow-sm hover:bg-muted/70"
+          className="pointer-events-auto h-8 gap-1.5 rounded-full border border-border-subtle bg-background/95 px-3 text-xs font-medium shadow-sm hover:bg-muted/70"
           onClick={() => openPreviewMessage(activeMessageId)}>
           <ExternalLink className="size-3.5" />
           {t('common.open')}

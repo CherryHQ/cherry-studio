@@ -7,13 +7,14 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { DEFAULT_ASSISTANT_EMOJI, DEFAULT_ASSISTANT_PROMPT } from '@shared/data/presets/defaultAssistant'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { DEFAULT_ASSISTANT_EMOJI, DEFAULT_ASSISTANT_PROMPT } from '@shared/data/presets/defaultAssistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 describe('DefaultAssistantSeeder', () => {
   const dbh = setupTestDatabase()

@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo } from 'react'
+
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
@@ -6,7 +8,6 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
-import { useCallback, useEffect, useMemo } from 'react'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 

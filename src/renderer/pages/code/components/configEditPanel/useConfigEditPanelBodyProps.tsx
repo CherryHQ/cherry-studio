@@ -1,3 +1,7 @@
+import type { ReactNode } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
@@ -6,9 +10,6 @@ import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useP
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ConfigEditDialogBodyProps } from './ConfigEditDialogBody'
 import { ModelSelectorTrigger } from './ModelSelectorTrigger'
@@ -71,7 +72,7 @@ export function useConfigEditPanelBodyProps({
   const unknownCliConfigModelHint: ReactNode =
     isForeignDraft && draft.connection ? (
       <div className="rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground">
-        <div className="font-medium text-xs">{t('code.cli_config.unknown_provider')}</div>
+        <div className="text-xs font-medium">{t('code.cli_config.unknown_provider')}</div>
         <div className="mt-1 truncate font-mono text-[11px]">
           {draft.connection.model || t('code.cli_config.unknown_model')}
         </div>

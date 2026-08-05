@@ -1,3 +1,5 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -41,7 +43,6 @@ import type {
   SupportedPlatform
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 

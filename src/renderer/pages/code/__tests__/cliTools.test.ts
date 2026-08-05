@@ -1,5 +1,6 @@
-import { CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
+
+import { CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 

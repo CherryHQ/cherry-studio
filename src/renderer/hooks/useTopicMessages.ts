@@ -14,6 +14,9 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type {
@@ -22,8 +25,6 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 // Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50

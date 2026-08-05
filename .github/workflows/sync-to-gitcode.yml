@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.0.0)'
+        description: "Release tag (e.g. v1.0.0)"
         required: true
       clean:
-        description: 'Clean node_modules before build'
+        description: "Clean node_modules before build"
         type: boolean
         default: false
       dry_run:
-        description: 'Run all steps except GitCode release creation/upload and Feishu notification'
+        description: "Run all steps except GitCode release creation/upload and Feishu notification"
         type: boolean
         default: false
 
@@ -73,7 +73,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
+          node-version-file: ".node-version"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5

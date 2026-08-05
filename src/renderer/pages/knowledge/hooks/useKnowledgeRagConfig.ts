@@ -1,11 +1,12 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
 import { normalizeKnowledgeError } from '../utils/error'

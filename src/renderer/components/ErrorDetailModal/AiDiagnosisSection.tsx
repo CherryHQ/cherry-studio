@@ -1,10 +1,11 @@
+import { CheckCircle, Loader2 } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { diagnoseError } from '@renderer/utils/errorDiagnosis'
-import { CheckCircle, Loader2 } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 const AI_DIAGNOSIS_RESULT_COLOR = 'var(--muted-foreground)'
@@ -91,14 +92,14 @@ const AiDiagnosisSectionWithStatus = memo(
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+          <div className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--primary)' }}>
             <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
           </div>
         )}
         {status === 'error' && (
           <>
-            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--error)' }}>
+            <div className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--error)' }}>
               {diagError}
             </div>
             <button
@@ -112,7 +113,7 @@ const AiDiagnosisSectionWithStatus = memo(
         )}
         {status === 'done' && result && (
           <>
-            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
+            <div className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--primary)' }}>
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
@@ -127,7 +128,7 @@ const AiDiagnosisSectionWithStatus = memo(
                     className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
                     style={stepBgStyle}>
                     <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-primary-foreground"
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-primary-foreground"
                       style={{ background: 'var(--primary)' }}>
                       {i + 1}
                     </span>

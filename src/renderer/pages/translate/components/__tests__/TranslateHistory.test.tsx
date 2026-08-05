@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
-import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 
 import TranslateHistory from '../TranslateHistory'
 import { chinese, english } from './testUtils'

@@ -1,6 +1,5 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
-
 import { fileEntryTable } from '@data/db/schemas/file'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userProviderTable } from '@data/db/schemas/userProvider'

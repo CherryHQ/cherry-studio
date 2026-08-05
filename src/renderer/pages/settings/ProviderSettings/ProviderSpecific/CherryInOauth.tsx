@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
@@ -10,9 +14,6 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('CherryInOauth')
 

@@ -12,7 +12,6 @@
 // BootConfig must load before any other import (configures userData path)
 
 import '@main/data/bootConfig'
-
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
@@ -34,8 +33,9 @@ initCrashTelemetry()
 application.initPathRegistry()
 
 import { electronApp } from '@electron-toolkit/utils'
-import { loggerService } from '@logger'
 import { app } from 'electron'
+
+import { loggerService } from '@logger'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
