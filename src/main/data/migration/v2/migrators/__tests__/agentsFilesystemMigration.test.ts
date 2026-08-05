@@ -1097,26 +1097,98 @@ describe('agentsFilesystemMigration', () => {
   it('validates every cleanup target before deleting any destination', async () => {
     const { agentsDataRoot } = await createFixture()
     const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
-    const overlappingAgentId = 'overlap'
-    const overlappingSource = legacyAgentWorkspacePath(agentsDataRoot, overlappingAgentId)
+    const overlappingSource = path.join(agentsDataRoot, 'overlap')
     await mkdir(preservedTarget, { recursive: true })
     await writeFile(path.join(preservedTarget, 'keep.txt'), 'keep me')
     await mkdir(overlappingSource, { recursive: true })
     await writeFile(path.join(overlappingSource, 'SOUL.md'), 'legacy source')
+
+    const externalSession = sessionPlan(agentsDataRoot, overlappingSource, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    externalSession.sourceAgentId = 'source-owner'
+    externalSession.finalAgentId = 'source-owner-final'
 
     await expect(
       stageLegacyAgentFiles({
         agentsDataRoot,
         agents: [
           { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
-          { sourceAgentId: overlappingAgentId, finalAgentId: overlappingAgentId }
+          { sourceAgentId: 'target-owner', finalAgentId: 'overlap' },
+          { sourceAgentId: 'source-owner', finalAgentId: 'source-owner-final' }
         ],
-        sessions: []
+        sessions: [externalSession]
       })
     ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
 
     expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
     expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+  })
+
+  it('preserves an Agent target that is also its own legacy Session workspace', async () => {
+    const { agentsDataRoot } = await createFixture()
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(path.join(agentDataPath, 'memory'), { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'legacy soul')
+    await writeFile(path.join(agentDataPath, 'USER.md'), 'legacy user')
+    await writeFile(path.join(agentDataPath, 'workspace.txt'), 'legacy workspace')
+
+    const externalSession = sessionPlan(agentsDataRoot, agentDataPath, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    })
+
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('legacy user')
+    expect(await readFile(path.join(agentDataPath, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
+  })
+
+  it.each([
+    { platform: 'macOS', isMac: true, isWin: false },
+    { platform: 'Windows', isMac: false, isWin: true }
+  ])('preserves a same-Agent case-only source/target overlap on $platform', async ({ isMac, isWin }) => {
+    platformState.isMac = isMac
+    platformState.isWin = isWin
+    const { agentsDataRoot } = await createFixture()
+    const finalAgentId = 'CaseSensitiveTarget'
+    const agentDataPath = path.join(agentsDataRoot, finalAgentId)
+    const caseVariantSource = path.join(agentsDataRoot, finalAgentId.toLowerCase())
+    await mkdir(agentDataPath, { recursive: true })
+    await writeFile(path.join(agentDataPath, 'keep.txt'), 'preserved target')
+    await mkdir(caseVariantSource, { recursive: true })
+    await writeFile(path.join(caseVariantSource, 'SOUL.md'), 'legacy soul')
+
+    const externalSession = sessionPlan(agentsDataRoot, caseVariantSource, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    externalSession.finalAgentId = finalAgentId
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId }],
+      sessions: [externalSession]
+    })
+
+    expect(await readFile(path.join(agentDataPath, 'keep.txt'), 'utf8')).toBe('preserved target')
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    expect(await readFile(path.join(caseVariantSource, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
   it('rejects nested cleanup targets before deleting either destination', async () => {
@@ -1226,7 +1298,7 @@ describe('agentsFilesystemMigration', () => {
   it.each([
     { platform: 'macOS', isMac: true, isWin: false },
     { platform: 'Windows', isMac: false, isWin: true }
-  ])('rejects case-only path overlaps on $platform', async ({ isMac, isWin }) => {
+  ])('rejects cross-Agent case-only path overlaps on $platform', async ({ isMac, isWin }) => {
     platformState.isMac = isMac
     platformState.isWin = isWin
     const { agentsDataRoot } = await createFixture()
@@ -1243,11 +1315,16 @@ describe('agentsFilesystemMigration', () => {
       updatedAt: Date.parse('2026-07-23T00:00:00Z'),
       managed: false
     })
+    externalSession.sourceAgentId = 'other-source-agent'
+    externalSession.finalAgentId = 'other-final-agent'
 
     await expect(
       stageLegacyAgentFiles({
         agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId }],
+        agents: [
+          { sourceAgentId: SOURCE_AGENT_ID, finalAgentId },
+          { sourceAgentId: 'other-source-agent', finalAgentId: 'other-final-agent' }
+        ],
         sessions: [externalSession]
       })
     ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
