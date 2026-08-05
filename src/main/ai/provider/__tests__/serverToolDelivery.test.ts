@@ -56,6 +56,7 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   perplexity: { 'web-search': { kind: 'implicit' } },
   // Responses-endpoint models only; the openai extension's factory emits the bare tool shape.
   doubao: { 'web-search': factories('openai') },
+  deepseek: { 'web-search': factories('openai') },
   dashscope: { 'web-search': { kind: 'provider-options' } },
   // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
   zhipu: { 'web-search': { kind: 'provider-options' } },

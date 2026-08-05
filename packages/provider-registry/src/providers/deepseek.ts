@@ -94,6 +94,7 @@ export default defineProvider({
   apiFeatures: {
     arrayContent: false
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       apiKey: 'https://platform.deepseek.com/api_keys',

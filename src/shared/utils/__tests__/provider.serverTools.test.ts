@@ -40,6 +40,14 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
   })
 
+  it('limits DeepSeek Responses web search to V4 Flash', () => {
+    const deepseek = provider('model-dependent')
+
+    expect(isBuiltinWebSearchAvailable(model('deepseek-v4-flash'), deepseek)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(model('deepseek-v4-pro'), deepseek)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(model('deepseek-v3.2'), deepseek)).toBe(false)
+  })
+
   it('rejects non-chat models even when their ids are otherwise eligible', () => {
     const embedding = model('claude-sonnet-4-6', {
       capabilities: [MODEL_CAPABILITY.EMBEDDING]

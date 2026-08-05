@@ -8,14 +8,8 @@ export default defineCreator({
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
   serverTools: {
-    'web-search': [
-      'deepseek-v4-pro',
-      'deepseek-v4-flash',
-      'deepseek-v3-2',
-      'deepseek-v3-1',
-      'deepseek-r1',
-      'deepseek-v3'
-    ]
+    // DeepSeek's Responses API currently exposes server-side web_search only on V4 Flash.
+    'web-search': ['deepseek-v4-flash']
   },
   reasoningFamilies: [
     { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'high', 'max'] },

@@ -22,6 +22,16 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     expect(config).toEqual({ openai: {} })
   })
 
+  it('emits a bare openai config for DeepSeek Responses web search', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openai',
+      webSearchConfig,
+      model({ id: 'deepseek::deepseek-v4-flash', providerId: 'deepseek', apiModelId: 'deepseek-v4-flash' }),
+      preset('deepseek')
+    )
+    expect(config).toEqual({ openai: {} })
+  })
+
   // Availability keys off the wire id with an `apiModelId ?? id` fallback, so a model
   // carrying the wire name in `id` alone still routes to the server side. Reading
   // `apiModelId` directly here made the config undefined for exactly those models:
