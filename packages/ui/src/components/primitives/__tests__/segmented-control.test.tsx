@@ -18,6 +18,14 @@ afterEach(() => {
 })
 
 describe('SegmentedControl', () => {
+  it('uses the compact shared control geometry', () => {
+    render(<SegmentedControl defaultValue="app" options={options} />)
+
+    const appOption = screen.getByRole('radio', { name: 'App' })
+    expect(appOption).toHaveClass('h-6', 'px-2.5', 'font-normal', 'focus-visible:bg-accent')
+    expect(appOption.className).not.toContain('focus-visible:ring')
+  })
+
   it('keeps controlled selection until the value prop changes', () => {
     const onValueChange = vi.fn()
 

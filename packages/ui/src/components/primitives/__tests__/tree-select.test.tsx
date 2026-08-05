@@ -43,12 +43,22 @@ afterEach(() => {
 })
 
 describe('TreeSelect', () => {
-  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
+  it('keeps an outlined transparent trigger at rest, open, and keyboard focus', () => {
     render(<TreeSelect treeData={treeData} />)
 
     const trigger = screen.getByRole('combobox')
-    expect(trigger).toHaveClass('focus-visible:border-primary')
-    expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+    expect(trigger).toHaveClass(
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:bg-transparent',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
+    expect(trigger.className).not.toContain('aria-expanded:border-ring')
+    expect(trigger.className).not.toContain('aria-expanded:ring')
   })
 
   it('renders the selected value in the trigger', () => {

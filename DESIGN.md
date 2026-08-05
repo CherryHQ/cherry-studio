@@ -19,14 +19,14 @@
 
 > **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css`. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `packages/ui/scripts/theme-contract.ts`.
 
-Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
+Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the neutral primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
 The typography system is single-track: `var(--font-family-body)` and `var(--font-family-heading)` currently resolve to the same primary UI font token. Code-rendering components own their mono font stack locally. This single-family approach reflects a product with a unified voice — coherent in conversation, precise in code.
 
-What makes Cherry Studio distinctive is its commitment to a calm UI foundation. Primary actions use `var(--primary)` as the strongest action color in the chrome, while neutral strong fills are used by shared buttons where that component defines the action hierarchy. New UI should avoid introducing a page-local chromatic brand hue. Other chromatic departures are reserved for semantic feedback: `var(--destructive)` for dangerous actions, `var(--success)` for positive states, `var(--warning)` for caution, `var(--info)` for informational surfaces. This creates an interface that feels like a high-quality writing tool — think iA Writer meets VS Code — where the user's content is usually the most colorful thing on screen.
+What makes Cherry Studio distinctive is its commitment to a calm UI foundation. Primary actions use neutral `var(--primary)` as the strongest action color in the chrome. The user's theme color appears through `var(--control-accent)` for interactive selection state, while clickable text uses the fixed blue `var(--link)` role. New UI should avoid introducing a page-local chromatic brand hue. Other chromatic departures are reserved for semantic feedback: `var(--destructive)` for dangerous actions, `var(--success)` for positive states, `var(--warning)` for caution, `var(--info)` for informational surfaces. This creates an interface that feels like a high-quality writing tool — think iA Writer meets VS Code — where the user's content is usually the most colorful thing on screen.
 
 **Key Characteristics:**
-- Calm UI foundation: chrome stays mostly neutral; `var(--primary)` is reserved for true primary actions and selected states, while semantic accents carry feedback
+- Calm UI foundation: chrome stays mostly neutral; `var(--primary)` is reserved for true primary actions, while `var(--control-accent)` identifies selected controls and semantic accents carry feedback
 - Dual-mode system: fully specified light and dark tokens with true inversion (not just darkening)
 - Primary action color resolves through `var(--primary)`; do not introduce a separate page-local brand hue
 - Full semantic color set: `var(--destructive)` (red), `var(--success)` (green), `var(--warning)` (amber), `var(--info)` (blue)
@@ -48,17 +48,20 @@ The color system separates contrast-bearing content from surface tinting:
 
 - **Foreground tokens** (text and icons) use **solid `oklch` values**. Their resolved color and contrast must stay predictable across cards, popovers, translucent surfaces, vibrancy, and user wallpapers.
 - **Neutral surface tints** (borders, secondary fills, hover backgrounds, and ghost states) use **black/white + an alpha channel**. These roles intentionally harmonise with the surface beneath them and do not carry a text-contrast contract.
-- **Chromatic tokens** (`--primary`, `--destructive`, `--success`, `--warning`, `--info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
+- **Contrast-bearing fills** (`--primary`, `--control-accent`, `--destructive`, `--success`, `--warning`, and `--info`) use **solid colors** — never alpha — because their identity and foreground pairing must stay constant on any background.
 
 When you reach for a value:
 1. If the role is content, use the solid foreground hierarchy (`--foreground`, `--muted-foreground`, `--foreground-tertiary`, or `--foreground-disabled`).
 2. If the role is a surface tint (divider, soft fill, hover), use an approved public neutral role (`--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`, `--border-selected`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-3. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
+3. If the role is "this exact intent regardless of surface", use neutral `--primary` for strong actions, `--control-accent` for user-accented interactive state, `--destructive` for destructive actions, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
 
 ### Primary
-- **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
+- **Primary**: `var(--primary)` — neutral strong action surface. It does not change with the user's theme color.
 - **Primary Foreground**: `var(--primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: owned by the component variant (`hover:*` utility); do not consume a compatibility adapter variable from authored CSS
+- **Control Accent**: `var(--control-accent)` — user-selected theme color for checked controls, sliders, active indicators, and other interactive selection state
+- **Control Accent Foreground**: `var(--control-accent-foreground)` — contrast-safe content on a control-accent surface; written together with the selected accent
+- **Link**: `var(--link)` — fixed blue (`--cs-blue-600` light / `--cs-blue-400` dark)
 
 ### Text Colors
 - **Foreground**: `var(--foreground)` — primary body text
@@ -126,8 +129,8 @@ Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` 
 
 ### Links
 - Clickable text uses `text-link` / `var(--link)`. Link color is independent from `primary`; reserve `primary` for
-  primary actions, selected states, and component accents.
-- Links use the product default blue. Hover normally adds underline without changing color; do not add a global
+  neutral primary actions. Selected controls use `control-accent`.
+- Links use the fixed blue scale. Hover normally adds underline without changing color; do not add a global
   `link-hover` token.
 - See the [Variable Catalog](./packages/ui/docs/variable-catalog.md) for token ownership and contract details.
 
@@ -225,10 +228,10 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Focus: reuse the variant's hover feedback (`background`, text, or underline); do not draw an outer ring or outline
 
 **Default**
-- Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
-- Text: white in light mode, neutral dark in dark mode
+- Background: neutral `var(--primary)` strong action fill
+- Text: `var(--primary-foreground)`
 - Shadow: `shadow-xs`
-- Hover: neutral hover fill (`hover:bg-neutral-800` light / `dark:hover:bg-neutral-200`)
+- Hover: `brightness-95`; active uses `brightness-90`
 - Use: Main CTAs outside dialogs ("Send", "Save", "Create")
 
 **Outline**
@@ -248,11 +251,11 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Use: Secondary actions ("Cancel", "Back", "Export")
 
 **Emphasis**
-- Background: neutral strong action fill as defined in the shared Button primitive (`bg-neutral-900` light / `bg-neutral-100` dark)
-- Text: white in light mode, neutral dark in dark mode
+- Background: neutral `var(--primary)` strong action fill
+- Text: `var(--primary-foreground)`
 - Radius: `var(--radius-lg)`
 - Shadow: none
-- Hover: neutral hover fill (`hover:bg-neutral-800` light / `dark:hover:bg-neutral-200`)
+- Hover: `brightness-95`
 - Use: Primary action inside Dialog footers; visually strong, flatter than default
 
 **Ghost**
@@ -270,10 +273,17 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Hover: shared `hover:bg-destructive-hover` state
 - Use: Dangerous actions ("Delete", "Remove", "Reset")
 
+**Destructive Subtle**
+- Background: translucent `var(--destructive)` (`bg-destructive/10`, `dark:bg-destructive/20`)
+- Text / icon: `var(--destructive)`
+- Shadow: none
+- Hover: deepen the translucent destructive surface without switching to a solid fill
+- Use: Compact destructive icon actions that remain visible at rest without carrying the weight of a confirmation button
+
 **Link**
 - Background: none
-- Text: neutral foreground
-- Hover: neutral muted text + underline
+- Text: `var(--link)` (fixed blue)
+- Hover: underline
 - Use: Inline text links, navigation shortcuts
 
 **Sizes**
@@ -297,7 +307,7 @@ Public icon-only buttons should use the shared `Button` primitive first: `varian
 
 **Color hierarchy — ask one question first: is this icon the user's primary reason to be on this page?**
 
-- **Yes** → use the Button ghost variant's default text color (no `text-*` override). The icon *is* the action. (The ghost variant currently renders `text-neutral-900 dark:text-neutral-100`.)
+- **Yes** → use the Button ghost variant's default text color (no `text-*` override). The icon *is* the action. (The ghost variant currently renders `text-primary`.)
 - **No, it's a utility shortcut** → mute it with `text-muted-foreground hover:text-foreground` so it recedes at rest and surfaces on hover.
 
 | Case | Color | Example |
@@ -311,7 +321,7 @@ Public icon-only buttons should use the shared `Button` primitive first: `varian
 
 **Do not:**
 - Apply a heavy `text-foreground` override to every icon button by reflex — the ghost default is for one action per cluster, not all of them.
-- Use `text-primary` as a "more emphasis" replacement for the ghost default; `text-primary` is reserved for selected / branded states, not for raising icon weight.
+- Use `text-primary` as a "more emphasis" replacement for the ghost default; `primary` is reserved for neutral primary actions, not for raising icon weight or marking selection.
 
 **Row-level patterns**
 
@@ -326,16 +336,16 @@ Button hover behavior is variant-specific:
 
 | Variant | Hover Fill | Hover Border | Hover Shadow | Text Change |
 |---------|-----------|-------------|-------------|-------------|
-| Default | neutral hover fill | — | keeps `shadow-xs` | — |
+| Default | `brightness-95` | — | keeps `shadow-xs` | — |
 | Outline | `var(--accent)` | existing border | none | — |
 | Secondary | shared `hover:bg-secondary-hover` state | — | none | — |
 | Emphasis | neutral hover fill | — | none | — |
 | Ghost | `var(--accent)` | — | none | `var(--accent-foreground)` |
 | Destructive | shared `hover:bg-destructive-hover` state | — | keeps `shadow-xs` | — |
-| Link | — | — | none | muted text + underline |
+| Link | — | — | none | slight opacity change + underline |
 
 **Hover rules:**
-1. Default and destructive buttons keep the base `shadow-xs`.
+1. Default and destructive keep the base `shadow-xs`.
 2. Outline, secondary, emphasis, and ghost buttons are flat (`shadow-none`) at rest and on hover.
 3. Link hover adds underline and a text color change only — no background, no shadow.
 
@@ -505,31 +515,33 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 **Translation Workspace**
 - Translation input/output panes are work surfaces, not cards. Use full-height `bg-background` panes separated by structure and controls.
 - Keep the two-pane workspace flat at rest: no card nesting, no static shadows, no decorative color.
-- The main translate/confirm action may use `bg-primary text-primary-foreground`; target-language chips and selected language states may use `bg-primary/10` or `text-primary`.
+- The main translate/confirm action may use `bg-primary text-primary-foreground`; target-language chips and selected language states should use `control-accent` or the shared selected-control vocabulary.
 - File upload/drop states should use dashed semantic borders (`border-border-subtle` / hover `border-border-strong`) and muted foreground text.
 - Toolbar and copy/clear controls should use ghost/icon-button behavior so text content remains the primary visual focus.
 
 ### Inputs
 
-- Background: `var(--background)`
+- Background: transparent or the owning surface token
 - Border: 1px solid `var(--input)`
 - Radius: `var(--radius-md)` (8px)
 - Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus: text-entry fields may change their own border to `border-primary` while editing; do not add an outer ring,
-  outline, or focus shadow
+- Focus: use the shared `border-ring` plus `ring-ring/50` focus-visible treatment
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
+- Select, Combobox, SelectDropdown, and model-selector form triggers use the same outlined, transparent control
+  appearance. Their trigger surface stays transparent at rest, hover, and open; option rows may use semantic hover and
+  selection fills inside the popup.
 
 ### Focus Feedback
 
-Keyboard focus must remain visible without adding a second frame outside the component. Pointer interaction should
-not add a theme-colored border merely because a control was clicked or a popup was opened.
+Keyboard focus must remain visible. Pointer interaction should not add a theme-colored border merely because a
+control was clicked or a popup was opened.
 
-- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) may change the
-  existing border to `border-primary` while editing so it follows the selected theme.
+- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) use the shared
+  `border-ring` plus `ring-ring/50` focus-visible treatment.
 - Select triggers, popup controls, buttons, selectable cards, and containers with nested actions must not change
-  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use `focus-visible:border-primary` or
-  `has-[:focus-visible]:border-primary` only when a border is the appropriate keyboard-focus treatment.
+  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use the component's shared
+  `focus-visible:ring-ring` treatment for keyboard focus.
 - Persistent semantic states such as `selected`, `checked`, `active`, and `invalid` may use a border when the border
   communicates that lasting state rather than a transient click.
 - Buttons, menu items, icon actions, tabs, and selectable rows: reuse the component's hover vocabulary through a
@@ -626,34 +638,34 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 
 ### Switch
 
-Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a brand/primary on state, matching the settings screenshots.
+Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet foreground-derived off state and the user-selected control accent for the on state.
 
 **Anatomy & sizing:**
 
 | Size | Track | Thumb | Travel | Use |
 |------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
+| `xs` | 24 × 14 | 12 × 12 | 10px | Dense inline controls |
+| `sm` | 28 × 16 | 14 × 14 | 12px | Slightly larger settings rows |
+| `md` (default) | 32 × 18 | 16 × 16 | 14px | Standard switch |
+| `lg` | 36 × 20 | 18 × 18 | 16px | Hero / marketing surfaces |
 
 **Colors:**
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
+| Track — off | `bg-foreground/15` | `bg-foreground/15` |
+| Track — on | `bg-control-accent` | `bg-control-accent` |
+| Loading | `bg-control-accent/60!` | `bg-control-accent/60!` |
+| Thumb | `bg-white` | `bg-white` |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
+- The thumb stays white in both themes so it remains distinct from the control-accent track. Do not add custom thumb icons from the call site.
+- `loading` softens the track to `bg-control-accent/60!` and reveals an animated loader inside the thumb.
 - Focus: use an inset `var(--ring)` keyline inside the track; do not change its outer dimensions or add an outer ring.
 
 **Don't:**
-- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
+- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its control-accent on state.
 - Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
 - Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
 
@@ -801,12 +813,13 @@ Use Tailwind border-width utilities (`border`, `border-0`, `border-2`, etc.) wit
 
 ### Stroke Width
 
-Use icon-library defaults unless a component has a documented reason to override SVG `stroke-width`.
+Lucide icons use the shared `var(--icon-stroke)` product variable. Custom artwork keeps its authored stroke unless
+the component has a documented reason to override it.
 
 ## 8. Do's and Don'ts
 
 ### Do
-- Use calm, low-saturation chrome — reserve `var(--primary)` for true primary actions/selected states and semantic colors for feedback
+- Use calm, low-saturation chrome — reserve `var(--primary)` for true primary actions, `var(--control-accent)` for selection, and semantic colors for feedback
 - Apply `var(--radius-md)` as the base button radius, `var(--radius-lg)` where the Button variant explicitly rounds itself, and `var(--radius-md)` for inputs
 - Use `var(--primary)` / neutral strong fills for main CTAs; do not introduce page-local brand hues
 - Let dark mode resolve through semantic surfaces instead of hard-coded dark palette branches
@@ -869,7 +882,8 @@ Use icon-library defaults unless a component has a documented reason to override
 | Primary text | `var(--foreground)` | Primary body text |
 | Secondary / muted text | `var(--muted-foreground)` | Descriptions, labels, placeholders, readable secondary content |
 | Tertiary / disabled text | `var(--foreground-tertiary)` / `var(--foreground-disabled)` | Metadata and quiet icons / disabled content |
-| Primary accent | `var(--primary)` | Page-level primary actions, selected states, component accents |
+| Primary action | `var(--primary)` | Neutral page-level primary actions |
+| Control accent | `var(--control-accent)` | Selected and checked controls |
 | Link | `var(--link)` | Clickable text |
 | Destructive action | `var(--destructive)` | Hover: shared variant state; Text: `var(--destructive-foreground)` |
 | Success / Warning / Info | `var(--success)` / `var(--warning)` / `var(--info)` | Single-token semantic accents |

@@ -37,6 +37,14 @@ afterEach(() => {
 
 describe('SelectDropdown', () => {
   describe('trigger', () => {
+    it('uses the shared outlined and transparent control appearance', () => {
+      render(<SelectDropdown {...defaultProps} placeholder="Pick one" />)
+
+      const trigger = screen.getByRole('button')
+      expect(trigger).toHaveClass('rounded-lg', 'border', 'border-input', 'bg-transparent', 'dark:bg-transparent')
+      expect(trigger).not.toHaveClass('bg-muted/50', 'hover:bg-accent')
+    })
+
     it('renders placeholder when nothing is selected', () => {
       render(<SelectDropdown {...defaultProps} placeholder="Pick one" />)
       expect(screen.getByText('Pick one')).toBeInTheDocument()

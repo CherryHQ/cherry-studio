@@ -7,6 +7,25 @@ import { describe, expect, it } from 'vitest'
 import { Button } from '../button'
 
 describe('Button', () => {
+  it('uses a flat semantic treatment for the default primary action', () => {
+    render(<Button>Continue</Button>)
+
+    const button = screen.getByRole('button', { name: 'Continue' })
+    expect(button).toHaveClass('bg-primary', 'text-primary-foreground', 'shadow-xs')
+    expect(button).not.toHaveClass('bg-gradient-to-b')
+    expect(button.className).not.toContain('--button-elevated-')
+    expect(button.className).not.toContain('shadow-[')
+  })
+
+  it('uses a translucent destructive surface for subtle destructive actions', () => {
+    render(<Button variant="destructiveSubtle">Delete</Button>)
+
+    const button = screen.getByRole('button', { name: 'Delete' })
+    expect(button).toHaveClass('bg-destructive/10', 'text-destructive', 'shadow-none')
+    expect(button).toHaveClass('hover:bg-destructive/20', 'dark:bg-destructive/20')
+    expect(button).not.toHaveClass('bg-destructive', 'text-white')
+  })
+
   it('uses variant state feedback instead of an outer focus ring', () => {
     render(<Button variant="link">Learn more</Button>)
 

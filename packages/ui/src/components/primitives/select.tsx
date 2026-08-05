@@ -27,20 +27,21 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 
 const selectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-transparent dark:bg-input/30',
+    'inline-flex items-center justify-between rounded-lg text-sm transition-colors outline-none font-normal',
+    'border border-input bg-transparent hover:border-border-strong hover:bg-transparent dark:bg-transparent',
+    'focus-visible:border-ring',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border focus-visible:border-primary',
-        error: 'border border-destructive!',
+        default: 'aria-expanded:bg-transparent',
+        error: 'border-destructive!',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
-        sm: 'px-3 gap-2 h-8',
-        default: 'px-3 gap-2 h-9'
+        sm: 'px-2.5 gap-2 h-7',
+        default: 'px-2.5 gap-2 h-8'
       }
     },
     defaultVariants: {
@@ -123,7 +124,7 @@ function SelectTrigger({
       {...props}>
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
+        <ChevronDownIcon className="size-4 text-foreground-tertiary" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -202,7 +203,7 @@ function SelectContent({
         className={cn(
           // no-drag punches the popup's area out of any titlebar drag region it overlaps,
           // so hover/click reach the items instead of the window-drag hit test (Electron).
-          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-[80] max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md [-webkit-app-region:no-drag]',
+          'bg-popover/70 text-popover-foreground backdrop-blur-xl supports-[backdrop-filter]:bg-popover/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-[80] max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-border-subtle shadow-md [-webkit-app-region:no-drag]',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className
@@ -240,13 +241,13 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-primary/10 data-[state=checked]:text-primary [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-control-accent/10 data-[state=checked]:text-control-accent [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-lg py-1 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}>
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4 text-primary" />
+          <CheckIcon className="size-4 text-control-accent" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
