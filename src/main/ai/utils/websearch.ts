@@ -1,4 +1,4 @@
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
+import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
@@ -9,11 +9,11 @@ import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider
 import type { AppProviderId } from '../types'
 
 /**
- * aiCore derives `WebSearchPluginConfig` from ITS OWN extensions, so an app-registered one (Moonshot)
+ * aiCore derives `WebSearchToolConfigMap` from ITS OWN extensions, so an app-registered one (Moonshot)
  * has no key there. Widen it here rather than teaching aiCore about a vendor it does not ship —
  * `providerToolPlugin` takes the config as a plain record, so nothing downstream needs the extra key.
  */
-export type AppWebSearchPluginConfig = WebSearchPluginConfig & { moonshot?: KimiFormulaCredentials }
+export type AppWebSearchPluginConfig = WebSearchToolConfigMap & { moonshot?: KimiFormulaCredentials }
 
 /** Inputs for provider-builtin web-search plugin configuration. */
 export interface CherryWebSearchConfig {
@@ -89,7 +89,7 @@ function servesResponsesWebSearch(model: Model): boolean {
  */
 function mapMaxResultToOpenAIContextSize(
   maxResults: number
-): NonNullable<WebSearchPluginConfig['openai']>['searchContextSize'] {
+): NonNullable<WebSearchToolConfigMap['openai']>['searchContextSize'] {
   if (maxResults <= 33) return 'low'
   if (maxResults <= 66) return 'medium'
   return 'high'
@@ -152,7 +152,7 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'anthropic': {
       const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const anthropicSearchOptions: NonNullable<WebSearchPluginConfig['anthropic']> = {
+      const anthropicSearchOptions: NonNullable<WebSearchToolConfigMap['anthropic']> = {
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }
@@ -163,7 +163,7 @@ export function buildProviderBuiltinWebSearchConfig(
     case 'xai':
     case 'xai-responses': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const xaiWebConfig: NonNullable<NonNullable<WebSearchPluginConfig['xai-responses']>['webSearch']> = {
+      const xaiWebConfig: NonNullable<NonNullable<WebSearchToolConfigMap['xai-responses']>['webSearch']> = {
         enableImageUnderstanding: true
       }
       if (excludeDomains.length > 0) {
@@ -177,16 +177,14 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'openrouter': {
-      return {
-        openrouter: {
-          plugins: [
-            {
-              id: 'web',
-              max_results: webSearchConfig.maxResults
-            }
-          ]
-        }
+      const excludedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const openrouterWebConfig: NonNullable<WebSearchToolConfigMap['openrouter']> = {
+        maxResults: webSearchConfig.maxResults
       }
+      if (excludedDomains.length > 0) {
+        openrouterWebConfig.excludedDomains = excludedDomains
+      }
+      return { openrouter: openrouterWebConfig }
     }
     case 'cherryin': {
       // cherryin proxies to a real endpoint forced via model.endpointTypes[0];
