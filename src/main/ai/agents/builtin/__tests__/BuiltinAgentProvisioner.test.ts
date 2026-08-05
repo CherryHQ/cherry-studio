@@ -30,6 +30,9 @@ const TEMPLATE_AGENT_JSON = JSON.stringify({
   skills: ['cherry-assistant-guide']
 })
 const RC5_STOCK_SOUL_PATH = fileURLToPath(new URL('./fixtures/cherry-assistant-rc5-soul.md', import.meta.url))
+const PR17870_INTERIM_STOCK_SOUL_PATH = fileURLToPath(
+  new URL('./fixtures/cherry-assistant-pr17870-interim-soul.md', import.meta.url)
+)
 
 function writeFile(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -133,6 +136,14 @@ describe('BuiltinAgentProvisioner', () => {
 
   it('migrates the exact restrictive SOUL.md bundled in v2.0.0-rc.5', async () => {
     writeFile(path.join(agentDataPath, 'SOUL.md'), fs.readFileSync(RC5_STOCK_SOUL_PATH, 'utf-8'))
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
+  })
+
+  it('migrates the exact interim SOUL.md bundled during PR #17870', async () => {
+    writeFile(path.join(agentDataPath, 'SOUL.md'), fs.readFileSync(PR17870_INTERIM_STOCK_SOUL_PATH, 'utf-8'))
 
     await provisionBuiltinAgent(agentDataPath, 'assistant')
 
