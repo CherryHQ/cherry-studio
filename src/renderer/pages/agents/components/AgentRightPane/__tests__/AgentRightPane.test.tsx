@@ -709,6 +709,22 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('does not request a system workspace tree for a relative path', () => {
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="relative/workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { watchMissingRoot: true })
+  })
+
   it('hides conversation shortcuts when the conversation is unavailable', () => {
     render(
       <TestAgentRightPane

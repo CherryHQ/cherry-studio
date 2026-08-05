@@ -713,6 +713,19 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
   })
 
+  it('shows a localized invalid-path state without requesting the filesystem', async () => {
+    render(<ArtifactPane workspacePath="relative/workspace" />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(
+      'agent.preview_pane.tree_error.invalid_path.description'
+    )
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+  })
+
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
 
@@ -1272,15 +1285,18 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('logs and displays directory listing errors', async () => {
+  it('logs directory listing errors and displays a localized load-error state', async () => {
     const error = new Error('Permission denied')
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.description')
+    expect(screen.queryByText('Permission denied')).not.toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
