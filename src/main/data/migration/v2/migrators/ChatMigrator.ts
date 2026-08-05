@@ -67,7 +67,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -103,7 +104,9 @@ const logger = loggerService.withContext('ChatMigrator')
  * Batch size for processing topics
  * Chosen to balance memory usage and transaction overhead
  */
-const TOPIC_BATCH_SIZE = 50
+const TOPIC_READ_BATCH_SIZE = 1
+const TOPIC_INSERT_BATCH_SIZE = 1
+const TOPIC_ORDER_BATCH_SIZE = 50
 
 /**
  * Batch size for inserting messages
@@ -114,8 +117,11 @@ const MESSAGE_INSERT_BATCH_SIZE = 100
 const FILE_REF_INSERT_BATCH_SIZE = 100
 const SKIP_WARNING_SAMPLE_LIMIT = 10
 const INARRAY_CHUNK = 500
-const BLOCK_INDEX_BATCH_SIZE = 1000
+const BLOCK_INDEX_BATCH_SIZE = 100
 const TEMP_BLOCK_INDEX_TABLE = 'migration_chat_blocks'
+const TEMP_TOPIC_STAGING_TABLE = 'migration_chat_topic_staging'
+const TEMP_MESSAGE_STAGING_TABLE = 'migration_chat_message_staging'
+const TEMP_MESSAGE_ID_TABLE = 'migration_chat_message_ids'
 
 /**
  * Yield each FileEntryId referenced by file parts in a message's parts array.
@@ -176,6 +182,19 @@ interface PreparedTopicData {
   pinned: boolean
 }
 
+interface StagedTopicRow {
+  sequence: number
+  topicPayload: string
+  orderKey: string
+  pinOrderKey: string | null
+  pinned: number
+}
+
+interface StagedMessageRow {
+  messageIndex: number
+  payload: string
+}
+
 export class ChatMigrator extends BaseMigrator {
   readonly id = 'chat'
   readonly name = 'ChatData'
@@ -206,9 +225,12 @@ export class ChatMigrator extends BaseMigrator {
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
   // Count of messages promoted to root because no migrated ancestor was found
   private promotedToRootCount = 0
-  // Buffered transformed topics across all streamed batches. Inserted in a
-  // post-stream pass once orderKey can be assigned globally.
+  // Test-only compatibility seam for focused insertion tests. Production
+  // stages transformed topics in file-backed SQLite and keeps this empty.
   private stagedTopics: PreparedTopicData[] = []
+  private stagedTopicCount = 0
+  private pinnedTopicCount = 0
+  private stagingDb: DbType | null = null
   // chat_message_file_ref backfill state
   private migratedFileEntryIds: Set<string> = new Set()
   private skippedWarnings: Map<string, { count: number; samples: string[] }> = new Map()
@@ -236,6 +258,9 @@ export class ChatMigrator extends BaseMigrator {
     this.legacyAssistantIdRemap = new Map()
     this.validModelIds = null
     this.stagedTopics = []
+    this.stagedTopicCount = 0
+    this.pinnedTopicCount = 0
+    this.stagingDb = null
     this.migratedFileEntryIds = new Set()
     this.skippedWarnings = new Map()
     this.fileRefInsertCount = 0
@@ -275,17 +300,28 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   private reserveMessageId(preferredId?: string): string {
-    if (preferredId && !this.reservedMessageIds.has(preferredId)) {
-      this.reservedMessageIds.add(preferredId)
+    if (preferredId && this.tryReserveMessageId(preferredId)) {
       return preferredId
     }
 
     let generatedId = uuidv4()
-    while (this.reservedMessageIds.has(generatedId)) {
+    while (!this.tryReserveMessageId(generatedId)) {
       generatedId = uuidv4()
     }
-    this.reservedMessageIds.add(generatedId)
     return generatedId
+  }
+
+  private tryReserveMessageId(id: string): boolean {
+    if (this.stagingDb) {
+      const result = this.stagingDb.run(
+        sql`INSERT OR IGNORE INTO ${sql.raw(TEMP_MESSAGE_ID_TABLE)} (id) VALUES (${id})`
+      ) as { changes: number }
+      return result.changes > 0
+    }
+
+    if (this.reservedMessageIds.has(id)) return false
+    this.reservedMessageIds.add(id)
+    return true
   }
 
   /**
@@ -461,6 +497,8 @@ export class ChatMigrator extends BaseMigrator {
 
     try {
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
+      ctx.db.run(sql.raw('PRAGMA temp_store = FILE'))
+      this.prepareTopicStaging(ctx)
       await this.prepareBlockIndex(ctx)
 
       const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
@@ -482,16 +520,17 @@ export class ChatMigrator extends BaseMigrator {
       // migration runs in preboot, before any `WhenReady` service is up.
       const mappingDeps: ChatMappingDeps = { db: ctx.db, filesDataDir: ctx.paths.filesDataDir }
 
-      // Buffer all topics first; orderKey is stamped post-stream because
-      // independent per-batch sequences would collide in the global order.
-      await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
+      // Transform one topic at a time and immediately spill the result to the
+      // file-backed temp store. A v1 topic embeds all of its messages, so even a
+      // small multi-topic page can exceed the main-process heap for long chats.
+      await topicReader.readInBatches<OldTopic>(TOPIC_READ_BATCH_SIZE, async (topics, batchIndex) => {
         logger.debug(`Processing topic batch ${batchIndex + 1}`, { count: topics.length })
 
         for (const oldTopic of topics) {
           try {
             const prepared = await this.prepareTopicData(oldTopic, mappingDeps)
             if (prepared) {
-              this.stagedTopics.push(prepared)
+              this.stagePreparedTopic(ctx, prepared)
             } else {
               this.skippedTopics++
             }
@@ -507,17 +546,17 @@ export class ChatMigrator extends BaseMigrator {
         }
 
         // 0..50% during stream; insertStagedTopics covers 50..100%.
-        const progress = Math.round((this.stagedTopics.length / this.topicCount) * 50)
-        this.reportProgress(progress, `Prepared ${this.stagedTopics.length}/${this.topicCount} conversations`, {
+        const progress = Math.round((this.stagedTopicCount / this.topicCount) * 50)
+        this.reportProgress(progress, `Prepared ${this.stagedTopicCount}/${this.topicCount} conversations`, {
           key: 'migration.progress.prepared_chats',
-          params: { processed: this.stagedTopics.length, total: this.topicCount }
+          params: { processed: this.stagedTopicCount, total: this.topicCount }
         })
       })
 
-      this.migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
-      logger.info('Loaded migrated file entry IDs for chat_message_file_ref backfill', {
-        referencedCount: this.migratedFileEntryIds.size
-      })
+      this.assignStagedOrderKeys(ctx)
+      // IDs now live in every staged payload; release the test fallback Set
+      // before reading those payloads back for insertion.
+      this.reservedMessageIds = new Set()
 
       const insertResult = this.insertStagedTopics(ctx)
       processedTopics = insertResult.topicsInserted
@@ -561,6 +600,8 @@ export class ChatMigrator extends BaseMigrator {
         processedCount: processedTopics,
         error: error instanceof Error ? error.message : String(error)
       }
+    } finally {
+      this.dropTopicStaging(ctx)
     }
   }
 
@@ -605,7 +646,8 @@ export class ChatMigrator extends BaseMigrator {
         logger.warn(`Topic count higher than expected: expected ${expectedTopics}, got ${targetTopicCount}`)
       }
 
-      const expectedPins = this.stagedTopics.filter((d) => d.pinned).length
+      const expectedPins =
+        this.stagedTopics.length > 0 ? this.stagedTopics.filter((d) => d.pinned).length : this.pinnedTopicCount
       if (expectedPins > 0) {
         const pinResult = db
           .select({ count: sql<number>`count(*)` })
@@ -781,41 +823,126 @@ export class ChatMigrator extends BaseMigrator {
     this.skippedWarnings.set(reason, bucket)
   }
 
-  private async loadMigratedFileEntryIds(ctx: MigrationContext): Promise<Set<string>> {
-    const referencedFileIds = new Set<string>()
-    for (const data of this.stagedTopics) {
-      for (const msg of data.messages) {
-        for (const fileId of extractFileEntryIds(msg.data?.parts)) {
-          referencedFileIds.add(fileId)
-        }
+  private prepareTopicStaging(ctx: MigrationContext): void {
+    this.dropTopicStaging(ctx)
+    this.stagingDb = ctx.db
+    ctx.db.run(
+      sql.raw(`CREATE TEMP TABLE ${TEMP_TOPIC_STAGING_TABLE} (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic_id TEXT NOT NULL UNIQUE,
+        updated_at INTEGER NOT NULL,
+        pinned INTEGER NOT NULL,
+        order_key TEXT,
+        pin_order_key TEXT,
+        topic_payload TEXT NOT NULL
+      )`)
+    )
+    ctx.db.run(
+      sql.raw(`CREATE TEMP TABLE ${TEMP_MESSAGE_STAGING_TABLE} (
+        topic_id TEXT NOT NULL,
+        message_index INTEGER NOT NULL,
+        payload TEXT NOT NULL,
+        PRIMARY KEY (topic_id, message_index)
+      )`)
+    )
+    ctx.db.run(sql.raw(`CREATE TEMP TABLE ${TEMP_MESSAGE_ID_TABLE} (id TEXT PRIMARY KEY)`))
+  }
+
+  private dropTopicStaging(ctx: MigrationContext): void {
+    ctx.db.run(sql.raw(`DROP TABLE IF EXISTS ${TEMP_TOPIC_STAGING_TABLE}`))
+    ctx.db.run(sql.raw(`DROP TABLE IF EXISTS ${TEMP_MESSAGE_STAGING_TABLE}`))
+    ctx.db.run(sql.raw(`DROP TABLE IF EXISTS ${TEMP_MESSAGE_ID_TABLE}`))
+    ctx.db.run(sql.raw(`DROP TABLE IF EXISTS ${TEMP_BLOCK_INDEX_TABLE}`))
+    this.stagingDb = null
+    this.blockIndexDb = null
+  }
+
+  private stagePreparedTopic(ctx: MigrationContext, prepared: PreparedTopicData): void {
+    ctx.db.transaction((tx) => {
+      tx.run(sql`
+        INSERT INTO ${sql.raw(TEMP_TOPIC_STAGING_TABLE)} (topic_id, updated_at, pinned, topic_payload)
+        VALUES (
+          ${prepared.topic.id},
+          ${prepared.topic.updatedAt},
+          ${prepared.pinned ? 1 : 0},
+          ${JSON.stringify(prepared.topic)}
+        )
+      `)
+      for (let index = 0; index < prepared.messages.length; index++) {
+        tx.run(sql`
+          INSERT INTO ${sql.raw(TEMP_MESSAGE_STAGING_TABLE)} (topic_id, message_index, payload)
+          VALUES (${prepared.topic.id}, ${index}, ${JSON.stringify(prepared.messages[index])})
+        `)
       }
+    })
+    this.stagedTopicCount += 1
+    if (prepared.pinned) this.pinnedTopicCount += 1
+  }
+
+  private assignStagedOrderKeys(ctx: MigrationContext): void {
+    this.assignOrderKeysForQuery(ctx, false)
+    this.assignOrderKeysForQuery(ctx, true)
+  }
+
+  private assignOrderKeysForQuery(ctx: MigrationContext, pinnedOnly: boolean): void {
+    let previousKey: string | null = null
+    let afterUpdatedAt: number | null = null
+    let afterSequence = 0
+
+    while (true) {
+      const cursorWhere =
+        afterUpdatedAt === null
+          ? ''
+          : `AND (updated_at < ${afterUpdatedAt} OR (updated_at = ${afterUpdatedAt} AND sequence > ${afterSequence}))`
+      const rows = ctx.db.all<{ sequence: number; updatedAt: number }>(
+        sql.raw(`SELECT sequence, updated_at AS updatedAt
+                 FROM ${TEMP_TOPIC_STAGING_TABLE}
+                 WHERE ${pinnedOnly ? 'pinned = 1' : '1 = 1'} ${cursorWhere}
+                 ORDER BY updated_at DESC, sequence ASC
+                 LIMIT ${TOPIC_ORDER_BATCH_SIZE}`)
+      )
+      if (rows.length === 0) break
+
+      ctx.db.transaction((tx) => {
+        for (const row of rows) {
+          const orderKey = generateOrderKeyBetween(previousKey, null)
+          tx.run(
+            sql`UPDATE ${sql.raw(TEMP_TOPIC_STAGING_TABLE)}
+                SET ${sql.raw(pinnedOnly ? 'pin_order_key' : 'order_key')} = ${orderKey}
+                WHERE sequence = ${row.sequence}`
+          )
+          previousKey = orderKey
+        }
+      })
+
+      const last = rows.at(-1)!
+      afterUpdatedAt = last.updatedAt
+      afterSequence = last.sequence
+    }
+  }
+
+  private loadMigratedFileEntryIdsForMessages(db: DbOrTx, messages: NewMessage[]): Set<string> {
+    const referencedFileIds = new Set<string>()
+    for (const message of messages) {
+      for (const fileId of extractFileEntryIds(message.data?.parts)) referencedFileIds.add(fileId)
     }
     if (referencedFileIds.size === 0) return new Set()
-    const allIds = [...referencedFileIds]
+
+    const ids = [...referencedFileIds]
     const result = new Set<string>()
-    for (let i = 0; i < allIds.length; i += INARRAY_CHUNK) {
-      const chunk = allIds.slice(i, i + INARRAY_CHUNK)
-      try {
-        const rows = await ctx.db
-          .select({ id: fileEntryTable.id })
-          .from(fileEntryTable)
-          .where(inArray(fileEntryTable.id, chunk))
-        for (const row of rows) result.add(row.id)
-      } catch (err) {
-        logger.error('Failed to query file_entry during chat_message_file_ref backfill', err as Error, {
-          chunkStart: i,
-          chunkSize: chunk.length,
-          totalReferencedIds: allIds.length
-        })
-        throw err
-      }
+    for (let start = 0; start < ids.length; start += INARRAY_CHUNK) {
+      const rows = db
+        .select({ id: fileEntryTable.id })
+        .from(fileEntryTable)
+        .where(inArray(fileEntryTable.id, ids.slice(start, start + INARRAY_CHUNK)))
+        .all()
+      for (const row of rows) result.add(row.id)
     }
     return result
   }
 
   private async prepareBlockIndex(ctx: MigrationContext): Promise<void> {
     this.blockIndexDb = ctx.db
-    ctx.db.run(sql.raw('PRAGMA temp_store = FILE'))
     ctx.db.run(
       sql.raw(`CREATE TEMP TABLE IF NOT EXISTS ${TEMP_BLOCK_INDEX_TABLE} (id TEXT PRIMARY KEY, payload TEXT NOT NULL)`)
     )
@@ -1172,6 +1299,10 @@ export class ChatMigrator extends BaseMigrator {
     messagesInserted: number
     pinsInserted: number
   } {
+    if (this.stagedTopics.length === 0 && this.stagingDb) {
+      return this.insertSqliteStagedTopics(ctx)
+    }
+
     const db = ctx.db
 
     // Sort by updatedAt DESC so the stamped orderKey matches the default
@@ -1194,8 +1325,8 @@ export class ChatMigrator extends BaseMigrator {
     const total = this.stagedTopics.length || 1
 
     try {
-      for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
-        const batch = this.stagedTopics.slice(start, start + TOPIC_BATCH_SIZE)
+      for (let start = 0; start < this.stagedTopics.length; start += TOPIC_INSERT_BATCH_SIZE) {
+        const batch = this.stagedTopics.slice(start, start + TOPIC_INSERT_BATCH_SIZE)
 
         // IDs and graph references were finalized during prepareTopicData. Each
         // final content ID was reserved exactly once; consuming it here preserves
@@ -1311,6 +1442,129 @@ export class ChatMigrator extends BaseMigrator {
     // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
     this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
 
+    return { topicsInserted, messagesInserted, pinsInserted }
+  }
+
+  private insertSqliteStagedTopics(ctx: MigrationContext): {
+    topicsInserted: number
+    messagesInserted: number
+    pinsInserted: number
+  } {
+    const db = ctx.db
+    let afterSequence = 0
+    let topicsInserted = 0
+    let messagesInserted = 0
+    let pinsInserted = 0
+
+    try {
+      while (true) {
+        const rows = db.all<StagedTopicRow>(sql`
+          SELECT sequence,
+                 topic_payload AS topicPayload,
+                 order_key AS orderKey,
+                 pin_order_key AS pinOrderKey,
+                 pinned
+          FROM ${sql.raw(TEMP_TOPIC_STAGING_TABLE)}
+          WHERE sequence > ${afterSequence}
+          ORDER BY sequence
+          LIMIT ${TOPIC_INSERT_BATCH_SIZE}
+        `)
+        if (rows.length === 0) break
+
+        const row = rows[0]
+        const topic = JSON.parse(row.topicPayload) as NewTopic
+        if (!row.orderKey) throw new Error(`Missing staged orderKey for topic ${topic.id}`)
+        topic.orderKey = row.orderKey
+        const rootId = this.reserveMessageId()
+        const rootMessage = buildVirtualRoot(rootId, topic.id, topic.createdAt)
+        const now = Date.now()
+        let insertedTopicMessages = 1
+        let insertedTopicFileRefs = 0
+
+        const insertedPin = db.transaction((tx) => {
+          tx.insert(topicTable).values(topic).run()
+          tx.insert(messageTable).values(rootMessage).run()
+
+          let afterMessageIndex = -1
+          while (true) {
+            const messageRows = tx.all<StagedMessageRow>(sql`
+              SELECT message_index AS messageIndex, payload
+              FROM ${sql.raw(TEMP_MESSAGE_STAGING_TABLE)}
+              WHERE topic_id = ${topic.id} AND message_index > ${afterMessageIndex}
+              ORDER BY message_index
+              LIMIT ${MESSAGE_INSERT_BATCH_SIZE}
+            `)
+            if (messageRows.length === 0) break
+
+            const batchMessages = messageRows.map((messageRow) => {
+              const message = JSON.parse(messageRow.payload) as NewMessage
+              if (message.parentId === null) message.parentId = rootId
+              return message
+            })
+            const droppedRefs = this.sanitizeMessageModelReferences(batchMessages)
+            if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
+
+            this.migratedFileEntryIds = this.loadMigratedFileEntryIdsForMessages(tx, batchMessages)
+            const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
+            tx.insert(messageTable).values(batchMessages).run()
+            for (let start = 0; start < batchFileRefRows.length; start += FILE_REF_INSERT_BATCH_SIZE) {
+              tx.insert(chatMessageFileRefTable)
+                .values(batchFileRefRows.slice(start, start + FILE_REF_INSERT_BATCH_SIZE))
+                .run()
+            }
+            if (batchFileRefRows.length > 0) {
+              markEntriesAutoCleanup(
+                tx,
+                batchFileRefRows.map((fileRefRow) => fileRefRow.fileEntryId)
+              )
+            }
+
+            insertedTopicMessages += batchMessages.length
+            insertedTopicFileRefs += batchFileRefRows.length
+            this.migratedFileEntryIds = new Set()
+            afterMessageIndex = messageRows.at(-1)!.messageIndex
+          }
+
+          if (row.pinned === 0) return 0
+          if (!row.pinOrderKey) throw new Error(`Missing staged pin orderKey for topic ${topic.id}`)
+          return tx
+            .insert(pinTable)
+            .values({
+              id: uuidv4(),
+              entityType: 'topic',
+              entityId: topic.id,
+              orderKey: row.pinOrderKey,
+              createdAt: now,
+              updatedAt: now
+            })
+            .onConflictDoNothing()
+            .returning({ id: pinTable.id })
+            .all().length
+        })
+
+        topicsInserted += 1
+        messagesInserted += insertedTopicMessages
+        pinsInserted += insertedPin
+        this.fileRefInsertCount += insertedTopicFileRefs
+        this.migratedFileEntryIds = new Set()
+        afterSequence = rows.at(-1)!.sequence
+
+        const progress = 50 + Math.round((topicsInserted / Math.max(this.stagedTopicCount, 1)) * 50)
+        this.reportProgress(
+          progress,
+          `Migrated ${topicsInserted}/${this.stagedTopicCount} conversations, ${messagesInserted} messages`,
+          {
+            key: 'migration.progress.migrated_chats',
+            params: { processed: topicsInserted, total: this.stagedTopicCount, messages: messagesInserted }
+          }
+        )
+      }
+    } finally {
+      this.reservedMessageIds = new Set()
+      this.migratedFileEntryIds = new Set()
+    }
+
+    this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
     return { topicsInserted, messagesInserted, pinsInserted }
   }
 }

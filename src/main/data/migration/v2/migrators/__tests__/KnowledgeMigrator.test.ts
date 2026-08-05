@@ -1518,20 +1518,25 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=loaded with the loader→source map when the legacy vectors are readable', async () => {
     const migrator = new KnowledgeMigrator() as any
-    // Delegates to the shared KnowledgeVectorSourceReader's column-projected loadBaseLoaderSources
+    // Delegates to the shared KnowledgeVectorSourceReader's column-projected visitBaseLoaderSources
     // so directory expansion and vector migration share the same path resolution + loader set,
     // without this pass reading/decoding the vectors themselves.
     const vectorSource = {
-      loadBaseLoaderSources: vi.fn().mockResolvedValue({
-        status: 'ok',
-        dbPath: '/mock/userData/Data/KnowledgeBase/kb-ok',
-        rows: [
-          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
-          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' },
-          { uniqueLoaderId: 'loader-blank', source: '   ' },
-          { uniqueLoaderId: '', source: '/docs/x.md' }
-        ]
-      })
+      visitBaseLoaderSources: vi
+        .fn()
+        .mockImplementation(
+          async (_baseId: string, onRow: (row: { uniqueLoaderId: string; source: string }) => void) => {
+            for (const row of [
+              { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+              { uniqueLoaderId: 'loader-b', source: '/docs/b.md' },
+              { uniqueLoaderId: 'loader-blank', source: '   ' },
+              { uniqueLoaderId: '', source: '/docs/x.md' }
+            ]) {
+              onRow(row)
+            }
+            return { status: 'ok', dbPath: '/mock/userData/Data/KnowledgeBase/kb-ok', rowCount: 4 }
+          }
+        )
     }
 
     const result = await migrator.loadLoaderSourceMap('kb-ok', vectorSource)
@@ -1541,13 +1546,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       ['loader-a', '/docs/a.md'],
       ['loader-b', '/docs/b.md']
     ])
-    expect(vectorSource.loadBaseLoaderSources).toHaveBeenCalledWith('kb-ok')
+    expect(vectorSource.visitBaseLoaderSources).toHaveBeenCalledWith('kb-ok', expect.any(Function))
   })
 
   it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vector DB is missing or not embedjs', async () => {
     const migrator = new KnowledgeMigrator() as any
     for (const status of ['missing', 'invalid_path', 'directory', 'not_embedjs'] as const) {
-      const vectorSource = { loadBaseLoaderSources: vi.fn().mockResolvedValue({ status, dbPath: '/x' }) }
+      const vectorSource = { visitBaseLoaderSources: vi.fn().mockResolvedValue({ status, dbPath: '/x' }) }
       const result = await migrator.loadLoaderSourceMap('kb-x', vectorSource)
       expect(result).toEqual({ kind: 'loaded', sources: new Map() })
     }
@@ -1555,7 +1560,9 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vectors table has no usable rows', async () => {
     const migrator = new KnowledgeMigrator() as any
-    const vectorSource = { loadBaseLoaderSources: vi.fn().mockResolvedValue({ status: 'ok', dbPath: '/x', rows: [] }) }
+    const vectorSource = {
+      visitBaseLoaderSources: vi.fn().mockResolvedValue({ status: 'ok', dbPath: '/x', rowCount: 0 })
+    }
 
     const result = await migrator.loadLoaderSourceMap('kb-empty', vectorSource)
     expect(result.kind).toBe('loaded')
@@ -1564,7 +1571,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=read_error and logs (does not report) when the read throws', async () => {
     const migrator = new KnowledgeMigrator() as any
-    const vectorSource = { loadBaseLoaderSources: vi.fn().mockRejectedValue(new Error('database is locked')) }
+    const vectorSource = { visitBaseLoaderSources: vi.fn().mockRejectedValue(new Error('database is locked')) }
 
     const result = await migrator.loadLoaderSourceMap('kb-read-error', vectorSource)
     expect(result.kind).toBe('read_error')

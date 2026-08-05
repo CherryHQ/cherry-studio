@@ -228,10 +228,10 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
-      const { reduxData, dexieExportPath, localStorageExportPath } = payload
+      const { reduxExportPath, dexieExportPath, localStorageExportPath } = payload
 
-      if (!reduxData || !dexieExportPath) {
-        throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
+      if (!reduxExportPath || !dexieExportPath) {
+        throw new Error('Migration data not ready. Redux or Dexie export path missing.')
       }
 
       // Set up progress callback
@@ -252,7 +252,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       })
 
       // Run migration
-      runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
+      runPromise = migrationEngine.run(reduxExportPath, dexieExportPath, localStorageExportPath)
       inFlightMigration = runPromise
 
       const result = await runPromise

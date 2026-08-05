@@ -246,11 +246,11 @@ export class MigrationEngine {
 
   /**
    * Execute full migration
-   * @param reduxData - Parsed Redux state data from Renderer
+   * @param reduxSource - Redux export directory in production; parsed data in focused tests
    * @param dexieExportPath - Path to exported Dexie files
    */
   async run(
-    reduxData: Record<string, unknown>,
+    reduxSource: Record<string, unknown> | string,
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
@@ -269,7 +269,7 @@ export class MigrationEngine {
       const context = await createMigrationContext(
         this.getDb(),
         this.paths,
-        reduxData,
+        reduxSource,
         dexieExportPath,
         localStorageExportPath
       )
@@ -348,6 +348,10 @@ export class MigrationEngine {
 
       if (localStorageExportPath) {
         await this.cleanupTempFiles(path.dirname(localStorageExportPath))
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(reduxSource)
       }
 
       logger.info('Migration completed successfully', {

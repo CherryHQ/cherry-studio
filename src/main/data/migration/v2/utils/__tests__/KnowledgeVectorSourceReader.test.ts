@@ -95,7 +95,7 @@ describe('KnowledgeVectorSourceReader', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
-  it('loads legacy embedjs rows from the knowledge base path', async () => {
+  it('streams legacy embedjs rows in rowid (legacy read) order', async () => {
     const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
 
@@ -106,21 +106,40 @@ describe('KnowledgeVectorSourceReader', () => {
         uniqueLoaderId: 'loader-1',
         source: '/tmp/file.md',
         vector: [1, 2]
+      },
+      {
+        id: 'legacy-row-2',
+        pageContent: 'second vector',
+        uniqueLoaderId: 'loader-1',
+        source: '/tmp/file.md',
+        vector: [3, 4]
       }
     ])
 
-    await expect(reader.loadBase('kb-1')).resolves.toEqual({
-      status: 'ok',
-      dbPath,
-      rows: [
+    const opened = reader.openBase('kb-1')
+    expect(opened.status).toBe('ok')
+    if (opened.status !== 'ok') {
+      return
+    }
+    expect(opened.dbPath).toBe(dbPath)
+    try {
+      expect([...opened.reader.iterateRows()]).toEqual([
         {
+          rowid: 1,
           pageContent: 'hello vector',
           uniqueLoaderId: 'loader-1',
-          source: '/tmp/file.md',
-          vector: { status: 'decoded', value: [1, 2] }
+          vector: { status: 'decoded', value: new Float32Array([1, 2]) }
+        },
+        {
+          rowid: 2,
+          pageContent: 'second vector',
+          uniqueLoaderId: 'loader-1',
+          vector: { status: 'decoded', value: new Float32Array([3, 4]) }
         }
-      ]
-    })
+      ])
+    } finally {
+      opened.reader.close()
+    }
   })
 
   it('marks null legacy vector payloads as missing', async () => {
@@ -129,18 +148,23 @@ describe('KnowledgeVectorSourceReader', () => {
 
     await createLegacyVectorDbWithRawVector(dbPath, 'BLOB', null)
 
-    await expect(reader.loadBase('kb-1')).resolves.toEqual({
-      status: 'ok',
-      dbPath,
-      rows: [
+    const opened = reader.openBase('kb-1')
+    expect(opened.status).toBe('ok')
+    if (opened.status !== 'ok') {
+      return
+    }
+    try {
+      expect([...opened.reader.iterateRows()]).toEqual([
         {
+          rowid: 1,
           pageContent: 'hello vector',
           uniqueLoaderId: 'loader-1',
-          source: '/tmp/file.md',
           vector: { status: 'missing' }
         }
-      ]
-    })
+      ])
+    } finally {
+      opened.reader.close()
+    }
   })
 
   it('marks unknown legacy vector encodings as unsupported', async () => {
@@ -149,18 +173,23 @@ describe('KnowledgeVectorSourceReader', () => {
 
     await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
 
-    await expect(reader.loadBase('kb-1')).resolves.toEqual({
-      status: 'ok',
-      dbPath,
-      rows: [
+    const opened = reader.openBase('kb-1')
+    expect(opened.status).toBe('ok')
+    if (opened.status !== 'ok') {
+      return
+    }
+    try {
+      expect([...opened.reader.iterateRows()]).toEqual([
         {
+          rowid: 1,
           pageContent: 'hello vector',
           uniqueLoaderId: 'loader-1',
-          source: '/tmp/file.md',
           vector: { status: 'unsupported_encoding', encoding: 'string' }
         }
-      ]
-    })
+      ])
+    } finally {
+      opened.reader.close()
+    }
   })
 
   it('returns not_embedjs for non-embedjs sqlite files', async () => {
@@ -170,13 +199,13 @@ describe('KnowledgeVectorSourceReader', () => {
     db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
     db.close()
 
-    await expect(reader.loadBase('kb-1')).resolves.toEqual({
+    expect(reader.openBase('kb-1')).toEqual({
       status: 'not_embedjs',
       dbPath
     })
   })
 
-  describe('loadBaseLoaderSources', () => {
+  describe('visitBaseLoaderSources', () => {
     it('reads only the uniqueLoaderId/source columns and never the pageContent or vector', async () => {
       const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
       const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
@@ -186,30 +215,35 @@ describe('KnowledgeVectorSourceReader', () => {
         { id: 'r2', pageContent: 'b', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [3, 4] }
       ])
 
-      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+      const rows: Array<{ uniqueLoaderId: string; source: string }> = []
+      await expect(reader.visitBaseLoaderSources('kb-1', (row) => rows.push(row))).resolves.toEqual({
         status: 'ok',
         dbPath,
-        rows: [
-          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
-          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
-        ]
+        rowCount: 2
       })
+      expect(rows).toEqual([
+        { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+        { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+      ])
     })
 
     it('does not decode the vector column, so an unreadable vector blob is irrelevant', async () => {
-      // A garbage TEXT vector would decode to `unsupported_encoding` in loadBase; the lighter read
-      // must never touch that column, so this base still loads its loader/source pair cleanly. This
-      // is the regression guard that the vector BLOB is not read or float32-decoded here.
+      // A garbage TEXT vector would decode to `unsupported_encoding` in the streaming read; the
+      // lighter read must never touch that column, so this base still loads its loader/source pair
+      // cleanly. This is the regression guard that the vector BLOB is not read or float32-decoded
+      // here.
       const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
       const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
 
       await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
 
-      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+      const rows: Array<{ uniqueLoaderId: string; source: string }> = []
+      await expect(reader.visitBaseLoaderSources('kb-1', (row) => rows.push(row))).resolves.toEqual({
         status: 'ok',
         dbPath,
-        rows: [{ uniqueLoaderId: 'loader-1', source: '/tmp/file.md' }]
+        rowCount: 1
       })
+      expect(rows).toEqual([{ uniqueLoaderId: 'loader-1', source: '/tmp/file.md' }])
     })
 
     it('returns one row per distinct loader/source pair, not one per chunk', async () => {
@@ -226,20 +260,22 @@ describe('KnowledgeVectorSourceReader', () => {
         { id: 'r4', pageContent: 'chunk-4', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [7, 8] }
       ])
 
-      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+      const rows: Array<{ uniqueLoaderId: string; source: string }> = []
+      await expect(reader.visitBaseLoaderSources('kb-1', (row) => rows.push(row))).resolves.toEqual({
         status: 'ok',
         dbPath,
-        rows: [
-          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
-          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
-        ]
+        rowCount: 2
       })
+      expect(rows).toEqual([
+        { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+        { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+      ])
     })
 
-    it('shares the missing / directory / not_embedjs outcomes with loadBase', async () => {
+    it('shares the missing / directory / not_embedjs outcomes with openBase', async () => {
       const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
 
-      await expect(reader.loadBaseLoaderSources('kb-absent')).resolves.toEqual({
+      await expect(reader.visitBaseLoaderSources('kb-absent', vi.fn())).resolves.toEqual({
         status: 'missing',
         dbPath: path.join(tempRoot, 'KnowledgeBase', 'kb-absent')
       })
@@ -247,7 +283,7 @@ describe('KnowledgeVectorSourceReader', () => {
       const directoryPath = path.join(tempRoot, 'KnowledgeBase', 'kb-dir')
       fs.mkdirSync(directoryPath)
 
-      await expect(reader.loadBaseLoaderSources('kb-dir')).resolves.toEqual({
+      await expect(reader.visitBaseLoaderSources('kb-dir', vi.fn())).resolves.toEqual({
         status: 'directory',
         dbPath: directoryPath
       })
@@ -257,7 +293,7 @@ describe('KnowledgeVectorSourceReader', () => {
       db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
       db.close()
 
-      await expect(reader.loadBaseLoaderSources('kb-other')).resolves.toEqual({
+      await expect(reader.visitBaseLoaderSources('kb-other', vi.fn())).resolves.toEqual({
         status: 'not_embedjs',
         dbPath: notEmbedjsPath
       })

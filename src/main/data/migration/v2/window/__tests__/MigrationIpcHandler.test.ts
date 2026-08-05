@@ -415,7 +415,7 @@ describe('MigrationIpcHandler', () => {
       return { success: true, totalDuration: 1, migratorResults: [] }
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
 
     expect(stageAtRunStart).toBe('migration')
     expect(windowSetStageMock).toHaveBeenCalledWith('migration')
@@ -445,7 +445,7 @@ describe('MigrationIpcHandler', () => {
     }
     engineMock.run.mockResolvedValue(result)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -488,7 +488,7 @@ describe('MigrationIpcHandler', () => {
       } satisfies MigrationResult
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -510,7 +510,7 @@ describe('MigrationIpcHandler', () => {
       ]
     } satisfies MigrationResult)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
 
     // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
     // fallback and matches completedMigrators.
@@ -542,7 +542,10 @@ describe('MigrationIpcHandler', () => {
       engineMock.run.mockReturnValue(new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
       // The handler stores the in-flight promise synchronously, before its first await.
-      const startPromise = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const startPromise = invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
 
       await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow()
       expect(engineMock.skipMigration).not.toHaveBeenCalled()
@@ -562,7 +565,7 @@ describe('MigrationIpcHandler', () => {
         migratorResults: []
       })
 
-      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
       await invoke(MigrationIpcChannels.SkipMigration)
     })
 
@@ -582,7 +585,10 @@ describe('MigrationIpcHandler', () => {
         return { success: false, error: 'Validation failed', totalDuration: 1200, migratorResults: [] }
       })
 
-      const result = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const result = await invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
 
       expect(result).toMatchObject({ success: false, error: 'Validation failed' })
       const progress = lastProgress()
@@ -598,7 +604,7 @@ describe('MigrationIpcHandler', () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
       await expect(
-        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+        invoke(MigrationIpcChannels.StartMigration, { reduxExportPath: '/redux', dexieExportPath: '/dexie' })
       ).rejects.toThrow('Engine exploded')
 
       const failure = lastProgress()
@@ -607,7 +613,10 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
 
       engineMock.run.mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
-      const retry = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const retry = await invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
 
       expect(retry).toMatchObject({ success: true })
       expect(lastProgress().stage).toBe('completed')
@@ -701,7 +710,10 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
       await Promise.resolve()
 
       const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
@@ -719,7 +731,10 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -741,7 +756,10 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, {
+        reduxExportPath: '/redux',
+        dexieExportPath: '/dexie'
+      })
       await Promise.resolve()
 
       expect(requestQuit()).toBe(false)

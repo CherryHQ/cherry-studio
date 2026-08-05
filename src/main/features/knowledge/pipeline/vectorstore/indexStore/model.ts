@@ -23,7 +23,12 @@ export interface RebuildMaterialUnitInput {
 
 export interface RebuildMaterialEmbeddingInput {
   embeddingTextHash: string
-  vector: number[]
+  /**
+   * The unit's embedding. `Float32Array` is accepted alongside `number[]` so the v1→v2 vector
+   * migrator can stream decoded legacy vectors at half the resident size; both encode to the
+   * same little-endian float32 blob.
+   */
+  vector: number[] | Float32Array
 }
 
 /**
@@ -50,6 +55,19 @@ export interface RebuildMaterialInput {
    */
   usesEmbeddings: boolean
   embeddings: RebuildMaterialEmbeddingInput[]
+}
+
+export interface RebuildMaterialChunkInput extends RebuildMaterialUnitInput {
+  /** Omit only when the hash is already present in this index store. */
+  vector?: Float32Array | number[]
+}
+
+/** Bounded-memory rebuild contract: the iterator is consumed once inside the write transaction. */
+export interface RebuildMaterialStreamInput {
+  material: { relativePath: string }
+  content: { text: string }
+  usesEmbeddings: boolean
+  chunks: Iterable<RebuildMaterialChunkInput>
 }
 
 /**

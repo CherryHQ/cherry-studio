@@ -332,7 +332,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
   /**
    * Read the legacy vector DB's `uniqueLoaderId → source` map (via the shared
-   * {@link KnowledgeVectorSourceReader}'s column-projected `loadBaseLoaderSources`, so directory
+   * {@link KnowledgeVectorSourceReader}'s column-projected `visitBaseLoaderSources`, so directory
    * expansion and vector migration share the exact same path resolution + loader set without
    * this map-building pass having to read and float32-decode the whole base's vectors — that
    * synchronous decode froze the migration UI and risked OOM on large folders) so a `directory`
@@ -348,14 +348,13 @@ export class KnowledgeMigrator extends BaseMigrator {
   ): Promise<LoaderSourceMapResult> {
     const sources = new Map<string, string>()
     try {
-      const result = await vectorSource.loadBaseLoaderSources(baseId)
-      if (result.status !== 'ok') {
-        return { kind: 'loaded', sources }
-      }
-      for (const row of result.rows) {
+      const result = await vectorSource.visitBaseLoaderSources(baseId, (row) => {
         if (row.uniqueLoaderId && row.source && row.source.trim() !== '') {
           sources.set(row.uniqueLoaderId, row.source)
         }
+      })
+      if (result.status !== 'ok') {
+        return { kind: 'loaded', sources }
       }
     } catch (error) {
       // Keep the exception detail in the log; the caller emits the user-facing, actionable

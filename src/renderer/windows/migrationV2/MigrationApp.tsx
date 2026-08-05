@@ -442,17 +442,21 @@ const MigrationApp: React.FC = () => {
     try {
       logger.info('Starting migration process...')
 
-      // Export Redux data
+      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
+      const exportBasePath = `${userDataPath}/migration_temp`
+
+      // Export Redux data to disk before opening IndexedDB. Keeping parsed Redux
+      // slices alive through the Dexie export needlessly raised Renderer peak RSS.
+      const reduxExportPath = `${exportBasePath}/redux_export`
       const reduxExporter = new ReduxExporter()
-      const reduxResult = reduxExporter.export()
+      const reduxResult = await reduxExporter.export(reduxExportPath)
       logger.info('Redux data exported', {
         slicesFound: reduxResult.slicesFound,
-        slicesMissing: reduxResult.slicesMissing
+        slicesMissing: reduxResult.slicesMissing,
+        exportPath: reduxResult.exportPath
       })
 
       // Export Dexie data
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
       const dexieExportPath = `${exportBasePath}/dexie_export`
       const dexieExporter = new DexieExporter(dexieExportPath)
 
@@ -473,7 +477,7 @@ const MigrationApp: React.FC = () => {
 
       // Start migration with exported data
       await actions.startMigration({
-        reduxData: reduxResult.data,
+        reduxExportPath: reduxResult.exportPath,
         dexieExportPath,
         localStorageExportPath: localStorageFilePath
       })

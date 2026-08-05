@@ -111,19 +111,15 @@ export class TranslateMigrator extends BaseMigrator {
 
   private historySourceCount = 0
   private historySkippedCount = 0
-  private cachedHistoryRecords: OldTranslateHistory[] = []
 
   private languageSourceCount = 0
   private languageSkippedCount = 0
-  private cachedLanguageRecords: OldCustomTranslateLanguage[] = []
 
   override reset(): void {
     this.historySourceCount = 0
     this.historySkippedCount = 0
-    this.cachedHistoryRecords = []
     this.languageSourceCount = 0
     this.languageSkippedCount = 0
-    this.cachedLanguageRecords = []
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -136,8 +132,7 @@ export class TranslateMigrator extends BaseMigrator {
         logger.warn('translate_history.json not found, skipping')
         warnings.push('translate_history.json not found - no translate history to migrate')
       } else {
-        this.cachedHistoryRecords = await ctx.sources.dexieExport.readTable<OldTranslateHistory>('translate_history')
-        this.historySourceCount = this.cachedHistoryRecords.length
+        this.historySourceCount = await ctx.sources.dexieExport.createStreamReader('translate_history').count()
         logger.info(`Found ${this.historySourceCount} translate history records to migrate`)
       }
 
@@ -147,9 +142,7 @@ export class TranslateMigrator extends BaseMigrator {
         logger.warn('translate_languages.json not found, skipping')
         warnings.push('translate_languages.json not found - no custom languages to migrate')
       } else {
-        this.cachedLanguageRecords =
-          await ctx.sources.dexieExport.readTable<OldCustomTranslateLanguage>('translate_languages')
-        this.languageSourceCount = this.cachedLanguageRecords.length
+        this.languageSourceCount = await ctx.sources.dexieExport.createStreamReader('translate_languages').count()
         logger.info(`Found ${this.languageSourceCount} custom translate languages to migrate`)
       }
 
@@ -181,31 +174,31 @@ export class TranslateMigrator extends BaseMigrator {
       // ── Migrate translate languages first (history has FK references) ──
       if (this.languageSourceCount > 0) {
         const now = Date.now()
-        const newLanguageRecords: NewTranslateLanguage[] = []
-        for (const old of this.cachedLanguageRecords) {
-          if (!old.id || !old.langCode || !old.value || !old.emoji) {
-            logger.warn(`Skipping invalid translate language record: ${old.id}`)
-            this.languageSkippedCount++
-            continue
+        let migratedLanguages = 0
+        const languageReader = ctx.sources.dexieExport.createStreamReader('translate_languages')
+        await languageReader.readInBatches<OldCustomTranslateLanguage>(HISTORY_BATCH_SIZE, async (records) => {
+          const batch: NewTranslateLanguage[] = []
+          for (const old of records) {
+            if (!old.id || !old.langCode || !old.value || !old.emoji) {
+              logger.warn(`Skipping invalid translate language record: ${old.id}`)
+              this.languageSkippedCount++
+              continue
+            }
+            batch.push(transformLanguageRecord(old, now))
           }
-          newLanguageRecords.push(transformLanguageRecord(old, now))
-        }
-
-        if (newLanguageRecords.length > 0) {
-          db.transaction((tx) => {
-            tx.insert(translateLanguageTable).values(newLanguageRecords).run()
-          })
-          processedCount += newLanguageRecords.length
-        }
+          if (batch.length > 0) db.insert(translateLanguageTable).values(batch).run()
+          migratedLanguages += batch.length
+        })
+        processedCount += migratedLanguages
 
         const langProgress = Math.round((processedCount / totalCount) * 100)
-        this.reportProgress(langProgress, `Migrated ${newLanguageRecords.length} custom translate languages`, {
+        this.reportProgress(langProgress, `Migrated ${migratedLanguages} custom translate languages`, {
           key: 'migration.progress.migrated_translate_languages',
-          params: { processed: newLanguageRecords.length, total: newLanguageRecords.length }
+          params: { processed: migratedLanguages, total: this.languageSourceCount }
         })
 
         logger.info('Translate language migration completed', {
-          processedCount: newLanguageRecords.length,
+          processedCount: migratedLanguages,
           skipped: this.languageSkippedCount
         })
       }
@@ -221,37 +214,35 @@ export class TranslateMigrator extends BaseMigrator {
           .from(translateLanguageTable)
         const validLangCodes = new Set(existingLangs.map((r) => r.langCode))
 
-        const newHistoryRecords: NewTranslateHistory[] = []
-        for (const old of this.cachedHistoryRecords) {
-          if (!old.id || !old.sourceText || !old.targetText) {
-            logger.warn(`Skipping invalid translate history record: ${old.id}`)
-            this.historySkippedCount++
-            continue
+        let migratedHistory = 0
+        const historyReader = ctx.sources.dexieExport.createStreamReader('translate_history')
+        await historyReader.readInBatches<OldTranslateHistory>(HISTORY_BATCH_SIZE, async (records) => {
+          const batch: NewTranslateHistory[] = []
+          for (const old of records) {
+            if (!old.id || !old.sourceText || !old.targetText) {
+              logger.warn(`Skipping invalid translate history record: ${old.id}`)
+              this.historySkippedCount++
+              continue
+            }
+            batch.push(transformHistoryRecord(old, validLangCodes))
           }
-          newHistoryRecords.push(transformHistoryRecord(old, validLangCodes))
-        }
+          if (batch.length > 0) db.insert(translateHistoryTable).values(batch).run()
+          migratedHistory += batch.length
 
-        db.transaction((tx) => {
-          for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
-            const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            tx.insert(translateHistoryTable).values(batch).run()
-
-            const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
-            const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)
-            this.reportProgress(
-              progress,
-              `Migrated ${historyProcessed}/${newHistoryRecords.length} translate history records`,
-              {
-                key: 'migration.progress.migrated_translate_history',
-                params: { processed: historyProcessed, total: newHistoryRecords.length }
-              }
-            )
-          }
+          const progress = Math.round(((processedCount + migratedHistory) / totalCount) * 100)
+          this.reportProgress(
+            progress,
+            `Migrated ${migratedHistory}/${this.historySourceCount} translate history records`,
+            {
+              key: 'migration.progress.migrated_translate_history',
+              params: { processed: migratedHistory, total: this.historySourceCount }
+            }
+          )
         })
 
-        processedCount += newHistoryRecords.length
+        processedCount += migratedHistory
         logger.info('Translate history migration completed', {
-          processedCount: newHistoryRecords.length,
+          processedCount: migratedHistory,
           skipped: this.historySkippedCount
         })
       }

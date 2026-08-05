@@ -122,6 +122,7 @@ describe('DexieExporter', () => {
       payload: `${'a'.repeat(EXPORT_CHUNK_CHAR_LIMIT - serializedPrefix.length - 1)}😀tail`
     }
     dexieMock.table.mockReturnValue(createTableMock([row]))
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
 
     await new DexieExporter('/export').exportAll()
 
@@ -132,6 +133,8 @@ describe('DexieExporter', () => {
     expect(writeCalls[0]?.[4]).toBe('overwrite')
     expect(writeCalls.slice(1).every((call) => call[4] === 'append')).toBe(true)
     expect(JSON.parse(chunks.join(''))).toEqual([row])
+    expect(stringifySpy.mock.calls.some(([value]) => value === row)).toBe(false)
+    stringifySpy.mockRestore()
   })
 
   it('exports an empty table as an empty JSON array', async () => {
@@ -141,12 +144,14 @@ describe('DexieExporter', () => {
 
     expect(exportedText()).toBe('[]')
     const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
+    expect(writeCalls).toHaveLength(1)
     expect(writeCalls[0]?.[4]).toBe('overwrite')
-    expect(writeCalls[1]?.[4]).toBe('append')
   })
 
   it('closes the database when appending a chunk fails', async () => {
-    dexieMock.table.mockReturnValue(createTableMock([{ id: 'block-1' }]))
+    dexieMock.table.mockReturnValue(
+      createTableMock([{ id: 'block-1', payload: 'a'.repeat(EXPORT_CHUNK_CHAR_LIMIT + 1) }])
+    )
     invoke.mockImplementation((_channel, _exportPath, _tableName, _chunk, writeMode) =>
       writeMode === 'append' ? Promise.reject(new Error('disk full')) : Promise.resolve(true)
     )

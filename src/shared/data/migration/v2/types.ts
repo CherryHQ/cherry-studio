@@ -129,10 +129,13 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
-  reduxData: Record<string, unknown>
+  reduxExportPath: string
   dexieExportPath: string
   localStorageExportPath?: string
 }
+
+/** localStorage keys that are still consumed by the v1 -> v2 migration. */
+export const MIGRATION_LOCAL_STORAGE_KEYS = ['onboarding-completed'] as const
 
 export type MigrationDiagnosticSaveResult =
   | { status: 'saved'; logs: 'included' | 'not_included' }

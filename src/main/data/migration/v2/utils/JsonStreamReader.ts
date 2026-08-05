@@ -24,75 +24,40 @@ export class JsonStreamReader {
     batchSize: number,
     onBatch: (items: T[], batchIndex: number) => Promise<void>
   ): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
+    if (!Number.isInteger(batchSize) || batchSize <= 0) throw new Error('batchSize must be a positive integer')
 
-      let batch: T[] = []
-      let batchIndex = 0
-      let totalCount = 0
-      let isPaused = false
+    const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
+    let batch: T[] = []
+    let batchIndex = 0
+    let totalCount = 0
 
-      const processBatch = async () => {
-        if (batch.length === 0) return
+    // Async iteration supplies real backpressure: the parser cannot emit the
+    // next batch while the callback is still inserting the current one.
+    for await (const { value } of pipeline as AsyncIterable<{ value: T }>) {
+      batch.push(value)
+      totalCount++
+      if (batch.length < batchSize) continue
 
-        const currentBatch = batch
-        batch = []
-        isPaused = true
-        pipeline.pause()
+      const currentBatch = batch
+      batch = []
+      await onBatch(currentBatch, batchIndex++)
+    }
 
-        try {
-          await onBatch(currentBatch, batchIndex++)
-          isPaused = false
-          pipeline.resume()
-        } catch (error) {
-          reject(error)
-        }
-      }
-
-      pipeline.on('data', async ({ value }: { value: T }) => {
-        batch.push(value)
-        totalCount++
-
-        if (batch.length >= batchSize && !isPaused) {
-          await processBatch()
-        }
-      })
-
-      pipeline.on('end', async () => {
-        try {
-          // Process remaining items
-          if (batch.length > 0) {
-            await onBatch(batch, batchIndex)
-          }
-          resolve(totalCount)
-        } catch (error) {
-          reject(error)
-        }
-      })
-
-      pipeline.on('error', reject)
-    })
+    if (batch.length > 0) await onBatch(batch, batchIndex)
+    return totalCount
   }
 
   /**
    * Count total items in the JSON array without loading all data
    */
   async count(): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
-
-      let count = 0
-
-      pipeline.on('data', () => {
-        count++
-      })
-
-      pipeline.on('end', () => {
-        resolve(count)
-      })
-
-      pipeline.on('error', reject)
-    })
+    const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
+    let count = 0
+    for await (const entry of pipeline) {
+      void entry
+      count++
+    }
+    return count
   }
 
   /**
@@ -100,31 +65,15 @@ export class JsonStreamReader {
    * @param n - Number of items to read
    */
   async readSample<T>(n: number): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
+    if (!Number.isInteger(n) || n < 0) throw new Error('sample size must be a non-negative integer')
+    if (n === 0) return []
 
-      const items: T[] = []
-
-      pipeline.on('data', ({ value }: { value: T }) => {
-        items.push(value)
-        if (items.length >= n) {
-          pipeline.destroy()
-          resolve(items)
-        }
-      })
-
-      pipeline.on('end', () => {
-        resolve(items)
-      })
-
-      pipeline.on('error', (error) => {
-        // Ignore error from destroy()
-        if (items.length >= n) {
-          resolve(items)
-        } else {
-          reject(error)
-        }
-      })
-    })
+    const pipeline = createReadStream(this.filePath).pipe(parser()).pipe(streamArray())
+    const items: T[] = []
+    for await (const { value } of pipeline as AsyncIterable<{ value: T }>) {
+      items.push(value)
+      if (items.length >= n) break
+    }
+    return items
   }
 }

@@ -675,7 +675,7 @@ describe('ChatMigrator message block index', () => {
     expect(result?.messages).toHaveLength(1)
     expect(result?.messages[0]?.searchableText).toContain('Content of b1')
     expect(result?.messages[0]?.searchableText).toContain('Content of b2')
-    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
+    expect(readInBatches).toHaveBeenCalledWith(100, expect.any(Function))
   })
 })
 
@@ -859,6 +859,24 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     }
   }
 
+  function newMessage(id: string, topicId: string): NewMessage {
+    return {
+      id,
+      parentId: null,
+      topicId,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: id, state: 'done' }] },
+      searchableText: id,
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
+  }
+
   function stage(migrator: ChatMigrator, items: PreparedTopicData[]): void {
     const m = migrator as unknown as Record<string, unknown>
     m['stagedTopics'] = items
@@ -923,6 +941,47 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     expect(result.pinsInserted).toBe(0)
     const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'topic'))
     expect(pins).toHaveLength(0)
+  })
+
+  it('spills prepared topics to SQLite and inserts them without retaining the full chat set', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const context = ctxOf()
+    const prepareStaging = m['prepareTopicStaging'] as (ctx: MigrationContext) => void
+    const stagePrepared = m['stagePreparedTopic'] as (ctx: MigrationContext, data: PreparedTopicData) => void
+    const assignKeys = m['assignStagedOrderKeys'] as (ctx: MigrationContext) => void
+    const insert = m['insertStagedTopics'] as (ctx: MigrationContext) => {
+      topicsInserted: number
+      pinsInserted: number
+    }
+    const dropStaging = m['dropTopicStaging'] as (ctx: MigrationContext) => void
+
+    prepareStaging.call(migrator, context)
+    try {
+      for (let index = 0; index < 101; index++) {
+        stagePrepared.call(migrator, context, {
+          topic: newTopic(`spill-${index}`, index),
+          messages:
+            index === 0
+              ? Array.from({ length: 205 }, (_, messageIndex) =>
+                  newMessage(`spill-message-${messageIndex}`, `spill-${index}`)
+                )
+              : [],
+          pinned: index % 25 === 0
+        })
+      }
+
+      expect(m['stagedTopics']).toEqual([])
+      assignKeys.call(migrator, context)
+      const result = insert.call(migrator, context)
+
+      expect(result).toMatchObject({ topicsInserted: 101, pinsInserted: 5 })
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(101)
+      // 205 content messages are paged back in chunks of 100, plus one virtual root per topic.
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(306)
+    } finally {
+      dropStaging.call(migrator, context)
+    }
   })
 
   it('pin insertion uses ON CONFLICT DO NOTHING — a pre-existing pin row does not crash phase 3', async () => {
@@ -1313,7 +1372,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(byId.get('fe-unreferenced')).toBe('manual')
   })
 
-  describe('loadMigratedFileEntryIds', () => {
+  describe('loadMigratedFileEntryIdsForMessages', () => {
     it('returns only file_entry IDs referenced by image/file blocks that exist in DB', async () => {
       await seedFileEntry('fe-exists')
       await seedFileEntry('fe-also-exists')
@@ -1333,8 +1392,11 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
         }
       ]
 
-      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
-      const result = await fn.call(migrator, ctxOf())
+      const fn = m['loadMigratedFileEntryIdsForMessages'] as (
+        db: MigrationContext['db'],
+        messages: NewMessage[]
+      ) => Set<string>
+      const result = fn.call(migrator, ctxOf().db, (m['stagedTopics'] as PreparedTopicData[])[0].messages)
 
       expect(result).toEqual(new Set(['fe-exists', 'fe-also-exists']))
       expect(result.has('fe-not-in-db')).toBe(false)
@@ -1355,8 +1417,11 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
         }
       ]
 
-      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
-      const result = await fn.call(migrator, ctxOf())
+      const fn = m['loadMigratedFileEntryIdsForMessages'] as (
+        db: MigrationContext['db'],
+        messages: NewMessage[]
+      ) => Set<string>
+      const result = fn.call(migrator, ctxOf().db, (m['stagedTopics'] as PreparedTopicData[])[0].messages)
 
       expect(result.size).toBe(count)
       expect(result.has('fe-chunk-0000')).toBe(true)
@@ -1375,8 +1440,11 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
         }
       ]
 
-      const fn = m['loadMigratedFileEntryIds'] as (ctx: MigrationContext) => Promise<Set<string>>
-      const result = await fn.call(migrator, ctxOf())
+      const fn = m['loadMigratedFileEntryIdsForMessages'] as (
+        db: MigrationContext['db'],
+        messages: NewMessage[]
+      ) => Set<string>
+      const result = fn.call(migrator, ctxOf().db, (m['stagedTopics'] as PreparedTopicData[])[0].messages)
 
       expect(result.size).toBe(0)
     })
