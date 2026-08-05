@@ -1,7 +1,8 @@
 import { resolve } from 'path'
 
+import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -19,9 +20,9 @@ const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
 // Bundle/externalize split for the main process: everything in `dependencies` is
-// marked `external` below (kept in node_modules of the packaged app), and everything
+// externalized through electron-vite below (kept in node_modules of the packaged app), and everything
 // NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
-// rollup. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
+// Rolldown. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
 // `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
@@ -29,6 +30,8 @@ const isProd = process.env.NODE_ENV === 'production'
 const mainExternalDependencies = Object.keys(pkg.dependencies)
 const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
+// Mirrors electron-vite's dependency externalization so the bundle boundary can
+// be pinned without coupling tests to plugin internals.
 export const isMainExternalModule = (id: string) => {
   return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
 }
@@ -56,12 +59,14 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: {
+        include: ['bufferutil', 'utf-8-validate']
+      },
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
-      rollupOptions: {
-        external: isMainExternalModule,
+      rolldownOptions: {
         output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+          codeSplitting: false, // 内联所有动态导入，这是关键配置
+          comments: isProd ? { legal: false } : undefined
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -70,17 +75,12 @@ export default defineConfig({
       },
       sourcemap: isDev
     },
-    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
     }
   },
   preload: {
-    plugins: [
-      react({
-        tsDecorators: true
-      })
-    ],
+    plugins: [react()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
@@ -89,7 +89,7 @@ export default defineConfig({
     },
     build: {
       sourcemap: isDev,
-      rollupOptions: {
+      rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
         input: {
@@ -114,10 +114,8 @@ export default defineConfig({
         generatedRouteTree: resolve('src/renderer/routeTree.gen.ts'),
         routeTreeFileHeader: ['/* oxlint-disable */', '// @ts-nocheck', '// noinspection JSUnusedGlobalSymbols']
       }),
-      (async () => (await import('@tailwindcss/vite')).default())(),
-      react({
-        tsDecorators: true
-      }),
+      tailwindcss(),
+      react(),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer')
     ],
@@ -142,8 +140,10 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: ['pyodide'],
-      esbuildOptions: {
-        target: 'esnext' // for dev
+      rolldownOptions: {
+        transform: {
+          target: 'esnext' // for dev
+        }
       }
     },
     worker: {
@@ -151,7 +151,7 @@ export default defineConfig({
     },
     build: {
       target: 'esnext', // for build
-      rollupOptions: {
+      rolldownOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
@@ -164,9 +164,11 @@ export default defineConfig({
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
           warn(warning)
+        },
+        output: {
+          comments: isProd ? { legal: false } : undefined
         }
       }
-    },
-    esbuild: isProd ? { legalComments: 'none' } : {}
+    }
   }
 })

@@ -114,7 +114,7 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     scheduler = new SchedulerService()
     appUpdater = new AppUpdaterService()
 
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'PreferenceService':
           return prefStub

@@ -46,7 +46,7 @@ describe('runStartupRecovery — in-flight exclusion', () => {
 
   beforeEach(() => {
     const dbSvc = MockMainDbServiceExport.dbService
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'DbService') return dbSvc
       throw new Error(`Unexpected application.get('${name}')`)
     })

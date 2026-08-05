@@ -19,7 +19,9 @@ const { mockStart, mockStop, mockGetActiveUsageContext, captured } = vi.hoisted(
 }))
 
 vi.mock('../server', () => ({
-  ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+  ApiGateway: vi.fn(function ApiGatewayMock() {
+    return { start: mockStart, stop: mockStop, isRunning: () => true }
+  })
 }))
 
 vi.mock('@data/services/AgentService', () => ({

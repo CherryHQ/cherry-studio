@@ -335,8 +335,8 @@ describe('RightPaneHost', () => {
 
   it('wipes between the docked strip and full width without blanking the pane', async () => {
     const controls = useAnimationControls() as unknown as {
-      set: ReturnType<typeof vi.fn>
-      start: ReturnType<typeof vi.fn>
+      set: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      start: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     }
     const dockedStripClip =
       'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))'

@@ -18,8 +18,12 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
-  createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
-  createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
+  createAssistantServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
+  createAssistantFileToolsServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -111,10 +115,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildSystemPrompt: mocks.buildPrompt,
-    buildMemoriesSection: vi.fn(async () => undefined)
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildSystemPrompt: mocks.buildPrompt,
+      buildMemoriesSection: vi.fn(async () => undefined)
+    }
+  })
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({

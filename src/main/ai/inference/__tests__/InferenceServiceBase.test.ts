@@ -19,7 +19,7 @@ class FakeWorker extends EventEmitter {
 const fakeWorkers: FakeWorker[] = []
 
 vi.mock('node:worker_threads', () => ({
-  Worker: vi.fn(() => {
+  Worker: vi.fn(function WorkerMock() {
     const worker = new FakeWorker()
     fakeWorkers.push(worker)
     return worker

@@ -105,9 +105,9 @@ describe('useScrollPositionMemory', () => {
     scrollToIndex: ReturnType<typeof vi.fn>
   }
   let following: boolean
-  let enterFollowingAfterRestore: ReturnType<typeof vi.fn>
-  let enterReadingForRestore: ReturnType<typeof vi.fn>
-  let settleReadingRestore: ReturnType<typeof vi.fn>
+  let enterFollowingAfterRestore: ReturnType<typeof vi.fn<() => void>>
+  let enterReadingForRestore: ReturnType<typeof vi.fn<() => void>>
+  let settleReadingRestore: ReturnType<typeof vi.fn<() => void>>
   let keysByIndex: Record<number, string>
 
   const buildInputs = (overrides: Partial<ScrollPositionMemoryInputs> = {}): ScrollPositionMemoryInputs => ({
@@ -143,9 +143,9 @@ describe('useScrollPositionMemory', () => {
     scroller = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 }
     handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn() }
     following = false
-    enterFollowingAfterRestore = vi.fn()
-    enterReadingForRestore = vi.fn()
-    settleReadingRestore = vi.fn()
+    enterFollowingAfterRestore = vi.fn<() => void>()
+    enterReadingForRestore = vi.fn<() => void>()
+    settleReadingRestore = vi.fn<() => void>()
     keysByIndex = { 0: 'g0', 1: 'g1', 2: 'g2' }
   })
 

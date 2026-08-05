@@ -103,9 +103,9 @@ function createDeferred<T>() {
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -626,7 +626,7 @@ describe('ChatComposer', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),

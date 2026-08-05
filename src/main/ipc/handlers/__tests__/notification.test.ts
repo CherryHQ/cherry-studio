@@ -4,7 +4,9 @@ import type { Notification } from '@shared/types/notification'
 
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 vi.mock('@main/services/NotificationService', () => ({
-  default: vi.fn(() => ({ sendNotification: sendMock }))
+  default: vi.fn(function NotificationServiceMock() {
+    return { sendNotification: sendMock }
+  })
 }))
 
 import { notificationHandlers } from '../notification'

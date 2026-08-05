@@ -151,6 +151,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
 })
 
@@ -470,6 +471,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('suppresses only the dragged sidebar entry click after sorting settles', () => {
+    vi.useFakeTimers()
     const onChatOpen = vi.fn()
     const onAgentOpen = vi.fn()
     const sortableEntries: ResolvedSidebarEntry[] = [
@@ -502,6 +504,7 @@ describe('Sidebar resize handle', () => {
     const sortableCall = uiMocks.sortableCalls.at(-1)
     sortableCall.onDragStart({ active: { id: 'app:chat' } })
     sortableCall.onDragEnd()
+    vi.setSystemTime(Date.now() + 1_000)
 
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
     fireEvent.click(screen.getByRole('button', { name: 'Agent' }))

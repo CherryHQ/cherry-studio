@@ -84,7 +84,7 @@
     "oxlint": "1.76.0",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@ai-sdk/google": "^3.0.64",

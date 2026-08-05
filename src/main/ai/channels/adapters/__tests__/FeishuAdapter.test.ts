@@ -77,14 +77,20 @@ const mockWsStart = vi.fn().mockResolvedValue(undefined)
 let capturedEventHandlers: Record<string, (...args: unknown[]) => unknown> = {}
 
 vi.mock('@larksuiteoapi/node-sdk', () => ({
-  Client: vi.fn().mockImplementation(() => mockClient),
-  WSClient: vi.fn().mockImplementation(() => ({ start: mockWsStart })),
-  EventDispatcher: vi.fn().mockImplementation(() => ({
-    register: vi.fn().mockImplementation((handles: Record<string, (...args: unknown[]) => unknown>) => {
-      capturedEventHandlers = handles
-      return {}
-    })
-  })),
+  Client: vi.fn().mockImplementation(function ClientMock() {
+    return mockClient
+  }),
+  WSClient: vi.fn().mockImplementation(function WSClientMock() {
+    return { start: mockWsStart }
+  }),
+  EventDispatcher: vi.fn().mockImplementation(function EventDispatcherMock() {
+    return {
+      register: vi.fn().mockImplementation((handles: Record<string, (...args: unknown[]) => unknown>) => {
+        capturedEventHandlers = handles
+        return {}
+      })
+    }
+  }),
   AppType: { SelfBuild: 0 },
   Domain: { Feishu: 'https://open.feishu.cn', Lark: 'https://open.larksuite.com' },
   LoggerLevel: { warn: 2 }

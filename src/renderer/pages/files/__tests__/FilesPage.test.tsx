@@ -608,7 +608,9 @@ describe('FilesPage file operations', () => {
 
   it('imports selected files from the visible upload button', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
-    const fileApi = window.api.file as typeof window.api.file & { select: ReturnType<typeof vi.fn> }
+    const fileApi = window.api.file as typeof window.api.file & {
+      select: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     fileApi.select = vi.fn().mockResolvedValue([{ path: '/tmp/import-from-button.md' }])
     mockFiles([entry])
     mockFileStats(statsForEntries([entry]), refetchStats)

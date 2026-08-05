@@ -25,12 +25,14 @@ const {
     waitDocumentParsingResultMock,
     ocrMock,
     netFetchMock,
-    PaddleOCRClientMock: vi.fn(() => ({
-      getStatus: getStatusMock,
-      submitDocumentParsing: submitDocumentParsingMock,
-      waitDocumentParsingResult: waitDocumentParsingResultMock,
-      ocr: ocrMock
-    }))
+    PaddleOCRClientMock: vi.fn(function PaddleOCRClientMock() {
+      return {
+        getStatus: getStatusMock,
+        submitDocumentParsing: submitDocumentParsingMock,
+        waitDocumentParsingResult: waitDocumentParsingResultMock,
+        ocr: ocrMock
+      }
+    })
   }
 })
 
@@ -264,7 +266,7 @@ describe('paddleocr handlers', () => {
   })
 
   it('sanitizes image OCR result fetches and forbids redirects during the real ocr flow', async () => {
-    PaddleOCRClientMock.mockImplementationOnce((options?: { fetch?: typeof fetch }) => {
+    PaddleOCRClientMock.mockImplementationOnce(function PaddleOCRClientMockOnce(options?: { fetch?: typeof fetch }) {
       const safeFetch = options?.fetch
       if (!safeFetch) {
         throw new Error('Expected PaddleOCR client to receive a fetch implementation')
@@ -352,7 +354,7 @@ describe('paddleocr handlers', () => {
   })
 
   it('sanitizes document result fetches and forbids redirects during the real done flow', async () => {
-    PaddleOCRClientMock.mockImplementationOnce((options?: { fetch?: typeof fetch }) => {
+    PaddleOCRClientMock.mockImplementationOnce(function PaddleOCRClientMockOnce(options?: { fetch?: typeof fetch }) {
       const safeFetch = options?.fetch
       if (!safeFetch) {
         throw new Error('Expected PaddleOCR client to receive a fetch implementation')

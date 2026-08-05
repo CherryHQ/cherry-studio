@@ -16,9 +16,9 @@ import { WebContentsListener } from '../WebContentsListener'
 
 interface FakeWebContents {
   id: number
-  send: ReturnType<typeof vi.fn>
-  isDestroyed: ReturnType<typeof vi.fn>
-  once: ReturnType<typeof vi.fn>
+  send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  once: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 function fakeWc(): FakeWebContents {

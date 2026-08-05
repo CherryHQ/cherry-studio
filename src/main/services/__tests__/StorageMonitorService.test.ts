@@ -30,7 +30,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
     protected readonly _intervals: Array<{
       callback: () => void | Promise<void>
       intervalMs: number
-      disposable: { dispose: ReturnType<typeof vi.fn> }
+      disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
     }> = []
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     ipcHandle = vi.fn()
@@ -70,7 +70,7 @@ type ServiceInternals = {
   _intervals: Array<{
     callback: () => Promise<void>
     intervalMs: number
-    disposable: { dispose: ReturnType<typeof vi.fn> }
+    disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
 }
@@ -212,7 +212,7 @@ describe('StorageMonitorService', () => {
     queueDisk(0.5 * GB)
     await start(svc)
 
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
+    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn<(...args: any[]) => any>> }).ipcHandle
     const handler = ipcHandle.mock.calls.find((c) => c[0] === IpcChannel.StorageMonitor_GetHealth)?.[1]
     expect(handler).toBeDefined()
     expect(handler()).toEqual(expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB }))

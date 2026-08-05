@@ -37,6 +37,12 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
 }))
 
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key: string) => key)
+  }
+}))
+
 // Mock the find utility functions - crucial for the test
 vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
   // `[cite:id]` resolution is the behaviour under test in the tool-part cases below,
@@ -254,13 +260,6 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
-
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
 
   mockedMessages = [] // Clear messages for the next describe block
 })

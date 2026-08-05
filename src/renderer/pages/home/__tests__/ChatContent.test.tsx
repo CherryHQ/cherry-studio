@@ -245,7 +245,7 @@ describe('ChatContent', () => {
   } as any
 
   const originalApi = window.api as any
-  let streamOpen: ReturnType<typeof vi.fn>
+  let streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })

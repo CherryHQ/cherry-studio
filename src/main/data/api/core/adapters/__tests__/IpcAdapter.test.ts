@@ -47,7 +47,7 @@ const untrustedEvents = {
 } as Record<string, any>
 
 describe('IpcAdapter', () => {
-  let handleRequest: ReturnType<typeof vi.fn>
+  let handleRequest: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   let requestHandler: IpcHandler
 
   beforeEach(() => {

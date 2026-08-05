@@ -1,4 +1,5 @@
 const { Arch } = require('electron-builder')
+const { rebuild } = require('@electron/rebuild')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
@@ -67,6 +68,30 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+async function rebuildNativeModulesForElectron(context, rebuildFn = rebuild) {
+  const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
+  const platformName = context.packager.platform.name
+  const platform = platformToArch[platformName]
+  const electronVersion = context.packager.config.electronVersion
+
+  if (!platform || !electronVersion) {
+    throw new Error(`Cannot resolve Electron rebuild target for ${platformName}-${arch}`)
+  }
+
+  // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
+  // Force the ABI-sensitive addon from source for the exact target before app files are copied.
+  await rebuildFn({
+    buildPath: path.join(__dirname, '..'),
+    electronVersion,
+    platform,
+    arch,
+    onlyModules: ['better-sqlite3'],
+    force: true,
+    buildFromSource: true
+  })
+}
+exports.rebuildNativeModulesForElectron = rebuildNativeModulesForElectron
+
 // Most native packages encode Electron's platform key (win32) in their name, but some
 // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
@@ -99,6 +124,7 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  await rebuildNativeModulesForElectron(context)
   assertPrebuiltPackages(platform, arch)
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)

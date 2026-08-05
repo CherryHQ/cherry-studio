@@ -38,7 +38,6 @@ overrides:
   "seroval@<1.5.3": "1.5.3"
   "svgo@>=3.0.0 <3.3.4": "3.3.4"
   "tmp@>=0.2.0 <0.2.7": "0.2.7"
-  vite: "npm:rolldown-vite@7.3.0"
   yaml: "2.8.2"
   "@img/sharp-darwin-arm64": "0.34.5"
   "@img/sharp-darwin-x64": "0.34.5"

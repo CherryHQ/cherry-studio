@@ -495,7 +495,7 @@ const activeSessionMocks = vi.hoisted(() => ({
       | undefined
     isLoading: boolean
     sessionSource?: 'query' | 'pending' | 'none'
-    setActiveSessionId: ReturnType<typeof vi.fn>
+    setActiveSessionId: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }))
 

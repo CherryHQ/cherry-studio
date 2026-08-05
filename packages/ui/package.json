@@ -134,10 +134,10 @@
   },
   "devDependencies": {
     "@neplex/vectorizer": "^0.0.5",
-    "@storybook/addon-docs": "^10.0.5",
-    "@storybook/addon-themes": "^10.0.5",
-    "@storybook/react": "^10.1.11",
-    "@storybook/react-vite": "^10.0.5",
+    "@storybook/addon-docs": "^10.5.5",
+    "@storybook/addon-themes": "^10.5.5",
+    "@storybook/react": "^10.5.5",
+    "@storybook/react-vite": "^10.5.5",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
     "@svgr/plugin-prettier": "^8.1.0",
@@ -153,13 +153,13 @@
     "motion": "^12.42.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "storybook": "^10.0.5",
+    "storybook": "^10.5.5",
     "svgo": "^3.3.2",
     "ts-morph": "^27.0.2",
     "tsdown": "^0.22.14",
     "tsx": "^4.20.6",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@hookform/resolvers": "^5.0.0",

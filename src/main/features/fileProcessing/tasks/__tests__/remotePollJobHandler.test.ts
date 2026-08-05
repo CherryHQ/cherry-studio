@@ -207,7 +207,7 @@ describe('remotePollJobHandler.execute', () => {
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
 
-    const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls
+    const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls
     expect(patchCalls).toHaveLength(1)
     const persistedPayload = patchCalls[0][0] as { remoteState: Record<string, unknown> }
     expect(persistedPayload.remoteState).toMatchObject({
@@ -236,7 +236,9 @@ describe('remotePollJobHandler.execute', () => {
     const ctx = createCtx()
     await remotePollJobHandler.execute(ctx)
 
-    const allPatchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])
+    const allPatchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls.map(
+      (c) => c[0]
+    )
     const serialized = JSON.stringify(allPatchPayloads)
     expect(serialized).not.toContain('SUPER_SECRET')
     expect(serialized).not.toContain('apiKey')
@@ -296,7 +298,9 @@ describe('remotePollJobHandler.execute', () => {
     await vi.advanceTimersByTimeAsync(1_500)
     await exec
 
-    const patchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])
+    const patchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls.map(
+      (c) => c[0]
+    )
     expect(patchPayloads).toHaveLength(2)
     expect(patchPayloads[0]).toEqual({ remoteState: { providerTaskId: 't', stage: 'parsing', apiHost: 'https://h' } })
     expect(patchPayloads[1]).toEqual({ remoteState: { providerTaskId: 't', stage: 'exporting', apiHost: 'https://h' } })
