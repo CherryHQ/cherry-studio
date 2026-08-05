@@ -672,7 +672,7 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
+    it('includes cherry.bin and appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
       // Regression (PR #16402 review): the launch env must carry the bundled
       // git dir at the very tail so a terminal-launched CLI resolves a bare
       // `git` on a machine without system git, while any real git ahead wins.
@@ -694,6 +694,7 @@ describe('CodeCliService', () => {
 
         expect(result.success).toBe(true)
         const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';')).toContain('/mock/binary-data')
         expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
         expect(spawnEnv.Path).toContain('C:\\Windows\\System32')
         // The bat rewrites PATH inside the terminal, so the tail must be in the
