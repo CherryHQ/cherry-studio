@@ -2143,9 +2143,12 @@
             "kind": "budget",
             "max": 262144,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "xhigh"],
+        "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
           "max": 262144,
           "min": 0
@@ -7423,13 +7426,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
+            "values": ["none", "high", "max", "low", "xhigh"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
       }
     },
     {
@@ -13093,11 +13096,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09375
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.25
         }
       }
     },
@@ -20996,5 +20999,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "3c1a2cdf9bbd80a9"
+  "version": "937e8f8e99cf8b58"
 }
