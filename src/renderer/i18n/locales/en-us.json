@@ -7363,6 +7363,7 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
+        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
