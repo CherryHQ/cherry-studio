@@ -66,7 +66,7 @@ describe('PrintService', () => {
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({
       canceled: false,
       filePath: '/tmp/Meeting Notes.pdf'
-    } as never)
+    })
     writeFile.mockResolvedValue(undefined)
   })
 

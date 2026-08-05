@@ -718,13 +718,9 @@ describe('JobManager integration', () => {
       })
 
       const handles = Array.from({ length: 20 }, (_, i) =>
-        jobManager.enqueue(
-          'parallel.task' as never,
-          { message: `n-${i}`, sleepMs: 5 } as never,
-          {
-            queue: `parallel-${i}`
-          } as never
-        )
+        jobManager.enqueue('parallel.task' as never, { message: `n-${i}`, sleepMs: 5 } as never, {
+          queue: `parallel-${i}`
+        })
       )
 
       const settled = await Promise.all(handles.map((h) => h.finished))
@@ -750,20 +746,16 @@ describe('JobManager integration', () => {
       ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
 
       // Queue qB occupies the only global slot with a slow job.
-      const occupant = jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'occupant', sleepMs: 150 } as never,
-        { queue: 'qB' } as never
-      )
+      const occupant = jobManager.enqueue('cap.task' as never, { message: 'occupant', sleepMs: 150 } as never, {
+        queue: 'qB'
+      })
       await drainAllQueues(jobManager)
 
       // Queue qA is enqueued while the global cap is saturated → blocked pending,
       // even though qA's own per-queue slots are free.
-      const starved = jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'starved', sleepMs: 10 } as never,
-        { queue: 'qA' } as never
-      )
+      const starved = jobManager.enqueue('cap.task' as never, { message: 'starved', sleepMs: 10 } as never, {
+        queue: 'qA'
+      })
 
       // Pin the regression deterministically: qA's dispatch must have observed
       // the global cap saturated and set the flag. Drain first so qA's (fire-and-
@@ -811,11 +803,9 @@ describe('JobManager integration', () => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
 
-      const handle = jobManager.enqueue(
-        'retry.fallback.task' as never,
-        { message: 'doomed' } as never,
-        { maxAttempts: 3 } as never
-      )
+      const handle = jobManager.enqueue('retry.fallback.task' as never, { message: 'doomed' } as never, {
+        maxAttempts: 3
+      })
 
       // Drive the dispatch + handler.execute + fallback finalize chain to
       // completion. Poll the row instead of using a fixed sleep — the
@@ -868,11 +858,7 @@ describe('JobManager integration', () => {
         throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
       })
 
-      jobManager.enqueue(
-        'retry.fallback.task.2' as never,
-        { message: 'doubled-doom' } as never,
-        { maxAttempts: 3 } as never
-      )
+      jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, { maxAttempts: 3 })
 
       // Drive the dispatch + handler + fallback chain. With both retry and
       // terminal writes mocked to fail, the production code falls all the
@@ -918,14 +904,10 @@ describe('JobManager integration', () => {
       const parent = jobManager.enqueue('settled.payload' as never, { label: 'parent' } as never)
       await parent.finished
 
-      const child = jobManager.enqueue(
-        'settled.payload' as never,
-        { label: 'child' } as never,
-        {
-          parentId: parent.id,
-          metadata: { origin: 'test' }
-        } as never
-      )
+      const child = jobManager.enqueue('settled.payload' as never, { label: 'child' } as never, {
+        parentId: parent.id,
+        metadata: { origin: 'test' }
+      })
       const snapshot = await child.finished
       expect(snapshot.status).toBe('completed')
 
@@ -1019,25 +1001,16 @@ describe('JobManager integration', () => {
       })
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
 
-      const first = jobManager.enqueue(
-        'tx.idem' as never,
-        { message: 'one', sleepMs: 300 } as never,
-        {
-          idempotencyKey: 'tx-idem-key'
-        } as never
-      )
+      const first = jobManager.enqueue('tx.idem' as never, { message: 'one', sleepMs: 300 } as never, {
+        idempotencyKey: 'tx-idem-key'
+      })
 
       let second!: JobHandle
       db.transaction(
         (tx) => {
-          second = jobManager.enqueueTx(
-            tx,
-            'tx.idem' as never,
-            { message: 'two' } as never,
-            {
-              idempotencyKey: 'tx-idem-key'
-            } as never
-          )
+          second = jobManager.enqueueTx(tx, 'tx.idem' as never, { message: 'two' } as never, {
+            idempotencyKey: 'tx-idem-key'
+          })
         },
         { behavior: 'immediate' }
       )
@@ -1059,14 +1032,9 @@ describe('JobManager integration', () => {
       let handle!: JobHandle
       db.transaction(
         (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 150
-            } as never
-          )
+          handle = jobManager.enqueueTx(tx, 'tx.delayed' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 150
+          })
         },
         { behavior: 'immediate' }
       )
@@ -1100,14 +1068,9 @@ describe('JobManager integration', () => {
       let handle!: JobHandle
       db.transaction(
         (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed.skew' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 50
-            } as never
-          )
+          handle = jobManager.enqueueTx(tx, 'tx.delayed.skew' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 50
+          })
         },
         { behavior: 'immediate' }
       )

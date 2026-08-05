@@ -550,7 +550,7 @@ describe('writeCliConfigDraft', () => {
     // that remote compaction is on, regardless of the actual toggle — so a provider whose
     // display name really is "OpenAI" must never be written verbatim unless that mode is on.
     it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -565,7 +565,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),

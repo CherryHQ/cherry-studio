@@ -94,7 +94,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: true,
       content: [{ type: 'text', text: 'boom from server' }]
-    } as McpCallToolResponse)
+    })
 
     await expect(execute({ q: 'x' }, { toolCallId: 'call-2' } as any)).rejects.toThrow('boom from server')
   })
@@ -107,7 +107,7 @@ describe('mcpTools execute wrapper', () => {
     const runtimeResult: McpCallToolResponse = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
-    } as McpCallToolResponse
+    }
     callTool.mockResolvedValue(runtimeResult)
 
     const out = (await execute({ q: 'x' }, { toolCallId: 'call-3' } as any)) as McpCallToolResponse & {

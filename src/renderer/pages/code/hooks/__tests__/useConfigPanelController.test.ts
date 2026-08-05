@@ -482,7 +482,7 @@ describe('useConfigPanelController', () => {
         result.current.openConfigurePanel({ id: 'p1' } as Provider)
       })
       await result.current.configPanelProps!.onSubmit({
-        modelId: 'anthropic::claude-sonnet-4-5' as any,
+        modelId: 'anthropic::claude-sonnet-4-5',
         config: { permissionMode: 'plan' }
       })
 

@@ -273,7 +273,7 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
         if (optimistic !== undefined) {
           await writeCache(collectionUrl, optimistic)
         }
-        await patchOrder({ params: { id }, body: anchor } as Parameters<typeof patchOrder>[0])
+        await patchOrder({ params: { id }, body: anchor })
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic
@@ -311,7 +311,7 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
 
       try {
         await writeCache(collectionUrl, optimistic)
-        await patchBatch({ body: { moves } } as Parameters<typeof patchBatch>[0])
+        await patchBatch({ body: { moves } })
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
         await invalidateCache(collectionUrl)

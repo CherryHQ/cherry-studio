@@ -1460,7 +1460,7 @@ export class AiStreamManager extends BaseService {
         // shape as runtimeTimingSink) so the UI can show "compacting".
         compactionSink: (anchorId, data) => {
           // Broadcast for the live indicator…
-          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk, exec)
+          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data }, exec)
           // …and record it, because the broadcast branch is NOT the accumulator
           // branch (pipeStreamLoop tees the stream), so nothing here would
           // otherwise reach the persisted message.

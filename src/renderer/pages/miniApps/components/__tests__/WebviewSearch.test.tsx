@@ -261,7 +261,7 @@ describe('WebviewSearch', () => {
         activeMatchOrdinal: 1,
         selectionArea: undefined as unknown as Electron.Rectangle,
         finalUpdate: false
-      } as Electron.FoundInPageResult)
+      })
     })
 
     const nextButton = screen.getByRole('button', { name: 'Next match' })

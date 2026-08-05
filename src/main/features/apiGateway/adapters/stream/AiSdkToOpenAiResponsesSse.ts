@@ -425,7 +425,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
             type: 'output_text',
             text: this.textContent,
             annotations: []
-          } as ResponseOutputText
+          }
         ]
       },
       sequence_number: this.nextSequence()
@@ -443,7 +443,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
           type: 'output_text',
           text: this.textContent,
           annotations: []
-        } as ResponseOutputText
+        }
       ]
     }
     const completedEvent: ResponseStreamEvent = {

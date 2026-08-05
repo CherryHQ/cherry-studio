@@ -37,7 +37,7 @@ function makeInput(overrides: Partial<PaintingData> = {}): GenerateInput {
       apiHost: 'https://example.com',
       isEnabled: true,
       getApiKey: async () => 'api-key'
-    } as never,
+    },
     tab: 'default',
     abortController: new AbortController()
   }

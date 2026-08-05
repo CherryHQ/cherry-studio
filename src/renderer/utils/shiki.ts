@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
 import type { SpecialLanguage, ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'

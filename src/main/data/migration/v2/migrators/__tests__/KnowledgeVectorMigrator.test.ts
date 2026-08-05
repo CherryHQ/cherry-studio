@@ -1368,7 +1368,7 @@ describe('KnowledgeVectorMigrator', () => {
             throw new Error('disk I/O error')
           })
         }))
-      })) as any
+      }))
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
@@ -2389,7 +2389,7 @@ describe('KnowledgeVectorMigrator', () => {
         set: vi.fn(() => ({
           where: vi.fn().mockRejectedValue(new Error('pin update failed'))
         }))
-      })) as any
+      }))
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)

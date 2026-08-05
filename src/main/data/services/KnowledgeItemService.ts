@@ -411,7 +411,7 @@ export class KnowledgeItemService {
     update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
@@ -659,7 +659,7 @@ export class KnowledgeItemService {
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
-          data: { ...existingItem.data, ...patch } as KnowledgeItemData
+          data: { ...existingItem.data, ...patch }
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()

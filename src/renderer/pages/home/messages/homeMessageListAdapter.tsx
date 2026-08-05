@@ -471,7 +471,7 @@ export function useHomeMessageListProviderValue({
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
-          } as CherryMessagePart
+          }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
           return
@@ -555,7 +555,7 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
-      await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await write.editMessage(messageId, [...baseParts, loadingPart])
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
@@ -575,7 +575,7 @@ export function useHomeMessageListProviderValue({
         pendingUpdate = pendingUpdate
           .then(() => {
             if (!isCurrentTranslation()) return
-            return write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+            return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
             logger.error('Failed to update message translation:', error as Error, { messageId })

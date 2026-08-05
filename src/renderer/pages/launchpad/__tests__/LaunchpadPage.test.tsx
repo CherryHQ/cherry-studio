@@ -159,17 +159,16 @@ import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
-const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
-  ({
-    appId,
-    name: `${appId[0].toUpperCase()}${appId.slice(1)}`,
-    logo: `${appId}-logo`,
-    url: `https://${appId}.example.com`,
-    presetMiniAppId: appId,
-    status: 'pinned',
-    orderKey: '',
-    ...overrides
-  }) as MiniApp
+const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp => ({
+  appId,
+  name: `${appId[0].toUpperCase()}${appId.slice(1)}`,
+  logo: `${appId}-logo`,
+  url: `https://${appId}.example.com`,
+  presetMiniAppId: appId,
+  status: 'pinned',
+  orderKey: '',
+  ...overrides
+})
 
 afterEach(() => {
   cleanup()

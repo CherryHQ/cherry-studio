@@ -29,7 +29,7 @@ type AgentModelFilter = ((model: Model) => boolean) & { [AGENT_ONLY_FILTER]?: tr
 
 /** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
 export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
-  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
+  return Boolean(filter?.[AGENT_ONLY_FILTER])
 }
 
 /**

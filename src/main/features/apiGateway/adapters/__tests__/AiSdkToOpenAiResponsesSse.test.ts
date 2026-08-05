@@ -194,7 +194,7 @@ describe('AiSdkToOpenAiResponsesSse', () => {
         delta: 'x',
         logprobs: [],
         sequence_number: 0
-      } as ResponseStreamEvent)
+      })
       expect(frame).toContain('event: response.output_text.delta')
       expect(frame).toContain('data: ')
       expect(frame.endsWith('\n\n')).toBe(true)

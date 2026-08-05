@@ -285,7 +285,7 @@ describe('paddleocr handlers', () => {
       }
     })
 
-    netFetchMock.mockResolvedValue({ ok: true } as never)
+    netFetchMock.mockResolvedValue({ ok: true })
 
     const prepared = await paddleImageToTextHandler.prepare(imageFile, createConfig('image_to_text', 'PP-OCRv6'))
     if (prepared.mode !== 'background') {
@@ -373,7 +373,7 @@ describe('paddleocr handlers', () => {
       }
     })
 
-    netFetchMock.mockResolvedValue({ ok: true } as never)
+    netFetchMock.mockResolvedValue({ ok: true })
     getStatusMock.mockResolvedValueOnce({ state: 'done' })
 
     await expect(

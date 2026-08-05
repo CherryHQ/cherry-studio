@@ -34,16 +34,15 @@ const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video:
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
 
 function userMessage(parts: CherryMessagePart[]): CherryUIMessage {
-  return { id: 'm1', role: 'user', parts } as CherryUIMessage
+  return { id: 'm1', role: 'user', parts }
 }
-const fileWithEntry = (id: string, filename: string, mediaType: string): CherryMessagePart =>
-  ({
-    type: 'file',
-    url: `file:///x/${filename}`,
-    mediaType,
-    filename,
-    providerMetadata: { cherry: { fileEntryId: id } }
-  }) as CherryMessagePart
+const fileWithEntry = (id: string, filename: string, mediaType: string): CherryMessagePart => ({
+  type: 'file',
+  url: `file:///x/${filename}`,
+  mediaType,
+  filename,
+  providerMetadata: { cherry: { fileEntryId: id } }
+})
 
 const run = (
   parts: CherryMessagePart[],

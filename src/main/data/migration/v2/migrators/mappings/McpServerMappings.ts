@@ -24,7 +24,7 @@ const VALID_MCP_SERVER_TYPES = new Set(['stdio', 'sse', 'streamableHttp', 'inMem
  */
 function toMcpServerType(value: unknown): InsertMcpServerRow['type'] {
   if (typeof value !== 'string') return null
-  if (VALID_MCP_SERVER_TYPES.has(value)) return value as InsertMcpServerRow['type']
+  if (VALID_MCP_SERVER_TYPES.has(value)) return value
   if (value.includes('http')) return 'streamableHttp'
   return null
 }

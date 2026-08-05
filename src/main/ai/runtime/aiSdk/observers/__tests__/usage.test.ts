@@ -158,7 +158,7 @@ describe('attachUsageObserver', () => {
         totalTokens: 14,
         inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
         outputTokenDetails: { textTokens: undefined, reasoningTokens: 1 }
-      } as LanguageModelUsage)
+      })
     )
 
     expect(written).toHaveLength(1)

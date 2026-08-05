@@ -76,13 +76,13 @@ describe('agentSessionHandlers', () => {
       const session = { id: 'session-latest' }
       getLatestUpdatedMock.mockReturnValueOnce(session)
 
-      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({})).resolves.toEqual({ session })
     })
 
     it('returns { session: null } when there are no sessions', async () => {
       getLatestUpdatedMock.mockReturnValueOnce(null)
 
-      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({})).resolves.toEqual({ session: null })
     })
   })
 
@@ -97,7 +97,7 @@ describe('agentSessionHandlers', () => {
           name: 'Renamed session',
           isNameManuallyEdited: true
         }
-      } as never)
+      })
 
       expect(updateMock).toHaveBeenCalledWith('session-1', {
         name: 'Renamed session',
@@ -148,7 +148,7 @@ describe('agentSessionHandlers', () => {
 
       const result = await agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
         params: { agentId: 'agent-1' }
-      } as never)
+      })
 
       expect(deleteByAgentIdMock).toHaveBeenCalledWith('agent-1')
       expect(deleteMock).not.toHaveBeenCalled()
@@ -159,7 +159,7 @@ describe('agentSessionHandlers', () => {
       await expect(
         agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
           params: { agentId: '' }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(deleteByAgentIdMock).not.toHaveBeenCalled()
@@ -173,7 +173,7 @@ describe('agentSessionHandlers', () => {
 
       const result = await agentSessionHandlers['/agent-sessions'].DELETE({
         query: { ids: 'session-a,session-b' }
-      } as never)
+      })
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
       expect(deleteMock).not.toHaveBeenCalled()
@@ -186,7 +186,7 @@ describe('agentSessionHandlers', () => {
 
       const result = await agentSessionHandlers['/agent-sessions'].DELETE({
         query: { ids: ' session-a, , session-b ' }
-      } as never)
+      })
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
       expect(result).toEqual(response)
@@ -196,7 +196,7 @@ describe('agentSessionHandlers', () => {
       await expect(
         agentSessionHandlers['/agent-sessions'].DELETE({
           query: { ids: ' , , ' }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()
@@ -208,7 +208,7 @@ describe('agentSessionHandlers', () => {
       await expect(
         agentSessionHandlers['/agent-sessions'].DELETE({
           query: { ids }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()

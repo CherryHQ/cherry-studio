@@ -149,14 +149,14 @@ export const useCodeCli = () => {
 
   const setTerminal = useCallback(
     async (terminal: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, terminal }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, terminal }))
     },
     [patchToolState, selectedCliTool]
   )
 
   const setDirectory = useCallback(
     async (directory: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, directory }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, directory }))
     },
     [patchToolState, selectedCliTool]
   )

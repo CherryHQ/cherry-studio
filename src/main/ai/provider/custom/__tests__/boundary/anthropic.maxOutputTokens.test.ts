@@ -10,7 +10,7 @@ const prompt: LanguageModelV3CallOptions['prompt'] = [
 ]
 
 function captureRequest(modelFactory: (fetch: typeof globalThis.fetch) => LanguageModelV3, options = {}) {
-  return captureWithFetch((fetch) => modelFactory(fetch).doStream({ prompt, ...options } as LanguageModelV3CallOptions))
+  return captureWithFetch((fetch) => modelFactory(fetch).doStream({ prompt, ...options }))
 }
 
 function bodyOf(request: Awaited<ReturnType<typeof captureWithFetch>>): Record<string, unknown> {

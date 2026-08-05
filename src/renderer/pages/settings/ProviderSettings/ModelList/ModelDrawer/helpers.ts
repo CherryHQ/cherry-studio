@@ -24,7 +24,7 @@ const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
 
 const CAPABILITY_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
   Object.entries(TOGGLE_TO_CAPABILITY).map(([key, value]) => [value, key as ModelCapabilityToggle])
-) as Record<string, ModelCapabilityToggle>
+)
 
 export const MODEL_DRAWER_CURRENCY_SYMBOLS = ['$', '¥'] as const
 

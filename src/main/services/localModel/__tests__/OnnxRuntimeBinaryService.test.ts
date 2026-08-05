@@ -159,9 +159,9 @@ describe('OnnxRuntimeBinaryService', () => {
   it('falls back to the second mirror when the first fails', async () => {
     isInChina.mockResolvedValue(false)
     vi.mocked(net.fetch)
-      .mockImplementationOnce((async () => {
+      .mockImplementationOnce(async () => {
         throw new Error('network down')
-      }) as unknown as typeof net.fetch)
+      })
       .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
 
     await onnxRuntimeBinaryService.ensure(new AbortController().signal)

@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    sessionStatus: 'ready' as string,
+    sessionStatus: 'ready',
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,

@@ -450,7 +450,7 @@ describe('runRestorePromotion', () => {
     // Crash arrangement: additive moved, live renamed aside, work untouched.
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -476,7 +476,7 @@ describe('runRestorePromotion', () => {
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
     renameSync(workPath(), livePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
     await runRestorePromotion()
 
@@ -501,7 +501,7 @@ describe('runRestorePromotion', () => {
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
     renameSync(workPath(), livePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -531,7 +531,7 @@ describe('runRestorePromotion', () => {
     renameSync(liveNote(), noteAside())
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' })
 
     await runRestorePromotion()
 
@@ -572,7 +572,7 @@ describe('runRestorePromotion', () => {
     renameSync(livePath(), asidePath())
     rmSync(workPath())
     writeFileSync(livePath(), 'THIS IS NOT A SQLITE DATABASE'.repeat(300))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
     await runRestorePromotion()
 
@@ -609,7 +609,7 @@ describe('runRestorePromotion', () => {
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
     renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' })
 
     await runRestorePromotion()
 
@@ -642,7 +642,7 @@ describe('runRestorePromotion', () => {
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
     renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -738,7 +738,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
       markerFailure.shouldFail = (j) => j.state === 'promoting' && j.step === 'work-promoted'
 
       await runRestorePromotion()
@@ -882,7 +882,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(liveKbDir(), 'user.txt'), 'USER-KB')
       writeFileSync(liveAddedNote(), 'USER-DATA')
       renameSync(livePath(), asidePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       await runRestorePromotion()
 
@@ -939,7 +939,7 @@ describe('runRestorePromotion', () => {
       // The work slot must be empty too — mid-revert the candidate DB was
       // already parked as work-failed-*, so nothing here reads as resumable.
       rmSync(workPath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
       markRestoreFailedAfterCrash()
 
@@ -960,7 +960,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
       markRestoreFailedAfterCrash()
 
@@ -981,7 +981,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       markRestoreFailedAfterCrash()
 
@@ -998,7 +998,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       const journal = await buildJournal()
       renameSync(livePath(), asidePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       expect(isLiveDbStranded()).toBe(true)
     })

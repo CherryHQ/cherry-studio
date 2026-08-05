@@ -383,7 +383,7 @@ describe('SubWindowService', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([{}])
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      svc.attachTab(tab, 'sub1' as never)
+      svc.attachTab(tab, 'sub1')
 
       expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
@@ -392,7 +392,7 @@ describe('SubWindowService', () => {
     it('skips broadcast and close when no main window exists (tab must not be lost)', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([])
 
-      svc.attachTab(tab, 'sub1' as never)
+      svc.attachTab(tab, 'sub1')
 
       expect(ipcApiServiceMock.broadcastToType).not.toHaveBeenCalled()
       expect(windowManagerMock.close).not.toHaveBeenCalled()
@@ -402,7 +402,7 @@ describe('SubWindowService', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([{}])
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      svc.attachTab(tab, 'main1' as never)
+      svc.attachTab(tab, 'main1')
 
       expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
@@ -413,14 +413,14 @@ describe('SubWindowService', () => {
     it('pins a SubWindow caller and returns true', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      expect(svc.setAlwaysOnTop('sub1' as never, true)).toBe(true)
+      expect(svc.setAlwaysOnTop('sub1', true)).toBe(true)
       expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub1', true)
     })
 
     it('rejects (false) a non-SubWindow caller without touching setAlwaysOnTop', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      expect(svc.setAlwaysOnTop('main1' as never, true)).toBe(false)
+      expect(svc.setAlwaysOnTop('main1', true)).toBe(false)
       expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
     })
 

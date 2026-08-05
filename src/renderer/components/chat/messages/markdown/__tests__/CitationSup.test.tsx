@@ -117,7 +117,7 @@ describe('CitationSup', () => {
   it('drops renderer-only props before reaching the DOM', () => {
     render(
       <CitationSup
-        node={{ position: undefined } as never}
+        node={{ position: undefined }}
         data-citation="3"
         citationRegistry={new Map([[3, knowledgeCitation]])}
       />

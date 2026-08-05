@@ -295,7 +295,7 @@ describe('ProviderModelMappings', () => {
             authType: 'apiKey',
             region: 'us-east-1'
           }
-        } as never
+        }
       )
 
       expect(result.authConfig).toEqual({ type: 'api-key-aws', region: 'us-east-1' })

@@ -48,7 +48,7 @@ describe('tagHandlers', () => {
     it('should delegate GET to tagService.list', async () => {
       listTagsMock.mockResolvedValueOnce([{ id: 'tag-1', name: 'work' }])
 
-      const result = await tagHandlers['/tags'].GET({} as never)
+      const result = await tagHandlers['/tags'].GET({})
 
       expect(listTagsMock).toHaveBeenCalledOnce()
       expect(result).toEqual([{ id: 'tag-1', name: 'work' }])
@@ -60,7 +60,7 @@ describe('tagHandlers', () => {
       await expect(
         tagHandlers['/tags'].POST({
           body: { name: 'work', color: '#ff0000' }
-        } as never)
+        })
       ).resolves.toMatchObject({ id: 'tag-1' })
 
       expect(createTagMock).toHaveBeenCalledWith({ name: 'work', color: '#ff0000' })
@@ -70,7 +70,7 @@ describe('tagHandlers', () => {
       await expect(
         tagHandlers['/tags'].POST({
           body: { name: 'work', color: '#GGGGGG' }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createTagMock).not.toHaveBeenCalled()
@@ -80,7 +80,7 @@ describe('tagHandlers', () => {
       await expect(
         tagHandlers['/tags'].POST({
           body: { name: '', color: '#ff0000' }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createTagMock).not.toHaveBeenCalled()
@@ -90,7 +90,7 @@ describe('tagHandlers', () => {
       await expect(
         tagHandlers['/tags'].POST({
           body: { name: 'x'.repeat(65), color: '#ff0000' }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createTagMock).not.toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('tagHandlers', () => {
       updateTagMock.mockResolvedValueOnce({ id: 'tag-1', name: 'updated', color: null })
       deleteTagMock.mockResolvedValueOnce(undefined)
 
-      await expect(tagHandlers['/tags/:id'].GET({ params: { id: TAG_ID } } as never)).resolves.toEqual({
+      await expect(tagHandlers['/tags/:id'].GET({ params: { id: TAG_ID } })).resolves.toEqual({
         id: 'tag-1',
         name: 'work'
       })
@@ -112,10 +112,10 @@ describe('tagHandlers', () => {
         tagHandlers['/tags/:id'].PATCH({
           params: { id: TAG_ID },
           body: { name: 'updated', color: null }
-        } as never)
+        })
       ).resolves.toEqual({ id: 'tag-1', name: 'updated', color: null })
 
-      await expect(tagHandlers['/tags/:id'].DELETE({ params: { id: TAG_ID } } as never)).resolves.toBeUndefined()
+      await expect(tagHandlers['/tags/:id'].DELETE({ params: { id: TAG_ID } })).resolves.toBeUndefined()
 
       expect(getTagByIdMock).toHaveBeenCalledWith(TAG_ID)
       expect(updateTagMock).toHaveBeenCalledWith(TAG_ID, { name: 'updated', color: null })
@@ -123,7 +123,7 @@ describe('tagHandlers', () => {
     })
 
     it('should reject invalid tag ids in path params before calling the service', async () => {
-      await expect(tagHandlers['/tags/:id'].GET({ params: { id: 'not-a-uuid' } } as never)).rejects.toHaveProperty(
+      await expect(tagHandlers['/tags/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )

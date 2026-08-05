@@ -27,7 +27,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private currentWriter?: WritableStreamDefaultWriter<UIMessageChunk>
 
   constructor(public readonly params: AgentLoopParams<T>) {
-    attachUsageObserver(this as Agent)
+    attachUsageObserver(this)
   }
 
   /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
@@ -53,7 +53,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const list = this.observers[key]
       if (!list) continue
       for (const fn of list) {
-        parts.push({ [key]: fn } as Partial<AgentLoopHooks>)
+        parts.push({ [key]: fn })
       }
     }
     if (this.params.hookParts) parts.push(...this.params.hookParts)
@@ -71,9 +71,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       plugins: params.plugins,
       agentSettings: {
         // Tools
-        tools: toolsWithHooks as ToolSet,
+        tools: toolsWithHooks,
         toolChoice: opts.toolChoice,
-        activeTools: opts.activeTools as Array<keyof ToolSet>,
+        activeTools: opts.activeTools,
         // System
         instructions: params.system,
         // CallSettings (model parameters)

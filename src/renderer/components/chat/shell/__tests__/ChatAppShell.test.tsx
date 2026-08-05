@@ -123,7 +123,7 @@ describe('ChatAppShell', () => {
         observe: instance.observe,
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {

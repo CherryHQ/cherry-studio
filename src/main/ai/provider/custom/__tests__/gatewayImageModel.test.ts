@@ -16,18 +16,17 @@ vi.mock('@ai-sdk/gateway', () => ({
 import { createGatewayGeminiImageModel, isGatewayGeminiImageModel } from '../gateway/gatewayImageModel'
 import { createGatewayWithImageModel } from '../gateway/gatewayProvider'
 
-const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions =>
-  ({
-    prompt: 'a fox',
-    n: 1,
-    size: undefined,
-    aspectRatio: undefined,
-    seed: undefined,
-    files: undefined,
-    mask: undefined,
-    providerOptions: {},
-    ...overrides
-  }) as ImageModelV3CallOptions
+const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+  prompt: 'a fox',
+  n: 1,
+  size: undefined,
+  aspectRatio: undefined,
+  seed: undefined,
+  files: undefined,
+  mask: undefined,
+  providerOptions: {},
+  ...overrides
+})
 
 /** Minimal LanguageModelV3 whose doGenerate returns a single image file part. */
 const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV3 =>

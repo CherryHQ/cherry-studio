@@ -68,7 +68,7 @@ function painting(overrides: Partial<PaintingData> = {}): PaintingData {
     prompt: '',
     files: [],
     ...overrides
-  } as PaintingData
+  }
 }
 
 describe('PaintingModelSelector', () => {

@@ -69,7 +69,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
 
     if (shouldConsume) {
       const restSearch = omit(search, ['filter', 'id'])
-      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
+      void navigate({ to: '/settings/provider', search: restSearch, replace: true })
     }
   }, [navigate, search, setSelectedProviderId, visibleProviders])
 

@@ -236,5 +236,5 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   }
   provider.imageModel = createImageModelV3
 
-  return provider as DmxapiProvider
+  return provider
 }

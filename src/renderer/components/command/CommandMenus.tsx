@@ -783,7 +783,7 @@ export function CommandPopupMenu({
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       onOpenChange?.(true)
       try {
-        const result = await window.api.command.showNativePopupMenu(model as never, anchor)
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
         if (result?.type === 'command') {
           runtime.execute(result.command)
         } else if (result?.type === 'custom') {

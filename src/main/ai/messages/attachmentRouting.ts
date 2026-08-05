@@ -153,13 +153,13 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
-    kept.push(inlined as UIMessage['parts'][number])
+    kept.push(inlined)
     return true
   }
 
   for (const part of message.parts) {
     if (part.type !== 'file') {
-      kept.push(part as UIMessage['parts'][number])
+      kept.push(part)
       continue
     }
 
@@ -171,14 +171,14 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
-        kept.push(noteOf(name) as UIMessage['parts'][number])
+        kept.push(noteOf(name))
       } else if (!ctx.nativeSupport.image && inlined.mediaType.startsWith('image/')) {
         kept.push({
           type: 'text',
           text: '[image attachment omitted: this model does not accept image input]'
-        } as UIMessage['parts'][number])
+        })
       } else {
-        kept.push(inlined as UIMessage['parts'][number])
+        kept.push(inlined)
       }
       continue
     }
@@ -198,7 +198,7 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle) as UIMessage['parts'][number])
+          kept.push(noteOf(handle))
         }
         continue
       }
@@ -210,27 +210,27 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
         if (ocrText === null) {
           if (!(await inlineNative(part))) {
             logger.warn('Native image fallback failed; degrading to note', { messageId: message.id, displayName })
-            kept.push(noteOf(handle) as UIMessage['parts'][number])
+            kept.push(noteOf(handle))
           }
           continue
         }
         const text = `Attached file "${handle}":\n${capInlineText(handle, ocrText, ctx.isToolCapable, ctx.cap)}`
-        kept.push({ type: 'text', text } as UIMessage['parts'][number])
+        kept.push({ type: 'text', text })
         continue
       }
 
       // Non-native first-party attachment → inline its (capped) text.
       const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
       const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
-      kept.push({ type: 'text', text } as UIMessage['parts'][number])
+      kept.push({ type: 'text', text })
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
-      kept.push(noteOf(handle) as UIMessage['parts'][number])
+      kept.push(noteOf(handle))
     }
   }
 
-  return { ...message, parts: kept } as T
+  return { ...message, parts: kept }
 }
 
 /**

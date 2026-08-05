@@ -60,7 +60,7 @@ describe('useTranslateLanguages', () => {
 
     const { result } = renderHook(() => useTranslateLanguages())
 
-    result.current.getLabel('NOT-A-CODE' as any)
+    result.current.getLabel('NOT-A-CODE')
     result.current.getLabel(null)
 
     expect(warnSpy).toHaveBeenCalledTimes(1)
@@ -75,15 +75,15 @@ describe('useTranslateLanguages', () => {
     const removeTrigger = vi.fn().mockResolvedValue(undefined)
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/translate/languages') {
-        return { trigger: addTrigger, isLoading: false, error: undefined } as any
+        return { trigger: addTrigger, isLoading: false, error: undefined }
       }
       if (method === 'PATCH' && path === '/translate/languages/:langCode') {
-        return { trigger: updateTrigger, isLoading: false, error: undefined } as any
+        return { trigger: updateTrigger, isLoading: false, error: undefined }
       }
       if (method === 'DELETE' && path === '/translate/languages/:langCode') {
-        return { trigger: removeTrigger, isLoading: false, error: undefined } as any
+        return { trigger: removeTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
     const { result } = renderHook(() => useTranslateLanguages())

@@ -235,7 +235,7 @@ const translateRecursively = async (
       if (typeof value === 'string') {
         newObj[key] = value
       } else if (typeof value === 'object' && value !== null) {
-        newObj[key] = await translateRecursively(value as I18N, systemPrompt, postProcess)
+        newObj[key] = await translateRecursively(value, systemPrompt, postProcess)
       } else {
         newObj[key] = value
         if (!['string', 'object'].includes(typeof value)) {
@@ -254,7 +254,7 @@ const countTranslatableStrings = (obj: I18N): number =>
     if (typeof value === 'string') {
       return count + (value.startsWith('[to be translated]') ? 1 : 0)
     } else if (typeof value === 'object' && value !== null) {
-      return count + countTranslatableStrings(value as I18N)
+      return count + countTranslatableStrings(value)
     }
     return count
   }, 0)

@@ -115,8 +115,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
-    () =>
-      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
+    () => (latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts } : {}),
     [latestAssistantUIMsg]
   )
 

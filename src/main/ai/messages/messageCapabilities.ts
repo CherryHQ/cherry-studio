@@ -59,6 +59,6 @@ export function stripUnsupportedMedia<T extends UIMessage = UIMessage>(messages:
       changed = true
       return { type: 'text', text: `[${modality} attachment omitted: this model does not accept ${modality} input]` }
     })
-    return changed ? ({ ...message, parts } as T) : message
+    return changed ? { ...message, parts } : message
   })
 }

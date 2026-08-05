@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * Message-bound translation hook for the `MessageMenuBar` "translate this
  * reply" flow.

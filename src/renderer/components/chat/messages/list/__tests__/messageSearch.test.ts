@@ -6,7 +6,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageListItem } from '../../types'
 import { computeMessageSearchMatches } from '../messageSearch'
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 const toolPart = (): CherryMessagePart =>
   ({ type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' }) as CherryMessagePart
 

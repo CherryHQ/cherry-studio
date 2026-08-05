@@ -135,7 +135,7 @@ function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): Cher
   if (!anchorMessageId) return undefined
   const found = uiMessages.find((m) => m.id === anchorMessageId)
   if (!found) {
-    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+    return { id: anchorMessageId, role: 'assistant', parts: [] }
   }
   // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
   // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
@@ -210,7 +210,7 @@ function shareSettledPartReferences(
 function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
   for (const snapshot of Object.values(snapshots)) {
-    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
+    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts
   }
   const liveAssistants = Object.values(snapshots).filter((s): s is CherryUIMessage => s?.role === 'assistant')
   return { overlay, liveAssistants }
@@ -460,7 +460,7 @@ export class ExecutionStreamOverlayService {
 
   #liveReaderExecutionIds(entry: Entry): Set<string> {
     const ids = new Set<string>()
-    for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
+    for (const handle of entry.readers.values()) ids.add(handle.executionId)
     return ids
   }
 
@@ -529,10 +529,7 @@ export class ExecutionStreamOverlayService {
           onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
         })) {
           if (cancelled) break
-          const sharedParts = shareSettledPartReferences(
-            last?.parts as CherryMessagePart[] | undefined,
-            snapshot.parts as CherryMessagePart[]
-          )
+          const sharedParts = shareSettledPartReferences(last?.parts, snapshot.parts)
           const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
           last = nextSnapshot
           this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)

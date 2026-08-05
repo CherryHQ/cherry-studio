@@ -378,7 +378,7 @@ describe('MessageList', () => {
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )
@@ -422,11 +422,11 @@ describe('MessageList', () => {
           streamingLayers: {
             historyPartsByMessageId: historyParts,
             liveMessageIds: ['assistant-live']
-          } as NonNullable<MessageListProviderValue['state']['streamingLayers']>,
+          },
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text: 'streaming' }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )
@@ -645,20 +645,17 @@ describe('MessageList', () => {
   it('limits message outline work to mounted message elements', () => {
     messageVirtualListMocks.renderItemLimit = 1
     const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
-    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(
-      () =>
-        ({
-          bottom: 500,
-          height: 500,
-          left: 0,
-          right: 500,
-          top: 0,
-          width: 500,
-          x: 0,
-          y: 0,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(() => ({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 500,
+      top: 0,
+      width: 500,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }))
     const getElementByIdSpy = vi.spyOn(document, 'getElementById')
 
     render(

@@ -463,7 +463,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   provider.rerankingModel = createRerankingModel
 
-  return provider as CherryInProvider
+  return provider
 }
 
 export const cherryIn = createCherryIn()

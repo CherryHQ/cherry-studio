@@ -29,7 +29,7 @@ function checkRecursively(target: I18N, template: I18N): void {
       if (typeof target[key] !== 'object' || target[key] === null) {
         throw new Error(`属性 ${key} 不是对象`)
       }
-      checkRecursively(target[key] as I18N, template[key] as I18N)
+      checkRecursively(target[key], template[key])
     }
   }
 
@@ -62,7 +62,7 @@ function checkDuplicateKeys(obj: I18N): string[] {
         keys.add(fullPath)
       }
       if (typeof obj[key] === 'object' && obj[key] !== null) {
-        checkObject(obj[key] as I18N, fullPath)
+        checkObject(obj[key], fullPath)
       }
     }
   }

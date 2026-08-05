@@ -429,9 +429,7 @@ describe('toModelMessages', () => {
   })
 
   it('keeps empty-string content as a string (not a text-part array)', () => {
-    const result = toModelMessages([
-      { role: 'user', content: '', _mmUserContent: '', _mmOriginalText: '' } as ContextMessage
-    ])
+    const result = toModelMessages([{ role: 'user', content: '', _mmUserContent: '', _mmOriginalText: '' }])
     expect(result).toEqual([{ role: 'user', content: '' }])
   })
 

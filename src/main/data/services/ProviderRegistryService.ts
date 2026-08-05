@@ -116,7 +116,7 @@ export function diffApiFeatures(
       delta[key] = value
     }
   }
-  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
+  return Object.keys(delta).length > 0 ? delta : null
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -677,7 +677,7 @@ class ProviderRegistryService {
         serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
-        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        apiFeatures: provider?.apiFeatures ?? undefined,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
@@ -755,11 +755,7 @@ class ProviderRegistryService {
 
     for (const field of new Set(fields)) {
       if (field === 'endpointConfigs') {
-        result.endpointConfigs = presetProvider
-          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-              Record<EndpointType, EndpointConfig>
-            > | null)
-          : null
+        result.endpointConfigs = presetProvider ? buildPersistedEndpointConfigs(presetProvider.endpointConfigs) : null
       } else if (field === 'models') {
         result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
       }

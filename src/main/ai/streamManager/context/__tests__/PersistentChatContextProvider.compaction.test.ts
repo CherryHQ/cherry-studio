@@ -526,7 +526,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // factory default so later tests are unaffected.
     vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
       assistantId: 'asst-1',
-      defaultModelId: 'openai::gpt-4o' as UniqueModelId
+      defaultModelId: 'openai::gpt-4o'
     })
     mockGetAssistantById.mockReturnValue({
       id: 'asst-1',

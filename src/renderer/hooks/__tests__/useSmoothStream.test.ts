@@ -34,7 +34,7 @@ beforeEach(() => {
   clock = 0
   rafCallbacks = new Map()
   rafId = 0
-  vi.stubGlobal('performance', { now: () => clock } as Performance)
+  vi.stubGlobal('performance', { now: () => clock })
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     rafId += 1
     rafCallbacks.set(rafId, cb)

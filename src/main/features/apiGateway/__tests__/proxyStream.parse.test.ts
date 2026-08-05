@@ -95,7 +95,7 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
 async function resolveValid(model: string): Promise<string | undefined> {
   const promise = processMessage({
-    params: { model, messages: [] } as any,
+    params: { model, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai'
   })
@@ -209,7 +209,7 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('deepseek', 'agent/deepseek-v4-flash')
     const promise = processMessage({
       // Gemini bodies have no `model`; the route passes it in from the URL path.
-      params: { contents: [] } as any,
+      params: { contents: [] },
       modelString: 'deepseek:agent/deepseek-v4-flash',
       inputFormat: 'gemini',
       outputFormat: 'gemini'

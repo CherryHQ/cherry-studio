@@ -190,7 +190,7 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
   }
 
   if (/^F(?:[1-9]|1[0-2])$/.test(upper) && isShortcutToken(upper)) {
-    return upper as ShortcutFunctionKey
+    return upper
   }
 
   const lower = trimmed.toLowerCase()

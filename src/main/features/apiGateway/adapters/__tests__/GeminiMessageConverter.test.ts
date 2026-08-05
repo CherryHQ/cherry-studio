@@ -352,7 +352,7 @@ describe('GeminiMessageConverter.toAiSdkTools', () => {
   })
 
   it('skips built-in tools that carry no functionDeclarations', () => {
-    const tools = converter.toAiSdkTools(request({ tools: [{} as never] }))
+    const tools = converter.toAiSdkTools(request({ tools: [{}] }))
     expect(tools).toBeUndefined()
   })
 })

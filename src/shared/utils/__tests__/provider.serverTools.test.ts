@@ -38,7 +38,7 @@ describe('server-tool model eligibility', () => {
     const custom = model('private-model')
 
     expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(false)
-    expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] })).toBe(false)
   })
 
   it('rejects non-chat models even when their ids are otherwise eligible', () => {
@@ -98,7 +98,7 @@ describe('server-tool model eligibility', () => {
         model('google/gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
         {
           ...gateway
-        } as Provider,
+        },
         {
           webSearchEnabled: true,
           clientSearchAvailable: false,

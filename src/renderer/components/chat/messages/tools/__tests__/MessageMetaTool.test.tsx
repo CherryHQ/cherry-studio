@@ -5,7 +5,7 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMetaTool from '../meta/MessageMetaTool'
 
-const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions()

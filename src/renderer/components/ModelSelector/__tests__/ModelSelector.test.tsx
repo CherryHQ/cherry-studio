@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
@@ -156,7 +157,7 @@ const provider: Provider = {
   apiFeatures: {} as Provider['apiFeatures'],
   settings: {} as Provider['settings'],
   isEnabled: true
-} as Provider
+}
 
 function makeModel(modelId: UniqueModelId): Model {
   return {
@@ -167,7 +168,7 @@ function makeModel(modelId: UniqueModelId): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorModelItem> = {}) {
@@ -187,8 +188,8 @@ function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorM
 }
 
 function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModelSelectorDataResult {
-  const firstItem = makeModelItem('openai::gpt-4' as UniqueModelId)
-  const secondItem = makeModelItem('openai::gpt-3.5' as UniqueModelId)
+  const firstItem = makeModelItem('openai::gpt-4')
+  const secondItem = makeModelItem('openai::gpt-3.5')
   const listItems: FlatListItem[] = [
     {
       key: 'provider-openai',
@@ -415,7 +416,7 @@ describe('ModelSelector', () => {
     mocks.scrollToIndex.mockClear()
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        resolvedSelectedModelIds: ['openai::gpt-4'],
         visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
       })
     )

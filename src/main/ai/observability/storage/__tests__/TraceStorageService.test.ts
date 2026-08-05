@@ -52,7 +52,7 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
 }
 
 function timedEvent(name: string): TimedEvent {
-  return { name, time: [0, 0], attributes: {} } as TimedEvent
+  return { name, time: [0, 0], attributes: {} }
 }
 
 describe('TraceStorageService', () => {
@@ -166,7 +166,7 @@ describe('TraceStorageService', () => {
     )
 
     // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
-    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    service.saveEntity({ ...endedEntity, topicId: 't' })
     expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
 
     const cappedStore = new TraceSpanStore(1)
@@ -241,8 +241,11 @@ describe('TraceStorageService', () => {
   it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
     await service._doInit()
 
-    const bigEvent = (): TimedEvent =>
-      ({ name: 'llm_request', time: [0, 0], attributes: { body: 'x'.repeat(2 * 1024 * 1024) } }) as TimedEvent
+    const bigEvent = (): TimedEvent => ({
+      name: 'llm_request',
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(2 * 1024 * 1024) }
+    })
 
     // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
     for (let i = 0; i < 10; i++) {

@@ -44,7 +44,7 @@ export class TranslationBackend implements PersistenceBackend {
         targetLanguage: this.opts.targetLanguage,
         ...(this.opts.sourceLanguage && { sourceLanguage: this.opts.sourceLanguage })
       }
-    } as CherryMessagePart
+    }
 
     messageService.update(this.opts.messageId, {
       data: { ...message.data, parts: [...baseParts, translationPart] }

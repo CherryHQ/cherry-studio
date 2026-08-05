@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -113,7 +114,7 @@ const provider: Provider = {
   apiFeatures: {} as Provider['apiFeatures'],
   settings: {} as Provider['settings'],
   isEnabled: true
-} as Provider
+}
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
@@ -126,7 +127,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 function makeItem(model: Model): ModelSelectorModelItem {
@@ -242,7 +243,7 @@ describe('ModelSelectorDetailCard', () => {
           bottom: 540,
           left: 180,
           toJSON: () => {}
-        } as DOMRect
+        }
       }
 
       return {
@@ -255,7 +256,7 @@ describe('ModelSelectorDetailCard', () => {
         bottom: 216,
         left: 320,
         toJSON: () => {}
-      } as DOMRect
+      }
     })
 
     render(
@@ -277,7 +278,7 @@ describe('ModelSelectorDetailCard', () => {
 
   it('renders reasoning options derived from the descriptor', () => {
     const model = makeModel({
-      id: 'openai::gpt-5-codex-max' as UniqueModelId,
+      id: 'openai::gpt-5-codex-max',
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
       reasoning: {

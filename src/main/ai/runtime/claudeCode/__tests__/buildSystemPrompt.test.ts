@@ -155,7 +155,7 @@ describe('buildSystemPrompt — current workspace', () => {
   it('injects the current workspace for the built-in assistant path', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
@@ -200,7 +200,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   it('does not append it for the Cherry Assistant (parity with feat/chat-page)', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(ARTIFACTS_MARKER)
@@ -240,7 +240,7 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
   it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(RUNTIME_MARKER)
@@ -255,7 +255,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   it('ends with the non-negotiable Cherry Assistant identity, routing, and ownership guard', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = (await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')) as string
@@ -278,7 +278,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     mockLoadBuiltinAgentDefinition
       .mockReturnValueOnce({ instructions: 'English bundled instructions' })
       .mockReturnValueOnce({ instructions: '中文内置指令' })
-    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } })
 
     const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
@@ -291,7 +291,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   it('initializes persona and memory resources in agent data on every build', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const session = makeSession('/workspace/assistant', 'system')
@@ -306,7 +306,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   it('provisions agent data instead of a user workspace', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     await buildSystemPrompt(
@@ -325,7 +325,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     mockBuildMemoriesSection.mockResolvedValue('ASSISTANT_MEMORIES')
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant', false, '/data/Agents/agent-1')
@@ -340,7 +340,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   it('reports the resolved application language in the assistant context', async () => {
     mockGetAppLanguage.mockReturnValue('zh-CN')
     mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled instructions' })
-    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
@@ -352,7 +352,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     vi.stubGlobal('fetch', fetchMock)
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
@@ -364,7 +364,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled instructions' })
     const agent = makeAgent({
       instructions: 'User instructions',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
@@ -376,7 +376,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
   it('uses a minimal role fallback when the bundled template is missing and DB instructions are empty', async () => {
     mockLoadBuiltinAgentDefinition.mockReturnValue(undefined)
-    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
@@ -387,7 +387,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
@@ -398,7 +398,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   it('does not apply the external channel security policy for unlinked assistant sessions', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
-      configuration: { builtin_role: 'assistant' } as never
+      configuration: { builtin_role: 'assistant' }
     })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')

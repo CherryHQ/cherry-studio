@@ -48,12 +48,12 @@ export function createMockContext(overrides?: ContextOverrides): AiRequestContex
   })
 
   const base: AiRequestContext<StreamTextParams, StreamTextResult> = {
-    providerId: 'openai' as RegisteredProviderId,
+    providerId: 'openai',
     model: mockModel,
     originalParams: {
       model: mockModel,
       messages: [{ role: 'user', content: 'Test message' }]
-    } as StreamTextParams,
+    },
     metadata: {},
     startTime: Date.now(),
     requestId: 'test-request-id',
@@ -117,7 +117,7 @@ export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>):
     }),
 
     ...overrides
-  } as EmbeddingModelV3
+  }
 }
 
 export function createMockRerankingModel(overrides?: Partial<RerankingModelV3>): RerankingModelV3 {
@@ -133,7 +133,7 @@ export function createMockRerankingModel(overrides?: Partial<RerankingModelV3>):
       response: { headers: {} }
     }),
     ...overrides
-  } as RerankingModelV3
+  }
 }
 
 /**

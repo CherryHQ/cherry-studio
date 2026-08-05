@@ -139,7 +139,7 @@ vi.mock('electron', () => {
       const win = createMockBrowserWindow()
       createdWindows.push(win)
       allWindows.push(win)
-      return win as never
+      return win
     }
 
     static fromWebContents(): null {

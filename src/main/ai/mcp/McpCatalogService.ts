@@ -13,7 +13,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('McpCatalogService')
-const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}`
 const PREWARM_CONCURRENCY = 3
 const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
 const FAILED_TOOLS_RETRY_MS = 30 * 1000

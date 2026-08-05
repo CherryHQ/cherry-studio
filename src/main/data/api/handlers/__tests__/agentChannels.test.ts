@@ -88,7 +88,7 @@ describe('agentChannelHandlers', () => {
     it('GET returns all channels when no filter is provided', async () => {
       listChannelsMock.mockReturnValueOnce([mockChannel])
 
-      const result = await agentChannelHandlers['/agent-channels'].GET({ query: undefined } as never)
+      const result = await agentChannelHandlers['/agent-channels'].GET({ query: undefined })
 
       expect(listChannelsMock).toHaveBeenCalledWith(undefined)
       expect(result).toEqual([mockChannel])
@@ -157,7 +157,7 @@ describe('agentChannelHandlers', () => {
 
       const result = await agentChannelHandlers['/agent-channels/:channelId'].GET({
         params: { channelId: CHANNEL_ID }
-      } as never)
+      })
 
       expect(getChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
       expect(result).toMatchObject({ id: CHANNEL_ID })
@@ -167,7 +167,7 @@ describe('agentChannelHandlers', () => {
       getChannelMock.mockReturnValueOnce(null)
 
       await expect(
-        agentChannelHandlers['/agent-channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/agent-channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } })
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -179,7 +179,7 @@ describe('agentChannelHandlers', () => {
       const result = await agentChannelHandlers['/agent-channels/:channelId'].PATCH({
         params: { channelId: CHANNEL_ID },
         body: { name: 'Updated' }
-      } as never)
+      })
 
       expect(updateChannelMock).toHaveBeenCalledWith(CHANNEL_ID, { name: 'Updated' })
       expect(result).toMatchObject({ name: 'Updated' })
@@ -192,7 +192,7 @@ describe('agentChannelHandlers', () => {
         agentChannelHandlers['/agent-channels/:channelId'].PATCH({
           params: { channelId: CHANNEL_ID },
           body: { name: 'Updated' }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
@@ -211,7 +211,7 @@ describe('agentChannelHandlers', () => {
       deleteChannelMock.mockResolvedValueOnce(true)
 
       await expect(
-        agentChannelHandlers['/agent-channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/agent-channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } })
       ).resolves.toBeUndefined()
 
       expect(deleteChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
@@ -221,7 +221,7 @@ describe('agentChannelHandlers', () => {
       deleteChannelMock.mockResolvedValueOnce(false)
 
       await expect(
-        agentChannelHandlers['/agent-channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/agent-channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } })
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -255,7 +255,7 @@ describe('agentHandlers — task logs', () => {
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
         params: { agentId: AGENT_ID, taskId: TASK_ID }
-      } as never)
+      })
 
       expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 50, offset: 0 })
       expect(result).toMatchObject({ items: [], total: 0, page: 1 })

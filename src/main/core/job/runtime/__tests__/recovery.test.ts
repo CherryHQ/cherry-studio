@@ -36,7 +36,7 @@ function handlersOf(type: string, recovery: 'abandon' | 'retry' | 'singleton'): 
         async execute() {
           return null
         }
-      } as JobHandler
+      }
     ]
   ])
 }

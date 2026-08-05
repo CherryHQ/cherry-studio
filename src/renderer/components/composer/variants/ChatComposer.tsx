@@ -560,7 +560,7 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
-  const canonicalReasoningEffort = (assistant?.settings.reasoning_effort ?? 'default') as ReasoningEffortOption
+  const canonicalReasoningEffort = assistant?.settings.reasoning_effort ?? 'default'
   const [reasoningOverride, setReasoningOverride] = useState<{
     assistantId: string
     value: ReasoningEffortOption

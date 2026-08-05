@@ -336,7 +336,7 @@ function applyFs(desc: FsDesc) {
   vi.mocked(fs.readFileSync).mockImplementation((p) => {
     const c = contents[p as string]
     if (c === undefined) throw new Error(`ENOENT: ${String(p)}`)
-    return c as never
+    return c
   })
   vi.mocked(fs.statSync).mockImplementation((p) => {
     const key = p as string

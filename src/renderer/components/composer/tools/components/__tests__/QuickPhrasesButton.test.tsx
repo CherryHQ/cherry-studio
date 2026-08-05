@@ -181,7 +181,7 @@ describe('QuickPhrasesToolRuntime', () => {
 
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
     act(() => {
-      manageItem.action({} as never)
+      manageItem.action({})
     })
 
     expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
@@ -211,7 +211,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add...')
 
     act(() => {
-      addItem.action({ inputAdapter } as never)
+      addItem.action({ inputAdapter })
     })
     act(() => {
       screen.getByText('close prompt edit').click()
@@ -243,7 +243,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
 
     act(() => {
-      manageItem.action({ inputAdapter } as never)
+      manageItem.action({ inputAdapter })
     })
     act(() => {
       screen.getByText('close prompt management').click()
