@@ -87,7 +87,10 @@ describe('group hooks', () => {
     })
 
     expect(mocks.useMutation).toHaveBeenCalledWith('PATCH', '/groups/:id/order', { refresh: ['/groups'] })
-    expect(mocks.reorderGroup).toHaveBeenCalledWith('group-b', { before: 'group-a' })
+    expect(mocks.reorderGroup).toHaveBeenCalledWith({
+      body: { before: 'group-a' },
+      params: { id: 'group-b' }
+    })
   })
 
   it('uses the supplied entity type and refresh targets for mutations', async () => {
