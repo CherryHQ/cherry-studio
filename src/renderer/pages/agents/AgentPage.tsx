@@ -19,8 +19,8 @@ import {
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { prefetch, useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -52,7 +52,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { parseUniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
@@ -75,6 +74,7 @@ import {
 } from './feedbackComposerLaunch'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
+import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const logger = loggerService.withContext('AgentPage')
 type AgentConversationResourceKind = 'agent'
@@ -290,21 +290,14 @@ const AgentPage = () => {
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
-  const { agent: visibleAgent, isLoading: isVisibleAgentLoading } = useAgent(visibleSession?.agentId ?? null)
   const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
-  const visibleAgentListModelId = visibleAgentFromList?.model
-  // The list entity is sufficient to reveal the model key. Warm model + provider caches without
-  // subscribing AgentPage to either response; AgentChat and the composer remain the canonical
-  // reactive consumers once the independently revalidated agent detail resolves.
-  useEffect(() => {
-    if (!isActiveTab || !visibleAgentListModelId) return
-
-    const { providerId } = parseUniqueModelId(visibleAgentListModelId)
-    void Promise.allSettled([
-      prefetch('/models/:uniqueModelId*', { params: { uniqueModelId: visibleAgentListModelId } }),
-      prefetch('/providers/:providerId', { params: { providerId } })
-    ])
-  }, [isActiveTab, visibleAgentListModelId])
+  const conversationBootstrap = useAgentConversationBootstrap({
+    session: visibleSession ?? null,
+    sessionLoading: isMessageOnlyView ? isRouteSessionLoading : isActiveSessionLoading,
+    sessionSource: isMessageOnlyView && routeSession ? 'query' : isMessageOnlyView ? 'none' : activeSessionSource,
+    agentHint: visibleAgentFromList
+  })
+  const visibleAgent = conversationBootstrap.resources.agent
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -1156,14 +1149,8 @@ const AgentPage = () => {
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
           centerSurface={centerSurface}
-          activeSession={visibleSession}
-          activeSessionLoading={isActiveSessionLoading}
-          activeSessionSource={activeSessionSource}
-          resolvedAgent={visibleAgent}
-          resolvedAgentLoading={isVisibleAgentLoading}
+          conversationBootstrap={conversationBootstrap}
           pane={pane}
-          lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
-          lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={shellPaneOpen}
           panePosition="left"
           onPaneCollapse={() => setShellPaneOpenManually(false)}

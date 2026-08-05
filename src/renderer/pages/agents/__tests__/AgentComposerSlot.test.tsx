@@ -55,11 +55,13 @@ describe('AgentComposerSlot', () => {
   it('mounts the real composer after agent metadata resolves', async () => {
     const activeAgent = { id: 'agent-1', model: 'provider:model-1' } as any
     const activeModel = { id: 'provider:model-1', name: 'Model 1' } as any
+    const activeProvider = { id: 'provider', name: 'Provider' } as any
     render(
       <AgentComposerSlot
         {...baseProps}
         activeAgent={activeAgent}
         activeModel={activeModel}
+        activeProvider={activeProvider}
         workspaceWarning="Workspace unavailable"
       />
     )
@@ -68,6 +70,7 @@ describe('AgentComposerSlot', () => {
     expect(agentComposerPropsMock.last).toMatchObject({
       resolvedAgent: activeAgent,
       resolvedModel: activeModel,
+      resolvedProvider: activeProvider,
       resolvedWorkspaceWarning: 'Workspace unavailable',
       externalContextControls: true
     })

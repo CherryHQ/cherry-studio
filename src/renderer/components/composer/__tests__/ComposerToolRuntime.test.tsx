@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
+const { mockGetToolsForScope, mockQuickPanelValue, mockUseProviderById, mockUseQuickPanel } = vi.hoisted(() => {
   const mockQuickPanelValue = {
     close: vi.fn(),
     isVisible: false,
@@ -17,6 +17,10 @@ const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hois
   return {
     mockGetToolsForScope: vi.fn(),
     mockQuickPanelValue,
+    mockUseProviderById: vi.fn((providerId?: string | null) => {
+      void providerId
+      return { provider: { id: 'provider-1' } }
+    }),
     mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
   }
 })
@@ -38,7 +42,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'provider-1' } })
+  useProviderById: (providerId: string | null) => mockUseProviderById(providerId)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -169,6 +173,7 @@ const LauncherRegistrationProbe = ({
 
 beforeEach(() => {
   mockGetToolsForScope.mockReset()
+  mockUseProviderById.mockClear()
   mockUseQuickPanel.mockClear()
   mockQuickPanelValue.close.mockClear()
   mockQuickPanelValue.open.mockClear()
@@ -191,6 +196,29 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
 }
 
 describe('ComposerToolRuntimeHost', () => {
+  it('uses the page-resolved provider without starting a local provider read', () => {
+    const resolvedProvider = { id: 'provider-external' } as any
+    mockGetToolsForScope.mockReturnValue([])
+
+    render(
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost
+          scope={TopicType.Chat}
+          assistant={assistant}
+          model={model}
+          resolvedProvider={resolvedProvider}
+          providerManagedExternally
+        />
+      </ComposerToolRuntimeProvider>
+    )
+
+    expect(mockUseProviderById).toHaveBeenCalledWith(null)
+    expect(mockGetToolsForScope).toHaveBeenCalledWith(
+      TopicType.Chat,
+      expect.objectContaining({ provider: resolvedProvider })
+    )
+  })
+
   it('normalizes initial composer files with file token source ids', async () => {
     const onSnapshot = vi.fn()
 

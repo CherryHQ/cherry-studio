@@ -40,6 +40,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,6 +52,7 @@ import { type AgentFileNavigationRequest, AgentRightPane } from './components/Ag
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
+import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -85,9 +87,8 @@ interface AgentChatProps {
   activeSession?: AgentSessionEntity | null
   activeSessionLoading?: boolean
   activeSessionSource?: AgentSessionSource
-  /** Page-owned canonical agent query; omitted by isolated consumers/tests that let AgentChat query itself. */
-  resolvedAgent?: GetAgentResponse
-  resolvedAgentLoading?: boolean
+  /** Page-owned conversation resources; omitted by isolated consumers that let AgentChat query itself. */
+  conversationBootstrap?: AgentConversationBootstrap
   lockedSession?: AgentSessionEntity | null
   lockedSessionLoading?: boolean
   showResourceListControls?: boolean
@@ -152,8 +153,7 @@ const AgentChat = ({
   activeSession,
   activeSessionLoading = false,
   activeSessionSource = 'none',
-  resolvedAgent,
-  resolvedAgentLoading,
+  conversationBootstrap,
   lockedSession,
   lockedSessionLoading = false,
   showResourceListControls = true,
@@ -194,15 +194,33 @@ const AgentChat = ({
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
 
   const hasLockedSession = lockedSession !== undefined
-  const sessionSnapshot = hasLockedSession ? (lockedSession ?? null) : (activeSession ?? null)
+  const hasConversationBootstrap = conversationBootstrap !== undefined && !hasLockedSession
+  const resolvedActiveSession = hasConversationBootstrap ? conversationBootstrap.session : (activeSession ?? null)
+  const resolvedActiveSessionLoading = hasConversationBootstrap
+    ? conversationBootstrap.sessionLoading
+    : activeSessionLoading
+  const resolvedActiveSessionSource = hasConversationBootstrap
+    ? conversationBootstrap.sessionSource
+    : activeSessionSource
+  const sessionSnapshot = hasLockedSession ? (lockedSession ?? null) : resolvedActiveSession
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const hasResolvedAgentQuery = resolvedAgentLoading !== undefined
-  const { agent: localAgent, isLoading: isLocalAgentLoading } = useAgent(hasResolvedAgentQuery ? null : visibleAgentId)
-  const activeAgent = hasResolvedAgentQuery ? resolvedAgent : localAgent
-  const isActiveAgentLoading = hasResolvedAgentQuery ? resolvedAgentLoading : isLocalAgentLoading
-  const { model: activeModel, isLoading: isActiveModelLoading } = useModelById(activeAgent?.model)
+  const { agent: localAgent, isLoading: isLocalAgentLoading } = useAgent(
+    hasConversationBootstrap ? null : visibleAgentId
+  )
+  const activeAgent = hasConversationBootstrap ? conversationBootstrap.resources.agent : localAgent
+  const isActiveAgentLoading = hasConversationBootstrap
+    ? conversationBootstrap.resources.agentLoading
+    : isLocalAgentLoading
+  const { model: localModel, isLoading: isLocalModelLoading } = useModelById(
+    hasConversationBootstrap ? null : activeAgent?.model
+  )
+  const activeModel = hasConversationBootstrap ? conversationBootstrap.resources.model : localModel
+  const isActiveModelLoading = hasConversationBootstrap
+    ? conversationBootstrap.resources.modelLoading
+    : isLocalModelLoading
+  const activeProvider = hasConversationBootstrap ? conversationBootstrap.resources.provider : undefined
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
@@ -220,7 +238,7 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
+  const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : resolvedActiveSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
   const sessionAgentId = sessionSnapshot?.agentId ?? null
@@ -228,11 +246,13 @@ const AgentChat = ({
   const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
-      (activeSessionSource === 'query' ||
-        activeSessionSource === 'pending' ||
-        (!!activeSession && activeSessionSource === 'none'))
+      (resolvedActiveSessionSource === 'query' ||
+        resolvedActiveSessionSource === 'pending' ||
+        (!!resolvedActiveSession && resolvedActiveSessionSource === 'none'))
   )
-  const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const sessionMessagesEnabled = Boolean(
+    sessionSnapshot && resolvedActiveSession && resolvedActiveSession.id === sessionSnapshot.id
+  )
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
@@ -453,6 +473,7 @@ const AgentChat = ({
         composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
         activeModel={activeModel}
+        activeProvider={activeProvider}
         workspaceWarning={workspaceWarning}
         isEmptyConversation={isEmptyConversation}
         isMultiSelectMode={isMultiSelectMode}
@@ -548,6 +569,7 @@ interface AgentChatSessionCenterProps {
   composerPending: boolean
   activeAgent: GetAgentResponse | undefined
   activeModel?: Model
+  activeProvider?: Provider
   workspaceWarning?: string
   isEmptyConversation: boolean
   isMultiSelectMode: boolean
@@ -565,6 +587,7 @@ const AgentChatSessionCenter = ({
   composerPending,
   activeAgent,
   activeModel,
+  activeProvider,
   workspaceWarning,
   isEmptyConversation,
   isMultiSelectMode,
@@ -578,6 +601,7 @@ const AgentChatSessionCenter = ({
       agentId={agentId}
       activeAgent={activeAgent}
       activeModel={activeModel}
+      activeProvider={activeProvider}
       workspaceWarning={workspaceWarning}
       isMultiSelectMode={isMultiSelectMode}
       session={session}

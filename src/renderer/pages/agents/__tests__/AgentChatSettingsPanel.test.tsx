@@ -15,11 +15,13 @@ const topicStreamStatusMock = vi.hoisted(() => ({
 
 const activeAgentMock = vi.hoisted(() => ({
   value: { id: 'agent-1', model: 'provider:model-1' } as any,
-  isLoading: false
+  isLoading: false,
+  lookupId: undefined as string | null | undefined
 }))
 const activeModelMock = vi.hoisted(() => ({
   value: { id: 'provider:model-1', name: 'Model 1' } as any,
-  isLoading: false
+  isLoading: false,
+  lookupId: undefined as string | null | undefined
 }))
 const updateAgentMock = vi.hoisted(() => ({
   updateModel: vi.fn()
@@ -141,10 +143,13 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({
-    agent: activeAgentMock.isLoading ? undefined : activeAgentMock.value,
-    isLoading: activeAgentMock.isLoading
-  }),
+  useAgent: (agentId?: string | null) => {
+    activeAgentMock.lookupId = agentId
+    return {
+      agent: activeAgentMock.isLoading ? undefined : activeAgentMock.value,
+      isLoading: activeAgentMock.isLoading
+    }
+  },
   useAgents: () => ({
     agents: [{ id: 'agent-1' }],
     isLoading: false
@@ -157,10 +162,13 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (modelId?: string | null) => ({
-    model: modelId && !activeModelMock.isLoading ? activeModelMock.value : undefined,
-    isLoading: activeModelMock.isLoading
-  })
+  useModelById: (modelId?: string | null) => {
+    activeModelMock.lookupId = modelId
+    return {
+      model: modelId && !activeModelMock.isLoading ? activeModelMock.value : undefined,
+      isLoading: activeModelMock.isLoading
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -314,8 +322,10 @@ describe('AgentChat settings panel', () => {
     topicStreamStatusMock.isPending = false
     activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
     activeAgentMock.isLoading = false
+    activeAgentMock.lookupId = undefined
     activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
+    activeModelMock.lookupId = undefined
     modelSwitchConfirmationCacheMock.value = false
     modelSwitchConfirmationCacheMock.set.mockReset()
     modelSwitchConfirmationCacheMock.set.mockImplementation((value: boolean) => {
@@ -350,6 +360,35 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('uses page-owned resources without subscribing to agent and model again', () => {
+    const session = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+    const provider = { id: 'provider' } as any
+
+    renderAgentChat({
+      conversationBootstrap: {
+        session,
+        sessionLoading: false,
+        sessionSource: 'query',
+        resources: {
+          agent: activeAgentMock.value,
+          agentLoading: false,
+          model: activeModelMock.value,
+          modelLoading: false,
+          provider,
+          providerLoading: false
+        }
+      }
+    })
+
+    expect(activeAgentMock.lookupId).toBeNull()
+    expect(activeModelMock.lookupId).toBeNull()
+    expect(agentComposerPropsMock.last).toMatchObject({
+      resolvedAgent: activeAgentMock.value,
+      resolvedModel: activeModelMock.value,
+      resolvedProvider: provider
+    })
   })
 
   it('keeps right-pane shortcuts visible without the expand button', () => {

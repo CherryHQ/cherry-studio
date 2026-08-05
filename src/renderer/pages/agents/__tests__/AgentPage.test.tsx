@@ -5,7 +5,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockPrefetch } from '@test-mocks/renderer/useDataApi'
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -373,6 +373,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('../AgentChat', () => ({
   default: ({
     centerSurface,
+    conversationBootstrap,
     activeSession,
     activeSessionLoading,
     missingAgentSelection,
@@ -399,6 +400,10 @@ vi.mock('../AgentChat', () => ({
     composerLaunchOptions
   }: {
     centerSurface?: { content?: ReactNode } | null
+    conversationBootstrap?: {
+      session: { id: string } | null
+      sessionLoading: boolean
+    }
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
     missingAgentSelection?: boolean
@@ -433,8 +438,10 @@ vi.mock('../AgentChat', () => ({
         agentPageMocks.composerLaunchOptions = composerLaunchOptions
         onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)
       }}>
-      <output data-testid="active-session">{activeSession?.id ?? ''}</output>
-      <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
+      <output data-testid="active-session">{conversationBootstrap?.session?.id ?? activeSession?.id ?? ''}</output>
+      <output data-testid="active-session-loading">
+        {String(Boolean(conversationBootstrap?.sessionLoading ?? activeSessionLoading))}
+      </output>
       <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
@@ -826,7 +833,7 @@ describe('AgentPage', () => {
     expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
   })
 
-  it('warms the visible agent model and provider from the agent list in the active tab', async () => {
+  it('starts model and provider reads from the visible list agent hint', async () => {
     agentPageMocks.isActiveTab = true
     agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-a::model-a', name: 'Agent A' }]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -835,11 +842,14 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => {
-      expect(mockPrefetch).toHaveBeenCalledWith('/models/:uniqueModelId*', {
-        params: { uniqueModelId: 'provider-a::model-a' }
+      expect(mockUseQuery).toHaveBeenCalledWith('/models/provider-a::model-a', {
+        enabled: true,
+        swrOptions: { keepPreviousData: false }
       })
-      expect(mockPrefetch).toHaveBeenCalledWith('/providers/:providerId', {
-        params: { providerId: 'provider-a' }
+      expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+        params: { providerId: 'provider-a' },
+        enabled: true,
+        swrOptions: { keepPreviousData: false }
       })
     })
   })

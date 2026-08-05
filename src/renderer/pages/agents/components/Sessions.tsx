@@ -113,6 +113,7 @@ import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { useOptionalAgentFileNavigation } from './AgentRightPane'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
+import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
@@ -408,7 +409,7 @@ const Sessions = ({
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
-  const [renamingSession, setRenamingSession] = useState<AgentSessionEntity | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
@@ -463,15 +464,15 @@ const Sessions = ({
   } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
-  )
-  // Display sorting needs the derived `pinned` field, but SessionItem should receive the original
-  // entity reference. Otherwise a pin-map update recreates every row object and defeats memo().
-  const sessionEntityById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
+  const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
+  const sessionItems = useMemo(() => {
+    const reconciliation = reconcileSessionListItems(sessions, pinIdBySessionId, sessionItemsReconciliationRef.current)
+    sessionItemsReconciliationRef.current = reconciliation
+    return reconciliation.items
+  }, [pinIdBySessionId, sessions])
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
+  const togglePinRef = useRef(togglePin)
   const requestFileNavigation = useOptionalAgentFileNavigation()
 
   useEffect(() => {
@@ -481,6 +482,12 @@ const Sessions = ({
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
   }, [activeSessionId])
+
+  useEffect(() => {
+    togglePinRef.current = togglePin
+  }, [togglePin])
+
+  const handleToggleSessionPin = useCallback((id: string) => togglePinRef.current(id), [])
 
   const setActiveSessionId = useCallback(
     (id: string | null) => {
@@ -770,7 +777,7 @@ const Sessions = ({
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessionItems.find((candidate) => candidate.id === id)
+      const session = sessionItemsRef.current.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
@@ -787,15 +794,22 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [sessionItems, t, updateSession]
+    [t, updateSession]
   )
   const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
-    setRenamingSession(session)
+    setRenamingSessionId(session.id)
   }, [])
   const handleRenameSessionFromDialog = useCallback(
-    (name: string) => (renamingSession ? handleRenameSession(renamingSession.id, name) : undefined),
-    [handleRenameSession, renamingSession]
+    (name: string) => (renamingSessionId ? handleRenameSession(renamingSessionId, name) : undefined),
+    [handleRenameSession, renamingSessionId]
   )
+  const renamingSession = renamingSessionId
+    ? sessionItems.find((session) => session.id === renamingSessionId)
+    : undefined
+
+  useEffect(() => {
+    if (renamingSessionId && !renamingSession) setRenamingSessionId(null)
+  }, [renamingSession, renamingSessionId])
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
@@ -1896,9 +1910,8 @@ const Sessions = ({
         onOpenRenameDialog={handleOpenRenameSessionDialog}
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
-        onTogglePin={togglePin}
+        onTogglePin={handleToggleSessionPin}
         panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
-        sessionEntityById={sessionEntityById}
         sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
       />
@@ -1911,7 +1924,7 @@ const Sessions = ({
         initialName={renamingSession?.name ?? ''}
         onSubmit={handleRenameSessionFromDialog}
         onOpenChange={(open) => {
-          if (!open) setRenamingSession(null)
+          if (!open) setRenamingSessionId(null)
         }}
       />
       <EditNameDialog
@@ -1961,7 +1974,6 @@ interface SessionListBodyProps {
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
   panePosition?: TopicTabPosition
-  sessionEntityById: ReadonlyMap<string, AgentSessionEntity>
   sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
@@ -1983,7 +1995,6 @@ function SessionListBody({
   onSetPanePosition,
   onTogglePin,
   panePosition,
-  sessionEntityById,
   sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
@@ -1993,7 +2004,7 @@ function SessionListBody({
     (session: SessionListItem) => (
       <SessionItem
         key={session.id}
-        session={sessionEntityById.get(session.id) ?? session}
+        session={session}
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
@@ -2022,7 +2033,6 @@ function SessionListBody({
       onSetPanePosition,
       onTogglePin,
       panePosition,
-      sessionEntityById,
       sessionMenuActions,
       setActiveSessionId
     ]

@@ -22,6 +22,7 @@ import {
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 const mockUseIpcOn = vi.hoisted(() => vi.fn())
+const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
@@ -45,7 +46,7 @@ const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
 })
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockT })
 }))
 
 vi.mock('@renderer/data/hooks/useReorder', () => ({
@@ -163,6 +164,40 @@ describe('useActiveSession', () => {
     const { result } = renderHook(() =>
       useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession })
     )
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('does not serve cached query data after the canonical query reports not found', () => {
+    const cachedSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: cachedSession,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useActiveSession({ activeSessionId: 'session-1', setActiveSessionId }))
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('does not serve an explicitly pending session after the canonical query reports not found', () => {
+    const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result, rerender } = renderHook(
+      ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
+      { initialProps: { activeSessionId: null as string | null } }
+    )
+
+    act(() => result.current.setActiveSession(pendingSession))
+    rerender({ activeSessionId: 'session-1' })
 
     expect(result.current.session).toBeUndefined()
     expect(result.current.sessionSource).toBe('none')
@@ -381,6 +416,90 @@ describe('useSessions', () => {
     await act(async () => {})
 
     expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
+  })
+
+  it('reuses deeply equal session entities by id while allowing their order to change', () => {
+    const sessionA = createSession({ id: 'session-a', name: 'Session A' })
+    const sessionB = createSession({ id: 'session-b', name: 'Session B' })
+    let pages = [{ items: [sessionA, sessionB] }]
+    mockUseInfiniteQuery.mockImplementation(() => buildInfiniteReturn({ pages }) as never)
+
+    const { result, rerender } = renderHook(() => useSessions('agent-1'))
+    const firstSessions = result.current.sessions
+
+    pages = [
+      {
+        items: [
+          { ...sessionB, workspace: { ...sessionB.workspace } },
+          { ...sessionA, workspace: { ...sessionA.workspace } }
+        ]
+      }
+    ]
+    rerender()
+
+    expect(result.current.sessions).not.toBe(firstSessions)
+    expect(result.current.sessions[0]).toBe(firstSessions[1])
+    expect(result.current.sessions[1]).toBe(firstSessions[0])
+
+    const reorderedSessions = result.current.sessions
+    pages = [
+      {
+        items: [
+          { ...sessionB, name: 'Renamed Session B', workspace: { ...sessionB.workspace } },
+          { ...sessionA, workspace: { ...sessionA.workspace } }
+        ]
+      }
+    ]
+    rerender()
+
+    expect(result.current.sessions[0]).not.toBe(reorderedSessions[0])
+    expect(result.current.sessions[1]).toBe(reorderedSessions[1])
+  })
+
+  it('keeps togglePin stable while reading the latest pin map', async () => {
+    const pinTrigger = vi.fn().mockResolvedValue(undefined)
+    const unpinTrigger = vi.fn().mockResolvedValue(undefined)
+    const defaultTrigger = vi.fn().mockResolvedValue(undefined)
+    const pin = {
+      id: 'pin-session-a',
+      entityType: 'session' as const,
+      entityId: 'session-a',
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    let pins: (typeof pin)[] = []
+    const infiniteReturn = buildInfiniteReturn()
+    mockUseInfiniteQuery.mockReturnValue(infiniteReturn as never)
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/pins' ? pins : undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger:
+        method === 'POST' && path === '/pins'
+          ? pinTrigger
+          : method === 'DELETE' && path === '/pins/:id'
+            ? unpinTrigger
+            : defaultTrigger,
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result, rerender } = renderHook(() => useSessions('agent-1'))
+    const initialTogglePin = result.current.togglePin
+
+    pins = [pin]
+    rerender()
+
+    expect(result.current.togglePin).toBe(initialTogglePin)
+    await act(async () => result.current.togglePin('session-a'))
+    expect(unpinTrigger).toHaveBeenCalledWith({ params: { id: pin.id } })
+    expect(pinTrigger).not.toHaveBeenCalled()
   })
 
   it('loadMore drives loadNext when hasMore is true', async () => {

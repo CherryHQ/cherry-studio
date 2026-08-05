@@ -30,7 +30,8 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -43,6 +44,33 @@ type UseSessionsOptions = {
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
+
+/**
+ * Preserve entity identity across list refreshes when DataApi returns an
+ * equivalent object graph. Order changes still publish a new array, while
+ * unchanged rows retain their references for memoized consumers.
+ */
+function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
+  const previousSessionsRef = useRef<AgentSessionEntity[]>([])
+
+  return useMemo(() => {
+    const previousSessions = previousSessionsRef.current
+    const previousById = new Map(previousSessions.map((session) => [session.id, session] as const))
+    let arrayChanged = previousSessions.length !== sessions.length
+
+    const nextSessions = sessions.map((session, index) => {
+      const previous = previousById.get(session.id)
+      const next = previous && isEqual(previous, session) ? previous : session
+      if (next !== previousSessions[index]) {
+        arrayChanged = true
+      }
+      return next
+    })
+    const sharedSessions = arrayChanged ? nextSessions : previousSessions
+    previousSessionsRef.current = sharedSessions
+    return sharedSessions
+  }, [sessions])
+}
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -116,17 +144,20 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
   const result = useSession(activeSessionId)
   const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(null)
 
-  const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  // NOT_FOUND is authoritative even if SWR still exposes cached data or the caller has an
+  // optimistic entity. Otherwise a concurrently deleted session can be resurrected indefinitely.
+  const isNotFound = isDataApiNotFoundError(result.error)
+  const querySession =
+    !isNotFound && activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
   // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
   // returned, never counted as the source), so no path has to null it out to stay correct.
-  const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
+  const resolvedPendingSession =
+    !isNotFound && activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
   // Unlike an explicitly selected pending entity, a list-backed fallback is caller-owned and may
   // arrive after this hook mounts. Resolve it directly instead of copying it into state. A
   // not-found response proves the list snapshot is stale; transient failures do not.
   const resolvedInitialSession =
-    !isDataApiNotFoundError(result.error) && activeSessionId && initialSession?.id === activeSessionId
-      ? initialSession
-      : undefined
+    !isNotFound && activeSessionId && initialSession?.id === activeSessionId ? initialSession : undefined
   const fallbackSession = resolvedPendingSession ?? resolvedInitialSession
   const session = querySession ?? fallbackSession
   const sessionSource: AgentSessionSource = querySession ? 'query' : fallbackSession ? 'pending' : 'none'
@@ -200,7 +231,8 @@ export const useSessions = (
   // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
   // for row indicators, toggle handling, and display grouping/sorting that
   // promotes pinned sessions.
-  const sessions = useInfiniteFlatItems(pages)
+  const flatSessions = useInfiniteFlatItems(pages)
+  const sessions = useStructurallySharedSessions(flatSessions)
   const {
     data: pinList,
     isLoading: isPinsLoading,
@@ -210,6 +242,8 @@ export const useSessions = (
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
   )
+  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
+  pinIdBySessionIdRef.current = pinIdBySessionId
   const total = sessions.length
   const hasMore = hasNext
   const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
@@ -336,7 +370,7 @@ export const useSessions = (
   const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
   const togglePin = useCallback(
     async (sessionId: string) => {
-      const pinId = pinIdBySessionId.get(sessionId)
+      const pinId = pinIdBySessionIdRef.current.get(sessionId)
       try {
         if (pinId) {
           await unpinTrigger({ params: { id: pinId } })
@@ -349,7 +383,7 @@ export const useSessions = (
         return false
       }
     },
-    [pinIdBySessionId, pinTrigger, unpinTrigger, t]
+    [pinTrigger, unpinTrigger, t]
   )
 
   return {

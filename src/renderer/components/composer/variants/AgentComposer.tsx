@@ -61,6 +61,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
@@ -274,6 +275,7 @@ type Props = {
   sessionOverride?: AgentComposerSessionSnapshot
   resolvedAgent?: AgentEntity
   resolvedModel?: Model
+  resolvedProvider?: Provider
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
@@ -304,6 +306,7 @@ const AgentComposerRoot = ({
   sessionOverride,
   resolvedAgent,
   resolvedModel,
+  resolvedProvider,
   resolvedWorkspaceWarning,
   externalContextControls = false,
   sendMessage,
@@ -392,6 +395,8 @@ const AgentComposerRoot = ({
         key={composerInstanceKey}
         agent={agent}
         model={sessionModel}
+        resolvedProvider={resolvedProvider}
+        providerManagedExternally={externalContextControls}
         modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
         agentId={agentId}
         sessionId={sessionId}
@@ -430,6 +435,8 @@ interface InputHistoryToolSnapshot {
 interface InnerProps {
   agent?: AgentEntity
   model?: Model
+  resolvedProvider?: Provider
+  providerManagedExternally?: boolean
   modelPending?: boolean
   agentId: string
   sessionId: string
@@ -660,6 +667,8 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
 const AgentComposerInner = ({
   agent,
   model,
+  resolvedProvider,
+  providerManagedExternally,
   modelPending,
   agentId,
   sessionId,
@@ -1504,7 +1513,15 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {model && (
+        <ComposerToolRuntimeHost
+          scope={scope}
+          model={model}
+          session={toolsSession}
+          resolvedProvider={resolvedProvider}
+          providerManagedExternally={providerManagedExternally}
+        />
+      )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface

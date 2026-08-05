@@ -5,6 +5,7 @@ import AgentComposer, { type AgentComposerLaunchOptions } from '@renderer/compon
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -13,6 +14,7 @@ interface AgentComposerSlotProps {
   agentId?: string
   activeAgent?: GetAgentResponse
   activeModel?: Model
+  activeProvider?: Provider
   workspaceWarning?: string
   isMultiSelectMode: boolean
   session: AgentSessionEntity
@@ -30,6 +32,7 @@ function AgentComposerSlot({
   agentId,
   activeAgent,
   activeModel,
+  activeProvider,
   workspaceWarning,
   isMultiSelectMode,
   session,
@@ -54,6 +57,7 @@ function AgentComposerSlot({
         sessionOverride={session}
         resolvedAgent={activeAgent}
         resolvedModel={activeModel}
+        resolvedProvider={activeProvider}
         resolvedWorkspaceWarning={workspaceWarning ?? null}
         externalContextControls
         sendMessage={sendMessage}

@@ -20,11 +20,12 @@ import type {
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Plus } from 'lucide-react'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,6 +65,8 @@ interface ComposerToolRuntimeBootstrapProps {
   assistant?: Assistant
   model: Model
   session?: ToolContext['session']
+  resolvedProvider?: Provider
+  providerManagedExternally?: boolean
 }
 
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
@@ -75,13 +78,21 @@ const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; c
   return <Runtime context={context} />
 }
 
-export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
+export const ComposerToolRuntimeHost = ({
+  scope,
+  assistant,
+  model,
+  session,
+  resolvedProvider,
+  providerManagedExternally = false
+}: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
-  const { provider } = useProvider(model.providerId)
+  const { provider: localProvider } = useProviderById(providerManagedExternally ? null : model.providerId)
+  const provider = providerManagedExternally ? resolvedProvider : localProvider
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({

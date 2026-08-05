@@ -84,6 +84,8 @@ const mocks = vi.hoisted(() => ({
         assistant?: { modelId?: string | null }
         model?: Model
         session?: { agentId?: string }
+        resolvedProvider?: { id: string }
+        providerManagedExternally?: boolean
       }
     | undefined,
   speedControlProps: undefined as
@@ -328,6 +330,8 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     assistant?: { modelId?: string | null }
     model?: Model
     session?: { agentId?: string }
+    resolvedProvider?: { id: string }
+    providerManagedExternally?: boolean
   }) => {
     mocks.runtimeHostProps = props
     return null
@@ -1177,6 +1181,7 @@ describe('AgentComposer', () => {
       model: model.id,
       configuration: {}
     } as any
+    const resolvedProvider = { id: 'anthropic', name: 'Anthropic' } as any
 
     render(
       <AgentComposer
@@ -1188,6 +1193,7 @@ describe('AgentComposer', () => {
         }}
         resolvedAgent={resolvedAgent}
         resolvedModel={model}
+        resolvedProvider={resolvedProvider}
         resolvedWorkspaceWarning={null}
         externalContextControls
         sendMessage={mocks.sendMessage}
@@ -1199,6 +1205,8 @@ describe('AgentComposer', () => {
     expect(mocks.agentLookupId).toBeNull()
     expect(mocks.modelLookupId).toBeNull()
     expect(mocks.runtimeHostProps?.model).toBe(model)
+    expect(mocks.runtimeHostProps?.resolvedProvider).toBe(resolvedProvider)
+    expect(mocks.runtimeHostProps?.providerManagedExternally).toBe(true)
   })
 
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
