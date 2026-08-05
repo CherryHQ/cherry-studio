@@ -10,9 +10,14 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
+  ipcRequest: vi.fn(() => Promise.resolve(undefined)),
   macTransparentState: { value: false },
   platformState: { isMac: false },
   showSearchPopup: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
@@ -26,6 +31,20 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    size,
+    variant,
+    ...props
+  }: React.ComponentProps<'button'> & { size?: string; variant?: string }) => {
+    void size
+    void variant
+    return (
+      <button type={props.type ?? 'button'} {...props}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -67,9 +86,13 @@ vi.mock('../ShellTabBarActions', async () => {
   const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
   return {
     ...actual,
-    ShellTabBarActions: () => null
+    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
   }
 })
+
+vi.mock('../../WindowControls', () => ({
+  WindowControls: () => <div data-testid="window-controls" />
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
@@ -199,6 +222,126 @@ describe('AppShellTabBar', () => {
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+  })
+
+  it('shows the focused tab as a Back control with a visible detach action', async () => {
+    const user = userEvent.setup()
+    const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
+    const detachTab = vi.fn()
+
+    const closeTab = renderTabBar({
+      tabs: [settingsTab],
+      activeTabId: settingsTab.id,
+      isFocusedTab: true,
+      detachTab
+    })
+
+    const backButton = screen.getByRole('button', { name: 'common.back' })
+    expect(backButton).toHaveClass('h-8', 'w-auto', 'appearance-none', 'border-0', 'bg-transparent', 'shadow-none')
+    expect(backButton).toHaveClass('cursor-pointer', 'hover:text-foreground')
+    expect(backButton.querySelector('svg')).toHaveClass('group-hover:text-foreground')
+    expect(backButton).not.toHaveClass('hover:bg-accent')
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
+
+    const detachButton = screen.getByTestId('focused-tab-detach')
+    expect(detachButton).toHaveClass('group', 'size-8', 'cursor-pointer')
+    expect(detachButton.querySelector('svg')).toHaveClass(
+      'lucide-custom',
+      'text-foreground-tertiary',
+      'group-hover:text-foreground'
+    )
+    expect(detachButton).toHaveTextContent('')
+    await user.click(detachButton)
+    expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+
+    fireEvent.click(backButton)
+    expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+  })
+
+  it('detaches the focused tab when dragged outside the tab bar', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
+      return {
+        width: isTabBar ? 800 : 160,
+        height: isTabBar ? 44 : 30,
+        top: 0,
+        left: 0,
+        right: isTabBar ? 800 : 160,
+        bottom: isTabBar ? 44 : 30,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn()
+    })
+
+    try {
+      const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+      const closeTab = renderTabBar({
+        tabs: [settingsTab],
+        activeTabId: settingsTab.id,
+        isFocusedTab: true,
+        detachTab: vi.fn()
+      })
+      const tab = screen.getByRole('button', { name: 'common.back' })
+      const pointerDown = new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 100,
+        clientY: 20,
+        screenX: 100,
+        screenY: 20
+      })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const pointerMove = new MouseEvent('pointermove', {
+        bubbles: true,
+        clientX: 100,
+        clientY: 100,
+        screenX: 100,
+        screenY: 100
+      })
+      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+      fireEvent(document, pointerMove)
+
+      expect(mocks.ipcRequest).toHaveBeenCalledWith(
+        'tab.detach',
+        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
+      )
+      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+    } finally {
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('closes the focused tab immediately from the Back control', () => {
+    const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+    const closeTab = renderTabBar({
+      tabs: [settingsTab],
+      activeTabId: settingsTab.id,
+      isFocusedTab: true
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }), { detail: 1 })
+
+    expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
   })
 
   it('moves a normal tab to the first slot', async () => {
