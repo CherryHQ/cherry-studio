@@ -18,11 +18,9 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -31,8 +29,8 @@ import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, Output
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { resolveGatewayModelAddress } from './utils/models'
-import { appendNoPrefillContinuation, isNoAssistantPrefillClaudeModel } from './utils/noPrefill'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -161,11 +159,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const shouldNormalizeNoPrefill =
-    inputFormat === 'anthropic' &&
-    isInternalAgentRequest &&
-    isNoAssistantPrefillClaudeModel(model) &&
-    resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  const shouldNormalizeAgentContinuation = inputFormat === 'anthropic' && isInternalAgentRequest
 
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
@@ -174,7 +168,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(params)
-  const messages = shouldNormalizeNoPrefill ? appendNoPrefillContinuation(convertedMessages) : convertedMessages
+  const messages = shouldNormalizeAgentContinuation
+    ? appendInternalAgentContinuation(convertedMessages)
+    : convertedMessages
   const tools = converter.toAiSdkTools?.(params)
   const streamOptions = converter.extractStreamOptions(params)
 
@@ -203,7 +199,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
-    logger.info('Appended no-prefill continuation for internal agent request', { providerId, modelId, streamId })
+    logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
   }
   const aiStreamManager = application.get('AiStreamManager')
 
