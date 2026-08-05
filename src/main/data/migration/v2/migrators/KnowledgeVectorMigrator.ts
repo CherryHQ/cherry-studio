@@ -274,10 +274,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
   // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
   private directoryItemsToDegrade = new Set<string>()
-  // Bases whose vector store never finished building at its runtime index.sqlite (the rebuild threw
-  // partway). flushBaseFailures() marks each `failed`/missing_vector_store after the loop so the UI
-  // surfaces a restore entry instead of leaving a `completed` base with a missing/partial store and
-  // forever-empty search.
+  // Bases that never finished publishing at their runtime index.sqlite — either the rebuild threw
+  // partway, or it completed and the snapshot-pin transaction threw. flushBaseFailures() marks each
+  // `failed`/missing_vector_store after the loop so the UI surfaces a restore entry instead of
+  // leaving a `completed` base with a missing/partial store (forever-empty search) or with unpinned
+  // url/note rows (no `relativePath`, which deriveConceptId treats as an invariant violation).
   private basesToMarkFailed = new Set<string>()
   // Migrated item rows by base, computed once in prepare() and reused by execute() to resolve each
   // planned rowid list back to its material item without re-querying ctx.db. Metadata only (ids,
@@ -962,13 +963,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Mark every base whose vector store never finished building (collected in execute()'s per-base
-   * catch when the rebuild threw before completion) as a restorable `failed` row, after wiping the
-   * partial index it left behind. Without this the base stays `completed` and the runtime mounts an
-   * empty/partial store: search and the chunk list return nothing forever, and nothing reindexes on
-   * its own (KnowledgeVectorStoreService only logs the empty-store state). `missing_vector_store` is
-   * the same restorable error prepare()'s unreadable-store branch sets, so the UI offers a re-index
-   * that rebuilds from the migrated raw/ files. Best-effort and chunked like flushDirectoryDegradations:
+   * Mark every base that never finished publishing (collected in execute()'s per-base catch — the
+   * rebuild threw partway, or it completed and the snapshot-pin transaction threw) as a restorable
+   * `failed` row, after wiping the index it left behind. Without this the base stays `completed`
+   * and is broken with no way back: a missing/partial store makes search and the chunk list return
+   * nothing forever with nothing reindexing on its own (KnowledgeVectorStoreService only logs the
+   * empty-store state), and unpinned url/note rows keep a `completed` status that makes
+   * index-documents skip them, so their snapshots are never captured either. `missing_vector_store`
+   * is the same restorable error prepare()'s unreadable-store branch sets, so the UI offers the
+   * restore flow. Best-effort and chunked like flushDirectoryDegradations:
    * a failed UPDATE is recorded as a warning, never thrown, so it cannot abort the surviving bases.
    */
   private async flushBaseFailures(ctx: MigrationContext): Promise<void> {
@@ -1019,11 +1022,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     let processedCount = 0
 
     for (const plan of this.preparedBasePlans) {
-      // Did the store finish building at its runtime path? Flipped true once the build + close
-      // succeeds. It gates the per-base catch: a failure BEFORE the store is complete (rebuild threw)
-      // leaves a partial/empty index that must be wiped and the base marked restorable `failed`; a
-      // failure AFTER (the snapshot-pin UPDATE) leaves a complete, searchable store that must be kept
-      // and the base left as-is.
+      // Did this base finish PUBLISHING? Flipped true only once the build, the close, AND the
+      // snapshot-pin transaction have all succeeded — publication is all-or-nothing. It gates the
+      // per-base catch: any failure before that point leaves an index that must be wiped (partial
+      // if the rebuild threw, complete-but-unpinned if the pins did) and the base marked restorable
+      // `failed`, because a `completed` base with a missing store or with url/note rows lacking
+      // `relativePath` is broken in a way nothing later repairs.
       let storePromoted = false
       let reader: LegacyKnowledgeVectorBaseReader | null = null
 
@@ -1164,10 +1168,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
           store.close()
         }
-        // Build + close succeeded: the complete store sits at its runtime path. A later failure
-        // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
-        storePromoted = true
-
         if (plan.rowidsByItemId.size === 0) {
           processedWork += 1
           this.reportRebuildProgress(processedWork, totalWork)
@@ -1177,10 +1177,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // Pin each url/note item row to the snapshot file the build loop already wrote, so the
         // runtime's ensure-snapshot step reads it offline at {baseDir}/raw/{relativePath} (a url
         // instead of re-fetching the page, a note instead of re-deriving from data). One
-        // transaction for the whole base: a mid-loop failure must not leave SOME rows pinned
-        // against a store whose other rows are not — all-or-nothing keeps the published state
-        // self-consistent (zero pins is recoverable: a re-run re-pins, and the runtime can
-        // re-capture a snapshot from the raw/ file the build already wrote).
+        // transaction for the whole base, and the LAST step before the base counts as published:
+        // a partial pin would desync item rows from the store's material paths, and a zero-pin
+        // "success" would be worse still — a completed url/note with no relativePath violates the
+        // invariant deriveConceptId() guards, and nothing ever repairs it (the runtime's
+        // ensure-snapshot never runs for a completed item, and a completed migration never
+        // re-runs). So publication is all-or-nothing: pins commit, THEN the store counts as
+        // promoted.
         if (materialSnapshotPins.length > 0) {
           ctx.db.transaction((tx) => {
             for (const pin of materialSnapshotPins) {
@@ -1188,6 +1191,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             }
           })
         }
+
+        // Store built, closed, and its rows pinned: this base is published. Anything that threw
+        // before this point leaves storePromoted false, so the catch wipes the index and marks the
+        // base failed — a visible, restorable state instead of a silently broken completed one.
+        storePromoted = true
 
         this.successfulBaseIds.add(plan.baseId)
         processedCount += plan.expectedUnitCount
@@ -1203,11 +1211,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        // If the store never finished building, wipe the partial/empty index left at the runtime path
-        // so the runtime cannot later mount a half-built store (a complete store from a post-build
-        // snapshot-pin failure is kept — storePromoted). Cleanup must not throw past the loop: on
-        // Windows a locked index.sqlite can make rm reject even after retries, which would mask the
-        // real errorMessage and abort the whole migration.
+        // The base never reached publication (build, close, or pin threw), so wipe the index left at
+        // the runtime path — the runtime must not mount a half-built store, nor a complete one whose
+        // url/note rows were never pinned to their snapshots. Cleanup must not throw past the loop:
+        // on Windows a locked index.sqlite can make rm reject even after retries, which would mask
+        // the real errorMessage and abort the whole migration.
         if (!storePromoted) {
           try {
             await this.removeIndexStoreFiles(plan.targetDbPath)
@@ -1233,16 +1241,20 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // allowed to succeed its children are not left `completed` with no vectors (an
         // unreindexable virtual-path orphan).
         //
-        // Mark the base itself `failed`/missing_vector_store (flushed after the loop) ONLY when its
-        // store never finished building (the rebuild threw; storePromoted still false). Leaving such a
-        // base `completed` makes the runtime mount an empty/partial store and return empty search/chunk
-        // results forever — there is NO auto-reindex (KnowledgeVectorStoreService only logs the
-        // empty-store state, it does not rebuild). A `failed` base is kept out of the runtime's open
-        // path and surfaces a restore/re-index entry, matching prepare()'s restorable
-        // unreadable-store branch. Regular file/url/note rows stay `completed`; restore re-reads them
-        // from their migrated raw/ files regardless of status, so they need no per-item degrade.
-        // If the build already completed (storePromoted) and only the snapshot-pin threw, the store
-        // is present and searchable — do not mark it failed and force a needless full re-index.
+        // Mark the base itself `failed`/missing_vector_store (flushed after the loop) whenever it did
+        // not reach publication. Leaving such a base `completed` makes the runtime mount an
+        // empty/partial store and return empty search/chunk results forever — there is NO auto-reindex
+        // (KnowledgeVectorStoreService only logs the empty-store state, it does not rebuild). The same
+        // holds for a fully built store whose pins never committed: its url/note items would stay
+        // `completed` with no `relativePath`, which deriveConceptId treats as an invariant violation,
+        // and no path repairs it (index-documents skips completed items, so ensure-snapshot never runs,
+        // and a completed migration never re-runs). A `failed` base is instead kept out of the
+        // runtime's open path and surfaces the restore flow, matching prepare()'s restorable
+        // unreadable-store branch. Restore re-adds the items into a FRESH base, so the new rows are
+        // not `completed` and do get indexed (a note re-derives its snapshot from data.content; a url
+        // re-fetches the live page, which is the one lossy case — a dead link cannot be recovered
+        // from the unpinned raw/ snapshot). Regular file rows need no per-item degrade: restore
+        // re-reads them from their migrated raw/ files regardless of status.
         this.skippedCount += plan.expectedUnitCount
         this.markDirectoryGroupsFullyOrphaned(plan.directoryGroups)
         if (!storePromoted) {

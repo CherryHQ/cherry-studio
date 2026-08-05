@@ -2364,15 +2364,19 @@ describe('KnowledgeVectorMigrator', () => {
       expect(validateResult.errors).toStrictEqual([])
     })
 
-    it('rolls back every snapshot pin atomically and keeps the built store when a pin UPDATE throws', async () => {
-      // The url snapshot store is built in place at its runtime path and the snapshot files are
-      // written before the row-pin transaction runs. If any pin UPDATE throws, the WHOLE pin
-      // transaction must roll back — a base must never publish with only SOME items pinned, which
-      // would desync item rows from the store's material paths. The per-base catch then credits
-      // the base's units to skippedCount and drops it from successfulBaseIds, so the engine
-      // reconciliation still balances and the migration survives; the built store stays in place
-      // (storePromoted is already true, so the catch does not wipe it) with ALL rows unpinned
-      // until a re-run re-pins them.
+    it('rolls back every snapshot pin and fails the base when a pin UPDATE throws', async () => {
+      // Pinning the item rows is the LAST step of publishing a base, so a pin failure must take the
+      // whole base down with it. Two things are pinned here:
+      //   1. the pin transaction rolls back entirely — no base may publish with only SOME items
+      //      pinned, which would desync item rows from the store's material paths; and
+      //   2. zero pins is NOT treated as a success either. A completed base whose url/note items
+      //      have no `relativePath` is an invariant violation deriveConceptId guards, and nothing
+      //      repairs it: index-documents skips completed items (so ensure-snapshot never re-captures)
+      //      and a completed migration never re-runs. So the catch wipes the built store and marks
+      //      the base failed/missing_vector_store — visible and restorable, since restore re-adds the
+      //      items into a fresh base whose rows are not completed and therefore do get indexed.
+      // The base's units are still credited to skippedCount and it drops out of successfulBaseIds,
+      // so the engine reconciliation balances and the rest of the migration survives.
       const SECOND_URL_ITEM_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {
@@ -2458,14 +2462,14 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
 
       // NO row was pinned: the transaction rolled the first UPDATE back with the failed second.
-      expect(migrationCtx.db.updateCalls).toHaveLength(0)
+      // (Only the base-failure write below reaches the DB.)
+      expect(migrationCtx.db.updateCalls.filter((call) => 'data' in call.values)).toHaveLength(0)
 
-      // The built store survives at the runtime path (storePromoted is true, so the catch does not
-      // wipe it), so the vectors are not lost — merely left unpinned until a re-run.
-      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
-      // The store DID land, so the base must NOT be marked missing_vector_store — that would force a
-      // needless full re-index of a present, searchable store (storePromoted gate).
-      expect([...migrator.basesToMarkFailed]).toEqual([])
+      // The base never published, so its index is wiped rather than left mountable with unpinned
+      // url/note rows, and the base is marked failed so the runtime skips it and the UI offers a
+      // restore — the only path that can re-capture the missing snapshots.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
 
       // The skipped base's units are credited, so the engine's count reconciliation still balances.
       const failedValidateResult = await migrator.validate(migrationCtx as any)

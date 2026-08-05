@@ -122,6 +122,16 @@ the projection and vectors in ≤500-rowid batches — a 501-chunk item must arr
   EBUSY-survivable retries) before (re)building, and the WAL is folded back into the
   main file via `PRAGMA wal_checkpoint(TRUNCATE)` so the runtime opens a
   self-contained store.
+- A base is **published all-or-nothing**, and pinning its url/note rows to their snapshots is the
+  last step of publication — the store counts as promoted only after that transaction commits.
+  Anything that throws earlier (build, close, or the pin transaction) wipes the index and marks the
+  base restorable-`failed`. Zero pins must not be credited as a success: a `completed` url/note item
+  with no `relativePath` is the invariant violation `deriveConceptId` guards, and nothing repairs it
+  — `index-documents` skips `completed` items so ensure-snapshot never re-captures, and a completed
+  migration never re-runs. A `failed` base instead surfaces the restore flow, which re-adds the items
+  into a fresh base whose rows are not `completed` and therefore do get indexed. That recovery is
+  lossy for one case only: a url item re-fetches its live page rather than re-reading the `raw/`
+  snapshot this migrator wrote but never pinned, so a since-dead link is not recoverable.
 - The v1 legacy embedjs DB (`{knowledgeBaseDir}/{legacyBaseId}`) is **never**
   moved or deleted. Each migrated base gets a new uuid, so the rebuilt V2 store
   lives under a different path (`{migratedBaseId}/.cherry/index.sqlite`) and never
