@@ -606,9 +606,8 @@ const BinaryToolPresetCard: FC<{
             )}
             {backendControllable && (
               <Button
-                variant="ghost"
+                variant="destructiveSubtle"
                 size="icon-sm"
-                className="text-muted-foreground hover:text-destructive"
                 onClick={onRemove}
                 disabled={busy}
                 aria-label={t('settings.dependencies.uninstall')}
@@ -785,9 +784,8 @@ const CustomToolCard: FC<{
             </Button>
           )}
           <Button
-            variant="ghost"
+            variant="destructiveSubtle"
             size="icon-sm"
-            className="text-muted-foreground hover:text-destructive"
             aria-label={t('settings.dependencies.remove')}
             title={t('settings.dependencies.remove')}
             onClick={onRemove}

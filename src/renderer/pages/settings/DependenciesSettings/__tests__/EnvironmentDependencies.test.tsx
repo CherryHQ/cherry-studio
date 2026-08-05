@@ -116,8 +116,12 @@ vi.mock('@cherrystudio/ui', () => {
       : null
   return {
     Badge: passthrough('span'),
-    Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
-      React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
+    Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title, variant, className }: any) =>
+      React.createElement(
+        'button',
+        { onClick, 'aria-label': ariaLabel, disabled, title, className, 'data-variant': variant ?? 'default' },
+        children
+      ),
     ConfirmDialog: ({ open, title, description, confirmText, cancelText, onConfirm }: any) =>
       open
         ? React.createElement(
@@ -339,7 +343,10 @@ describe('EnvironmentDependencies', () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0', true) })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).getByLabelText('settings.dependencies.uninstall')).toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.uninstall')).toHaveAttribute(
+      'data-variant',
+      'destructiveSubtle'
+    )
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
@@ -705,7 +712,10 @@ describe('EnvironmentDependencies', () => {
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
 
     expect(card).toHaveTextContent('settings.dependencies.source.system')
-    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.remove')).toHaveAttribute(
+      'data-variant',
+      'destructiveSubtle'
+    )
     expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
   })

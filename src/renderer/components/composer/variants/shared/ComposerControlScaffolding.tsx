@@ -6,9 +6,10 @@ import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 
 export const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
-export const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
+export const COMPOSER_SELECTOR_BUTTON_CLASS =
+  'h-7 shrink-0 gap-1.5 rounded-lg border border-input bg-transparent px-2 text-xs text-foreground shadow-none hover:border-border-strong hover:bg-transparent hover:text-foreground focus-visible:border-ring focus-visible:bg-transparent focus-visible:text-foreground active:bg-transparent aria-expanded:bg-transparent data-[state=open]:bg-transparent dark:bg-transparent disabled:bg-transparent disabled:text-foreground-disabled'
 export const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
-  'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-foreground shadow-none hover:bg-accent active:bg-accent disabled:bg-transparent disabled:text-foreground-disabled [&_svg]:text-muted-foreground hover:[&_svg]:text-foreground'
+  'h-8 shrink-0 gap-1.5 rounded-lg border border-input bg-transparent px-2.5 text-xs font-medium text-foreground shadow-none hover:border-border-strong hover:bg-transparent hover:text-foreground focus-visible:border-ring focus-visible:bg-transparent focus-visible:text-foreground active:bg-transparent aria-expanded:bg-transparent data-[state=open]:bg-transparent dark:bg-transparent disabled:bg-transparent disabled:text-foreground-disabled [&_svg]:text-muted-foreground hover:[&_svg]:text-foreground'
 export const COMPOSER_SEND_ACCESSORY_BUTTON_CLASS =
   'size-7.5 shrink-0 rounded-full text-muted-foreground! duration-150 ease-in-out hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-accent data-[active=true]:text-control-accent! data-[active=true]:hover:text-control-accent! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:!size-[18px]'
 export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
