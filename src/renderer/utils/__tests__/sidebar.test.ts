@@ -153,6 +153,42 @@ describe('sidebar config helpers', () => {
       )
     ).toBe(true)
   })
+
+  it('counts message-view URLs without their matching conversation id as normal conversation tabs', () => {
+    const currentTab = { id: 'current', type: 'route' as const, url: '/settings/provider' }
+
+    expect(
+      hasOtherConversationAppTab(
+        [currentTab, { id: 'malformed-chat', type: 'route' as const, url: '/app/chat?view=message' }],
+        currentTab.id,
+        'assistants'
+      )
+    ).toBe(true)
+    expect(
+      hasOtherConversationAppTab(
+        [currentTab, { id: 'malformed-agent', type: 'route' as const, url: '/app/agents?view=message' }],
+        currentTab.id,
+        'agents'
+      )
+    ).toBe(true)
+    expect(
+      hasOtherConversationAppTab(
+        [currentTab, { id: 'chat-message', type: 'route' as const, url: '/app/chat?topicId=topic&view=message' }],
+        currentTab.id,
+        'assistants'
+      )
+    ).toBe(false)
+    expect(
+      hasOtherConversationAppTab(
+        [
+          currentTab,
+          { id: 'agent-message', type: 'route' as const, url: '/app/agents?sessionId=session&view=message' }
+        ],
+        currentTab.id,
+        'agents'
+      )
+    ).toBe(false)
+  })
 })
 
 describe('sidebar favorites mutations', () => {

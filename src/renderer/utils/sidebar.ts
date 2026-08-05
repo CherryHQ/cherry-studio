@@ -51,7 +51,12 @@ function getNormalConversationSearchParamFromUrl(url: string, name: string): str
 
 export function isMessageOnlyConversationUrl(url: string): boolean {
   try {
-    return new URL(url, 'app://x').searchParams.get('view') === 'message'
+    const parsedUrl = new URL(url, 'app://x')
+    if (parsedUrl.searchParams.get('view') !== 'message') return false
+
+    if (parsedUrl.pathname === '/app/chat') return Boolean(parsedUrl.searchParams.get('topicId'))
+    if (parsedUrl.pathname === '/app/agents') return Boolean(parsedUrl.searchParams.get('sessionId'))
+    return false
   } catch {
     return false
   }
