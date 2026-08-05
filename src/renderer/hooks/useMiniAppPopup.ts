@@ -4,10 +4,11 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
@@ -180,10 +181,15 @@ export const useMiniAppPopup = () => {
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive) {
         const list = keepAliveRef.current
-        const exists = list.some((item) => item.appId === app.appId)
-        if (exists) {
-          const tail = list[list.length - 1]
-          if (tail?.appId !== app.appId) {
+        const cachedIndex = list.findIndex((item) => item.appId === app.appId)
+        if (cachedIndex !== -1) {
+          const cached = list[cachedIndex]
+          const isTail = cachedIndex === list.length - 1
+          const changed = !isEqual(cached, app)
+          if (!isTail || changed) {
+            if (changed && cached.url !== app.url) {
+              setWebviewLoaded(app.appId, false)
+            }
             const reordered = [...list.filter((item) => item.appId !== app.appId), app]
             setOpenedKeepAliveMiniApps(reordered)
           }
@@ -303,13 +309,22 @@ export const useMiniAppPopup = () => {
       })
 
       const list = keepAliveRef.current
-      const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
+      const cachedIndex = list.findIndex((item) => item.appId === app.appId)
+      const wasCached = cachedIndex !== -1
       if (!wasCached) {
         const targetSize = Math.max(cap - 1, 0)
         const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
         const next = [...keep, app]
         setOpenedKeepAliveMiniApps(next)
         for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
+      } else {
+        const cached = list[cachedIndex]
+        if (cached.url !== app.url) {
+          setWebviewLoaded(app.appId, false)
+          const next = [...list]
+          next[cachedIndex] = app
+          setOpenedKeepAliveMiniApps(next)
+        }
       }
 
       setCurrentMiniAppId(app.appId)
@@ -317,8 +332,8 @@ export const useMiniAppPopup = () => {
 
       // Always activate the mini-app tab even when the keep-alive entry
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
-      // URL, not pool membership. Webview re-use stays correct: when cached we
-      // don't recreate the entry or reset `src`, only the tab route activates.
+      // URL, not pool membership. An unchanged URL keeps the existing webview;
+      // a changed transient URL updates that webview through the pool.
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       openTab(`/app/mini-app/${app.appId}`, {
         title: app.name,
