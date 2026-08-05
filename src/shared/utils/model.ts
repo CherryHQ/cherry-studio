@@ -280,19 +280,6 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
-/**
- * Claude 4.6+ / 5.x reject assistant-message prefill: the Anthropic Messages
- * request must end with a user message. Protocol constraint, not a capability
- * flag — see https://platform.claude.com/docs/en/api/errors#prefill-not-supported
- */
-export const isNoAssistantPrefillClaudeModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return (
-    /(?:anthropic\.)?claude-(?:opus|sonnet|haiku)-4[.-][6-9](?:[@\-:][\w\-:]+)?$/i.test(id) ||
-    /(?:anthropic\.)?claude-(?:opus|sonnet|haiku|fable|mythos)-5(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i.test(id)
-  )
-}
-
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')

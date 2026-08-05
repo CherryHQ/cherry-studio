@@ -1,7 +1,25 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { appendNoPrefillContinuation, NO_PREFILL_CONTINUATION_TEXT } from '../utils/noPrefill'
+import {
+  appendNoPrefillContinuation,
+  isNoAssistantPrefillClaudeModel,
+  NO_PREFILL_CONTINUATION_TEXT
+} from '../utils/noPrefill'
+
+function createModel(apiModelId: string): Model {
+  return {
+    id: `test::${apiModelId}`,
+    providerId: 'test',
+    apiModelId,
+    name: apiModelId,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+}
 
 const userMessage: CherryUIMessage = {
   id: 'user-1',
@@ -31,6 +49,34 @@ const nonTextParts: Array<[string, CherryUIMessage['parts'][number]]> = [
   ],
   ['reasoning part', { type: 'reasoning', text: 'Reasoning' }]
 ]
+
+describe('isNoAssistantPrefillClaudeModel', () => {
+  it.each([
+    'claude-opus-4-6',
+    'claude-opus-4.7',
+    'claude-opus-4-8',
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-opus-5-20260101',
+    'anthropic.claude-opus-4-6',
+    'CLAUDE-OPUS-5',
+    'claude-mythos-preview',
+    'anthropic.claude-mythos-preview'
+  ])('matches no-prefill Claude model %s', (apiModelId) => {
+    expect(isNoAssistantPrefillClaudeModel(createModel(apiModelId))).toBe(true)
+  })
+
+  it.each([
+    'claude-opus-4-5',
+    'claude-sonnet-4.5',
+    'claude-haiku-4-5',
+    'claude-3-5-sonnet',
+    'claude-opus-4',
+    'gpt-5.5'
+  ])('rejects model %s that still supports prefill or is not Claude', (apiModelId) => {
+    expect(isNoAssistantPrefillClaudeModel(createModel(apiModelId))).toBe(false)
+  })
+})
 
 describe('appendNoPrefillContinuation', () => {
   it('returns the same messages for an empty list', () => {

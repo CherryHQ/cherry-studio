@@ -24,7 +24,6 @@ import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNoAssistantPrefillClaudeModel } from '@shared/utils/model'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -33,7 +32,7 @@ import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { resolveGatewayModelAddress } from './utils/models'
-import { appendNoPrefillContinuation } from './utils/noPrefill'
+import { appendNoPrefillContinuation, isNoAssistantPrefillClaudeModel } from './utils/noPrefill'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
