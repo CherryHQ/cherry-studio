@@ -10,13 +10,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 /**
  * Integration guard for the archiver 7 -> 8 migration.
  *
- * The consumer of this API — `LegacyBackupManager` — is retained v1 compatibility
- * code, so instead of refactoring it for testability this exercises the exact
+ * The remaining consumer of this API is LegacyBackupManager's offline LAN
+ * handoff. Normal local/WebDAV/S3 archives delegate to BackupService v2.
+ * Instead of refactoring that separate protocol here, this exercises the exact
  * archiver-8 surface it depends on with a real (unmocked) archive:
  * `new ZipArchive({ zlib })` + `.pipe()` + `.directory(dir, false)` + `.append()`
- * + `.finalize()`. The ZIP is then read back with `node-stream-zip` — the same
- * library `LegacyBackupManager` uses on the restore path — so the full create ->
- * read round-trip is covered, not just the constructor shape.
+ * + `.finalize()`. The ZIP is then read back with `node-stream-zip`, covering a
+ * real create/read round trip rather than only the constructor shape.
  */
 describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
   let workDir: string

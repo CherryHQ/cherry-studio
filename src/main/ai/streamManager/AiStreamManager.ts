@@ -246,6 +246,9 @@ export class AiStreamManager extends BaseService {
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
+  /** New dispatches wait here while quiesced. They are intentionally not part of the drain
+   *  wait-set because they belong to the post-snapshot epoch. */
+  private readonly resumeWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>()
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
    *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
@@ -280,6 +283,7 @@ export class AiStreamManager extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
+    this.isShuttingDown = false
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     this.reconcileStalePendingMessages()
@@ -301,27 +305,33 @@ export class AiStreamManager extends BaseService {
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
     await this.reconciled
-    return this.withDispatchLock(req.topicId, async () => {
-      // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
-      // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
-      // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
-      // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
-      // where a pause lands between that gate and this one, and the grandfathered launch is
-      // awaited by `drainInFlight` via `inFlightChatContinuations`.
-      if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
-        return {
-          mode: 'blocked' as const,
-          reason: 'paused' as const
+    const isGrandfatheredContinuation = req.trigger === 'steer-continuation'
+
+    for (;;) {
+      if (!isGrandfatheredContinuation) await this.waitForWriteResume()
+
+      const attempt = await this.withDispatchLock(req.topicId, async () => {
+        // Re-check under the per-topic lock. If a pause landed while this dispatch waited
+        // for the mutex, release the mutex and wait outside it; holding the topic lock while
+        // queued would deadlock an already-admitted turn that still needs the lock.
+        if (this.isWriteQuiesced && !isGrandfatheredContinuation) {
+          return undefined
         }
-      }
-      const admission = dispatchStreamRequest(this, subscriber, req)
-      this.inFlightDispatches.set(admission, req.topicId)
-      try {
-        return await admission
-      } finally {
-        this.inFlightDispatches.delete(admission)
-      }
-    })
+
+        // `steer-continuation` is exempt: it only originates from `startNextChatTurn`,
+        // which is itself gated. The exemption covers the microtask race where a pause
+        // lands between that gate and this lock; the grandfathered launch is drain-visible.
+        const admission = dispatchStreamRequest(this, subscriber, req)
+        this.inFlightDispatches.set(admission, req.topicId)
+        try {
+          return await admission
+        } finally {
+          this.inFlightDispatches.delete(admission)
+        }
+      })
+
+      if (attempt !== undefined) return attempt
+    }
   }
 
   /**
@@ -351,12 +361,21 @@ export class AiStreamManager extends BaseService {
     return this.pauseHolds.size > 0
   }
 
+  /** Wait until new-turn admission reopens. Queued callers are not drain-visible. */
+  waitForWriteResume(): Promise<void> {
+    if (this.isShuttingDown) return Promise.reject(new Error('AiStreamManager is stopping'))
+    if (!this.isWriteQuiesced) return Promise.resolve()
+    return new Promise<void>((resolve, reject) => {
+      this.resumeWaiters.add({ resolve, reject })
+    })
+  }
+
   /**
-   * Pause new-turn admission: `dispatch()` returns `{mode:'blocked', reason:'paused'}` and
-   * `startAgentSessionRun` throws while any hold is live; queued steer continuations are
-   * suppressed (not consumed). In-flight streams keep running until drained. There is
-   * deliberately NO resume(): dispose your own hold; the last disposal re-kicks suppressed
-   * continuations. A dropped hold fails closed (paused until relaunch).
+   * Pause new-turn admission: `dispatch()` and `startAgentSessionRun` wait outside the
+   * per-topic mutex while any hold is live; queued steer continuations are suppressed
+   * (not consumed). In-flight streams keep running until drained. There is deliberately
+   * NO resume(): dispose your own hold; the last disposal wakes queued admission and
+   * re-kicks suppressed continuations. A dropped hold fails closed (paused until relaunch).
    */
   pause(reason?: string): Disposable {
     const token = Symbol(reason ?? 'ai-stream-manager-pause')
@@ -369,6 +388,9 @@ export class AiStreamManager extends BaseService {
         if (this.pauseHolds.size > 0) return
         // Shutdown wins: onStop owns the teardown; a compensation kick would only race it.
         if (this.isShuttingDown) return
+        const waiters = [...this.resumeWaiters]
+        this.resumeWaiters.clear()
+        for (const waiter of waiters) waiter.resolve()
         this.runReleaseCompensation()
       }
     }
@@ -503,6 +525,10 @@ export class AiStreamManager extends BaseService {
    */
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    const waiters = [...this.resumeWaiters]
+    this.resumeWaiters.clear()
+    for (const waiter of waiters) waiter.reject(new Error('AiStreamManager is stopping'))
+
     const activeTopics = [...this.activeStreams.entries()]
       .filter(([, s]) => isLiveStatus(s.status))
       .map(([topicId]) => topicId)

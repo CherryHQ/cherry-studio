@@ -121,7 +121,9 @@ export function buildPathRegistry() {
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
-    'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    'feature.mcp.memory_file': path.join(appUserDataData, 'Mcp', 'memory.json'),
+    // Read-only source for additive adoption into the active profile.
+    'feature.mcp.memory_legacy_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
@@ -143,6 +145,7 @@ export function buildPathRegistry() {
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
+    'feature.agents.transcripts': path.join(appUserDataData, 'AgentTranscripts'), // completed-Turn portable SDK transcripts
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
     'feature.agents.assistant.manifest.file': path.join(
@@ -174,6 +177,16 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    // Park slots for the live nodes a restore replaces, one subtree per restore.
+    // Sibling of the staging tree on purpose: promotion renames between the two,
+    // and a rename is only atomic within one filesystem.
+    'feature.backup.restore.aside': path.join(appUserData, 'restore-aside'),
+    // Per-install secret that lets a restore recognize an archive THIS install
+    // produced (backup self-attestation, docs/references/backup/README.md §3.1).
+    // Deliberately at the userData ROOT, outside `Data/`: every exported managed
+    // root lives under `Data/`, so no export can ever sweep the secret into an
+    // archive.
+    'feature.backup.attestation.key_file': path.join(appUserData, 'backup-attestation.key'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
@@ -246,6 +259,7 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.mcp.memory_legacy_file',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces'

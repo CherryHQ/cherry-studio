@@ -51,6 +51,7 @@ import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
 import type { McpPackageService } from './McpPackageService'
+import { ensureMcpMemoryFile } from './memoryFileMigration'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -237,6 +238,15 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
+    const memoryFile = await ensureMcpMemoryFile({
+      legacyPath: application.getPath('feature.mcp.memory_legacy_file'),
+      legacyRoot: application.getPath('cherry.home'),
+      targetPath: application.getPath('feature.mcp.memory_file'),
+      profileRoot: application.getPath('app.userdata')
+    })
+    if (memoryFile !== 'already-present') {
+      logger.info('Prepared profile-owned MCP memory file', { result: memoryFile })
+    }
   }
 
   protected async onStop(): Promise<void> {

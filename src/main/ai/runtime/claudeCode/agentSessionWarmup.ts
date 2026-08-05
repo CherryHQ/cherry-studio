@@ -12,6 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { decodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
@@ -39,6 +40,7 @@ import { getExtraHeaders } from '../../utils/provider'
 import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { projectRestoredAgentTranscript } from './portableTranscript'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
@@ -446,8 +448,20 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
-  const resumeSessionId =
-    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const resumePoint = decodePortableAgentResumePoint(
+    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
+  )
+  const resumeSessionId = resumePoint?.sessionId
+  // After a restore the transcript lives only at the canonical root; the SDK
+  // reads its cwd-keyed projects file. Project it once, soft-fail to a fresh
+  // session — never block the connection on it.
+  if (resumePoint) {
+    await projectRestoredAgentTranscript({
+      hostSessionId: session.id,
+      cwd: session.workspace.path,
+      resumePoint
+    })
+  }
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -490,6 +504,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
   })
+  if (resumePoint?.resumeSessionAt) options.resumeSessionAt = resumePoint.resumeSessionAt
 
   if (options.includePartialMessages === undefined) {
     options.includePartialMessages = true

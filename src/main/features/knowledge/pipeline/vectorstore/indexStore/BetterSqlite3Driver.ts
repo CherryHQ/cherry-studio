@@ -79,6 +79,17 @@ export class BetterSqlite3Driver implements SqliteDriver {
     return { rows: [], changes: result.changes }
   }
 
+  async backup(destination: string, signal?: AbortSignal): Promise<void> {
+    this.assertOpen()
+    if (signal?.aborted) throw signal.reason ?? new Error('Knowledge index snapshot cancelled')
+    await this.db.backup(destination, {
+      progress() {
+        if (signal?.aborted) throw signal.reason ?? new Error('Knowledge index snapshot cancelled')
+        return 100
+      }
+    })
+  }
+
   transaction<T>(fn: (tx: SqliteTransaction) => T): T {
     this.assertOpen()
     const handle: SqliteTransaction = {

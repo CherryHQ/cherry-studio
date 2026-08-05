@@ -384,7 +384,7 @@ describe('KnowledgeService', () => {
     })
     listMaterialUnitsMock.mockReturnValue([])
     storeSearchMock.mockResolvedValue([])
-    getMaterialByRelativePathMock.mockResolvedValue(null)
+    getMaterialByRelativePathMock.mockReturnValue(null)
     readMaterialContentMock.mockResolvedValue(null)
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
@@ -991,6 +991,133 @@ describe('KnowledgeService', () => {
       expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } })
     )
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
+  describe('reconcileRestoredBaseFromMaterial', () => {
+    it('enqueues only missing transported leaf material and never probes a directory source', async () => {
+      const service = new KnowledgeService()
+      const file = createFileItem('file-1', 'kb-1', '/external/original.pdf', 'completed')
+      const directory = createDirectoryItem('dir-1', null, 'completed')
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([file, directory])
+      getMaterialByRelativePathMock.mockReturnValue(null)
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('pending')
+
+      expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'original.pdf')
+      expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.index-documents',
+        { baseId: 'kb-1', itemId: 'file-1', restoreId: 'restore-1' },
+        expect.objectContaining({ idempotencyKey: 'knowledge:kb-1:file-1:restore-index:restore-1' })
+      )
+    })
+
+    it('treats a user-deleted restored base as complete instead of blocking acknowledgement forever', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', 'kb-1')
+      })
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(listMock).not.toHaveBeenCalled()
+      expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('treats a failed restored base as complete instead of retrying an index store it cannot open', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(
+        createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+      )
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(listMock).not.toHaveBeenCalled()
+      expect(knowledgeItemGetItemsByBaseIdMock).not.toHaveBeenCalled()
+      expect(getIndexStoreMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('waits for active restore jobs instead of rescanning and re-enqueueing the whole base', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      listMock.mockResolvedValue([
+        {
+          id: 'restore-job-1',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' }
+        }
+      ])
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('pending')
+      expect(listMock).toHaveBeenCalledWith({
+        queue: 'base.kb-1',
+        status: ['pending', 'delayed', 'running']
+      })
+      expect(knowledgeItemGetItemsByBaseIdMock).not.toHaveBeenCalled()
+      expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('cancels only active index jobs created by the abandoned restore', async () => {
+      const service = new KnowledgeService()
+      listMock.mockResolvedValue([
+        {
+          id: 'restore-job-1',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' }
+        },
+        {
+          id: 'ordinary-job',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-2', parentJobId: null }
+        },
+        {
+          id: 'other-restore-job',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-2', itemId: 'file-3', parentJobId: null, restoreId: 'restore-2' }
+        }
+      ])
+      cancelMock.mockResolvedValue({ outcome: 'cancelled' })
+
+      await service.cancelRestoredMaterialRebuild('restore-1')
+
+      expect(listMock).toHaveBeenCalledWith({
+        type: 'knowledge.index-documents',
+        status: ['pending', 'delayed', 'running']
+      })
+      expect(cancelMock).toHaveBeenCalledOnce()
+      expect(cancelMock).toHaveBeenCalledWith('restore-job-1', 'backup-restore-rebuild-abandoned')
+    })
+
+    it('reports completion only when every expected material row exists', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createFileItem('file-1', 'kb-1', '/source/a.md', 'completed'),
+        createFileItem('file-2', 'kb-1', '/source/b.md', 'completed')
+      ])
+      getMaterialByRelativePathMock.mockReturnValue({ materialId: 'material', relativePath: 'present' })
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledTimes(2)
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('fails closed before creating an index when transported material is missing', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createFileItem('file-1', 'kb-1', '/external/original.pdf', 'completed')
+      ])
+      probeKnowledgeFileMock.mockResolvedValue('missing')
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).rejects.toThrow(
+        /Restored knowledge material is missing/
+      )
+      expect(getIndexStoreMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
   })
 
   it('schedules add, delete, and reindex through the new workflow jobs', async () => {
@@ -2046,7 +2173,7 @@ describe('KnowledgeService', () => {
     const CONCEPT_ID = 'docs/intro.md'
 
     function arrangeReadable(text: string, itemBaseId = 'kb-1') {
-      getMaterialByRelativePathMock.mockResolvedValue({
+      getMaterialByRelativePathMock.mockReturnValue({
         materialId: NOTE_ITEM_ID,
         relativePath: CONCEPT_ID
       })
@@ -2121,7 +2248,7 @@ describe('KnowledgeService', () => {
 
     it('throws NOT_FOUND when the Concept ID resolves to nothing', async () => {
       const service = new KnowledgeService()
-      getMaterialByRelativePathMock.mockResolvedValue(null)
+      getMaterialByRelativePathMock.mockReturnValue(null)
 
       await expect(service.readConcept('kb-1', 'docs/missing.md')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -2156,7 +2283,7 @@ describe('KnowledgeService', () => {
     const CONCEPT_ID = 'docs/intro.md'
 
     function arrangeReadable(text: string) {
-      getMaterialByRelativePathMock.mockResolvedValue({
+      getMaterialByRelativePathMock.mockReturnValue({
         materialId: NOTE_ITEM_ID,
         relativePath: CONCEPT_ID
       })
@@ -2256,7 +2383,7 @@ describe('KnowledgeService', () => {
 
     it('throws NOT_FOUND when the Concept ID resolves to nothing', async () => {
       const service = new KnowledgeService()
-      getMaterialByRelativePathMock.mockResolvedValue(null)
+      getMaterialByRelativePathMock.mockReturnValue(null)
 
       await expect(service.grepConcept('kb-1', 'docs/missing.md', { pattern: 'x' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND

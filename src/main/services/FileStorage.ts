@@ -34,7 +34,6 @@ import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
-import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
 import * as path from 'path'
@@ -53,33 +52,11 @@ function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
 }
 
+/**
+ * @deprecated v2 callers must use FileManager. This singleton remains only
+ * while legacy IPC routes are being removed.
+ */
 class FileStorage {
-  // TODO(v2): Lazy getter is a workaround, not a fix.
-  //
-  // The real problem is that `FileStorage` is exported as a top-level
-  // singleton at the bottom of this file
-  // (`export const fileStorage = new FileStorage()`). That singleton is
-  // instantiated during the static import graph of `src/main/main.ts`
-  // (via both `ipc.ts` and the `ApiGatewayService → ApiGateway → routes
-  // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
-  // and builds the path registry. The previous shape used field
-  // initializers (`private storageDir = application.getPath(...)`),
-  // which threw "PATHS not initialized" at module-load time.
-  //
-  // Lazy getters defer the path lookup until first *access*, by which
-  // point bootstrap has finished — but the class itself is still being
-  // constructed too early. We've merely moved the path lookup out of
-  // construction; we have NOT solved the architectural issue.
-  //
-  // The proper v2 fix is to migrate `FileStorage` into the lifecycle
-  // system: extend `BaseService`, add `@Injectable`, register in
-  // `serviceRegistry.ts`, and have callers resolve it via
-  // `application.get('FileStorage')` instead of importing the singleton.
-  // Once that's done, the DI container will instantiate it inside
-  // `application.bootstrap()` after the path registry is built, and
-  // these getters can become plain field initializers (or move into
-  // `onInit`). Until then, keep them as getters — do NOT "simplify"
-  // them back to fields.
   private get storageDir(): string {
     return application.getPath('feature.files.data')
   }
@@ -279,10 +256,9 @@ class FileStorage {
   }
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
+    if (!filePath) return
+    const nativePath = normalizeTrashPath(filePath)
     try {
-      if (!filePath) return
-
-      const nativePath = normalizeTrashPath(filePath)
       await assertOutsideManagedStorageMutation(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
@@ -297,10 +273,9 @@ class FileStorage {
   }
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+    if (!dirPath) return
+    const nativePath = normalizeTrashPath(dirPath)
     try {
-      if (!dirPath) return
-
-      const nativePath = normalizeTrashPath(dirPath)
       await assertOutsideManagedStorageMutation(nativePath)
       if (!fs.existsSync(nativePath)) {
         return
@@ -359,13 +334,12 @@ class FileStorage {
   }
 
   public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
+    const newFilePath = path.join(path.dirname(filePath), newName + '.md')
     try {
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
 
-      const dirPath = path.dirname(filePath)
-      const newFilePath = path.join(dirPath, newName + '.md')
       await assertOutsideManagedStorageMutation(filePath, newFilePath)
 
       // 如果目标文件已存在，抛出错误
@@ -383,13 +357,12 @@ class FileStorage {
   }
 
   public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
+    const newDirPath = path.join(path.dirname(dirPath), newName)
     try {
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
-      const parentDir = path.dirname(dirPath)
-      const newDirPath = path.join(parentDir, newName)
       await assertOutsideManagedStorageMutation(dirPath, newDirPath)
 
       // 如果目标目录已存在，抛出错误
@@ -792,8 +765,7 @@ class FileStorage {
       }
 
       await assertOutsideManagedStorageMutation(result.filePath)
-      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-
+      await fs.promises.writeFile(result.filePath, content, { encoding: 'utf-8' })
       return result.filePath
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
@@ -807,17 +779,16 @@ class FileStorage {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
+      if (!filePath) return false
 
-      if (filePath) {
-        await assertOutsideManagedStorageMutation(filePath)
-        const parseResult = parseDataUrl(data)
-        fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
-        return true
-      }
+      await assertOutsideManagedStorageMutation(filePath)
+      const parseResult = parseDataUrl(data)
+      await fs.promises.writeFile(filePath, parseResult?.data ?? data, 'base64')
+      return true
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
+      return false
     }
-    return false
   }
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
@@ -878,10 +849,9 @@ class FileStorage {
       const ext = path.extname(filename)
       const destPath = path.join(this.storageDir, uuid + ext)
 
-      // 将响应内容写入文件
       const buffer = Buffer.from(await response.arrayBuffer())
+      // 将响应内容写入文件
       await fs.promises.writeFile(destPath, buffer)
-
       const stats = await fs.promises.stat(destPath)
       const fileType = await getFileType(destPath as AbsoluteFilePath)
 

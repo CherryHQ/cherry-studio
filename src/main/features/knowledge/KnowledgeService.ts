@@ -48,6 +48,11 @@ export class KnowledgeService extends BaseService {
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
 
+  /** Serialize a portable backup cut with per-base material/index commits. */
+  withPortableSnapshotBoundary<T>(baseId: string, work: () => T | Promise<T>): Promise<T> {
+    return this.knowledgeLockManager.runExclusive(baseId, work)
+  }
+
   protected onInit(): void {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler(
@@ -106,6 +111,14 @@ export class KnowledgeService extends BaseService {
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     await this.ingestionService.reindexItems(baseId, itemIds)
+  }
+
+  async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
+    return await this.ingestionService.reconcileRestoredBaseFromMaterial(baseId, restoreId)
+  }
+
+  async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
+    await this.ingestionService.cancelRestoredMaterialRebuild(restoreId)
   }
 
   /** Configure an embedding model on a BM25-only base and backfill embeddings in place (see KnowledgeIngestionService.enableEmbeddingModel). */

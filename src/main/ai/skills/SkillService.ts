@@ -29,6 +29,7 @@ import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
+import { isManagedSkillTarget } from './capturePolicy'
 import { SkillInstaller } from './SkillInstaller'
 import { buildSystemSkillSources } from './systemSkillSources'
 
@@ -92,7 +93,7 @@ export class SkillService {
   }
 
   /** Enable or disable a skill for a specific agent. */
-  toggle(options: SkillToggleOptions): InstalledSkill | null {
+  async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
     const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) return null
 
@@ -102,7 +103,7 @@ export class SkillService {
   }
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
-  enableForAllAgents(skillId: string): void {
+  async enableForAllAgents(skillId: string): Promise<void> {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
@@ -449,7 +450,7 @@ export class SkillService {
         fs.promises.realpath(entryPath),
         fs.promises.realpath(application.getPath('feature.agents.skills'))
       ])
-      return entryRealPath === skillsRootRealPath || entryRealPath.startsWith(skillsRootRealPath + path.sep)
+      return isManagedSkillTarget(entryRealPath, skillsRootRealPath)
     } catch {
       return false
     }
@@ -607,7 +608,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null }
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -712,7 +713,7 @@ export class SkillService {
     }
 
     if (isBuiltin) {
-      this.enableForAllAgents(inserted.id)
+      await this.enableForAllAgents(inserted.id)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
@@ -1449,82 +1450,92 @@ export class SkillService {
    * for existing and future agents alike — without any `agent_skill` rows.
    */
   async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
-    return this.mutationLock.runExclusive(async () => {
-      const existing = this.findCatalogSkillCaseInsensitive(folderName)
-      if (existing && existing.source !== 'builtin') {
+    return this.mutationLock.runExclusive(() => this.syncBuiltinSkillUnderBarrier(folderName, sourcePath, appVersion))
+  }
+
+  private async syncBuiltinSkillUnderBarrier(
+    folderName: string,
+    sourcePath: string,
+    appVersion: string
+  ): Promise<boolean> {
+    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    if (existing && existing.source !== 'builtin') {
+      throw new Error(
+        `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
+      )
+    }
+
+    const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+    const destFolderName = existing?.folderName ?? storageEntry ?? folderName
+    const destPath = this.getSkillStoragePath(destFolderName)
+    const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
+    if (!existing && storageEntry) {
+      try {
+        await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
+        const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+        if (installedHash !== sourceHash) {
+          throw new Error('content does not match the bundled builtin')
+        }
+      } catch {
         throw new Error(
-          `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
+          `Folder name "${folderName}" conflicts with an existing user-authored library directory "${storageEntry}".`
         )
       }
+    }
 
-      const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
-      const destFolderName = existing?.folderName ?? storageEntry ?? folderName
-      const destPath = this.getSkillStoragePath(destFolderName)
-      const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
-      if (!existing && storageEntry) {
-        try {
-          await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
-          const installedHash = await this.computeBuiltinDirectoryHash(destPath)
-          if (installedHash !== sourceHash) {
-            throw new Error('content does not match the bundled builtin')
-          }
-        } catch {
-          throw new Error(
-            `Folder name "${folderName}" conflicts with an existing user-authored library directory "${storageEntry}".`
-          )
-        }
-      }
+    let filesUpdated = true
+    try {
+      const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
+      const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+      filesUpdated = installedVersion !== appVersion || installedHash !== sourceHash
+    } catch {
+      filesUpdated = true
+    }
 
-      let filesUpdated = true
-      try {
-        const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
-        const installedHash = await this.computeBuiltinDirectoryHash(destPath)
-        filesUpdated = installedVersion !== appVersion || installedHash !== sourceHash
-      } catch {
-        filesUpdated = true
-      }
+    if (filesUpdated) {
+      await this.installer.install(sourcePath, destPath)
+      await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
+    }
 
-      if (filesUpdated) {
-        await this.installer.install(sourcePath, destPath)
-        await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
-      }
+    // Builtin contentHash is the trusted full-directory hash (excluding Cherry's version marker),
+    // unlike authored skills whose hash tracks SKILL.md metadata changes.
+    if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
 
-      // Builtin contentHash is the trusted full-directory hash (excluding Cherry's version marker),
-      // unlike authored skills whose hash tracks SKILL.md metadata changes.
-      if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
+    const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
+    const tags = metadata.tags ?? []
 
-      const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
-      const tags = metadata.tags ?? []
+    if (existing) {
+      agentGlobalSkillService.update(existing.id, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags,
+        contentHash: sourceHash
+      })
+    } else {
+      agentGlobalSkillService.insert({
+        name: metadata.name,
+        description: metadata.description ?? null,
+        folderName: destFolderName,
+        source: 'builtin',
+        sourceUrl: null,
+        namespace: null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags,
+        contentHash: sourceHash,
+        isEnabled: false
+      })
+    }
 
-      if (existing) {
-        agentGlobalSkillService.update(existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash: sourceHash
-        })
-      } else {
-        agentGlobalSkillService.insert({
-          name: metadata.name,
-          description: metadata.description ?? null,
-          folderName: destFolderName,
-          source: 'builtin',
-          sourceUrl: null,
-          namespace: null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash: sourceHash,
-          isEnabled: false
-        })
-      }
-
-      await this.linkMirror(destFolderName)
-      logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
-      return filesUpdated
+    await this.linkMirror(destFolderName)
+    logger.info('Built-in skill synced to DB', {
+      folderName: destFolderName,
+      firstInstall: !existing,
+      filesUpdated
     })
+    return filesUpdated
   }
 
   private async reportInstall(owner: string, repo: string, skillName: string): Promise<void> {

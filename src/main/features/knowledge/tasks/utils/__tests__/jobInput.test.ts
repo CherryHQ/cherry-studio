@@ -18,6 +18,26 @@ describe('narrowKnowledgeJobInput', () => {
     })
   })
 
+  it('preserves index-documents payload fields', () => {
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.index-documents',
+        input: {
+          baseId: 'kb-1',
+          itemId: 'file-1',
+          restoreId: 'restore-1'
+        }
+      })
+    ).toEqual({
+      type: 'knowledge.index-documents',
+      input: {
+        baseId: 'kb-1',
+        itemId: 'file-1',
+        restoreId: 'restore-1'
+      }
+    })
+  })
+
   it('accepts file-processing check job snapshots', () => {
     expect(
       narrowKnowledgeJobInput({
@@ -80,6 +100,12 @@ describe('narrowKnowledgeJobInput', () => {
       narrowKnowledgeJobInput({
         type: 'knowledge.index-documents',
         input: { baseId: 'kb-1' }
+      })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.index-documents',
+        input: { baseId: 'kb-1', itemId: 'file-1', restoreId: 1 }
       })
     ).toBeNull()
   })

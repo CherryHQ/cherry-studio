@@ -15,6 +15,8 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.index-documents': {
       baseId: string
       itemId: string
+      /** Restore-only path: index transported material without probing original sources. */
+      restoreId?: string
     }
     'knowledge.check-file-processing-result': {
       baseId: string
