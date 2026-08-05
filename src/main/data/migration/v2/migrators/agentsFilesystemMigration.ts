@@ -1971,6 +1971,12 @@ interface CleanupPathIndexEntry {
   ownerPath: string
 }
 
+interface CleanupSourceOwnership {
+  sourceAgentId: string
+  finalAgentId: string
+  hasConflictingOwner: boolean
+}
+
 type CleanupPathAncestorIndex = Map<string, CleanupPathIndexEntry>
 
 // Ancestor walks keep overlap validation linear in path count and bounded by path depth.
@@ -2052,12 +2058,15 @@ async function clearLegacyAgentMigrationTargets(input: {
 }): Promise<void> {
   await ensureAgentStorageDirectory(input.agentsDataRoot, input.agentsDataRoot)
 
-  const sourceOwnersByPath = new Map<string, Array<{ sourceAgentId: string; finalAgentId: string }>>()
+  const sourceOwnershipByPath = new Map<string, CleanupSourceOwnership>()
   const addSourceOwner = (sourcePath: string, sourceAgentId: string, finalAgentId: string) => {
     const key = cleanupPathIndexKey(sourcePath)
-    const owners = sourceOwnersByPath.get(key) ?? []
-    owners.push({ sourceAgentId, finalAgentId })
-    sourceOwnersByPath.set(key, owners)
+    const ownership = sourceOwnershipByPath.get(key)
+    if (!ownership) {
+      sourceOwnershipByPath.set(key, { sourceAgentId, finalAgentId, hasConflictingOwner: false })
+    } else if (ownership.sourceAgentId !== sourceAgentId || ownership.finalAgentId !== finalAgentId) {
+      ownership.hasConflictingOwner = true
+    }
   }
   for (const session of input.sessions) {
     addSourceOwner(session.sourceWorkspacePath, session.sourceAgentId, session.finalAgentId)
@@ -2073,12 +2082,14 @@ async function clearLegacyAgentMigrationTargets(input: {
   const targetPaths = new Map<string, { path: string; exists: boolean; preserveExactSource: boolean }>()
   for (const { sourceAgentId, finalAgentId } of input.agents) {
     const targetPath = path.resolve(agentDataDirectoryPath(input.agentsDataRoot, finalAgentId))
-    const exactSourceOwners = sourceOwnersByPath.get(cleanupPathIndexKey(targetPath)) ?? []
+    const exactSourceOwnership = sourceOwnershipByPath.get(cleanupPathIndexKey(targetPath))
     // Some v1 Agents already use the final v2 Agent data path as their workspace.
     // It remains a source of truth, but only when no other Agent claims the same path.
     const preserveExactSource =
-      exactSourceOwners.length > 0 &&
-      exactSourceOwners.every((owner) => owner.sourceAgentId === sourceAgentId && owner.finalAgentId === finalAgentId)
+      exactSourceOwnership !== undefined &&
+      !exactSourceOwnership.hasConflictingOwner &&
+      exactSourceOwnership.sourceAgentId === sourceAgentId &&
+      exactSourceOwnership.finalAgentId === finalAgentId
     targetPaths.set(targetPath, { path: targetPath, exists: false, preserveExactSource })
   }
   for (const session of input.sessions) {
