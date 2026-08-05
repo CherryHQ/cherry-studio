@@ -1350,6 +1350,9 @@
       "label": "确定要备份数据吗？"
     },
     "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "error": {
+      "active_data_writers": "当前有对话或智能体正在运行，请等待其结束后重试。"
+    },
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
@@ -3867,6 +3870,7 @@
       "pasted_text": "剪切板文件"
     },
     "backup": {
+      "cleanup_failed": "备份已完成，但旧备份清理失败。",
       "failed": "备份失败",
       "start": {
         "success": "开始备份"
@@ -6159,6 +6163,7 @@
         },
         "pathSelector": {
           "currentPath": "当前路径",
+          "fetchError": "获取坚果云文件夹列表失败",
           "return": "返回",
           "title": "坚果云存储路径"
         },

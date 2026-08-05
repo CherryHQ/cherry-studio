@@ -1350,6 +1350,9 @@
       "label": "Bạn có chắc chắn muốn sao lưu dữ liệu không?"
     },
     "content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
+    "error": {
+      "active_data_writers": "Một cuộc trò chuyện hoặc tác nhân vẫn đang chạy. Hãy đợi nó hoàn thành, sau đó thử lại."
+    },
     "progress": {
       "completed": "Sao lưu đã hoàn tất",
       "compressing": "Compressando arquivos...",
@@ -3840,6 +3843,7 @@
       "pasted_text": "Văn bản đã dán"
     },
     "backup": {
+      "cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",
       "failed": "Sao lưu thất bại",
       "start": {
         "success": "Đã bắt đầu sao lưu"
@@ -6112,6 +6116,7 @@
         },
         "pathSelector": {
           "currentPath": "Đường dẫn hiện tại",
+          "fetchError": "Không tải được danh sách thư mục Nutstore",
           "return": "Trở lại",
           "title": "Đường dẫn lưu trữ Nutstore"
         },
