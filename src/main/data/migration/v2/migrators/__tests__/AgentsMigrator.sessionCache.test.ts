@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -261,11 +261,14 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(messages.map((message) => message.runtimeResumeToken).sort()).toEqual(
       [CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[1], ''].sort()
     )
+    // The shared v1 workspace content is materialized only into the latest
+    // session; the older session keeps an empty system workspace (issue #17830).
+    expect(await readFile(path.join(workspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
     const [oldWorkspace] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.id, oldSession.workspaceId))
-    expect(await readFile(path.join(oldWorkspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
+    expect(await readdir(oldWorkspace.path)).toEqual([])
 
     const migratedProjectDirectory = path.join(
       claudeProjectsDir,

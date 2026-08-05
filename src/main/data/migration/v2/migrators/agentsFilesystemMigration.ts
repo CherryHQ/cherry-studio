@@ -247,6 +247,17 @@ export interface AgentFileSessionPlan {
   updatedAt: number
 }
 
+/**
+ * Order managed-default sessions by recency so the shared v1 workspace content is
+ * materialized into the session most likely to be resumed. Ties fall back to the
+ * lexicographically smaller session id, matching the identity-source ordering.
+ */
+function isLaterManagedSession(candidate: AgentFileSessionPlan, incumbent: AgentFileSessionPlan): boolean {
+  if (candidate.updatedAt !== incumbent.updatedAt) return candidate.updatedAt > incumbent.updatedAt
+  if (candidate.createdAt !== incumbent.createdAt) return candidate.createdAt > incumbent.createdAt
+  return candidate.sourceSessionId.localeCompare(incumbent.sourceSessionId) < 0
+}
+
 export function legacyAgentWorkspacePath(agentsDataRoot: string, legacyAgentId: string): string {
   const shortId = legacyAgentId.slice(-9)
   if (!shortId || shortId === '.' || shortId === '..' || /[\\/]/.test(shortId)) {
@@ -2141,9 +2152,23 @@ export async function stageLegacyAgentFiles(input: {
     reusableStagingPaths: new Map(),
     pendingPublications: []
   }
-  const totalWorkspaceSessions = input.sessions.filter(
-    (session) => session.isManagedDefault && session.systemWorkspacePath
-  ).length
+
+  // A v1 managed-default workspace was SHARED by every session of the agent.
+  // v2 gives each session its own exclusive system workspace, so copying that
+  // shared tree into all of them fanned one source out into N full copies and
+  // exhausted the disk (issue #17830). Materialize the shared content once, into
+  // the single most recently active session; the other sessions keep the empty
+  // system workspace directories they still get created below.
+  const contentSessionIdByAgent = new Map<string, string>()
+  for (const { sourceAgentId } of input.agents) {
+    const systemSessions = (plansByAgent.get(sourceAgentId) ?? []).filter(
+      (plan) => plan.isManagedDefault && plan.systemWorkspacePath
+    )
+    if (systemSessions.length === 0) continue
+    const latest = systemSessions.reduce((best, session) => (isLaterManagedSession(session, best) ? session : best))
+    contentSessionIdByAgent.set(sourceAgentId, latest.sourceSessionId)
+  }
+  const totalWorkspaceSessions = contentSessionIdByAgent.size
   let processedAgents = 0
   let processedWorkspaceSessions = 0
   let identityFileCount = 0
@@ -2201,28 +2226,29 @@ export async function stageLegacyAgentFiles(input: {
 
       if (path.resolve(defaultWorkspacePath) === path.resolve(agentDataPath)) continue
 
-      for (const session of systemSessions) {
-        if (!session.systemWorkspacePath) continue
-        const workspaceStats = await copyOrdinaryWorkspaceContent(
-          workspaceCopyContext,
-          input.agentsDataRoot,
-          session.sourceWorkspacePath,
-          session.systemWorkspacePath,
-          agentDataPath
-        )
-        copiedWorkspaceEntries += workspaceStats.copiedEntries
-        reusedWorkspaceEntries += workspaceStats.reusedEntries
-        workspaceFileCount += workspaceStats.fileCount
-        workspaceByteCount += workspaceStats.byteCount
-        processedWorkspaceSessions++
-        input.onProgress?.({
-          phase: 'workspace',
-          processed: processedWorkspaceSessions,
-          total: totalWorkspaceSessions,
-          fileCount: workspaceFileCount,
-          byteCount: workspaceByteCount
-        })
-      }
+      const contentSessionId = contentSessionIdByAgent.get(sourceAgentId)
+      const contentSession = systemSessions.find((session) => session.sourceSessionId === contentSessionId)
+      if (!contentSession?.systemWorkspacePath) continue
+
+      const workspaceStats = await copyOrdinaryWorkspaceContent(
+        workspaceCopyContext,
+        input.agentsDataRoot,
+        contentSession.sourceWorkspacePath,
+        contentSession.systemWorkspacePath,
+        agentDataPath
+      )
+      copiedWorkspaceEntries += workspaceStats.copiedEntries
+      reusedWorkspaceEntries += workspaceStats.reusedEntries
+      workspaceFileCount += workspaceStats.fileCount
+      workspaceByteCount += workspaceStats.byteCount
+      processedWorkspaceSessions++
+      input.onProgress?.({
+        phase: 'workspace',
+        processed: processedWorkspaceSessions,
+        total: totalWorkspaceSessions,
+        fileCount: workspaceFileCount,
+        byteCount: workspaceByteCount
+      })
     }
     await verifyWorkspaceSources(workspaceCopyContext)
     const publicationStats = await publishPreparedWorkspaceEntries(workspaceCopyContext)
