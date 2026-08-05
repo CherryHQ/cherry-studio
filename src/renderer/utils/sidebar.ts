@@ -1,5 +1,4 @@
 import {
-  buildTabInstanceMetadata,
   getTabInstanceAppId,
   getTabInstanceKey,
   hasTabInstanceMetadataForApp
@@ -9,27 +8,22 @@ import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preferen
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
- * registry can't know on its own (preferences, persisted "last used" cache).
+ * registry can't know on its own (preferences).
  */
 export interface SidebarNavContext {
   defaultPaintingProvider: string
-  /** Cross-window persistent "last focused chat topic" — drives `assistants` defaultKey. */
-  lastUsedTopicId?: string | null
-  /** Cross-window persistent "last focused agent session" — drives `agents` defaultKey. */
-  lastUsedSessionId?: string | null
 }
 
 /**
  * Apps that hold navigable sub-instances (chat→topic, agent→session) carry an
- * `instanceKey`. Sidebar click uses `defaultKey` to bind the current tab to the
- * last-focused instance without activating another existing tab.
- * Apps without it (files / notes / paintings / …) are plain route entries.
+ * `instanceKey`: the identity↔url mapping for a conversation tab. Which
+ * conversation a bare entry lands on is resolved by the routes' own `beforeLoad`
+ * interceptors, not here. Apps without it (files / notes / paintings / …) are
+ * plain route entries.
  */
 export interface SidebarInstanceKey {
   /** Extract the instance key (topicId / sessionId) from an existing tab url. */
   keyFromUrl: (url: string) => string | undefined
-  /** The instance key to target on sidebar click (cross-window "last focused"). */
-  defaultKey: (ctx: SidebarNavContext) => string | undefined
   /** Build the tab url for an instance key (keeps dispatch app-agnostic). */
   urlForKey: (key: string) => string
 }
@@ -72,7 +66,6 @@ const SIDEBAR_APP_DEFINITIONS = [
     routePrefix: '/app/chat',
     instanceKey: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
-      defaultKey: ({ lastUsedTopicId }) => lastUsedTopicId ?? undefined,
       urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
     }
   },
@@ -81,7 +74,6 @@ const SIDEBAR_APP_DEFINITIONS = [
     routePrefix: '/app/agents',
     instanceKey: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
-      defaultKey: ({ lastUsedSessionId }) => lastUsedSessionId ?? undefined,
       urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
     }
   },
@@ -170,21 +162,6 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
   if (hasTabInstanceMetadataForApp(tab, app.id)) return app.routePrefix
 
   return tab.url
-}
-
-/**
- * Metadata for a tab the caller is binding to a known instance. Without a `key` there is
- * nothing to bind, so no metadata is written: stamping a bare app id would mark the tab as
- * an explicit draft and cut the page off from its own resume / latest-instance fallbacks.
- */
-export function buildSidebarAppOpenMetadata(
-  app: SidebarApp,
-  key?: string,
-  currentMetadata?: Tab['metadata']
-): Tab['metadata'] {
-  if (!app.instanceKey || !key) return undefined
-  if (app.id !== 'assistants' && app.id !== 'agents') return undefined
-  return buildTabInstanceMetadata(currentMetadata, { appId: app.id, key })
 }
 
 /**

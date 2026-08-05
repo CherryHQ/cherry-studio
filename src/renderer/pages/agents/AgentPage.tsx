@@ -21,16 +21,10 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
-import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import {
-  useCloseConversationTabs,
-  useCurrentTab,
-  useCurrentTabId,
-  useIsActiveTab,
-  useTabSelfMetadata
-} from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
   type ConversationCenterResourceDefinition,
@@ -47,7 +41,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { getTabInstanceKey, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -181,18 +174,9 @@ const AgentPage = () => {
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
-  const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
-  const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
-  // Frozen at mount for the same reason as `resumeSessionId` below: an unbound tab may use global
-  // history, while bare app metadata marks an explicit draft. `useTabSelfMetadata` stamps that bare
-  // metadata during the first effect flush, so a reactive read would retract the fallback one render
-  // later and race the very queries it gates.
-  const [canUseGlobalSessionFallback] = useState(
-    () => !currentTab || !hasTabInstanceMetadataForApp(currentTab, 'agents')
-  )
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
-  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
+  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
   const agentSessionsSource = useAgentSessionsSource()
@@ -216,9 +200,21 @@ const AgentPage = () => {
     isMessageOnlyView ? routeSessionId : null
   )
   const { agents, isLoading: isAgentsLoading } = useAgents()
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
-  const isRouteSessionBindingChanging = syncedRouteActiveSessionIdRef.current !== routeActiveSessionId
+  // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
+  // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
+  // changes (entry interceptor, recovery) flow back through the sync effect below. Clearing
+  // (`null`) never navigates: the next selection or the recovery path owns the URL then.
+  const setActiveSessionId = useCallback(
+    (id: string | null) => {
+      setActiveSessionIdState(id)
+      if (id && !isMessageOnlyView) {
+        void navigate({ to: '/app/agents', search: { sessionId: id }, replace: true })
+      }
+    },
+    [isMessageOnlyView, navigate]
+  )
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', {
     enabled: isClassicSessionLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
@@ -231,7 +227,7 @@ const AgentPage = () => {
 
     // A pending session left over from the previous route no longer matches the new active id, so
     // `useActiveSession` ignores it — no need to null it here.
-    setActiveSessionId((currentActiveSessionId) => {
+    setActiveSessionIdState((currentActiveSessionId) => {
       if (routeActiveSessionId) {
         return routeActiveSessionId
       }
@@ -243,18 +239,9 @@ const AgentPage = () => {
       return currentActiveSessionId
     })
   }, [routeActiveSessionId])
-  const [lastUsedSessionId, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
+  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  // Resume target frozen at mount: `last_used_session_id` is rewritten as soon as any session
-  // activates, so a reactive read would chase this page's own writes. Unbound entry tabs may use
-  // global history; named tabs (including explicit drafts) keep their own identity.
-  const [resumeSessionId] = useState<string | null>(() =>
-    isMessageOnlyView || isFeedbackIntent || routeActiveSessionId || !canUseGlobalSessionFallback
-      ? null
-      : lastUsedSessionId
-  )
-  const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -283,35 +270,28 @@ const AgentPage = () => {
     activeSessionId,
     setActiveSessionId
   })
-  // The tab-metadata entry target no longer exists: its by-id query settled with NOT_FOUND. `last_used_
-  // session_id` is never cleared on delete, so the sidebar can bind a tab to a deleted session — the
-  // tab has no identity left to keep, and stranding it on a blank page is worse than falling through
-  // to global history. Derived, not stored: it must be true in the same render the query settles, or
-  // the first-entry effect below would create a draft before the latest query is even enabled. An
-  // explicit `?sessionId=` deep link keeps its target instead — a bad link is the caller's to fix.
-  const isEntrySessionMissing =
-    !isMessageOnlyView &&
-    !isFeedbackIntent &&
-    !routeSessionId &&
-    !!routeActiveSessionId &&
-    activeSessionId === routeActiveSessionId &&
-    !activeSession &&
-    !isActiveSessionLoading &&
-    isDataApiNotFoundError(activeSessionError)
-  const activeTargetSessionId = isEntrySessionMissing ? null : routeActiveSessionId
-  // The global latest query is the final fallback, not a parallel page dependency. An explicit route/tab
-  // target wins outright; a remembered session gets one chance to resolve before we ask for latest.
-  const shouldLoadLatestSession =
-    (canUseGlobalSessionFallback || isEntrySessionMissing) &&
-    !isMessageOnlyView &&
-    !isFeedbackIntent &&
-    !activeTargetSessionId &&
-    !isResumeSessionLoading &&
-    !resumeSession
-  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({
-    enabled: shouldLoadLatestSession
-  })
-  const isLatestSessionReady = !shouldLoadLatestSession || !isLatestSessionLoading
+  // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
+  // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
+  // through the entry interceptor, which resolves the next target — no in-page state surgery.
+  useEffect(() => {
+    if (isMessageOnlyView || isFeedbackIntent) return
+    if (!routeSessionId || activeSessionId !== routeSessionId) return
+    if (activeSession || isActiveSessionLoading) return
+    if (!isDataApiNotFoundError(activeSessionError)) return
+    initialEmptySessionEvaluatedRef.current = false
+    clearActiveSession()
+    void navigate({ to: '/app/agents', search: {}, replace: true })
+  }, [
+    activeSession,
+    activeSessionError,
+    activeSessionId,
+    clearActiveSession,
+    isActiveSessionLoading,
+    isFeedbackIntent,
+    isMessageOnlyView,
+    navigate,
+    routeSessionId
+  ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
   const visibleSession = isMessageOnlyView
     ? routeSession
@@ -402,26 +382,14 @@ const AgentPage = () => {
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
   const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
-  // Keep the route target authoritative while Sidebar metadata is syncing into page state. Once the
-  // route has settled, page-owned selection uses `activeSessionId` so choosing a session inside the
-  // page can update the tab binding. The visible entity may intentionally remain the previous session
-  // while the target loads; it is never used as the identity during that transition.
-  const tabInstanceSessionId = !isMessageOnlyView
-    ? isRouteSessionBindingChanging
-      ? routeActiveSessionId
-      : (activeSessionId ?? visibleSession?.id)
-    : undefined
-  const preserveTabVisuals =
-    (isMessageOnlyView && !visibleSession && !!routeSessionId && isRouteSessionLoading) ||
-    (!isMessageOnlyView &&
-      !!tabInstanceSessionId &&
-      visibleSession?.id !== tabInstanceSessionId &&
-      !isEntrySessionMissing)
-  useTabSelfMetadata({
+  // While the bound session is still loading (or the visible entity intentionally lags behind a
+  // selection), keep the tab's stored title/icon instead of stamping a stale or generic one.
+  const targetSessionId = isMessageOnlyView ? routeSessionId : (activeSessionId ?? undefined)
+  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
+  useTabSelfVisuals({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
     emoji: visibleAgent?.configuration?.avatar,
-    instanceAppId: 'agents',
-    instanceKey: tabInstanceSessionId ?? null,
+    appId: 'agents',
     preserveVisuals: preserveTabVisuals
   })
 
@@ -824,7 +792,6 @@ const AgentPage = () => {
     closeSurface()
     setPendingLocateMessageId(undefined)
     setMissingAgentSelection(false)
-
     try {
       if (!routeSessionId) {
         throw new Error('Feedback intent is missing its prepared session')
@@ -863,10 +830,11 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
+  // First-entry create. Resume/latest entry lives in the route interceptor now: this page only
+  // reaches here bare when nothing was resolvable (empty session list), which creates a default
+  // session once the agent list can pick a target (or surfaces agent selection when none exist).
   useEffect(() => {
-    if (initialEmptySessionEvaluatedRef.current && !isEntrySessionMissing) {
-      return
-    }
+    if (initialEmptySessionEvaluatedRef.current) return
 
     if (isFeedbackIntent) return
 
@@ -880,37 +848,12 @@ const AgentPage = () => {
       return
     }
 
-    if (activeSessionId && !isEntrySessionMissing) {
-      // Keep waiting while a bound target loads or retries after a non-NOT_FOUND error. Mark the
-      // entry complete only once it resolves; otherwise a later NOT_FOUND could never recover.
+    if (activeSessionId) {
+      // A URL-bound entry: keep waiting while it loads (or retries after a non-NOT_FOUND
+      // error — the recovery effect above owns the missing case). Mark the entry complete
+      // only once it resolves.
       if (!activeSession) return
       initialEmptySessionEvaluatedRef.current = true
-      return
-    }
-
-    // Resume the last-focused session before falling back to the most-recently-updated one —
-    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
-    // what the user was looking at. A deleted (or unfetchable) last-used session falls through.
-    if (resumeSessionId) {
-      if (isResumeSessionLoading) return
-      if (resumeSession) {
-        initialEmptySessionEvaluatedRef.current = true
-        setPendingLocateMessageId(undefined)
-        setMissingAgentSelection(false)
-        setActiveSession(resumeSession)
-        return
-      }
-    }
-
-    // Resume the globally most-recently-updated session — both layouts, so switching layout never
-    // changes what you land on. Only a genuinely empty list falls through.
-    if (!isLatestSessionReady) return
-
-    if (latestSession) {
-      initialEmptySessionEvaluatedRef.current = true
-      setPendingLocateMessageId(undefined)
-      setMissingAgentSelection(false)
-      setActiveSession(latestSession)
       return
     }
 
@@ -919,9 +862,6 @@ const AgentPage = () => {
 
     if (!agents.length) {
       initialEmptySessionEvaluatedRef.current = true
-      if (activeSessionId) {
-        setActiveSessionId(null)
-      }
       setMissingAgentSelection(true)
       return
     }
@@ -929,22 +869,14 @@ const AgentPage = () => {
     initialEmptySessionEvaluatedRef.current = true
     void createDefaultEmptySession()
   }, [
-    activeSessionId,
     activeSession,
+    activeSessionId,
     agents,
     createDefaultEmptySession,
     isAgentsLoading,
-    isEntrySessionMissing,
     isFeedbackIntent,
-    isLatestSessionReady,
     isMessageOnlyView,
-    isResumeSessionLoading,
-    latestSession,
-    missingAgentSelection,
-    resumeSession,
-    resumeSessionId,
-    setActiveSession,
-    setActiveSessionId
+    missingAgentSelection
   ])
 
   const visibleSessionId = visibleSession?.id

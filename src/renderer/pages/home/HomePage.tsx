@@ -22,7 +22,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -32,13 +32,7 @@ import {
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
-import {
-  mapApiTopicToRendererTopic,
-  useActiveTopic,
-  useLatestTopic,
-  useTopicById,
-  useTopicMutations
-} from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -49,11 +43,10 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { getTabInstanceKey, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useLocation, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -142,7 +135,7 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -151,19 +144,9 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
-  const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  const currentTab = useCurrentTab()
-  const state = location.state as { topic?: Topic } | undefined
+  const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
-  const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
-  // Frozen at mount for the same reason as `resumeTopicId` below: an unbound tab may use global
-  // history, while bare app metadata marks an explicit draft. `useTabSelfMetadata` stamps that bare
-  // metadata during the first effect flush, so a reactive read would retract the fallback one render
-  // later and race the very queries it gates.
-  const [canUseGlobalTopicFallback] = useState(
-    () => !currentTab || !hasTabInstanceMetadataForApp(currentTab, 'assistants')
-  )
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
@@ -203,7 +186,7 @@ const HomePage: FC = () => {
     [routeApiTopic]
   )
 
-  const shouldAutoCreateTopic = !state?.topic && !isMessageOnlyView
+  const shouldAutoCreateTopic = !isMessageOnlyView
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -244,28 +227,24 @@ const HomePage: FC = () => {
     [assistantIdSet, assistants, validLastUsedAssistantId]
   )
 
-  const initialTopic = useMemo<Topic | undefined>(() => {
-    if (isMessageOnlyView) return undefined
-    return state?.topic
-  }, [isMessageOnlyView, state?.topic])
-
-  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
-  const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
-  const syncedRouteActiveTopicIdRef = useRef(routeActiveTopicId)
-  const isRouteTopicBindingChanging = syncedRouteActiveTopicIdRef.current !== routeActiveTopicId
-  // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
-  // activates, so a reactive read would chase this page's own writes. Unbound entry tabs may use
-  // global history; named tabs (including explicit drafts) keep their own identity.
-  const [resumeTopicId] = useState<string | null>(() =>
-    shouldAutoCreateTopic && canUseGlobalTopicFallback && !routeActiveTopicId && !routeAssistantId
-      ? lastUsedTopicId
-      : null
+  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? null)
+  const [activeTopicId, setActiveTopicIdState] = useState<string | null>(() => routeActiveTopicId)
+  // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
+  // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
+  // changes (entry interceptor, recovery) flow back through the sync effect below. Clearing
+  // (`null`) never navigates: the next selection or the recovery path owns the URL then.
+  const setActiveTopicId = useCallback(
+    (id: string | null) => {
+      setActiveTopicIdState(id)
+      if (id && !isMessageOnlyView) {
+        void navigate({ to: '/app/chat', search: { topicId: id }, replace: true })
+      }
+    },
+    [isMessageOnlyView, navigate]
   )
-  const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
-    syncedRouteActiveTopicIdRef.current = routeActiveTopicId
-    setActiveTopicId(routeActiveTopicId)
+    setActiveTopicIdState(routeActiveTopicId)
   }, [routeActiveTopicId])
 
   const {
@@ -276,43 +255,35 @@ const HomePage: FC = () => {
     error: activeTopicError,
     topicSource: activeTopicSource
   } = useActiveTopic({
-    initialTopic,
     activeTopicId,
     setActiveTopicId,
     // Message-only view loads its target via useTopicById; the active hook
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
-  // The tab-metadata entry target no longer exists: its by-id query settled with NOT_FOUND. `last_used_
-  // topic_id` is never cleared on delete, so the sidebar can bind a tab to a deleted topic — the tab
-  // has no identity left to keep, and stranding it on a blank draft is worse than falling through to
-  // global history. Derived, not stored: it must be true in the same render the query settles, or the
-  // first-entry effect below would create a draft before the latest query is even enabled. An
-  // explicit `?topicId=` deep link keeps its target instead — a bad link is the caller's to fix.
-  const isEntryTopicMissing =
-    !isMessageOnlyView &&
-    !routeTopicId &&
-    !!routeActiveTopicId &&
-    activeTopicId === routeActiveTopicId &&
-    !activeTopic &&
-    !isActiveTopicLoading &&
-    isDataApiNotFoundError(activeTopicError)
-  const activeTargetTopicId = isEntryTopicMissing ? null : routeActiveTopicId
-  // The global latest query is the final fallback, not a parallel page dependency. An explicit
-  // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve
-  // before we ask for the globally latest topic.
-  const shouldLoadLatestTopic =
-    shouldAutoCreateTopic &&
-    (canUseGlobalTopicFallback || isEntryTopicMissing) &&
-    !isMessageOnlyView &&
-    !activeTargetTopicId &&
-    !routeAssistantId &&
-    !isResumeTopicLoading &&
-    !resumeApiTopic
-  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({
-    enabled: shouldLoadLatestTopic
-  })
-  const isLatestTopicReady = !shouldLoadLatestTopic || !isLatestTopicLoading
+  // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
+  // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
+  // through the entry interceptor, which resolves the next target — no in-page state surgery.
+  useEffect(() => {
+    if (isMessageOnlyView) return
+    if (!routeTopicId || activeTopicId !== routeTopicId) return
+    if (activeTopic || isActiveTopicLoading) return
+    if (!isDataApiNotFoundError(activeTopicError)) return
+    // Re-arm first-entry create: if the interceptor also finds nothing (library emptied
+    // elsewhere), the bare landing must still produce a fresh topic.
+    initialTopicStartStateRef.current.firstLaunchStarted = false
+    clearActiveTopic()
+    void navigate({ to: '/app/chat', search: {}, replace: true })
+  }, [
+    activeTopic,
+    activeTopicError,
+    activeTopicId,
+    clearActiveTopic,
+    isActiveTopicLoading,
+    isMessageOnlyView,
+    navigate,
+    routeTopicId
+  ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic = isMessageOnlyView
     ? routeTopic
@@ -428,23 +399,14 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  // Keep the route target authoritative while Sidebar metadata is syncing into page state. Once the
-  // route has settled, page-owned selection uses `activeTopicId` so choosing a topic inside the page
-  // can update the tab binding. The visible entity may intentionally remain the previous topic while
-  // the target loads; it is never used as the identity during that transition.
-  const tabInstanceTopicId = !isMessageOnlyView
-    ? isRouteTopicBindingChanging
-      ? routeActiveTopicId
-      : (activeTopicId ?? visibleTopic?.id)
-    : undefined
-  const preserveTabVisuals =
-    (isMessageOnlyView && !visibleTopic && !!routeTopicId && isRouteTopicLoading) ||
-    (!isMessageOnlyView && !!tabInstanceTopicId && visibleTopic?.id !== tabInstanceTopicId && !isEntryTopicMissing)
-  useTabSelfMetadata({
+  // While the bound topic is still loading (or the visible entity intentionally lags behind a
+  // selection), keep the tab's stored title/icon instead of stamping a stale or generic one.
+  const targetTopicId = isMessageOnlyView ? routeTopicId : (activeTopicId ?? undefined)
+  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  useTabSelfVisuals({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
-    instanceAppId: 'assistants',
-    instanceKey: tabInstanceTopicId ?? null,
+    appId: 'assistants',
     preserveVisuals: preserveTabVisuals
   })
 
@@ -464,12 +426,6 @@ const HomePage: FC = () => {
 
   const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   useCommandHandler('app.sidebar.toggle', toggleShellPane)
-
-  useEffect(() => {
-    if (isMessageOnlyView) return
-    if (!state?.topic) return
-    setActiveTopic(state.topic)
-  }, [isMessageOnlyView, setActiveTopic, state?.topic])
 
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
@@ -625,43 +581,15 @@ const HomePage: FC = () => {
     [createAndActivateEmptyTopic]
   )
 
+  // First-entry create. Resume/latest entry lives in the route interceptor now: this page only
+  // reaches here bare when nothing was resolvable (empty library) or with an `?assistantId=` deep
+  // link, both of which create a fresh topic once the assistants list can pick a target.
   useEffect(() => {
-    if (
-      !shouldAutoCreateTopic ||
-      (!isEntryTopicMissing && (initialTopicStartStateRef.current.firstLaunchStarted || state?.topic))
-    )
-      return
+    if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted) return
+    // A URL-bound topic is the entry — nothing to create while it loads (or retries after a
+    // non-NOT_FOUND error; the recovery effect above owns the missing case).
+    if (routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
-    // A bound target with a non-NOT_FOUND error keeps its identity while DataApi/SWR retries. Only a
-    // confirmed missing target may fall through to latest/create recovery.
-    if (routeActiveTopicId && !isEntryTopicMissing) return
-
-    // Resume the last-focused topic before falling back to the most-recently-updated one —
-    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
-    // what the user was looking at. A deleted (or unfetchable) last-used topic falls through.
-    if (resumeTopicId) {
-      if (isResumeTopicLoading) return
-      if (resumeApiTopic) {
-        initialTopicStartStateRef.current.firstLaunchStarted = true
-        setActiveTopic(mapApiTopicToRendererTopic(resumeApiTopic))
-        return
-      }
-    }
-
-    if (!isLatestTopicReady) return
-
-    // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
-    // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
-    // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
-    // for that assistant instead.
-    if (!routeAssistantId && latestTopic) {
-      initialTopicStartStateRef.current.firstLaunchStarted = true
-      setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
-      return
-    }
-
-    // Empty library / deep-link create: this path needs the assistants list resolved to pick the
-    // default (or pinned) assistant, so gate it here rather than blocking the resume above.
     if (!isAssistantListResolved) return
 
     initialTopicStartStateRef.current.firstLaunchStarted = true
@@ -673,17 +601,9 @@ const HomePage: FC = () => {
     createAndActivateEmptyTopic,
     isActiveTopicLoading,
     isAssistantListResolved,
-    isLatestTopicReady,
-    isEntryTopicMissing,
-    isResumeTopicLoading,
-    latestTopic,
-    resumeApiTopic,
-    resumeTopicId,
-    routeActiveTopicId,
     routeAssistantId,
-    setActiveTopic,
-    shouldAutoCreateTopic,
-    state?.topic
+    routeTopicId,
+    shouldAutoCreateTopic
   ])
 
   // Classic-layout reset after deleting the active assistant: select the latest

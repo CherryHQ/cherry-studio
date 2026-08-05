@@ -5,6 +5,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
+import { clearTabInstanceMetadata, getTabInstanceAppId } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -107,8 +108,18 @@ function isSettingsRouteTab(tab: Tab): boolean {
 
 type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
 
+/**
+ * One-time restore migration: tabs persisted by builds that carried conversation
+ * identity in instance metadata get it folded into the URL (the sole identity
+ * channel now), so the route interceptor resolves them like any other tab.
+ */
+function migrateTabConversationIdentity(tab: Tab): Tab {
+  if (!getTabInstanceAppId(tab)) return tab
+  return { ...tab, url: resolveSidebarAppTabEntryUrl(tab), metadata: clearTabInstanceMetadata(tab.metadata) }
+}
+
 function restoreTabs(tabs: Tab[], activeTabId: string): Tab[] {
-  return tabs.map((tab) => ({ ...tab, isDormant: tab.id !== activeTabId }))
+  return tabs.map((tab) => ({ ...migrateTabConversationIdentity(tab), isDormant: tab.id !== activeTabId }))
 }
 
 /**

@@ -2,13 +2,13 @@ import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/t
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { buildSidebarAppOpenMetadata, getSidebarApp } from '@renderer/utils/sidebar'
+import { getSidebarApp } from '@renderer/utils/sidebar'
 import { useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
 
 export interface ConversationNavigation {
   /**
-   * Open a new base-route tab with instance metadata. Detached windows return
+   * Open a new tab on the conversation's own URL. Detached windows return
    * `undefined` instead of creating a hidden internal tab.
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
@@ -32,23 +32,19 @@ function openConversationTabImpl(
 ): string | undefined {
   const app = getSidebarApp(appId)
   if (!tabs || !app?.instanceKey) return
-  const metadata = buildSidebarAppOpenMetadata(app, key)
-  const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
-  return openedId
+  return tabs.openTab(app.instanceKey.urlForKey(key), { forceNew: true, title })
 }
 
 function openConversationWindowImpl(appId: SidebarAppId, key: string, title?: string): void {
   const app = getSidebarApp(appId)
   if (!app?.instanceKey) return
-  const metadata = buildSidebarAppOpenMetadata(app, key)
   // Mirrors TabsContext.detachTab's tab.detach payload, but with a fresh tab id and
   // without closing any current-window tab — this is "open elsewhere", not "move".
   void ipcApi.request('tab.detach', {
     id: uuid(),
     url: app.instanceKey.urlForKey(key),
     title,
-    type: 'route',
-    ...(metadata && { metadata })
+    type: 'route'
   })
 }
 

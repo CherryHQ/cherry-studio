@@ -9,16 +9,15 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
-  buildSidebarAppOpenMetadata,
   getSidebarApp,
-  getSidebarAppTabInstanceKey,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata, hasTabInstanceMetadataForApp } from '@renderer/utils/tabInstanceMetadata'
+import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,11 +48,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, tabs, updateTab, openTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
 
   // Sidebar width — persisted across restarts. Dragging through the
   // intermediate 50-120px range uses a local preview width so the UI can
@@ -139,57 +136,37 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!app || !path) return
 
-      const targetInstanceKey = app.instanceKey?.defaultKey({
-        defaultPaintingProvider,
-        lastUsedTopicId,
-        lastUsedSessionId
-      })
-      const activeInstanceKey = activeTab ? getSidebarAppTabInstanceKey(app, activeTab) : undefined
+      // Conversation apps: any owned tab is already "there" — its URL carries its own
+      // conversation, and re-entering through the route interceptor would just rebind
+      // it. Message-only viewers are not an app entry, so they navigate like any
+      // foreign tab. Apps without sub-instances keep exact-URL matching.
       const isActiveTarget =
         !!activeTab &&
         (app.instanceKey
-          ? tabBelongsToApp(app, activeTab.url) &&
-            (targetInstanceKey
-              ? activeInstanceKey === targetInstanceKey
-              : (hasTabInstanceMetadataForApp(activeTab, app.id) && !activeInstanceKey) || activeTab.url === path)
+          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
           : activeTab.url === path)
       if (isActiveTarget) return
 
-      const matchingInstanceTab = targetInstanceKey
-        ? tabs.find(
-            (tab) => tabBelongsToApp(app, tab.url) && getSidebarAppTabInstanceKey(app, tab) === targetInstanceKey
-          )
-        : undefined
-      const title = matchingInstanceTab?.title ?? getDefaultRouteTitle(path)
-      const icon = matchingInstanceTab?.icon
-      const openMetadata = buildSidebarAppOpenMetadata(app, targetInstanceKey)
-
-      const openOptions = {
-        forceNew: true,
-        title,
-        ...(icon !== undefined && { icon }),
-        ...(openMetadata && { metadata: openMetadata })
-      }
+      const title = getDefaultRouteTitle(path)
 
       if (activeTab?.isPinned) {
-        openTab(path, openOptions)
+        openTab(path, { forceNew: true, title })
         return
       }
 
       if (activeTab) {
-        const clearedMetadata = clearTabInstanceMetadata(activeTab.metadata)
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon,
-          metadata: buildSidebarAppOpenMetadata(app, targetInstanceKey, clearedMetadata) ?? clearedMetadata
+          icon: undefined,
+          metadata: clearTabInstanceMetadata(activeTab.metadata)
         })
         return
       }
 
-      openTab(path, openOptions)
+      openTab(path, { forceNew: true, title })
     },
-    [activeTab, defaultPaintingProvider, lastUsedSessionId, lastUsedTopicId, openTab, tabs, updateTab]
+    [activeTab, defaultPaintingProvider, openTab, updateTab]
   )
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')

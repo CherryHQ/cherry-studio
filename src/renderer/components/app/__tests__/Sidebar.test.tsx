@@ -44,8 +44,6 @@ const mocks = vi.hoisted(() => ({
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
-  lastUsedTopicId: null as string | null,
-  lastUsedSessionId: null as string | null,
   tabs: [] as FakeTab[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
@@ -56,10 +54,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: (key: string) => {
-    if (key === 'ui.chat.last_used_topic_id') return [mocks.lastUsedTopicId, vi.fn()]
-    if (key === 'ui.agent.last_used_session_id') return [mocks.lastUsedSessionId, vi.fn()]
-
+  usePersistCache: () => {
     return [
       mocks.sidebarWidth,
       (width: number) => {
@@ -336,8 +331,6 @@ afterEach(() => {
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
-  mocks.lastUsedTopicId = null
-  mocks.lastUsedSessionId = null
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
@@ -663,9 +656,8 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('leaves the tab unbound when there is no last-used conversation to target', () => {
+  it('replaces the active tab with the bare route and drops its old conversation identity', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.lastUsedSessionId = null
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -677,49 +669,54 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    // A bare app id would read as an explicit draft and cut AgentPage off from its own
-    // resume / latest-session fallbacks, so nothing is bound when there is no target.
+    // Which session the tab lands on is the route interceptor's decision — the
+    // sidebar only replaces the tab with the app's bare entry route.
     expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
       url: '/app/agents',
       title: 'Work',
       icon: undefined,
       metadata: { keep: true }
     })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('replaces the active tab with the last-used conversation without activating its existing tab', () => {
+  it('stays put when the active tab already holds a conversation of the target app', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.lastUsedSessionId = 'session-1'
     mocks.activeTab = {
-      id: 'chat',
+      id: 'agents-1',
       type: 'route',
-      url: '/app/chat',
-      title: 'Chat',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1', keep: true }
+      url: '/app/agents?sessionId=session-1',
+      title: 'Session 1'
     }
-    mocks.tabs = [
-      mocks.activeTab,
-      {
-        id: 'agents-1',
-        type: 'route',
-        url: '/app/agents',
-        title: 'Session 1',
-        icon: 'emoji:🤖',
-        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
-      }
-    ]
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/agents',
-      title: 'Session 1',
-      icon: 'emoji:🤖',
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-1', keep: true }
-    })
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    // Re-entering through the interceptor would rebind the tab to the last-used
+    // conversation — an owned tab is already "there", whatever session it shows.
+    expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('navigates a message-only viewer of the same app back to the app entry', () => {
+    mocks.sidebarFavorites = [appFavorite('agents')]
+    mocks.activeTab = {
+      id: 'viewer',
+      type: 'route',
+      url: '/app/agents?sessionId=session-1&view=message',
+      title: 'Session 1'
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('viewer', {
+      url: '/app/agents',
+      title: 'Work',
+      icon: undefined,
+      metadata: undefined
+    })
   })
 
   it('clears stale instance metadata when reusing the active tab', () => {

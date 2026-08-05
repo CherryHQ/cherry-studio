@@ -1,8 +1,18 @@
 import HomePage from '@renderer/pages/home/HomePage'
 import { parseChatRouteSearch } from '@renderer/pages/home/routeSearch'
-import { createFileRoute } from '@tanstack/react-router'
+import { resolveChatEntryTopicId } from '@renderer/utils/conversationEntry'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/chat')({
   validateSearch: (search) => parseChatRouteSearch(search),
+  // Bare entries resolve their topic here, before the page mounts, so the page
+  // renders the final conversation in one pass. Explicit targets and the
+  // assistant / message-only entries pass through untouched. No resolvable
+  // topic → fall through bare; the page creates the first topic itself.
+  beforeLoad: async ({ search }) => {
+    if (search.topicId || search.assistantId || search.view === 'message') return
+    const topicId = await resolveChatEntryTopicId()
+    if (topicId) throw redirect({ to: '/app/chat', search: { topicId }, replace: true })
+  },
   component: HomePage
 })
