@@ -67,6 +67,29 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+const projectRoot = path.join(__dirname, '..')
+
+const readPackageVersion = (root, packageName) => {
+  const manifestPath = path.join(root, 'node_modules', ...packageName.split('/'), 'package.json')
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
+}
+
+const assertClaudeAgentSdkNativeVersion = (platform, arch, root = projectRoot) => {
+  const sdkPackage = '@anthropic-ai/claude-agent-sdk'
+  const nativePackage = `${sdkPackage}-${platform}-${arch}`
+  const sdkVersion = readPackageVersion(root, sdkPackage)
+  const nativeVersion = readPackageVersion(root, nativePackage)
+
+  if (sdkVersion !== nativeVersion) {
+    throw new Error(
+      `Mismatched Claude Agent SDK packages for ${platform}-${arch}: ` +
+        `${sdkPackage}@${sdkVersion} and ${nativePackage}@${nativeVersion}. ` +
+        'Keep the SDK and all direct native optional dependencies on the same version.'
+    )
+  }
+}
+exports.assertClaudeAgentSdkNativeVersion = assertClaudeAgentSdkNativeVersion
+
 // Most native packages encode Electron's platform key (win32) in their name, but some
 // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
@@ -91,6 +114,8 @@ const assertPrebuiltPackages = (platform, arch) => {
         `on a fresh install, so plain \`pnpm install\` (even --force) will not fix it.`
     )
   }
+
+  assertClaudeAgentSdkNativeVersion(platform, arch)
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 
