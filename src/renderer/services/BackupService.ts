@@ -30,27 +30,32 @@ export interface BackupOptions {
   autoBackupProcess?: boolean
 }
 
-// Session-local, non-reactive sync status. The auto-sync scheduler writes timestamps here and reads
-// them back; the settings UI reads it best-effort until the native v2 service replaces this module.
-const backupSyncState: Record<'webdavSync' | 'localBackupSync' | 's3Sync', RemoteSyncState> = {
-  webdavSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
-  localBackupSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
-  s3Sync: { lastSyncTime: null, syncing: false, lastSyncError: null }
+// Session-local sync status, replaced (not mutated) on every write so
+// `useSyncExternalStore` sees a new identity. Lives here until the scheduler
+// moves to JobManager and the status becomes durable.
+let backupSyncState: Record<BackupDestinationId, RemoteSyncState> = {
+  webdav: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  s3: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  local: { lastSyncTime: null, syncing: false, lastSyncError: null },
+  nutstore: { lastSyncTime: null, syncing: false, lastSyncError: null }
 }
+const backupSyncListeners = new Set<() => void>()
 
 export const getBackupSyncState = () => backupSyncState
 
-const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.webdavSync, patch)
+export const subscribeBackupSyncState = (listener: () => void) => {
+  backupSyncListeners.add(listener)
+  return () => backupSyncListeners.delete(listener)
 }
 
-const setS3SyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.s3Sync, patch)
+export const setBackupSyncState = (type: BackupDestinationId, patch: Partial<RemoteSyncState>) => {
+  backupSyncState = { ...backupSyncState, [type]: { ...backupSyncState[type], ...patch } }
+  backupSyncListeners.forEach((listener) => listener())
 }
 
-const setLocalBackupSyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(backupSyncState.localBackupSync, patch)
-}
+const setWebDAVSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('webdav', patch)
+const setS3SyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('s3', patch)
+const setLocalBackupSyncState = (patch: Partial<RemoteSyncState>) => setBackupSyncState('local', patch)
 
 /** One backup at a time, whichever destination asked for it. */
 let isManualBackupRunning = false
@@ -223,7 +228,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         webdavSyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.webdav.sync_interval')
-      lastSyncTime = backup.webdavSync?.lastSyncTime || undefined
+      lastSyncTime = backup.webdav?.lastSyncTime || undefined
       logPrefix = '[WebdavAutoSync]'
     } else if (backupType === 's3') {
       if (s3SyncTimeout) {
@@ -231,7 +236,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         s3SyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.s3.sync_interval')
-      lastSyncTime = backup.s3Sync?.lastSyncTime || undefined
+      lastSyncTime = backup.s3?.lastSyncTime || undefined
       logPrefix = '[S3AutoSync]'
     } else if (backupType === 'local') {
       if (localSyncTimeout) {
@@ -239,7 +244,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         localSyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.local.sync_interval')
-      lastSyncTime = backup.localBackupSync?.lastSyncTime || undefined
+      lastSyncTime = backup.local?.lastSyncTime || undefined
       logPrefix = '[LocalAutoSync]'
     } else {
       return

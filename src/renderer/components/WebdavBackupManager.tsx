@@ -19,6 +19,7 @@ import {
 } from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
@@ -58,8 +59,8 @@ export function WebdavBackupManager({ visible, onClose, destination, customLabel
     try {
       const files = await listDestinationBackups(destination)
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.fetch.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.fetch.error'))
     } finally {
       setLoading(false)
     }
@@ -122,8 +123,8 @@ export function WebdavBackupManager({ visible, onClose, destination, customLabel
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -145,8 +146,8 @@ export function WebdavBackupManager({ visible, onClose, destination, customLabel
       await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -176,8 +177,8 @@ export function WebdavBackupManager({ visible, onClose, destination, customLabel
       await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
-    } catch (error: any) {
-      toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error'))
     } finally {
       setRestoring(false)
     }

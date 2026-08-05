@@ -98,6 +98,14 @@
     "select_folder": "選擇資料夾",
     "word_document": "Word 文件"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
+      "external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
+      "more_issues": "另有 {{count}} 個問題",
+      "preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。"
+    }
+  },
   "paintings": {
     "generate_failed": "無法生成圖片",
     "image_mix_failed": "無法混合圖片"

@@ -8,6 +8,4 @@ export type CreateAgentSessionDefaults = {
   // Id of a session being replaced (post-delete): excluded from empty-session reuse so a stale
   // candidate list can't reactivate the just-deleted session instead of creating a fresh one.
   excludeReuseSessionId?: string
-  // Explicit entry flows such as feedback must always receive an isolated task.
-  forceNewSession?: boolean
 }

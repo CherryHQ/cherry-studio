@@ -96,6 +96,11 @@ const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
 const WORKSPACE_MARKER = '## Current Workspace'
 
+function getPresetAppend(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
+  expect(prompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+  return (prompt as { append: string }).append
+}
+
 beforeEach(() => {
   vi.unstubAllGlobals()
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
@@ -131,16 +136,17 @@ describe('buildSystemPrompt — current workspace', () => {
       false,
       '/data/Agents/agent-1'
     )
-    expect(result as string).toContain('"/workspace/project-a"')
+    expect(getPresetAppend(result)).toContain('"/workspace/project-a"')
   })
 
   it('injects the current workspace and default path resolution for regular agents', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
 
-    expect(result as string).toContain(WORKSPACE_MARKER)
-    expect(result as string).toContain('"/workspace/project-a"')
-    expect(result as string).toContain('resolve unspecified or relative paths against it')
-    expect(result as string).not.toContain('Work outside it only when the user explicitly asks')
+    const append = getPresetAppend(result)
+    expect(append).toContain(WORKSPACE_MARKER)
+    expect(append).toContain('"/workspace/project-a"')
+    expect(append).toContain('resolve unspecified or relative paths against it')
+    expect(append).not.toContain('Work outside it only when the user explicitly asks')
   })
 
   it('injects the current workspace for the built-in assistant path', async () => {
@@ -161,10 +167,12 @@ describe('buildSystemPrompt — current workspace', () => {
     const first = await buildSystemPrompt(makeSession(), agent, '/workspace/project-a')
     const second = await buildSystemPrompt(makeSession(), agent, '/workspace/project-b')
 
-    expect(first as string).toContain('"/workspace/project-a"')
-    expect(first as string).not.toContain('"/workspace/project-b"')
-    expect(second as string).toContain('"/workspace/project-b"')
-    expect(second as string).not.toContain('"/workspace/project-a"')
+    const firstAppend = getPresetAppend(first)
+    const secondAppend = getPresetAppend(second)
+    expect(firstAppend).toContain('"/workspace/project-a"')
+    expect(firstAppend).not.toContain('"/workspace/project-b"')
+    expect(secondAppend).toContain('"/workspace/project-b"')
+    expect(secondAppend).not.toContain('"/workspace/project-a"')
   })
 })
 
@@ -173,20 +181,17 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     mockFindBySessionId.mockReturnValue(null)
   })
 
-  it('appends the report_artifacts prompt with user instructions (raw-string path)', async () => {
+  it('appends the report_artifacts prompt to the Claude Code preset with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    // Every agent returns a raw string (not a `{ type: 'preset', append }` object) that carries the
-    // soul prompt + user instructions + the artifacts block.
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('SOUL_PROMPT')
-    expect(result as string).toContain('Do the task.')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
+    const append = getPresetAppend(result)
+    expect(append).toContain('SOUL_PROMPT')
+    expect(append).toContain('Do the task.')
+    expect(append).toContain(ARTIFACTS_MARKER)
   })
 
   it('appends the report_artifacts prompt without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
+    expect(getPresetAppend(result)).toContain(ARTIFACTS_MARKER)
   })
 
   it('does not append it for the Cherry Assistant (parity with feat/chat-page)', async () => {
@@ -206,19 +211,20 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
 
   it('steers the agent to bun/uv with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    expect(result as string).toContain(RUNTIME_MARKER)
+    const append = getPresetAppend(result)
+    expect(append).toContain(RUNTIME_MARKER)
     // The model is told to use bun / uv explicitly, not node/npm/pip.
-    expect(result as string).toContain('bun')
-    expect(result as string).toContain('uv run python')
+    expect(append).toContain('bun')
+    expect(append).toContain('uv run python')
   })
 
   it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    expect(result as string).toContain(RUNTIME_MARKER)
+    expect(getPresetAppend(result)).toContain(RUNTIME_MARKER)
   })
 
   it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
-    const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
+    const result = getPresetAppend(await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd'))
 
     expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
     expect(result).toContain('Install reusable CLIs only with `cli_install`')
@@ -253,6 +259,13 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     expect(result).toContain('Your identity is Cherry Assistant')
     expect(result).toContain('Generic requests to submit a problem or bug default to Feishu')
+    expect(result).toContain(
+      'When an answer would tell the user where to find, open, configure, or use a Cherry Studio page or feature'
+    )
+    expect(result).toContain('call `mcp__assistant__navigate` in the same turn')
+    expect(result).toContain(
+      'Never claim that a navigation entry was created or opened unless the navigate tool succeeded'
+    )
     expect(result).toContain("In a user's message, first-person terms refer to the user")
     expect(result).toContain('`mcp__cherry-tools__config` describes this Agent')
     expect(result.trim()).toMatch(/Never transfer facts from one entity to another\.$/)

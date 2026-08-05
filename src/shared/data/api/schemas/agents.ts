@@ -169,6 +169,14 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /**
+   * When true, every fire continues the same agent session instead of creating
+   * a fresh one. Off by default — a sticky session accumulates context without
+   * bound, which is why the scheduler creates a new session per fire otherwise.
+   */
+  reuseSession: z.boolean(),
+  /** The sticky session bound by the last fire; null until the first fire (or while `reuseSession` is off). */
+  reuseSessionId: z.string().nullable(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),

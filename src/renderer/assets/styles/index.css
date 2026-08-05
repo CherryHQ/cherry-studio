@@ -224,12 +224,14 @@
     display: flow-root;
   }
 
-  ::highlight(search-matches) {
+  ::highlight(message-search-matches),
+  ::highlight(rich-editor-search-matches) {
     background-color: var(--highlight);
     color: var(--highlight-foreground);
   }
 
-  ::highlight(current-match) {
+  ::highlight(message-search-current),
+  ::highlight(rich-editor-search-current) {
     background-color: var(--highlight-accent);
   }
 

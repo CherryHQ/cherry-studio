@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "124d535f-fb00-47d6-9d27-0bcfbfc5dcef",
+  "id": "ed05e43e-0dd4-41c7-80c8-bf99cc02c6de",
   "prevId": "77dab5b3-daaf-4669-bf97-c1801025f509",
   "tables": {
     "agent": {
@@ -522,6 +522,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "task_schedule_id": {
+          "name": "task_schedule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "trace_id": {
           "name": "trace_id",
           "type": "text",
@@ -552,6 +559,11 @@
         }
       },
       "indexes": {
+        "agent_session_taskScheduleId_unique": {
+          "name": "agent_session_taskScheduleId_unique",
+          "columns": ["task_schedule_id"],
+          "isUnique": true
+        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
@@ -580,6 +592,15 @@
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_session_task_schedule_id_job_schedule_id_fk": {
+          "name": "agent_session_task_schedule_id_job_schedule_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "job_schedule",
+          "columnsFrom": ["task_schedule_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -836,13 +857,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "disconnected_path": {
-          "name": "disconnected_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "type": {

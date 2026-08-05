@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-rc.5",
+  "version": "2.0.0",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -152,6 +152,7 @@
     "@aiden0z/pptx-renderer": "1.2.2",
     "@anthropic-ai/sdk": "^0.81.0",
     "@aws-sdk/client-s3": "^3.998.0",
+    "@aws-sdk/lib-storage": "3.998.0",
     "@biomejs/biome": "2.2.4",
     "@changesets/changelog-github": "^0.5.2",
     "@changesets/cli": "^2.29.8",

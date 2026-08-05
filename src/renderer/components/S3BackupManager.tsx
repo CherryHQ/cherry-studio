@@ -19,6 +19,7 @@ import {
 } from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
@@ -54,8 +55,8 @@ export function S3BackupManager({ visible, onClose, destination }: S3BackupManag
     try {
       const files = await listDestinationBackups(destination)
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
     } finally {
       setLoading(false)
     }
@@ -118,8 +119,8 @@ export function S3BackupManager({ visible, onClose, destination }: S3BackupManag
       toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: t('error.unknown') }))
     } finally {
       setDeleting(false)
     }
@@ -141,8 +142,8 @@ export function S3BackupManager({ visible, onClose, destination }: S3BackupManag
       await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.s3.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: t('error.unknown') }))
     } finally {
       setDeleting(false)
     }
@@ -172,8 +173,8 @@ export function S3BackupManager({ visible, onClose, destination }: S3BackupManag
       await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.s3.restore.success'))
       onClose() // 关闭模态框
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
     } finally {
       setRestoring(false)
     }

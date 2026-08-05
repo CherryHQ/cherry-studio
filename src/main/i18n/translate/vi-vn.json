@@ -98,6 +98,14 @@
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Tệp nhị phân OpenClaw mà Cherry Studio đang sử dụng không tương thích với cấu hình đã tạo. Hãy nâng cấp OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw đã từ chối cấu hình nằm ngoài phần nhà cung cấp do Cherry Studio quản lý. Hãy sửa cấu hình đó hoặc nâng cấp OpenClaw.{{details}}",
+      "more_issues": "và {{count}} vấn đề khác",
+      "preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw."
+    }
+  },
   "paintings": {
     "generate_failed": "Không thể tạo hình ảnh",
     "image_mix_failed": "Không thể trộn các hình ảnh"

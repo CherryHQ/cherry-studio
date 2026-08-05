@@ -33,6 +33,10 @@ vi.mock('@renderer/services/BackupService', () => ({
   backup: mocks.backup
 }))
 
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string) => key }
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key

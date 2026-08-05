@@ -20,6 +20,7 @@ import {
 } from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
@@ -55,8 +56,8 @@ export function LocalBackupManager({ visible, onClose, destination }: LocalBacku
     try {
       const files = await listDestinationBackups(destination)
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.fetch.error'))
     } finally {
       setLoading(false)
     }
@@ -119,8 +120,8 @@ export function LocalBackupManager({ visible, onClose, destination }: LocalBacku
       toast.success(t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -142,8 +143,8 @@ export function LocalBackupManager({ visible, onClose, destination }: LocalBacku
       await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.local.backup.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+    } catch {
+      toast.error(t('settings.data.local.backup.manager.delete.error'))
     } finally {
       setDeleting(false)
     }
@@ -173,8 +174,8 @@ export function LocalBackupManager({ visible, onClose, destination }: LocalBacku
       await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.local.backup.manager.restore.success'))
       onClose() // Close the modal
-    } catch (error: any) {
-      toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'))
     } finally {
       setRestoring(false)
     }
