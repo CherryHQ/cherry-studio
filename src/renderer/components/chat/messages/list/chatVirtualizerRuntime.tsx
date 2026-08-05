@@ -35,6 +35,7 @@ import {
 import type { VListHandle } from 'virtua'
 
 import { getDistanceToBottom, getRealBottom, isMoreThanOneViewportFromBottom } from './scrollGeometry'
+import { clampForwardedWheelDelta, findOutermostVerticalScrollContainer } from './ScrollOwnershipContext'
 import { useAutoStickToBottom } from './useAutoStickToBottom'
 import { useScrollPositionMemory } from './useScrollPositionMemory'
 import { useSmoothScrollAnimation } from './useSmoothScrollAnimation'
@@ -122,6 +123,10 @@ export interface ChatVirtualizerRuntime<T> {
   scrollToBottom(): void
   /** Navigate within the outer message scroller under the reading-mode owner. */
   scrollToElement(element: HTMLElement): void
+  /** Mark a wheel that will reach this viewport through native boundary chaining. */
+  notifyWheelIntent(deltaY: number): void
+  /** Apply a wheel forwarded from an isolated child document under this runtime's ownership. */
+  scrollByWheel(deltaY: number): boolean
   /**
    * Mark that a real user scroll input just happened. Wheel is wired through
    * `scrollerProps.onWheel`; the host calls this for pointer drags and
@@ -152,21 +157,6 @@ const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
 
 function keysMatchAt(container: readonly string[], candidate: readonly string[], offset: number): boolean {
   return candidate.every((key, index) => container[index + offset] === key)
-}
-
-// An anchor inside a nested scroll region moves when that region scrolls on its
-// own, and reasserting that drift would write the inner scroll delta into the
-// outer scrollTop. Anchor to the outermost scroll container instead — its border
-// box stays put while its content scrolls.
-function hoistAnchorOutOfNestedScroller(element: HTMLElement, itemElement: HTMLElement): HTMLElement {
-  let anchor = element
-  for (let ancestor = element.parentElement; ancestor && ancestor !== itemElement; ancestor = ancestor.parentElement) {
-    const overflowY = getComputedStyle(ancestor).overflowY
-    if ((overflowY === 'auto' || overflowY === 'scroll') && ancestor.scrollHeight > ancestor.clientHeight) {
-      anchor = ancestor
-    }
-  }
-  return anchor
 }
 
 export function useChatVirtualizerRuntime<T>({
@@ -304,7 +294,10 @@ export function useChatVirtualizerRuntime<T>({
     if (!itemElement || !itemKey) return null
     const semanticCandidate = htmlCandidate.closest<HTMLElement>(FREEZE_SEMANTIC_ANCHOR_SELECTOR) ?? htmlCandidate
     if (!itemElement.contains(semanticCandidate)) return null
-    return { element: hoistAnchorOutOfNestedScroller(semanticCandidate, itemElement), itemKey }
+    return {
+      element: findOutermostVerticalScrollContainer(semanticCandidate, itemElement) ?? semanticCandidate,
+      itemKey
+    }
   }, [])
 
   // Capture stable item identity plus an optional visible DOM element. Virtua's
@@ -560,10 +553,10 @@ export function useChatVirtualizerRuntime<T>({
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastWheelDirRef = useRef<'up' | 'down' | 'none'>('none')
 
-  const onWheel = useCallback(
-    (event: WheelEvent) => {
+  const notifyWheelIntent = useCallback(
+    (deltaY: number) => {
       markUserInput()
-      const dir: 'up' | 'down' | 'none' = event.deltaY < 0 ? 'up' : event.deltaY > 0 ? 'down' : 'none'
+      const dir: 'up' | 'down' | 'none' = deltaY < 0 ? 'up' : deltaY > 0 ? 'down' : 'none'
       lastUserInputDirectionRef.current = dir
       if (readNavigationActiveRef.current && dir !== 'none') {
         takeUserControl('navigation')
@@ -579,6 +572,21 @@ export function useChatVirtualizerRuntime<T>({
     },
     [markUserInput, smoothScroll, takeUserControl]
   )
+
+  const scrollByWheel = useCallback(
+    (deltaY: number) => {
+      const scroller = scrollerRef.current
+      if (!scroller) return false
+
+      const boundedDeltaY = clampForwardedWheelDelta(deltaY)
+      notifyWheelIntent(boundedDeltaY)
+      scroller.scrollBy({ top: boundedDeltaY })
+      return true
+    },
+    [notifyWheelIntent]
+  )
+
+  const onWheel = useCallback((event: WheelEvent) => notifyWheelIntent(event.deltaY), [notifyWheelIntent])
 
   const onReachTopRef = useRef(onReachTop)
   onReachTopRef.current = onReachTop
@@ -926,6 +934,8 @@ export function useChatVirtualizerRuntime<T>({
     takeUserControl,
     scrollToBottom,
     scrollToElement,
+    notifyWheelIntent,
+    scrollByWheel,
     markUserInput,
     beginScrollbarDrag,
     endScrollbarDrag

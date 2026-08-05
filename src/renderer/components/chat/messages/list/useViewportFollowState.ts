@@ -18,9 +18,10 @@ export interface ViewportFollowController {
 /**
  * The single product-level source of truth for message-list scroll behavior.
  *
- * Geometry, streaming lifecycle, virtualizer compensation and local sends do
- * not transition this state. Only explicit reading intent or an explicit
- * return to the live edge may change it.
+ * Geometry, streaming lifecycle, virtualizer compensation, local sends and
+ * input consumed by nested scrollers do not transition this outer-viewport
+ * state. Only intent targeting this viewport (or an explicit disclosure) and
+ * an explicit return to the live edge may change it.
  */
 export function useViewportFollowState(): ViewportFollowController {
   // Start detached until scroll-position restoration chooses a saved reading

@@ -17,8 +17,13 @@ import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
 
-import { ScrollOwnershipProvider } from '../blocks/ScrollOwnershipContext'
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
+import {
+  canConsumeVerticalWheel,
+  findNearestVerticalScrollContainer,
+  findVerticalWheelConsumer,
+  ScrollOwnershipProvider
+} from './ScrollOwnershipContext'
 
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
@@ -33,37 +38,19 @@ function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): bo
   return target === scroller || !target?.closest(KEYBOARD_ACTIVATION_SELECTOR)
 }
 
-function ownsVerticalWheel(element: HTMLElement, deltaY: number): boolean {
-  const style = getComputedStyle(element)
-  const overflowY = style.overflowY
-  if (overflowY !== 'auto' && overflowY !== 'scroll') return false
-  const maxScrollTop = element.scrollHeight - element.clientHeight
-  if (maxScrollTop <= 0) return false
-  // A contained viewport owns the whole wheel gesture, including its
-  // boundaries. Ordinary nested scrollers still chain once they run out of
-  // range, preserving their existing behavior.
-  if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
-  return deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < maxScrollTop
+function getKeyboardScrollDelta(event: KeyboardEvent): number {
+  if (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home') return -1
+  if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'End') return 1
+  return event.shiftKey ? -1 : 1
 }
 
-function isInsideNestedScroller(target: EventTarget | null, scroller: HTMLElement): boolean {
-  let element = target instanceof HTMLElement ? target : null
-  while (element && element !== scroller) {
-    const overflowY = getComputedStyle(element).overflowY
-    if ((overflowY === 'auto' || overflowY === 'scroll') && element.scrollHeight > element.clientHeight) return true
-    element = element.parentElement
-  }
-  return false
+function getEventTargetElement(target: EventTarget | null): HTMLElement | null {
+  const element = target instanceof Element ? target : null
+  return element instanceof HTMLElement ? element : (element?.parentElement ?? null)
 }
 
-function isWheelOwnedByNestedScroller(event: WheelEvent, scroller: HTMLElement): boolean {
-  const target = event.target instanceof Element ? event.target : null
-  let element = target instanceof HTMLElement ? target : target?.parentElement
-  while (element && element !== scroller) {
-    if (ownsVerticalWheel(element, event.deltaY)) return true
-    element = element.parentElement
-  }
-  return false
+function findNestedScroller(target: EventTarget | null, scroller: HTMLElement): HTMLElement | null {
+  return findNearestVerticalScrollContainer(getEventTargetElement(target), scroller)
 }
 
 export type { MessageVirtualListHandle }
@@ -171,41 +158,58 @@ export function MessageVirtualList<T>({
       // A purely horizontal wheel neither scrolls this list nor signals
       // vertical intent — it must not take scroll ownership away.
       if (event.deltaY === 0) return
-      if (isWheelOwnedByNestedScroller(event, scrollerElement)) {
-        return
-      }
+      const target = event.target instanceof Element ? event.target : null
+      if (findVerticalWheelConsumer(target, event.deltaY, scrollerElement)) return
       onWheel(event)
     }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement])
 
-  // Inner scrollers own their input independently. Only input aimed at the
-  // outer list seeds its single scroll runtime.
-  const pointerDownAimedAtListRef = useRef(false)
+  // Inner scrollers own input while they can consume it. Input that reaches
+  // their natural boundary is handed to the outer list's single runtime.
+  const pointerGestureRef = useRef<{
+    nestedScroller: HTMLElement | null
+    pointerType: string
+    lastClientY: number
+  } | null>(null)
   useEffect(() => {
     if (!scrollerElement) return
     const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
-      pointerDownAimedAtListRef.current = !isInsideNestedScroller(event.target, scrollerElement)
+      pointerGestureRef.current = {
+        nestedScroller: findNestedScroller(event.target, scrollerElement),
+        pointerType: event.pointerType,
+        lastClientY: event.clientY
+      }
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
     const onPointerMove = (event: PointerEvent) => {
-      if (event.buttons !== 0 && pointerDownAimedAtListRef.current) {
+      const gesture = pointerGestureRef.current
+      if (event.buttons === 0 || !gesture) return
+
+      const deltaY = gesture.lastClientY - event.clientY
+      gesture.lastClientY = event.clientY
+      if (!gesture.nestedScroller) {
         markUserInput()
+        return
       }
+
+      const isTouchLikePointer = gesture.pointerType === 'touch' || gesture.pointerType === 'pen'
+      if (isTouchLikePointer && deltaY !== 0 && !canConsumeVerticalWheel(gesture.nestedScroller, deltaY))
+        markUserInput()
     }
     // The release can land anywhere (a scrollbar drag ends off-list), so the
     // gesture flag resets at the document level.
     const onPointerEnd = () => {
-      pointerDownAimedAtListRef.current = false
+      pointerGestureRef.current = null
       endScrollbarDrag()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isInsideNestedScroller(event.target, scrollerElement)) return
-      if (isKeyboardScrollIntent(event, scrollerElement)) {
-        markUserInput()
-      }
+      if (event.defaultPrevented || !isKeyboardScrollIntent(event, scrollerElement)) return
+      const nestedScroller = findNestedScroller(event.target, scrollerElement)
+      if (nestedScroller && canConsumeVerticalWheel(nestedScroller, getKeyboardScrollDelta(event))) return
+      markUserInput()
     }
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
     scrollerElement.addEventListener('pointermove', onPointerMove, { passive: true })
@@ -243,7 +247,9 @@ export function MessageVirtualList<T>({
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
             requestReadingControl={requestDisclosureReadingControl}
-            scrollToElement={runtime.scrollToElement}>
+            scrollToElement={runtime.scrollToElement}
+            notifyWheelIntent={runtime.notifyWheelIntent}
+            scrollByWheel={runtime.scrollByWheel}>
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}

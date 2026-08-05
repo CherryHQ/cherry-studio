@@ -304,12 +304,16 @@ describe('useChatVirtualizerRuntime', () => {
     const scrollerProps = runtime?.scrollerProps
     const onWheel = runtime?.scrollerProps.onWheel
     const onScroll = runtime?.scrollerProps.onScroll
+    const notifyWheelIntent = runtime?.notifyWheelIntent
+    const scrollByWheel = runtime?.scrollByWheel
 
     view.rerender(<RuntimeProbe items={items} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
     expect(runtime?.scrollerProps).toBe(scrollerProps)
     expect(runtime?.scrollerProps.onWheel).toBe(onWheel)
     expect(runtime?.scrollerProps.onScroll).toBe(onScroll)
+    expect(runtime?.notifyWheelIntent).toBe(notifyWheelIntent)
+    expect(runtime?.scrollByWheel).toBe(scrollByWheel)
   })
 
   it('does not recreate resize observers on unrelated parent rerenders', () => {
@@ -2564,6 +2568,25 @@ describe('useChatVirtualizerRuntime', () => {
     } finally {
       raf.restore()
     }
+  })
+
+  it.each([
+    [-480, -200],
+    [480, 200]
+  ])('owns forwarded wheel scrolling and bounds deltaY %s to %s', (deltaY, boundedDeltaY) => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    const scroller = runtime!.scrollerRef.current!
+    const scrollBy = vi.fn()
+    scroller.scrollBy = scrollBy
+
+    let didScroll = false
+    act(() => {
+      didScroll = runtime!.scrollByWheel(deltaY)
+    })
+
+    expect(didScroll).toBe(true)
+    expect(scrollBy).toHaveBeenCalledWith({ top: boundedDeltaY })
   })
 
   it('keeps following the real bottom when the viewport becomes shorter', () => {
