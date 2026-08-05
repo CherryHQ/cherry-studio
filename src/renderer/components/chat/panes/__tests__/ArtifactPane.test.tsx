@@ -679,6 +679,10 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('rejects a workspace-relative artifact when the workspace path is relative', () => {
+    expect(resolveArtifactPaneFileSelection('relative/workspace', 'report.md')).toBeNull()
+  })
+
   it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
     // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
     // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
@@ -711,6 +715,27 @@ describe('ArtifactPane', () => {
     expect(mocks.treeCreate).not.toHaveBeenCalled()
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.title')
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
+  })
+
+  it('shows a localized invalid-path state without requesting the filesystem', async () => {
+    render(
+      <ArtifactPane
+        workspacePath="relative/workspace"
+        previewFileSelection={{ workspacePath: 'relative/workspace', filePath: 'report.md' }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(
+      'agent.preview_pane.tree_error.invalid_path.description'
+    )
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })
 
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
@@ -1272,15 +1297,18 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('logs and displays directory listing errors', async () => {
+  it('logs directory listing errors and displays a localized load-error state', async () => {
     const error = new Error('Permission denied')
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.description')
+    expect(screen.queryByText('Permission denied')).not.toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })

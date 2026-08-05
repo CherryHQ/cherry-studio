@@ -243,6 +243,22 @@ describe('AgentChatContextProvider', () => {
     expect(prepared.listeners).toEqual([subscriber])
   })
 
+  it('rejects a late busy transition when the caller requires an idle session', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), openReq(), {
+        hasLiveStream: false,
+        requireIdle: true,
+        expectedAgentId: 'agent-1'
+      })
+    ).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessages).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+  })
+
   it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(true)

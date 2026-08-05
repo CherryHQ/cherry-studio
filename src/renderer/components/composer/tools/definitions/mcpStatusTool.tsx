@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   openResourceEditDialog,
@@ -18,7 +19,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
+import { Check, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -73,7 +74,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     disabled: true
   }
 }
@@ -91,7 +92,7 @@ function createMcpStatusItem(
     label: server.name,
     description,
     filterText: [server.name, server.description, description].filter(Boolean).join(' '),
-    icon: <Cable />
+    icon: <McpLogo aria-hidden />
   }
 }
 
@@ -266,7 +267,7 @@ export function createMcpStatusLauncher(
       isDisabled && modeLabel
         ? modeLabel
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       onOpen?.()
       clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
