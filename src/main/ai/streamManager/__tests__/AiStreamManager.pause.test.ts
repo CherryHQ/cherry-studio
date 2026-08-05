@@ -283,7 +283,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       expect(prepareDispatchMock).not.toHaveBeenCalled()
 
       hold.dispose()
-      await expect(dispatch.promise).resolves.toBeUndefined()
+      await expect(dispatch.promise).resolves.toEqual({ mode: 'started' })
       expect(prepareDispatchMock).toHaveBeenCalledTimes(1)
       expect(send).toHaveBeenCalledTimes(1)
     })
