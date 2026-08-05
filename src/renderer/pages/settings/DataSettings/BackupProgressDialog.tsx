@@ -35,15 +35,15 @@ const RESTORE_STAGES: readonly BackupProgressStage[] = ['admitting', 'materializ
  * unused-key check.
  */
 const STAGE_LABEL_KEYS: Record<BackupProgressStage, string> = {
-  preparing: 'settings.data.backup_v2.progress.stage.preparing',
-  'snapshotting-db': 'settings.data.backup_v2.progress.stage.snapshotting-db',
-  'materializing-db': 'settings.data.backup_v2.progress.stage.materializing-db',
-  'capturing-resources': 'settings.data.backup_v2.progress.stage.capturing-resources',
-  verifying: 'settings.data.backup_v2.progress.stage.verifying',
-  uploading: 'settings.data.backup_v2.progress.stage.uploading',
-  admitting: 'settings.data.backup_v2.progress.stage.admitting',
-  planning: 'settings.data.backup_v2.progress.stage.planning',
-  staging: 'settings.data.backup_v2.progress.stage.staging'
+  preparing: 'settings.data.backup.progress.stage.preparing',
+  'snapshotting-db': 'settings.data.backup.progress.stage.snapshotting-db',
+  'materializing-db': 'settings.data.backup.progress.stage.materializing-db',
+  'capturing-resources': 'settings.data.backup.progress.stage.capturing-resources',
+  verifying: 'settings.data.backup.progress.stage.verifying',
+  uploading: 'settings.data.backup.progress.stage.uploading',
+  admitting: 'settings.data.backup.progress.stage.admitting',
+  planning: 'settings.data.backup.progress.stage.planning',
+  staging: 'settings.data.backup.progress.stage.staging'
 }
 
 function stagesFor(operation: RunningOperation): readonly BackupProgressStage[] {
@@ -109,8 +109,8 @@ const BackupProgressDialog: FC<{
           <DialogTitle>
             {t(
               operation === 'export'
-                ? 'settings.data.backup_v2.progress.exporting'
-                : 'settings.data.backup_v2.progress.preparing'
+                ? 'settings.data.backup.progress.exporting'
+                : 'settings.data.backup.progress.preparing'
             )}
           </DialogTitle>
         </DialogHeader>
@@ -128,7 +128,7 @@ const BackupProgressDialog: FC<{
                 animate={{ opacity: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ type: 'spring', duration: 0.3, bounce: 0 }}>
-                {progress ? t(STAGE_LABEL_KEYS[progress.stage]) : t('settings.data.backup_v2.progress.starting')}
+                {progress ? t(STAGE_LABEL_KEYS[progress.stage]) : t('settings.data.backup.progress.starting')}
               </motion.p>
             </AnimatePresence>
 
@@ -157,7 +157,7 @@ const BackupProgressDialog: FC<{
               disabled={cancelling}
               onClick={onCancel}
               className="transition-transform active:scale-[0.96]">
-              {t(cancelling ? 'settings.data.backup_v2.progress.cancelling' : 'settings.data.backup_v2.progress.stop')}
+              {t(cancelling ? 'settings.data.backup.progress.cancelling' : 'settings.data.backup.progress.stop')}
             </Button>
           ) : null}
         </div>
