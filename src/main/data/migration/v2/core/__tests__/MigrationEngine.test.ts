@@ -47,6 +47,11 @@ const mockPaths: MigrationPaths = {
   claudeProjectsDir: '/tmp/test-userdata/Data/Agents/.claude/projects',
   agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
+  migrationTempDir: '/tmp/test-userdata/migration_temp',
+  migrationReduxExportDir: '/tmp/test-userdata/migration_temp/redux_export',
+  migrationDexieExportDir: '/tmp/test-userdata/migration_temp/dexie_export',
+  migrationLocalStorageExportDir: '/tmp/test-userdata/migration_temp/localstorage_export',
+  migrationLocalStorageExportFile: '/tmp/test-userdata/migration_temp/localstorage_export/localStorage.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
 }
@@ -258,6 +263,20 @@ describe('MigrationEngine', () => {
     await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
 
     expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
+  })
+
+  it('cleans only registered migration export directories after a successful file-backed run', async () => {
+    const cleanup = vi.mocked((engine as any).cleanupTempFiles)
+
+    await expect(
+      engine.run('/untrusted/redux', '/untrusted/dexie', '/untrusted/local/localStorage.json')
+    ).resolves.toMatchObject({ success: true })
+
+    expect(cleanup.mock.calls.map(([exportPath]: [string]) => exportPath)).toEqual([
+      mockPaths.migrationDexieExportDir,
+      mockPaths.migrationLocalStorageExportDir,
+      mockPaths.migrationReduxExportDir
+    ])
   })
 
   it('clears new architecture tables inside one transaction', async () => {

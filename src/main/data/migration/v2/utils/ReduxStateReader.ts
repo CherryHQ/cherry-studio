@@ -1,13 +1,37 @@
 /**
  * Redux state reader for accessing Redux Persist data
- * Data is parsed by Renderer before IPC transfer
+ * Production data is exported as one JSON file per Redux category so the
+ * renderer never has to retain and IPC-clone the complete parsed state.
  */
 
-export class ReduxStateReader {
-  private data: Record<string, unknown>
+import fs from 'fs'
+import path from 'path'
 
-  constructor(rawData: Record<string, unknown>) {
-    this.data = rawData
+export class ReduxStateReader {
+  private readonly data: Record<string, unknown> | null
+  private readonly exportPath: string | null
+
+  constructor(source: Record<string, unknown> | string) {
+    this.data = typeof source === 'string' ? null : source
+    this.exportPath = typeof source === 'string' ? source : null
+  }
+
+  private readCategory<T>(category: string): T | undefined {
+    if (this.data) return this.data[category] as T | undefined
+    if (!this.exportPath) return undefined
+
+    try {
+      const rawValue = fs.readFileSync(path.join(this.exportPath, `${category}.json`), 'utf-8')
+      try {
+        return JSON.parse(rawValue) as T
+      } catch (error) {
+        if (error instanceof SyntaxError) return rawValue as T
+        throw error
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+      throw error
+    }
   }
 
   /**
@@ -20,7 +44,7 @@ export class ReduxStateReader {
    * reader.get('assistants', 'defaultAssistant')
    */
   get<T>(category: string, key: string): T | undefined {
-    const categoryData = this.data[category]
+    const categoryData = this.readCategory<unknown>(category)
     if (!categoryData) return undefined
 
     // Support nested paths like "codeEditor.enabled"
@@ -46,20 +70,31 @@ export class ReduxStateReader {
    * @param category - Category name
    */
   getCategory<T>(category: string): T | undefined {
-    return this.data[category] as T | undefined
+    return this.readCategory<T>(category)
   }
 
   /**
    * Check if a category exists
    */
   hasCategory(category: string): boolean {
-    return category in this.data
+    if (this.data) return category in this.data
+    return this.exportPath ? fs.existsSync(path.join(this.exportPath, `${category}.json`)) : false
   }
 
   /**
    * Get all available categories
    */
   getCategories(): string[] {
-    return Object.keys(this.data)
+    if (this.data) return Object.keys(this.data)
+    if (!this.exportPath) return []
+    try {
+      return fs
+        .readdirSync(this.exportPath)
+        .filter((name) => name.endsWith('.json'))
+        .map((name) => name.slice(0, -'.json'.length))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw error
+    }
   }
 }

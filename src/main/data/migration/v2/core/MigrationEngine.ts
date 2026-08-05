@@ -58,7 +58,6 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -246,11 +245,11 @@ export class MigrationEngine {
 
   /**
    * Execute full migration
-   * @param reduxData - Parsed Redux state data from Renderer
+   * @param reduxSource - Redux export directory in production; parsed data in focused tests
    * @param dexieExportPath - Path to exported Dexie files
    */
   async run(
-    reduxData: Record<string, unknown>,
+    reduxSource: Record<string, unknown> | string,
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
@@ -269,7 +268,7 @@ export class MigrationEngine {
       const context = await createMigrationContext(
         this.getDb(),
         this.paths,
-        reduxData,
+        reduxSource,
         dexieExportPath,
         localStorageExportPath
       )
@@ -344,10 +343,14 @@ export class MigrationEngine {
       await this.markCompleted()
 
       // Cleanup temporary files
-      await this.cleanupTempFiles(dexieExportPath)
+      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
 
       if (localStorageExportPath) {
-        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
+        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
       }
 
       logger.info('Migration completed successfully', {
