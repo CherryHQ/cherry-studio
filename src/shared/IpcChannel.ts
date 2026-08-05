@@ -91,7 +91,6 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
 
   // events
-  BackupProgress = 'backup-progress',
   RestoreProgress = 'restore-progress',
 
   // Data: Preference

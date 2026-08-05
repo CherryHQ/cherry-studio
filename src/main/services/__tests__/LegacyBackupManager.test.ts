@@ -1,14 +1,13 @@
 import type * as CryptoModule from 'node:crypto'
-import { Readable, Writable } from 'node:stream'
 
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
-async function posixPathModule() {
+vi.mock('path', async () => {
   const actual: typeof PathModule = await vi.importActual('path')
-  const mocked = {
+  return {
     ...actual,
     sep: '/', // Always use forward slash for consistency
     delimiter: ':',
@@ -38,23 +37,21 @@ async function posixPathModule() {
     posix: actual.posix,
     win32: actual.win32
   }
-  // `default` for the modules that default-import it (legacyFile.ts), named for the rest.
-  return { ...mocked, default: mocked }
-}
-
-// `node:path` is a distinct module id to vitest, and resolveAndValidatePath reaches
-// path through it — mock both or Windows keeps its drive letters.
-vi.mock('path', posixPathModule)
-vi.mock('node:path', posixPathModule)
+})
 
 // Use vi.hoisted to define mocks that are available during hoisting
-const { mockLogger, mockWindowManager, mockRandomUUID } = vi.hoisted(() => {
+const { mockLogger, mockBackupService, mockWindowManager, mockRandomUUID } = vi.hoisted(() => {
   return {
     mockLogger: {
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn()
+    },
+    mockBackupService: {
+      export: vi.fn(),
+      prepareRestore: vi.fn(),
+      armRestore: vi.fn()
     },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRandomUUID: vi.fn()
@@ -89,7 +86,6 @@ vi.mock('fs-extra', () => ({
     remove: vi.fn(),
     rename: vi.fn(),
     ensureDir: vi.fn(),
-    chmod: vi.fn(),
     emptyDir: vi.fn(),
     copy: vi.fn(),
     readdir: vi.fn(),
@@ -117,7 +113,6 @@ vi.mock('fs-extra', () => ({
   remove: vi.fn(),
   rename: vi.fn(),
   ensureDir: vi.fn(),
-  chmod: vi.fn(),
   emptyDir: vi.fn(),
   copy: vi.fn(),
   readdir: vi.fn(),
@@ -150,6 +145,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'WindowManager') {
         return mockWindowManager
+      }
+      if (name === 'BackupService') {
+        return mockBackupService
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -191,425 +189,6 @@ import BackupManager from '../LegacyBackupManager'
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
 const normalizePath = (p: string): string => path.normalize(p)
-
-const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
-  name,
-  isDirectory: () => type === 'directory',
-  isFile: () => type === 'file'
-})
-
-const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
-  size,
-  mode: 0o644,
-  isDirectory: () => type === 'directory',
-  isFile: () => type === 'file',
-  isSymbolicLink: () => type === 'symlink'
-})
-
-describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
-  let backupManager: BackupManager
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    backupManager = new BackupManager()
-    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
-    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
-    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
-    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
-    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
-  })
-
-  it('should copy the real file when a valid symlink points to a file', async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([createDirent('skill-link')] as never)
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 42) as never)
-
-    const onProgress = vi.fn()
-
-    await (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
-
-    expect(fs.copy).toHaveBeenCalledWith('/src/skill-link', '/dest/skill-link', { dereference: true })
-    expect(onProgress).toHaveBeenCalledWith(42)
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Dereferencing symlink during backup copy'),
-      expect.objectContaining({
-        path: '/src/skill-link',
-        sourceRootRealPath: '/src',
-        targetRealPath: '/src/skill-link'
-      })
-    )
-  })
-
-  it('should warn when dereferencing a symlink target outside the source root', async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([createDirent('external-link')] as never)
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 8) as never)
-    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
-      const sourcePath = String(entryPath)
-      return (sourcePath === '/src/external-link' ? '/external/file.txt' : sourcePath) as never
-    })
-
-    await (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
-
-    expect(fs.copy).toHaveBeenCalledWith('/src/external-link', '/dest/external-link', { dereference: true })
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Dereferencing symlink outside source root'),
-      expect.objectContaining({
-        path: '/src/external-link',
-        sourceRootRealPath: '/src',
-        targetRealPath: '/external/file.txt'
-      })
-    )
-  })
-
-  it('should copy the real directory contents when a valid symlink points to a directory', async () => {
-    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
-      const dirPath = String(dir)
-      if (dirPath === '/src') {
-        return [createDirent('skill-link')] as never
-      }
-      if (dirPath === '/src/skill-link') {
-        return [createDirent('SKILL.md')] as never
-      }
-      return [] as never
-    })
-    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
-      const sourcePath = String(entryPath)
-      if (sourcePath === '/src/skill-link') {
-        return createStats('symlink') as never
-      }
-      if (sourcePath === '/src/skill-link/SKILL.md') {
-        return createStats('file', 12) as never
-      }
-      return createStats('directory') as never
-    })
-    vi.mocked(fs.stat).mockResolvedValue(createStats('directory') as never)
-
-    const onProgress = vi.fn()
-
-    await (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
-
-    expect(fs.ensureDir).toHaveBeenCalledWith('/dest/skill-link')
-    expect(fs.copy).toHaveBeenCalledWith('/src/skill-link/SKILL.md', '/dest/skill-link/SKILL.md')
-    expect(onProgress).toHaveBeenCalledWith(12)
-  })
-
-  it('should skip a broken symlink without failing backup copy', async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([createDirent('missing-skill')] as never)
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }) as never)
-
-    await expect(
-      (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
-    ).resolves.toBeUndefined()
-
-    expect(fs.copy).not.toHaveBeenCalled()
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping broken or unreadable symlink'),
-      expect.objectContaining({ path: '/src/missing-skill' })
-    )
-  })
-
-  it('should preserve normal file and directory copy behavior', async () => {
-    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
-      const dirPath = String(dir)
-      if (dirPath === '/src') {
-        return [createDirent('file.txt'), createDirent('nested')] as never
-      }
-      if (dirPath === '/src/nested') {
-        return [createDirent('child.txt')] as never
-      }
-      return [] as never
-    })
-    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
-      const sourcePath = String(entryPath)
-      if (sourcePath === '/src/nested') {
-        return createStats('directory') as never
-      }
-      return createStats('file', 5) as never
-    })
-
-    const onProgress = vi.fn()
-
-    await (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
-
-    expect(fs.copy).toHaveBeenCalledWith('/src/file.txt', '/dest/file.txt')
-    expect(fs.ensureDir).toHaveBeenCalledWith('/dest/nested')
-    expect(fs.copy).toHaveBeenCalledWith('/src/nested/child.txt', '/dest/nested/child.txt')
-    expect(onProgress).toHaveBeenCalledWith(5)
-  })
-
-  it('should abort an in-progress file copy', async () => {
-    const controller = new AbortController()
-    const onProgress = vi.fn()
-    vi.mocked(fs.readdir).mockResolvedValue([createDirent('large.bin')] as never)
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 1024) as never)
-    vi.mocked(fs.createReadStream).mockReturnValue(new Readable({ read() {} }) as never)
-    vi.mocked(fs.createWriteStream).mockReturnValue(
-      new Writable({
-        write(_chunk, _encoding, callback) {
-          callback()
-        }
-      }) as never
-    )
-
-    const result = (backupManager as any)
-      .copyDirWithProgress('/src', '/dest', onProgress, {
-        dereferenceSymlinks: true,
-        signal: controller.signal
-      })
-      .catch((error: unknown) => error)
-
-    await vi.waitFor(() => expect(fs.createReadStream).toHaveBeenCalledWith('/src/large.bin'))
-    controller.abort()
-
-    await expect(result).resolves.toMatchObject({ name: 'AbortError' })
-    expect(fs.remove).toHaveBeenCalledWith('/dest/large.bin')
-    expect(fs.chmod).not.toHaveBeenCalled()
-    expect(onProgress).not.toHaveBeenCalled()
-  })
-
-  describe('LevelDB Lock Handling', () => {
-    const createBusyFileError = () =>
-      Object.assign(new Error('resource busy or locked, read'), {
-        code: 'EBUSY',
-        errno: -4082
-      })
-
-    const mockAutomaticCopyError = (error: Error) => {
-      vi.mocked(fs.createReadStream).mockReturnValue(
-        new Readable({
-          read() {
-            this.destroy(error)
-          }
-        }) as never
-      )
-      vi.mocked(fs.createWriteStream).mockReturnValue(
-        new Writable({
-          write(_chunk, _encoding, callback) {
-            callback()
-          }
-        }) as never
-      )
-    }
-
-    it.each(['leveldb', 'indexeddb.leveldb'])(
-      'should skip a locked file in %s during an automatic backup copy',
-      async (parentDirectory) => {
-        const lockedFileError = createBusyFileError()
-        const sourceDirectory = `/src/${parentDirectory}`
-        const destinationDirectory = `/dest/${parentDirectory}`
-        const onProgress = vi.fn()
-        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
-        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-        mockAutomaticCopyError(lockedFileError)
-
-        await expect(
-          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, onProgress, {
-            dereferenceSymlinks: false,
-            signal: new AbortController().signal
-          })
-        ).resolves.toBeUndefined()
-
-        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
-        expect(onProgress).not.toHaveBeenCalled()
-        expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
-          path: `${sourceDirectory}/LOCK`
-        })
-      }
-    )
-
-    it('should reject a locked file error when removing the partial automatic backup copy fails', async () => {
-      const lockedFileError = createBusyFileError()
-      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
-      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-      vi.mocked(fs.remove).mockRejectedValueOnce(new Error('cleanup failed') as never)
-      mockAutomaticCopyError(lockedFileError)
-
-      await expect(
-        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
-          dereferenceSymlinks: false,
-          signal: new AbortController().signal
-        })
-      ).rejects.toBe(lockedFileError)
-
-      expect(mockLogger.warn).not.toHaveBeenCalledWith(
-        '[BackupManager] Skipping locked file',
-        expect.objectContaining({ path: '/src/leveldb/LOCK' })
-      )
-    })
-
-    it.each(['.claude', 'notleveldb'])(
-      'should reject EBUSY for a LOCK file in non-LevelDB directory %s during an automatic backup copy',
-      async (parentDirectory) => {
-        const busyFileError = createBusyFileError()
-        const sourceDirectory = `/src/${parentDirectory}`
-        const destinationDirectory = `/dest/${parentDirectory}`
-        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
-        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-        mockAutomaticCopyError(busyFileError)
-
-        await expect(
-          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, vi.fn(), {
-            dereferenceSymlinks: false,
-            signal: new AbortController().signal
-          })
-        ).rejects.toBe(busyFileError)
-
-        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
-      }
-    )
-
-    it('should skip a LevelDB LOCK file during a backup copy without a signal', async () => {
-      const lockedFileError = createBusyFileError()
-      const onProgress = vi.fn()
-      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
-      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-      vi.mocked(fs.copy).mockRejectedValueOnce(lockedFileError as never)
-
-      await expect(
-        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', onProgress, {
-          dereferenceSymlinks: false
-        })
-      ).resolves.toBeUndefined()
-
-      expect(onProgress).not.toHaveBeenCalled()
-      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
-        path: '/src/leveldb/LOCK'
-      })
-    })
-
-    it('should reject EBUSY for a non-LevelDB LOCK file during a backup copy without a signal', async () => {
-      const busyFileError = createBusyFileError()
-      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
-      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-      vi.mocked(fs.copy).mockRejectedValueOnce(busyFileError as never)
-
-      await expect(
-        (backupManager as any).copyDirWithProgress('/src/.claude', '/dest/.claude', vi.fn(), {
-          dereferenceSymlinks: false
-        })
-      ).rejects.toBe(busyFileError)
-    })
-
-    it('should reject EBUSY for a case-variant LevelDB lock filename', async () => {
-      const busyFileError = createBusyFileError()
-      vi.mocked(fs.readdir).mockResolvedValue([createDirent('lock')] as never)
-      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
-      mockAutomaticCopyError(busyFileError)
-
-      await expect(
-        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
-          dereferenceSymlinks: false,
-          signal: new AbortController().signal
-        })
-      ).rejects.toBe(busyFileError)
-
-      expect(fs.remove).toHaveBeenCalledWith('/dest/leveldb/lock')
-    })
-
-    it('should reject EBUSY for a non-lock file during an automatic backup copy', async () => {
-      const busyFileError = createBusyFileError()
-      vi.mocked(fs.readdir).mockResolvedValue([createDirent('messages.json')] as never)
-      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 42) as never)
-      mockAutomaticCopyError(busyFileError)
-
-      await expect(
-        (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
-          dereferenceSymlinks: false,
-          signal: new AbortController().signal
-        })
-      ).rejects.toBe(busyFileError)
-
-      expect(fs.remove).toHaveBeenCalledWith('/dest/messages.json')
-      expect(mockLogger.warn).not.toHaveBeenCalledWith(
-        '[BackupManager] Skipping locked file',
-        expect.objectContaining({ path: '/src/messages.json' })
-      )
-    })
-  })
-
-  it('should skip symlinks during restore copy', async () => {
-    vi.mocked(fs.readdir).mockResolvedValue([createDirent('restore-link')] as never)
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-
-    await (backupManager as any).copyDirWithProgress('/restore-src', '/restore-dest', vi.fn(), {
-      dereferenceSymlinks: false
-    })
-
-    expect(fs.stat).not.toHaveBeenCalled()
-    expect(fs.copy).not.toHaveBeenCalled()
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping symlink (dereferenceSymlinks=false)'),
-      expect.objectContaining({ path: '/restore-src/restore-link' })
-    )
-  })
-
-  it('should throttle copy progress to integer progress changes and completion', () => {
-    const onProgress = vi.fn()
-    const handleProgress = (backupManager as any).createCopyProgressHandler(100, 0, 50, 'copying_files', onProgress)
-
-    handleProgress(1)
-    handleProgress(1)
-    handleProgress(98)
-
-    expect(onProgress).toHaveBeenCalledTimes(2)
-    expect(onProgress).toHaveBeenNthCalledWith(1, { stage: 'copying_files', progress: 1, total: 100 })
-    expect(onProgress).toHaveBeenNthCalledWith(2, { stage: 'copying_files', progress: 50, total: 100 })
-  })
-
-  it('should not recurse forever when a symlinked directory points to an ancestor during size calculation', async () => {
-    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
-      const dirPath = String(dir)
-      if (dirPath === '/src') {
-        return [createDirent('self-link')] as never
-      }
-      throw new Error(`Unexpected readdir: ${dirPath}`)
-    })
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockResolvedValue(createStats('directory') as never)
-    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
-      const sourcePath = String(entryPath)
-      return (sourcePath === '/src/self-link' ? '/src' : sourcePath) as never
-    })
-
-    await expect((backupManager as any).getDirSize('/src', { dereferenceSymlinks: true })).resolves.toBe(0)
-
-    expect(fs.readdir).toHaveBeenCalledTimes(1)
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping circular symlink directory'),
-      expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
-    )
-  })
-
-  it('should not recurse forever when copying a symlinked directory that points to an ancestor', async () => {
-    vi.mocked(fs.readdir).mockImplementation(async (dir) => {
-      const dirPath = String(dir)
-      if (dirPath === '/src') {
-        return [createDirent('self-link')] as never
-      }
-      throw new Error(`Unexpected readdir: ${dirPath}`)
-    })
-    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
-    vi.mocked(fs.stat).mockResolvedValue(createStats('directory') as never)
-    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
-      const sourcePath = String(entryPath)
-      return (sourcePath === '/src/self-link' ? '/src' : sourcePath) as never
-    })
-
-    await expect(
-      (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
-    ).resolves.toBeUndefined()
-
-    expect(fs.readdir).toHaveBeenCalledTimes(1)
-    expect(fs.ensureDir).toHaveBeenCalledWith('/dest')
-    expect(fs.ensureDir).not.toHaveBeenCalledWith('/dest/self-link')
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping circular symlink directory'),
-      expect.objectContaining({ path: '/src/self-link', realPath: '/src' })
-    )
-  })
-})
 
 describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   let backupManager: BackupManager
