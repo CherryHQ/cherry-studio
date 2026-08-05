@@ -71,8 +71,17 @@ const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
 
 // Pinned/normal zone split — same hairline as the per-tab divider, and it
 // disappears on the same rule, so the two never behave differently side by side.
-const Separator = ({ hidden }: { hidden?: boolean }) =>
-  hidden ? <div className="mx-0.5 w-[1.5px] shrink-0" /> : <div className={cn('mx-0.5 shrink-0', TAB_DIVIDER_CLASS)} />
+const Separator = ({ hidden }: { hidden?: boolean }) => (
+  <div
+    data-tab-divider
+    data-visible={!hidden || undefined}
+    className={cn(
+      'mx-0.5 shrink-0 transition-opacity duration-150',
+      TAB_DIVIDER_CLASS,
+      hidden ? 'opacity-0' : 'opacity-100'
+    )}
+  />
+)
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -316,14 +325,19 @@ const NormalTabButton = ({
       )}>
       {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
           gap so it reads as belonging to neither tab. The bar hides it whenever a
-          neighbour lights up (active / hover / closing / dragging). */}
-      {showDivider && (
-        <span
-          aria-hidden
-          data-tab-divider
-          className={cn('-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2', TAB_DIVIDER_CLASS)}
-        />
-      )}
+          neighbour lights up (active / hover / closing / dragging) — fading on the
+          same 150ms as the tab tints it hands over to, so the boundary is never
+          missing mid-swap. */}
+      <span
+        aria-hidden
+        data-tab-divider
+        data-visible={showDivider || undefined}
+        className={cn(
+          '-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2 transition-opacity duration-150',
+          TAB_DIVIDER_CLASS,
+          showDivider ? 'opacity-100' : 'opacity-0'
+        )}
+      />
       <TabIcon tab={tab} size={14} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"

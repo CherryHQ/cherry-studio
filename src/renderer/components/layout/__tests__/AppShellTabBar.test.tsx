@@ -1032,7 +1032,7 @@ describe('AppShellTabBar', () => {
     renderTabBar({ tabs, activeTabId: 'c' })
 
     const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider]') !== null
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
 
     // "A" opens the strip; "C" is active, so both boundaries around it stay clear.
     expect(hasDivider('A')).toBe(false)
@@ -1048,6 +1048,8 @@ describe('AppShellTabBar', () => {
     // a later "tidy-up" cannot silently wash the divider out again.
     const divider = screen.getByRole('button', { name: 'C' }).querySelector('[data-tab-divider]')
     expect(divider).toHaveClass('h-4', 'w-[1.5px]', 'bg-border/80')
+    // It fades on the same 150ms as the tab tint it hands the boundary over to.
+    expect(divider).toHaveClass('transition-opacity', 'duration-150')
   })
 
   it('drops every divider while a reorder drag is in flight', () => {
@@ -1059,7 +1061,7 @@ describe('AppShellTabBar', () => {
       renderTabBar({ tabs, activeTabId: 'a' })
 
       const hasDivider = (name: string) =>
-        screen.getByRole('button', { name }).querySelector('[data-tab-divider]') !== null
+        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
       expect(hasDivider('C')).toBe(true)
 
       // Dragging only translates tabs — the arrays keep their pre-drop order, so a
@@ -1073,7 +1075,7 @@ describe('AppShellTabBar', () => {
       fireEvent(document, pointerMove)
 
       expect(dragged).toHaveClass('cursor-grabbing')
-      expect(document.querySelectorAll('[data-tab-divider]')).toHaveLength(0)
+      expect(document.querySelectorAll('[data-tab-divider][data-visible]')).toHaveLength(0)
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -1088,7 +1090,7 @@ describe('AppShellTabBar', () => {
     renderTabBar({ tabs, activeTabId: 'a' })
 
     const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider]') !== null
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
     expect(hasDivider('C')).toBe(true)
 
     // A menu-open tab is tinted like a hovered one, and the modal menu steals the
@@ -1109,7 +1111,7 @@ describe('AppShellTabBar', () => {
       renderTabBar({ tabs, activeTabId: 'a' })
 
       const hasDivider = (name: string) =>
-        screen.getByRole('button', { name }).querySelector('[data-tab-divider]') !== null
+        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
       // The pinned zone already ends in its own separator, so the first normal tab
       // must not add one on top of it.
       expect(hasDivider('A')).toBe(false)
@@ -1138,7 +1140,7 @@ describe('AppShellTabBar', () => {
     renderTabBar({ tabs, activeTabId: 'a' })
 
     const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider]') !== null
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
 
     expect(hasDivider('C')).toBe(true)
 
