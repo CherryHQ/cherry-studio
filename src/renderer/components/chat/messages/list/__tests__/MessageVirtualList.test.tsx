@@ -354,8 +354,19 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
 
     runtimeMockState.markUserInput.mockClear()
-    fireEvent.pointerDown(region, { clientY: 100, pointerType: 'touch' })
-    fireEvent.pointerMove(region, { buttons: 1, clientY: 80, pointerType: 'touch' })
+    const fireTouchPointerEvent = (type: 'pointerdown' | 'pointermove', clientY: number, buttons: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        buttons: { value: buttons },
+        clientY: { value: clientY },
+        pointerType: { value: 'touch' }
+      })
+      fireEvent(region, event)
+    }
+    // jsdom has no PointerEvent constructor, so Testing Library otherwise
+    // falls back to Event and silently drops pointer-specific init fields.
+    fireTouchPointerEvent('pointerdown', 100, 1)
+    fireTouchPointerEvent('pointermove', 80, 1)
     expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
     fireEvent.pointerUp(document)
 
