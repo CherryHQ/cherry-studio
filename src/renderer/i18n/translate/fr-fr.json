@@ -2483,7 +2483,7 @@
       "content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
       "context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
       "deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",
-      "free_model_unavailable": "Le modèle de diagnostic gratuit n'est pas disponible",
+      "free_model_unavailable": "Le diagnostic IA est temporairement indisponible",
       "go_to_settings": "Aller aux paramètres",
       "knowledge": "Échec de la vectorisation de la base de connaissances",
       "mcp": "Connexion au serveur MCP échouée, vérifiez si le service est en cours d'exécution",
