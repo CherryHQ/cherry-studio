@@ -1693,6 +1693,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Springe zu Zug {{number}}"
+      },
       "bottom": "Zum Boden scrollen",
       "close": "Schließen",
       "first": "Bereits die erste Nachricht",
@@ -3162,6 +3165,7 @@
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
       "processor": "Verarbeitungsanbieter",
+      "processor_not_configured": "Nicht konfiguriert",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -5141,6 +5145,7 @@
     "reset": "Zurücksetzen",
     "rotate_left": "Nach links drehen",
     "rotate_right": "Nach rechts drehen",
+    "save_as": "Speichern unter",
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
