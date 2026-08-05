@@ -20,7 +20,10 @@ import {
   AgentConversationControls,
   type AgentConversationControlsProps
 } from '@renderer/components/composer/variants/agent/AgentConversationControls'
-import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
+import {
+  type AgentComposerLaunchOptions,
+  MissingAgentHomeComposer
+} from '@renderer/components/composer/variants/AgentComposer'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -108,6 +111,7 @@ interface AgentChatProps {
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
   sessionPaneUserOpenIntentSeq?: number
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
 interface AgentChatLayoutProps {
@@ -170,7 +174,8 @@ const AgentChat = ({
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange,
-  sessionPaneUserOpenIntentSeq
+  sessionPaneUserOpenIntentSeq,
+  composerLaunchOptions
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -446,6 +451,7 @@ const AgentChat = ({
         sessionMessagesEnabled={sessionMessagesEnabled}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        composerLaunchOptions={composerLaunchOptions}
       />
     )
   }
@@ -540,6 +546,7 @@ interface AgentChatSessionCenterProps {
   sessionMessagesEnabled: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
 const AgentChatSessionCenter = ({
@@ -555,7 +562,8 @@ const AgentChatSessionCenter = ({
   isMultiSelectMode,
   sessionMessagesEnabled,
   onOpenCitationsPanel,
-  onCreateEmptySession
+  onCreateEmptySession,
+  composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <AgentComposerSlot
@@ -572,6 +580,7 @@ const AgentChatSessionCenter = ({
       sendDisabled={composerPending}
       onCreateEmptySession={onCreateEmptySession}
       composerContext={runtime.composerContext}
+      composerLaunchOptions={composerLaunchOptions}
     />
   )
   const main = (

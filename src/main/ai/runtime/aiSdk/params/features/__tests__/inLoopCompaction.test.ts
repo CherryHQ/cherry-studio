@@ -24,13 +24,14 @@ const COMPRESSION_MODEL = { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWi
 
 const scope = (overrides: {
   chatId?: string
+  contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
   compressionModel?: unknown
 }) =>
   ({
-    request: { chatId: overrides.chatId },
+    request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     contextSettings: {
       enabled: overrides.enabled ?? true,
@@ -93,6 +94,14 @@ describe('inLoopCompactionFeature', () => {
 
   it('does not apply for temporary-chat topics', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'temp:t1', contextWindow: CONTEXT_WINDOW }))).toBe(false)
+  })
+
+  it('does not apply for caller-owned gateway requests', () => {
+    expect(
+      inLoopCompactionFeature.applies?.(
+        scope({ chatId: 'gateway-request-1', contextOwner: 'caller', contextWindow: CONTEXT_WINDOW })
+      )
+    ).toBe(false)
   })
 
   it('does not apply when context-build is disabled', () => {

@@ -15,6 +15,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -23,7 +24,7 @@ import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
@@ -227,6 +228,119 @@ describe('AgentService', () => {
       })
       const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('ensureBuiltinAgent', () => {
+    const defaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+      builtinRole: 'assistant',
+      name: 'Cherry Assistant',
+      preferredModelId: TEST_MODEL_ID,
+      type: 'claude-code',
+      configuration: {
+        avatar: '🍒',
+        permission_mode: 'default' as const,
+        max_turns: 100,
+        env_vars: {}
+      }
+    }
+
+    function builtinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
+        .all()
+    }
+
+    function activeBuiltinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(
+          sql`${agentTable.deletedAt} IS NULL AND json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`
+        )
+        .all()
+    }
+
+    it('creates one protected assistant and returns it unchanged on repeated calls', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      const second = agentService.ensureBuiltinAgent({
+        builtinRole: 'assistant',
+        name: 'Replacement Name',
+        preferredModelId: null,
+        type: 'claude-code',
+        configuration: { avatar: '🤖' }
+      })
+
+      expect(second).toEqual(first)
+      expect(first).toMatchObject({
+        name: 'Cherry Assistant',
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🍒',
+          permission_mode: 'default',
+          max_turns: 100,
+          env_vars: {},
+          builtin_role: 'assistant'
+        }
+      })
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores exactly one active assistant after the previous row was soft-deleted', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+      const repeated = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(repeated.id).toBe(restored.id)
+      expect(builtinRows()).toHaveLength(2)
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(agentService.getAgent(first.id)).toBeNull()
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('leaves the model unset when the default cannot run the Agent runtime', () => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'embedding', name: 'Embedding', orderKey: generateOrderKeyBetween(null, null) })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'embedding::vectors',
+          providerId: 'embedding',
+          modelId: 'vectors',
+          name: 'Vectors',
+          capabilities: ['embedding'],
+          supportsStreaming: false,
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .run()
+
+      const assistant = agentService.ensureBuiltinAgent({
+        ...defaults,
+        preferredModelId: 'embedding::vectors'
+      })
+
+      expect(assistant.model).toBeNull()
     })
   })
 
@@ -925,6 +1039,40 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('clears a task binding before default agent deletion detaches its session', async () => {
+      const { id } = await insertAgent({ id: 'agent_default_detach_001' })
+      const task = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'default-detach-task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: id, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' },
+        metadata: { reuse: { enabled: true, revision: 0 } }
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-default-detach',
+        name: 'Workspace',
+        path: '/tmp/default-detach',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-default-detach',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-default-detach',
+        taskScheduleId: task.id,
+        orderKey: 'a0'
+      })
+
+      expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-default-detach'))
+      expect(session).toEqual({ agentId: null, taskScheduleId: null })
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {

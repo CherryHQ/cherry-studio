@@ -696,8 +696,12 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
 
     expect(result.sdkConfig.providerOptionsKey).toBe('google')
+    // Gemini 2.5 speaks the budget dialect and hard-rejects `thinkingLevel`, so
+    // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
+    // the shape that used to leak the Gemini 3 field: a catalog-backed custom
+    // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
     expect(result.options.providerOptions).toEqual({
-      google: { thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } }
+      google: { thinkingConfig: { includeThoughts: false, thinkingBudget: 0 } }
     })
   })
 
@@ -739,6 +743,72 @@ describe('buildAgentParams assistant-less reasoning', () => {
     } finally {
       registry.deregister(entry.name)
     }
+  })
+})
+
+/**
+ * Custom rows carry no `presetModelId`, and `wireDialect` is a catalog fact that
+ * is never persisted on the row — so the dialect has to be re-resolved through
+ * `apiModelId` at request time. When that lookup is missing these rows silently
+ * fall back to the newer wire and emit a field the vendor rejects outright
+ * (Gemini 2.x `thinkingLevel`, Claude <=4.5 `thinking.type=adaptive`).
+ */
+describe('buildAgentParams native-dialect resolution for catalog-backed custom rows', () => {
+  const buildFor = async (
+    endpoint: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE],
+    adapterFamily: string,
+    apiModelId: string
+  ) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: adapterFamily, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'my-gateway',
+      defaultChatEndpoint: endpoint,
+      endpointConfigs: { [endpoint]: { adapterFamily } }
+    })
+    // No presetModelId — the row a user gets by typing the id on a custom provider.
+    const model = makeModel({
+      id: `my-gateway::${apiModelId}`,
+      providerId: 'my-gateway',
+      apiModelId,
+      maxOutputTokens: 32_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'budget', min: 1024, max: 8192 }], selectableEfforts: ['low', 'high'] }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high' } })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+    return result.options.providerOptions ?? {}
+  }
+
+  it('keeps Claude 4.5 on the budget dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-sonnet-4-5')
+    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    expect(thinking?.type).toBe('enabled')
+    expect(thinking?.budgetTokens).toBeGreaterThan(0)
+  })
+
+  it('keeps Gemini 2.5 on the budget dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-2.5-flash')
+    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    expect(config).toHaveProperty('thinkingBudget')
+    expect(config).not.toHaveProperty('thinkingLevel')
+  })
+
+  // Positive control: the fallback must not force every model onto budget.
+  it('leaves Gemini 3 on the level dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-3-flash')
+    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    expect(config).toHaveProperty('thinkingLevel')
+    expect(config).not.toHaveProperty('thinkingBudget')
+  })
+
+  it('leaves Claude 4.6+ on the adaptive dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-opus-4-6')
+    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    expect(thinking?.type).toBe('adaptive')
+    expect(thinking?.budgetTokens).toBeUndefined()
   })
 })
 

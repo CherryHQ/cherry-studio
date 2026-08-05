@@ -279,6 +279,16 @@
         "description": "文件超过 {{limit}} 预览上限。",
         "title": "文件太大，无法预览"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "文件面板需要有效的本地绝对路径，请重新选择工作目录。",
+          "title": "工作区路径无效"
+        },
+        "load_error": {
+          "description": "请确认工作目录仍然存在且可以访问，然后重试。",
+          "title": "无法加载工作区文件"
+        }
+      },
       "unavailable": {
         "description": "无法打开此文件，它可能已被移动或删除。",
         "title": "文件不可用"
@@ -758,6 +768,13 @@
         "placeholder": "此任务运行时智能体应该做什么？"
       },
       "resume": "恢复",
+      "reuseSession": {
+        "bound": "查看会话",
+        "description": "每次执行都在同一个会话中继续，而不是新建会话。",
+        "label": "复用会话",
+        "pending": "等待首次执行",
+        "warning": "复用会话会持续累积上下文，长期运行会推高 token 消耗，并可能超出模型的上下文窗口。如需重新绑定一个干净的会话，请先关闭并保存，再开启并保存。"
+      },
       "run": "运行",
       "runTriggered": "任务已触发",
       "save": "保存",
@@ -1350,6 +1367,9 @@
       "label": "确定要备份数据吗？"
     },
     "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "error": {
+      "active_data_writers": "当前有对话或智能体正在运行，请等待其结束后重试。"
+    },
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
@@ -1486,6 +1506,13 @@
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新对话 {{Command}}",
+      "note_reference": {
+        "description": "从笔记中添加附件",
+        "empty": "未找到笔记",
+        "load_failed": "笔记加载失败",
+        "loading": "正在加载笔记...",
+        "title": "引用笔记"
+      },
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
@@ -2492,6 +2519,7 @@
       "content": "消息内容被安全系统拦截，请修改后重试",
       "context_length": "对话上下文过长，请清理历史消息或开启新对话",
       "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "free_model_unavailable": "AI 诊断暂时不可用",
       "go_to_settings": "前往设置",
       "knowledge": "知识库向量化失败",
       "mcp": "MCP 服务器连接失败，请检查服务是否已启动",
@@ -3867,6 +3895,7 @@
       "pasted_text": "剪切板文件"
     },
     "backup": {
+      "cleanup_failed": "备份已完成，但旧备份清理失败。",
       "failed": "备份失败",
       "start": {
         "success": "开始备份"
@@ -5808,7 +5837,25 @@
         "title": "企业版"
       },
       "feedback": {
+        "agent": {
+          "description": "通过与 Cherry Assistant 对话反馈问题。",
+          "title": "使用 Agent 提交"
+        },
+        "agent_error": "无法为反馈打开 Cherry Assistant，请重试。",
         "button": "反馈",
+        "dialog": {
+          "description": "选择一种方式反馈问题，帮助我们把 Cherry Studio 做得更好。",
+          "title": "选择反馈方式"
+        },
+        "github": {
+          "description": "前往 GitHub 创建 Bug 报告或功能建议。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "推荐",
+        "survey": {
+          "description": "通过飞书问卷提交反馈。",
+          "title": "反馈问卷"
+        },
         "title": "意见反馈"
       },
       "label": "关于我们",
@@ -6141,6 +6188,7 @@
         },
         "pathSelector": {
           "currentPath": "当前路径",
+          "fetchError": "获取坚果云文件夹列表失败",
           "return": "返回",
           "title": "坚果云存储路径"
         },
@@ -7333,6 +7381,7 @@
       "topic_naming": {
         "auto": "对话自动重命名",
         "label": "对话命名",
+        "model": "命名模型",
         "prompt": "对话命名提示词"
       },
       "translate_model": "翻译模型",

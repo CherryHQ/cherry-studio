@@ -209,14 +209,17 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
     let renderedContentBottom = 0
 
-    for (const child of body.children) {
-      const bounds = child.getBoundingClientRect()
+    // A last descendant's margin can collapse through otherwise margin-less wrappers. Measuring
+    // only body.children then underestimates the natural document height and can make this preview
+    // alternate forever between that smaller value and documentScrollHeight.
+    for (const element of body.querySelectorAll('*')) {
+      const bounds = element.getBoundingClientRect()
       if (bounds.width === 0 && bounds.height === 0) continue
 
-      const childMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(child).marginBottom) || 0
+      const elementMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(element).marginBottom) || 0
       renderedContentBottom = Math.max(
         renderedContentBottom,
-        bounds.bottom + scrollTop + Math.max(childMarginBottom, bodyMarginBottom) + bodyEndSpacing
+        bounds.bottom + scrollTop + Math.max(elementMarginBottom, bodyMarginBottom) + bodyEndSpacing
       )
     }
 

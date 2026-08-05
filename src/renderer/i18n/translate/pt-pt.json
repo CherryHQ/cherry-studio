@@ -1350,6 +1350,9 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "error": {
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+    },
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -2480,6 +2483,7 @@
       "content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
       "context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
       "deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
+      "free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
       "go_to_settings": "Ir para definições",
       "knowledge": "Falha na vetorização da base de conhecimento",
       "mcp": "Falha na ligação ao servidor MCP, verifique se o serviço está em execução",
@@ -3840,6 +3844,7 @@
       "pasted_text": "Arquivo da área de transferência"
     },
     "backup": {
+      "cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
       "failed": "Backup falhou",
       "start": {
         "success": "Início do backup"
@@ -6112,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Caminho atual",
+          "fetchError": "Falha ao carregar a lista de pastas do Nutstore",
           "return": "Voltar",
           "title": "Caminho de armazenamento do Nutstore"
         },

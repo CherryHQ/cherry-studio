@@ -25,6 +25,7 @@ import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messag
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
@@ -32,7 +33,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -159,7 +159,6 @@ export function useAgentMessageListProviderValue({
   workspacePath,
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
-  const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
@@ -283,8 +282,8 @@ export function useAgentMessageListProviderValue({
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
-    ({ path, query }) => navigate({ to: path, search: query }),
-    [navigate]
+    ({ path, query }) => openRoute(path, query),
+    []
   )
 
   useEffect(() => {
