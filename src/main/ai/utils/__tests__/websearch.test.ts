@@ -131,6 +131,26 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
       search_options: { forced_search: true, search_strategy: 'agent' }
     })
   })
+
+  // When the model also serves the web-extractor (url-context) tool, the strategy upgrades to
+  // `agent_max`, which fetches full page content (help.aliyun.com/zh/model-studio/web-extractor).
+  it('upgrades to agent_max for a model that serves the web-extractor tool', () => {
+    const dashscopeWithExtractor = {
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    } as unknown as Provider
+    const extractorModel = model({
+      id: 'dashscope::qwen3-max',
+      providerId: 'dashscope',
+      apiModelId: 'qwen3-max',
+      capabilities: []
+    })
+    expect(getWebSearchParams(extractorModel, dashscopeWithExtractor)).toEqual({
+      enable_search: true,
+      search_options: { forced_search: true, search_strategy: 'agent_max' }
+    })
+  })
 })
 
 // A user-copied provider keeps its own id but still gets the preset's serverTools and the preset's
