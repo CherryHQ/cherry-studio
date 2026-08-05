@@ -1119,6 +1119,7 @@ describe('ResourceList', () => {
         canDropGroup={({ activeGroupId, overGroupId }) =>
           activeGroupId.startsWith('section:') && overGroupId.startsWith('section:')
         }
+        collapsedState={['inner:topic']}
         dragCapabilities={{ groups: true, items: false }}
         groupBy={(item) => ({ id: `inner:${item.kind}`, label: item.kind })}
         sectionBy={(item) => ({ id: `section:${item.kind}`, label: `${item.kind} section` })}
@@ -1139,10 +1140,26 @@ describe('ResourceList', () => {
     expect(dndMocks.sortableData.has('group:section:topic')).toBe(true)
     expect(dndMocks.sortableData.has('group:inner:session')).toBe(false)
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('group:section:session'), id: 'group:section:session' },
+    const dragEvent = {
+      active: {
+        data: sortableData('group:section:session'),
+        id: 'group:section:session',
+        rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
+      },
       over: { data: sortableData('group:section:topic'), id: 'group:section:topic' }
+    }
+    act(() => {
+      dndMocks.onDragStart?.(dragEvent)
+      dndMocks.onDragOver?.(dragEvent)
     })
+
+    const targetGroupRow = screen
+      .getByRole('button', { name: 'topic' })
+      .closest('[class*="group/resource-list-group"]')?.parentElement
+    expect(targetGroupRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(1)
+
+    act(() => dndMocks.onDragEnd?.(dragEvent))
 
     expect(onReorder).toHaveBeenCalledWith({
       type: 'group',
