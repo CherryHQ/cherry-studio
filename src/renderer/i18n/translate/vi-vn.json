@@ -7537,6 +7537,13 @@
         "api_host": {
           "acceleration": "Miền gia tốc",
           "international": "Tên miền quốc tế"
+        },
+        "route": {
+          "auto": "Tự động chọn",
+          "china": "Tuyến tăng tốc",
+          "error": "Không thể chuyển tuyến CherryIN",
+          "global": "Tuyến quốc tế",
+          "title": "Tuyến truy cập"
         }
       },
       "claude_code": {
@@ -7699,7 +7706,7 @@
           "logout_button": "Keluar",
           "not_logged_in": "Chưa đăng nhập",
           "register_account": "Create account",
-          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
+          "service_attribution": "This service is provided by <link>{{host}}</link>",
           "tagline": "After you sign in, you can use all model services",
           "title": "Đăng nhập OAuth",
           "use_api_key": "Use API key instead"

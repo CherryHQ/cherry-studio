@@ -51,6 +51,9 @@ describe('CherryInOauth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_endpoint_selection') {
+        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto' })
+      }
       if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
       if (route === 'oauth.has_token') return Promise.resolve(true)
       return Promise.resolve(undefined)
@@ -73,18 +76,46 @@ describe('CherryInOauth', () => {
     render(<CherryInOauth providerId="cherryin" />)
 
     await waitFor(() => {
-      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' })
+      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.net' })
     })
 
     expect(screen.getByText('Siin')).toBeInTheDocument()
     expect(screen.getByText('siin@gmail.com')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
     expect(screen.getByText('$128.50')).toBeInTheDocument()
-    expect(screen.getByText(/open\.cherryin\.ai/)).toBeInTheDocument()
+    expect(screen.getByText(/open\.cherryin\.net/)).toBeInTheDocument()
+  })
+
+  it('uses a custom CherryIN provider host without reading the built-in route selection', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-cherryin',
+        name: 'Custom CherryIN',
+        presetProviderId: 'cherryin',
+        endpointConfigs: {
+          openai: { baseUrl: 'https://open.cherryin.ai' }
+        },
+        apiKeys: [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }],
+        isEnabled: true
+      },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey: vi.fn()
+    })
+
+    render(<CherryInOauth providerId="custom-cherryin" />)
+
+    await waitFor(() => {
+      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' })
+    })
+    expect(ipcApiRequestMock).not.toHaveBeenCalledWith('cherryin.get_endpoint_selection')
   })
 
   it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
     ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_endpoint_selection') {
+        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto' })
+      }
       if (route === 'cherryin.get_balance') {
         return Promise.reject(new Error('Failed to get balance: HTTP 401 Unauthorized'))
       }
@@ -106,7 +137,7 @@ describe('CherryInOauth', () => {
     render(<CherryInOauth providerId="cherryin" />)
 
     await waitFor(() => {
-      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' })
+      expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.net' })
     })
     expect(toast.error).not.toHaveBeenCalled()
     expect(screen.getByText('-')).toBeInTheDocument()
@@ -170,7 +201,7 @@ describe('CherryInOauth', () => {
       expect(toast.success).toHaveBeenCalled()
     })
 
-    expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.logout', { apiHost: 'https://open.cherryin.ai' })
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.logout', { apiHost: 'https://open.cherryin.net' })
     expect(ipcApiRequestMock).toHaveBeenCalledWith('oauth.has_token', { providerId: 'cherryin' })
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
     expect(deleteApiKey).toHaveBeenNthCalledWith(1, 'oauth-1')

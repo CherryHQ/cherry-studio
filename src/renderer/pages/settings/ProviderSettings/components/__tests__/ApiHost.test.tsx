@@ -24,10 +24,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInSettings', () => ({
-  default: () => <div>cherry-in-settings</div>
-}))
-
 vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({
   default: ({ providerId, open }: any) =>
     open ? <div data-testid="request-config-drawer" data-provider={providerId} /> : null
@@ -105,7 +101,6 @@ describe('ApiHost', () => {
     useProviderMetaMock.mockReturnValue({
       isConnectionFieldVisible: true,
       isAzureOpenAI: false,
-      isCherryIN: false,
       isChineseUser: false
     })
   })
@@ -296,6 +291,37 @@ describe('ApiHost', () => {
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
+  it('keeps the API host editable for a provider derived from the CherryIN preset', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'custom-cherryin', presetProviderId: 'cherryin' }
+    })
+    useProviderMetaMock.mockReturnValue({
+      isConnectionFieldVisible: true,
+      isAzureOpenAI: false
+    })
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: '',
+      anthropicHostPreview: '',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost: vi.fn(),
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="custom-cherryin" />)
+
+    expect(screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: /^配置 API Host 与自定义请求头$|^Configure API Host and custom request headers$/i
+      })
+    ).toBeInTheDocument()
+  })
+
   it('returns no connection field when the provider hides connection settings', () => {
     useProviderMock.mockReturnValue({
       provider: {
@@ -307,7 +333,6 @@ describe('ApiHost', () => {
     useProviderMetaMock.mockReturnValue({
       isConnectionFieldVisible: false,
       isAzureOpenAI: false,
-      isCherryIN: false,
       isChineseUser: false
     })
     useProviderHostPreviewMock.mockReturnValue({

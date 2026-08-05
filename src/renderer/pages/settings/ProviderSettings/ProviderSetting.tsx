@@ -16,7 +16,15 @@ interface ProviderSettingProps {
   isOnboarding?: boolean
 }
 
-function ProviderSettingSections({ providerId, isLoginBased }: { providerId: string; isLoginBased: boolean }) {
+function ProviderSettingSections({
+  providerId,
+  isLoginBased,
+  allowManualModelAdd
+}: {
+  providerId: string
+  isLoginBased: boolean
+  allowManualModelAdd: boolean
+}) {
   const health = useModelListHealth()
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const requestModelPullGuide = useCallback(() => {
@@ -36,7 +44,11 @@ function ProviderSettingSections({ providerId, isLoginBased }: { providerId: str
       <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
         {authenticationSection}
         <div className="flex min-h-0 flex-1 flex-col">
-          <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+          <ModelList
+            providerId={providerId}
+            modelPullGuideVersion={modelPullGuideVersion}
+            allowManualModelAdd={allowManualModelAdd}
+          />
         </div>
       </div>
     </Scrollbar>
@@ -66,7 +78,11 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
             </div>
           </div>
           <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} isLoginBased={isLoginBasedProvider(provider)} />
+            <ProviderSettingSections
+              providerId={providerId}
+              isLoginBased={isLoginBasedProvider(provider)}
+              allowManualModelAdd={provider.id !== 'cherryin'}
+            />
           </ModelListHealthProvider>
         </div>
       </div>

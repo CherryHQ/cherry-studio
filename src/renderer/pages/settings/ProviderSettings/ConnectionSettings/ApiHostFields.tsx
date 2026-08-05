@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import CherryInSettings from '../ProviderSpecific/CherryInSettings'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 function ApiHostEndpointButton({ onClick }: { onClick: () => void }) {
@@ -58,10 +57,7 @@ export function AzureApiVersionField({
 }
 
 interface ApiHostFieldProps {
-  providerIdForSettings: string
   apiHost: string
-  isCherryIN: boolean
-  isChineseUser: boolean
   isVertexAI: boolean
   isApiHostResettable: boolean
   onApiHostChange: (value: string) => void
@@ -71,10 +67,7 @@ interface ApiHostFieldProps {
 }
 
 export function ApiHostField({
-  providerIdForSettings,
   apiHost,
-  isCherryIN,
-  isChineseUser,
   isVertexAI,
   isApiHostResettable,
   onApiHostChange,
@@ -102,82 +95,63 @@ export function ApiHostField({
       }
       titleClassName="text-foreground"
       help={help}>
-      {isCherryIN && isChineseUser ? (
-        <div className={cn(fieldClasses.inputRow, 'group')}>
-          <div className="flex min-w-0 flex-1">
-            <CherryInSettings providerId={providerIdForSettings} />
-          </div>
-          <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
-            <span className="inline-flex shrink-0">
-              <button
-                type="button"
-                className={fieldClasses.inputActionButton}
-                aria-label={t('settings.provider.request_configuration_tooltip')}
-                onClick={onOpenRequestConfig}>
-                <Settings size={14} aria-hidden />
-              </button>
-            </span>
-          </Tooltip>
-        </div>
-      ) : (
-        <div className={cn(fieldClasses.inputRow, 'group')}>
-          <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
-            <InputGroupInput
-              className={cn(fieldClasses.input, 'font-mono tabular-nums')}
-              value={apiHost}
-              placeholder={t('settings.provider.api_host_placeholder')}
-              aria-label={t('settings.provider.api_host')}
-              title={trimmedApiHost}
-              onChange={(event) => onApiHostChange(event.target.value)}
-              onBlur={onApiHostCommit}
-              autoComplete="off"
-            />
-            {trimmedApiHost ? (
-              <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
-                <Tooltip content={t('common.copy')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                    aria-label={t('common.copy')}
-                    onClick={() => {
-                      void copyApiKeyToClipboard(trimmedApiHost, t)
-                    }}>
-                    <Copy className="size-2.5" />
-                  </Button>
-                </Tooltip>
-              </InputGroupAddon>
-            ) : null}
-          </InputGroup>
-          {isApiHostResettable ? (
-            <Tooltip content={t('settings.provider.api.url.reset')}>
-              <span className="inline-flex shrink-0">
-                <button
+      <div className={cn(fieldClasses.inputRow, 'group')}>
+        <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
+          <InputGroupInput
+            className={cn(fieldClasses.input, 'font-mono tabular-nums')}
+            value={apiHost}
+            placeholder={t('settings.provider.api_host_placeholder')}
+            aria-label={t('settings.provider.api_host')}
+            title={trimmedApiHost}
+            onChange={(event) => onApiHostChange(event.target.value)}
+            onBlur={onApiHostCommit}
+            autoComplete="off"
+          />
+          {trimmedApiHost ? (
+            <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
+              <Tooltip content={t('common.copy')}>
+                <Button
                   type="button"
-                  className={fieldClasses.inputActionButton}
-                  aria-label={t('settings.provider.api.url.reset')}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-5 shrink-0 rounded-md p-0 text-muted-foreground opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                  aria-label={t('common.copy')}
                   onClick={() => {
-                    onResetApiHost()
+                    void copyApiKeyToClipboard(trimmedApiHost, t)
                   }}>
-                  <RotateCcw size={14} />
-                </button>
-              </span>
-            </Tooltip>
+                  <Copy className="size-2.5" />
+                </Button>
+              </Tooltip>
+            </InputGroupAddon>
           ) : null}
-          <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+        </InputGroup>
+        {isApiHostResettable ? (
+          <Tooltip content={t('settings.provider.api.url.reset')}>
             <span className="inline-flex shrink-0">
               <button
                 type="button"
                 className={fieldClasses.inputActionButton}
-                aria-label={t('settings.provider.request_configuration_tooltip')}
-                onClick={onOpenRequestConfig}>
-                <Settings size={14} aria-hidden />
+                aria-label={t('settings.provider.api.url.reset')}
+                onClick={() => {
+                  onResetApiHost()
+                }}>
+                <RotateCcw size={14} />
               </button>
             </span>
           </Tooltip>
-        </div>
-      )}
+        ) : null}
+        <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+          <span className="inline-flex shrink-0">
+            <button
+              type="button"
+              className={fieldClasses.inputActionButton}
+              aria-label={t('settings.provider.request_configuration_tooltip')}
+              onClick={onOpenRequestConfig}>
+              <Settings size={14} aria-hidden />
+            </button>
+          </span>
+        </Tooltip>
+      </div>
     </ProviderField>
   )
 }

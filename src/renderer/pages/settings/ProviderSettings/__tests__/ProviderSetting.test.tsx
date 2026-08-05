@@ -7,6 +7,7 @@ const useProviderMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
+const modelListPropsSpy = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -34,7 +35,10 @@ vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
 }))
 
 vi.mock('../ModelList', () => ({
-  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>,
+  ModelList: (props: any) => {
+    modelListPropsSpy(props)
+    return <div>{`model-list-${props.providerId}`}</div>
+  },
   ModelListHealthProvider: ({ children }: any) => <>{children}</>,
   useModelListHealth: () => ({
     openHealthCheck: openHealthCheckMock
@@ -66,6 +70,21 @@ describe('ProviderSetting', () => {
       providerId: 'openai',
       isOnboarding: true
     })
+  })
+
+  it('disables manual model addition only for the built-in CherryIN provider', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', isEnabled: true, name: 'CherryIN' }
+    })
+
+    render(<ProviderSetting providerId="cherryin" />)
+
+    expect(modelListPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'cherryin',
+        allowManualModelAdd: false
+      })
+    )
   })
 
   it('renders nothing when the provider is missing', () => {

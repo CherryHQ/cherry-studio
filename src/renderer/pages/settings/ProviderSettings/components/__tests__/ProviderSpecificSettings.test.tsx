@@ -30,6 +30,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInOaut
   default: ({ providerId }: any) => <div>{`cherryin-oauth-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInSettings', () => ({
+  default: ({ providerId }: any) => <div>{`cherryin-settings-${providerId}`}</div>
+}))
+
 vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DmxapiSettings', () => ({
   default: ({ providerId }: any) => <div>{`dmxapi-settings-${providerId}`}</div>
 }))
@@ -102,6 +106,12 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
       expectedText: 'ovms-settings'
+    },
+    {
+      providerId: 'cherryin',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: true, isDmxapi: false },
+      expectedText: 'cherryin-settings-cherryin'
     },
     {
       providerId: 'radeon-cloud',

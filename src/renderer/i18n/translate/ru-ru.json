@@ -7537,6 +7537,13 @@
         "api_host": {
           "acceleration": "Домен ускорения",
           "international": "Международный домен"
+        },
+        "route": {
+          "auto": "Автоматический выбор",
+          "china": "Ускоренный маршрут",
+          "error": "Не удалось переключить маршрут CherryIN",
+          "global": "Международный маршрут",
+          "title": "Маршрут доступа"
         }
       },
       "claude_code": {
@@ -7699,7 +7706,7 @@
           "logout_button": "Выход",
           "not_logged_in": "Вход не выполнен",
           "register_account": "Create account",
-          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
+          "service_attribution": "This service is provided by <link>{{host}}</link>",
           "tagline": "After you sign in, you can use all model services",
           "title": "Вход через OAuth",
           "use_api_key": "Use API key instead"
