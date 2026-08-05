@@ -37,9 +37,9 @@ interface ModelListSyncDrawerProps {
 export default function ModelListSyncDrawer({
   open,
   provider,
-  allModels = [],
-  localModels = [],
-  removableModelIds = [],
+  allModels,
+  localModels,
+  removableModelIds,
   defaultModelIds = [],
   isLoading,
   isApplying,

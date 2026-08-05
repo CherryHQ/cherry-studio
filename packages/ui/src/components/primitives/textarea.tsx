@@ -55,7 +55,7 @@ function TextareaInput({
   ref,
   ...props
 }: TextareaInputProps) {
-  const [value = '', setValue] = useControllableState({
+  const [value, setValue] = useControllableState({
     prop: valueProp,
     defaultProp: defaultValue ?? '',
     onChange: onValueChange
