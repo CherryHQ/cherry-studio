@@ -607,6 +607,74 @@ describe('MainTextBlock', () => {
       expect(document.body).not.toHaveTextContent('Line 6')
     })
 
+    it('does not collapse a short visible message because a reference token contains a long transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Old question
+
+[assistant]
+Old answer
+
+[user]
+More context
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} Start the demo`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(document.body).toHaveTextContent('Start the demo')
+      expect(document.body).not.toHaveTextContent('Old question')
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+    })
+
+    it('collapses long visible content after a reference token without exposing its transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Hidden question
+
+[assistant]
+Hidden answer
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} ${Array.from({ length: 7 }, (_, index) => `Visible line ${index + 1}`).join('\n')}`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.body).toHaveTextContent('Visible line 5')
+      expect(document.body).not.toHaveTextContent('Visible line 6')
+      expect(document.body).not.toHaveTextContent('Hidden question')
+    })
+
     it('should not collapse assistant messages', () => {
       const content = Array.from({ length: 11 }, (_, index) => `Assistant response ${index + 1}`).join('\n')
       renderMainTextBlock({ content, role: 'assistant' })
