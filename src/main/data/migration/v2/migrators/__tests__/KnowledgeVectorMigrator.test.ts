@@ -269,7 +269,26 @@ function createMigratedBase(overrides: Partial<MigratedKnowledgeBaseRow> = {}): 
 
 /** A migrated item id mapped to its prepared materials (test-only reach into private state). */
 function materialItemIds(migrator: any): string[] {
-  return migrator.preparedBasePlans[0].materialItemIds
+  return [...migrator.preparedBasePlans[0].rowidsByItemId.keys()]
+}
+
+/** A KnowledgeVectorSourceReader stub whose openBase() streams the given pre-decoded rows. */
+function createVectorSourceStub(rows: Array<Record<string, unknown>>): KnowledgeVectorSourceReader {
+  return {
+    openBase: vi.fn().mockReturnValue({
+      status: 'ok',
+      dbPath: 'stub',
+      reader: {
+        *iterateRows() {
+          for (const [index, row] of rows.entries()) {
+            yield { rowid: index + 1, ...row }
+          }
+        },
+        loadRowsByRowids: vi.fn().mockReturnValue([]),
+        close: vi.fn()
+      }
+    })
+  } as unknown as KnowledgeVectorSourceReader
 }
 
 describe('KnowledgeVectorMigrator', () => {
@@ -402,7 +421,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(migrator.preparedBasePlans).toHaveLength(1)
-      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
+      expect(migrator.preparedBasePlans[0].rowidsByItemId.size).toBe(0)
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -481,11 +500,11 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('skips migrated bases that cannot be mapped back to legacy base ids', async () => {
-      const loadBase = vi.fn()
+      const openBase = vi.fn()
       const migrationCtx = createMissingBaseRemapMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { loadBase } as any,
+        knowledgeVectorSource: { openBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -503,7 +522,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(loadBase).not.toHaveBeenCalled()
+      expect(openBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect(
         result.warnings?.some(
@@ -568,20 +587,13 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: {
-          loadBase: vi.fn().mockResolvedValue({
-            status: 'ok',
-            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-            rows: [
-              {
-                pageContent: 'file chunk',
-                uniqueLoaderId: 'loader-file',
-                source: '/tmp/file-1.md',
-                vector: { status: 'unsupported_encoding', encoding: 'string' }
-              }
-            ]
-          })
-        } as unknown as KnowledgeVectorSourceReader,
+        knowledgeVectorSource: createVectorSourceStub([
+          {
+            pageContent: 'file chunk',
+            uniqueLoaderId: 'loader-file',
+            vector: { status: 'unsupported_encoding', encoding: 'string' }
+          }
+        ]),
         reduxData: {
           knowledge: {
             bases: [
@@ -599,7 +611,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
+      expect(migrator.preparedBasePlans[0].rowidsByItemId.size).toBe(0)
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -616,20 +628,13 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: {
-          loadBase: vi.fn().mockResolvedValue({
-            status: 'ok',
-            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-            rows: [
-              {
-                pageContent: 'file chunk',
-                uniqueLoaderId: 'loader-file',
-                source: '/tmp/file-1.md',
-                vector: { status: 'missing' }
-              }
-            ]
-          })
-        } as unknown as KnowledgeVectorSourceReader,
+        knowledgeVectorSource: createVectorSourceStub([
+          {
+            pageContent: 'file chunk',
+            uniqueLoaderId: 'loader-file',
+            vector: { status: 'missing' }
+          }
+        ]),
         reduxData: {
           knowledge: {
             bases: [
@@ -647,7 +652,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
+      expect(migrator.preparedBasePlans[0].rowidsByItemId.size).toBe(0)
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -663,20 +668,13 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ dimensions: 2 })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: {
-          loadBase: vi.fn().mockResolvedValue({
-            status: 'ok',
-            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-            rows: [
-              {
-                pageContent: 'file chunk',
-                uniqueLoaderId: 'loader-file',
-                source: '/tmp/file-1.md',
-                vector: { status: 'decoded', value: [1, 2, 3] }
-              }
-            ]
-          })
-        } as unknown as KnowledgeVectorSourceReader,
+        knowledgeVectorSource: createVectorSourceStub([
+          {
+            pageContent: 'file chunk',
+            uniqueLoaderId: 'loader-file',
+            vector: { status: 'decoded', value: new Float32Array([1, 2, 3]) }
+          }
+        ]),
         reduxData: {
           knowledge: {
             bases: [
@@ -694,7 +692,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
+      expect(migrator.preparedBasePlans[0].rowidsByItemId.size).toBe(0)
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -706,11 +704,11 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('skips failed bases without reading or rebuilding legacy vectors', async () => {
-      const loadBase = vi.fn()
+      const openBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ embeddingModelId: null, status: 'failed' })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { loadBase } as any,
+        knowledgeVectorSource: { openBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -728,7 +726,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(loadBase).not.toHaveBeenCalled()
+      expect(openBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect(
         result.warnings?.some((warning) =>
@@ -744,11 +742,11 @@ describe('KnowledgeVectorMigrator', () => {
       // unreadable, but its embedding model still resolved) reaches this skip branch via
       // `status==='failed'` with a non-null embeddingModelId. The summary warning must key on its
       // actual `base.error`, not lump it into "missing embedding model" — which would misdirect triage.
-      const loadBase = vi.fn()
+      const openBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { loadBase } as any,
+        knowledgeVectorSource: { openBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -766,7 +764,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(loadBase).not.toHaveBeenCalled()
+      expect(openBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       // Keyed on the real error...
       expect(
@@ -787,10 +785,10 @@ describe('KnowledgeVectorMigrator', () => {
       // When that base is a directory expansion, its virtual-path children must still be degraded
       // (they can never reindex), exactly like the other prepare-time skips.
       const CHILD_A = '0198f3f2-7d70-7abc-8def-123456789abc'
-      const loadBase = vi.fn()
+      const openBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ dimensions: 0 })],
-        knowledgeVectorSource: { loadBase } as any,
+        knowledgeVectorSource: { openBase } as any,
         migratedItems: [
           createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
             type: 'directory',
@@ -824,7 +822,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       expect(result.success).toBe(true)
       // The invalid-dimensions gate fires before the legacy store is even read.
-      expect(loadBase).not.toHaveBeenCalled()
+      expect(openBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, MIGRATED_DIRECTORY_ITEM_ID].sort())
       expect(
@@ -835,7 +833,9 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
-      const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
+      const openBase = vi.fn(() => {
+        throw new Error('openBase failed')
+      })
       const migrationCtx = createMigrationCtx({
         migratedBases: [
           createMigratedBase({ id: '22222222-2222-4222-8222-222222222222', embeddingModelId: null, status: 'failed' }),
@@ -846,7 +846,7 @@ describe('KnowledgeVectorMigrator', () => {
           ['kb-missing-model', '22222222-2222-4222-8222-222222222222'],
           ['kb-load-fails', '33333333-3333-4333-8333-333333333333']
         ]),
-        knowledgeVectorSource: { loadBase } as any,
+        knowledgeVectorSource: { openBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -867,7 +867,7 @@ describe('KnowledgeVectorMigrator', () => {
       // An unreadable legacy DB is a per-base skip (mirrors KnowledgeMigrator's failed tombstone),
       // not a fatal failure — re-running once the DB is readable recovers it without re-embedding.
       expect(result.success).toBe(true)
-      expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
+      expect(openBase).toHaveBeenCalledWith('kb-load-fails')
       expect(
         result.warnings?.some((warning) =>
           warning.includes(
@@ -879,7 +879,7 @@ describe('KnowledgeVectorMigrator', () => {
         result.warnings?.some(
           (warning) =>
             warning.includes('Skipped knowledge vector records (read_error): count=1') &&
-            warning.includes('loadBase failed')
+            warning.includes('openBase failed')
         )
       ).toBe(true)
     })
@@ -1235,7 +1235,9 @@ describe('KnowledgeVectorMigrator', () => {
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource: {
-          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+          openBase: vi.fn(() => {
+            throw new Error('database is locked')
+          })
         } as any,
         migratedBases: [createMigratedBase()],
         migratedItems: [
@@ -1309,7 +1311,9 @@ describe('KnowledgeVectorMigrator', () => {
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource: {
-          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
+          openBase: vi.fn(() => {
+            throw new Error('database is locked')
+          })
         } as any,
         migratedBases: [createMigratedBase()],
         migratedItems: [
@@ -1727,13 +1731,7 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createEmptyRemapMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: {
-          loadBase: vi.fn().mockResolvedValue({
-            status: 'ok',
-            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-            rows: []
-          })
-        } as unknown as KnowledgeVectorSourceReader,
+        knowledgeVectorSource: createVectorSourceStub([]),
         reduxData: {
           knowledge: {
             bases: [
@@ -2735,14 +2733,14 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('never retains a base’s materials/vectors past its own prepare()/execute() pass (OOM regression guard)', async () => {
-      // Root cause of the OOM this guards against: prepare() used to push each base's full materials
-      // (joined chunk text + reused embeddings) into `preparedBasePlans`, an instance field that
-      // survived from the end of prepare() until execute() drained it — so a many-base migration held
-      // every base's vectors in memory at once, peaking at their sum (a 28-base corpus with
-      // high-dimension embeddings was enough to exhaust the V8 heap). The fix: prepare() only counts
-      // (discarding chunks/vectors at the end of each base's loop iteration) and execute() rebuilds a
-      // base's real materials from scratch, from its own local scope, right before writing them — so
-      // at most one base's vectors are ever resident, never the whole migration's.
+      // OOM history this guards against: first prepare() pushed each base's full materials (joined
+      // chunk text + reused embeddings) into `preparedBasePlans`, so a many-base migration peaked
+      // at the SUM of every base's vectors (a 28-base corpus exhausted the V8 heap); the per-base
+      // re-read fix still loaded a whole base at once via loadBase(), which a single large base
+      // (six figures of chunks × high dimensions) could exhaust on its own. Now prepare() STREAMS
+      // each base's rows (iterateRows), retaining only per-item rowid lists and counts, and
+      // execute() point-reads one item's rows back at a time (loadRowsByRowids) — so at most one
+      // item's vectors are ever resident, never a whole base's.
       const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
       const MIGRATED_FILE_B_ITEM_ID = '0198f3f2-7f30-7abc-8def-123456789abc'
 
@@ -2766,7 +2764,27 @@ describe('KnowledgeVectorMigrator', () => {
       ])
 
       const knowledgeVectorSource = new KnowledgeVectorSourceReader(knowledgeBaseDir)
-      const loadBaseSpy = vi.spyOn(knowledgeVectorSource, 'loadBase')
+      // Wrap openBase to spy on how each phase actually reads rows: prepare() must stream
+      // (iterateRows) and execute() must point-read (loadRowsByRowids) — never the reverse.
+      const realOpenBase = knowledgeVectorSource.openBase.bind(knowledgeVectorSource)
+      const iterateCalls: string[] = []
+      const pointReadCalls: string[] = []
+      const openBaseSpy = vi.spyOn(knowledgeVectorSource, 'openBase').mockImplementation((baseId: string) => {
+        const result = realOpenBase(baseId)
+        if (result.status === 'ok') {
+          const realIterate = result.reader.iterateRows.bind(result.reader)
+          const realPointRead = result.reader.loadRowsByRowids.bind(result.reader)
+          result.reader.iterateRows = () => {
+            iterateCalls.push(baseId)
+            return realIterate()
+          }
+          result.reader.loadRowsByRowids = (rowids: number[]) => {
+            pointReadCalls.push(baseId)
+            return realPointRead(rowids)
+          }
+        }
+        return result
+      })
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource,
@@ -2809,8 +2827,11 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      // prepare() read both legacy stores once each, to compute counts/skip decisions...
-      expect(loadBaseSpy).toHaveBeenCalledTimes(2)
+      // prepare() opened both legacy stores once each and STREAMED them (no point-reads), to
+      // compute counts/skip decisions...
+      expect(openBaseSpy).toHaveBeenCalledTimes(2)
+      expect(iterateCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
+      expect(pointReadCalls).toEqual([])
 
       // ...but the plan it retains for the whole migration carries ONLY lightweight counts/ids —
       // pinning the exact shape so a future change can't quietly reintroduce a `materials` /
@@ -2824,7 +2845,7 @@ describe('KnowledgeVectorMigrator', () => {
             'materialDirPath',
             'targetDbPath',
             'dimensions',
-            'materialItemIds',
+            'rowidsByItemId',
             'expectedUnitCount',
             'expectedEmbeddingCount',
             'sourceRowCount',
@@ -2832,16 +2853,22 @@ describe('KnowledgeVectorMigrator', () => {
             'directoryGroups'
           ].sort()
         )
+        // The rowid lists are plain numbers — never decoded rows/vectors.
+        for (const rowids of plan.rowidsByItemId.values()) {
+          expect(rowids.every((rowid: unknown) => typeof rowid === 'number')).toBe(true)
+        }
       }
 
-      loadBaseSpy.mockClear()
+      openBaseSpy.mockClear()
+      iterateCalls.length = 0
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
-      // execute() re-reads each base's legacy vectors from scratch, right before rebuilding and
-      // writing its store — one loadBase call per base, same as prepare()'s pass. This re-read (not a
-      // reuse of anything prepare() cached) is the mechanism that bounds peak memory to a single
-      // base's vectors at a time instead of every base's for the whole migration.
-      expect(loadBaseSpy).toHaveBeenCalledTimes(2)
+      // execute() re-opens each base and POINT-READS one item's planned rows at a time (never a
+      // whole-base stream). This bounded re-read (not a reuse of anything prepare() cached) is the
+      // mechanism that caps peak memory at a single item's vectors.
+      expect(openBaseSpy).toHaveBeenCalledTimes(2)
+      expect(pointReadCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
+      expect(iterateCalls).toEqual([])
 
       const storeA = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(storeA.content.map((c) => String(c.text))).toEqual(['base a chunk'])

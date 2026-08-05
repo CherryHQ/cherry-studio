@@ -9,7 +9,7 @@
 | Migrated knowledge base identities and dimensions | SQLite `knowledge_base` | `knowledge_base` table |
 | Migrated knowledge item identities | SQLite `knowledge_item` | `knowledge_item` table |
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
-| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.loadBase(base.id)` |
+| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.openBase(base.id)` (streaming) |
 
 The source reader is initialized by `MigrationContext` with `ctx.paths.knowledgeBaseDir`. It must read from the migration-resolved v1 userData path, not from the v2 path registry or `app.getPath()`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
 
@@ -74,6 +74,20 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
      `index.sqlite` on a `base_id` mismatch. Build-contract snapshots (embedding model,
      dimensions, chunker config hash) are intentionally not stored — a model/dimension change
      creates a new base and a chunker change rebuilds the derived index.
+
+## Memory Contract
+
+At most ONE ITEM's chunks/vectors are ever resident. `prepare()` streams each base's legacy rows
+once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists, counts and each
+url/note item's reserved snapshot path (`PreparedBasePlan` deliberately holds no vectors or chunk
+text); `execute()` point-reads one item's planned rows back at a time (`loadRowsByRowids`) right
+before writing that material, and decoded vectors stay `Float32Array` end to end (half the resident
+size of `number[]`). The OOM history behind this: retaining every base's materials across
+prepare→execute peaked at the sum of all bases' vectors (a 28-base corpus exhausted the V8 heap),
+and the follow-up per-base re-read still loaded a whole base at once — which one large base (six
+figures of chunks × high dimensions) could exhaust on its own, crash-looping the migration since it
+restarts from scratch on every relaunch. The OOM regression guard test pins the exact
+`PreparedBasePlan` key set and each phase's read shape (prepare streams, execute point-reads).
 
 ## File-Safety Contract
 
