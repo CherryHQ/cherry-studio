@@ -32,7 +32,8 @@ const {
   useCommandHandlerMock,
   useDirectoryTreeMock,
   ipcRequestMock,
-  toastErrorMock
+  toastErrorMock,
+  webviewBrowserMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
@@ -61,7 +62,8 @@ const {
   useCommandHandlerMock: vi.fn(),
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
-  toastErrorMock: vi.fn()
+  toastErrorMock: vi.fn(),
+  webviewBrowserMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -313,6 +315,22 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
   TracePane: () => <div data-testid="trace-pane" />
 }))
 
+vi.mock('@renderer/components/WebviewBrowser', () => ({
+  WebviewBrowser: (props: {
+    initialUrl: string
+    target: { id: string; label: string }
+    isHostActive: boolean
+    toolbarActions?: ReactNode
+  }) => {
+    webviewBrowserMock(props)
+    return (
+      <div data-testid="webview-browser" data-url={props.initialUrl} data-target-id={props.target.id}>
+        {props.toolbarActions}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
@@ -534,6 +552,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeNull()
     expect(screen.getByTestId('status-shortcut-preview')).toBeInTheDocument()
 
     const statusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
@@ -555,6 +574,70 @@ describe('AgentRightPane', () => {
     fireEvent.click(activeStatusShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('offers a session-scoped browser after a shell tool reports a local preview URL', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'bash-1',
+        toolName: 'Bash',
+        state: 'output-available',
+        input: { command: 'pnpm dev' },
+        output: 'Local: http://localhost:5173/'
+      } as unknown as CherryMessagePart
+    ]
+    const messages = [
+      { id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } } as unknown as CherryUIMessage
+    ]
+
+    const view = render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        sessionName="Frontend task"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    const browser = screen.getByTestId('webview-browser')
+    expect(browser).toHaveAttribute('data-url', 'http://localhost:5173/')
+    expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+    expect(webviewBrowserMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isHostActive: true, target: { id: 'agent-browser:session-a', label: 'Frontend task' } })
+    )
+
+    const deferredParts = [
+      {
+        ...parts[0],
+        output: { $deferredToolResult: { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-1' } }
+      } as unknown as CherryMessagePart
+    ]
+    const deferredMessages = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: deferredParts,
+        metadata: { status: 'success' }
+      } as unknown as CherryUIMessage
+    ]
+    view.rerender(
+      <TestAgentRightPane
+        sessionId="session-a"
+        sessionName="Frontend task"
+        messages={deferredMessages}
+        partsByMessageId={{ m1: deferredParts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeInTheDocument()
+    expect(screen.getByTestId('webview-browser')).toBe(browser)
   })
 
   it('registers the sidebar command independently and prioritizes the resource pane', () => {

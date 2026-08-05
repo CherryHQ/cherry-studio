@@ -34,6 +34,7 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
@@ -52,6 +53,7 @@ import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
@@ -62,6 +64,7 @@ import {
   FileText,
   FolderOpen,
   GitBranch,
+  Globe2,
   Loader2,
   Package,
   Terminal,
@@ -80,7 +83,8 @@ import {
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection
+  buildAgentToolFlowProjection,
+  findLatestAgentPreviewUrl
 } from './agentRightPaneProjection'
 
 const logger = loggerService.withContext('AgentRightPane')
@@ -153,6 +157,7 @@ interface AgentRightPaneMeta {
 interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  previewUrl: string | null
 }
 
 interface AgentRightPaneFileState {
@@ -181,8 +186,10 @@ interface AgentRightPaneActions {
 }
 
 interface AgentRightPanelScope {
+  browserTitle: string
   developerMode: boolean
   hasSystemWorkspaceFiles: boolean
+  hasBrowserPreview: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
   meta: AgentRightPaneMeta
@@ -374,6 +381,10 @@ function AgentRightPaneStateProvider({
     sessionId,
     tab: null
   }))
+  const [retainedPreview, setRetainedPreview] = useState<{ sessionId?: string; url: string | null }>(() => ({
+    sessionId,
+    url: null
+  }))
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
@@ -387,7 +398,16 @@ function AgentRightPaneStateProvider({
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
-  const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const detectedPreviewUrl = useMemo(
+    () => findLatestAgentPreviewUrl(messages, partsByMessageId),
+    [messages, partsByMessageId]
+  )
+  const previewUrl = detectedPreviewUrl ?? (retainedPreview.sessionId === sessionId ? retainedPreview.url : null)
+  const runtime = useMemo<AgentRightPaneRuntime>(
+    () => ({ messages, partsByMessageId, previewUrl }),
+    [messages, partsByMessageId, previewUrl]
+  )
+  const hasBrowserPreview = Boolean(sessionId && previewUrl)
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
@@ -410,6 +430,14 @@ function AgentRightPaneStateProvider({
   useEffect(() => {
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
   }, [sessionId])
+
+  useEffect(() => {
+    setRetainedPreview((current) => {
+      if (current.sessionId !== sessionId) return { sessionId, url: detectedPreviewUrl }
+      if (!detectedPreviewUrl || current.url === detectedPreviewUrl) return current
+      return { sessionId, url: detectedPreviewUrl }
+    })
+  }, [detectedPreviewUrl, sessionId])
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
@@ -555,7 +583,9 @@ function AgentRightPaneStateProvider({
   )
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
+      browserTitle: t('agent.right_pane.tabs.browser'),
       developerMode: enableDeveloperMode,
+      hasBrowserPreview,
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
@@ -564,7 +594,7 @@ function AgentRightPaneStateProvider({
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, hasBrowserPreview, hasSystemWorkspaceFiles, meta, resourcePane, t]
   )
 
   return (
@@ -670,6 +700,29 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onSelectedFileChange={actions.setSelectedFile}
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
+    />
+  )
+}
+
+function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const runtime = useAgentRightPaneRuntime()
+  const previewUrl = runtime.previewUrl
+  const target = useMemo(
+    () => ({
+      id: `agent-browser:${scope.meta.sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),
+      label: (scope.meta.sessionName?.trim() || scope.browserTitle).slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
+    }),
+    [scope.browserTitle, scope.meta.sessionId, scope.meta.sessionName]
+  )
+
+  if (!previewUrl) return null
+
+  return (
+    <WebviewBrowser
+      initialUrl={previewUrl}
+      target={target}
+      isHostActive={active}
+      toolbarActions={<RightPanelHeaderControls canMaximize />}
     />
   )
 }
@@ -1071,6 +1124,7 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 
 /** Stable capability registry; runtime messages are intentionally absent. */
 const TRACE_PANE_ID = 'trace'
+const BROWSER_PANE_ID = 'browser'
 const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
   instanceKey: 'agent-resources'
 })
@@ -1081,6 +1135,17 @@ const AGENT_TRACE_PANE_CAPABILITY = {
     instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
     title: scope.traceTitle,
     readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
+const AGENT_BROWSER_PANE_CAPABILITY = {
+  component: AgentBrowserRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: BROWSER_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:browser`,
+    title: scope.browserTitle,
+    readiness: scope.hasBrowserPreview && scope.meta.conversationState !== 'unavailable' ? 'ready' : 'unavailable',
+    headerMode: 'content',
+    canMaximize: true
   })
 } satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
@@ -1096,6 +1161,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
+  AGENT_BROWSER_PANE_CAPABILITY,
   {
     component: AgentStatusRightPanel,
     resolve: (scope) => ({
@@ -1309,6 +1375,11 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         tab="files"
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
+      />
+      <RightPanelShortcut
+        tab={BROWSER_PANE_ID}
+        label={t('agent.right_pane.tabs.browser')}
+        icon={<Globe2 className="size-3.5" />}
       />
       <AgentRightPaneStatusShortcut />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />

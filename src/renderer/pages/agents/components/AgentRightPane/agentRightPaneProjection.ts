@@ -16,7 +16,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
-export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
+export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
 export interface AgentToolFlowOpenInput {
   toolCallId: string
@@ -231,6 +231,55 @@ function getOrderedMessageParts(
   }
 
   return entries
+}
+
+const PREVIEW_URL_TOOL_NAMES = new Set<string>([
+  AgentToolsType.Bash,
+  AgentToolsType.BashOutput,
+  AgentToolsType.TaskOutput
+])
+const ANSI_ESCAPE_CHARACTER = String.fromCodePoint(27)
+const LOCAL_PREVIEW_URL_PATTERN =
+  /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
+const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
+
+function extractLatestLocalPreviewUrl(text: string): string | null {
+  const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
+  if (!matches?.length) return null
+
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const candidate = matches[index].split(ANSI_ESCAPE_CHARACTER, 1)[0].replace(TRAILING_URL_PUNCTUATION_PATTERN, '')
+    try {
+      const url = new URL(candidate)
+      if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
+      return url.toString()
+    } catch {
+      // Keep looking in case an earlier match in the same output is valid.
+    }
+  }
+  return null
+}
+
+/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
+export function findLatestAgentPreviewUrl(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string | null {
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+
+  for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
+    const parts = entries[entryIndex].parts
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
+      const output = getToolOutputText(part)
+      if (!output) continue
+      const url = extractLatestLocalPreviewUrl(output)
+      if (url) return url
+    }
+  }
+
+  return null
 }
 
 function isTerminalToolState(state: string | undefined): boolean {

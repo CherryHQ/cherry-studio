@@ -10,7 +10,22 @@ import HtmlFilePreview from '../HtmlFilePreview'
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
   htmlFrame: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  webviewBrowser: vi.fn()
+}))
+
+vi.mock('@renderer/components/WebviewBrowser', () => ({
+  WebviewBrowser: (props: { initialUrl: string; reloadKey?: number; target: { id: string; label: string } }) => {
+    mocks.webviewBrowser(props)
+    return (
+      <div
+        data-testid="webview-browser"
+        data-url={props.initialUrl}
+        data-target-id={props.target.id}
+        data-target-label={props.target.label}
+      />
+    )
+  }
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -186,13 +201,14 @@ describe('HtmlFilePreview', () => {
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()
   })
 
-  it('uses the interactive sandbox and hides the source switch for artifact previews', async () => {
+  it('opens artifact HTML in the shared WebView browser and keeps ordinary file HTML in the restricted iframe', async () => {
     renderPreview({ type: 'artifact' })
 
-    expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
-    const props = mocks.htmlFrame.mock.calls.at(-1)?.[0]
-    expect(props?.sandbox).toBe('allow-scripts allow-same-origin allow-forms')
-    expect(props?.csp).toBeUndefined()
+    const browser = await screen.findByTestId('webview-browser')
+    expect(browser.getAttribute('data-url')).toMatch(/^file:\/\/.*index\.html$/)
+    expect(browser).toHaveAttribute('data-target-label', 'index.html')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
   })
