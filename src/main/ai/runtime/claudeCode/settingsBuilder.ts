@@ -91,6 +91,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { mergeAgentLoopbackProxyBypass, stripInheritedCherryProxyEnvironment } from './agentProxyEnvironment'
 import {
   detectDestructiveAssistantCommand,
   isLarkFormSubmissionCommand,
@@ -700,7 +701,7 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
 }
 
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getShellEnv()
+  const loginShellEnv = stripInheritedCherryProxyEnvironment(await getShellEnv())
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -816,7 +817,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     }
   }
 
-  return env
+  return mergeAgentLoopbackProxyBypass(env)
 }
 
 /**

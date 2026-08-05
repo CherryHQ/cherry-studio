@@ -24,7 +24,9 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
-  getAppLanguage: vi.fn()
+  getAppLanguage: vi.fn(),
+  getShellEnv: vi.fn(),
+  getProxyEnvironment: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -88,6 +90,16 @@ vi.mock('@main/i18n', () => ({
   getAppLanguage: mocks.getAppLanguage
 }))
 
+vi.mock('@main/services/proxy/proxyEnv', () => ({
+  CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
+  getProxyEnvironment: mocks.getProxyEnvironment
+}))
+
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv
+}))
+
 vi.mock('../../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
 }))
@@ -147,6 +159,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-internal-usage-token': 'internal-token'
     })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.getShellEnv.mockResolvedValue({})
+    mocks.getProxyEnvironment.mockReturnValue({})
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -219,6 +233,21 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
     expect(request.connectionConfig.rebuildFactFingerprints.contextWindow).toBe(
       current.config.rebuildFactFingerprints.contextWindow
+    )
+  })
+
+  it('captures the proxy fingerprint from the environment that materializes settings', async () => {
+    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-new.example.com:8080' })
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: { HTTP_PROXY: 'http://proxy-old.example.com:8080' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+    expect(request.connectionConfig.rebuildFactFingerprints.proxyEnvironment).not.toBe(
+      current.config.rebuildFactFingerprints.proxyEnvironment
     )
   })
 
@@ -887,6 +916,8 @@ describe('deriveConnectionConfig', () => {
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.getShellEnv.mockResolvedValue({})
+    mocks.getProxyEnvironment.mockReturnValue({})
   })
 
   async function deriveSignature() {
@@ -1000,6 +1031,144 @@ describe('deriveConnectionConfig', () => {
         (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
       )
     ).toEqual(['language'])
+  })
+
+  it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
+    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
+    const first = await deriveSignature()
+
+    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-b.example.com:8080' })
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
+    expect(
+      Object.keys(first.rebuildFactFingerprints).filter(
+        (name) => first.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['proxyEnvironment'])
+  })
+
+  it('keeps the rebuild signature stable for semantically equivalent proxy bypass variables', async () => {
+    const proxyUrl = 'http://proxy.example.com:8080'
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      no_proxy: 'service.internal; localhost 127.0.0.1 ::1 [::1]'
+    })
+    const fromLowercase = await deriveSignature()
+
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+    })
+    const fromUppercase = await deriveSignature()
+
+    expect(fromUppercase.rebuildSignature).toBe(fromLowercase.rebuildSignature)
+    expect(fromUppercase.rebuildFactFingerprints.proxyEnvironment).toBe(
+      fromLowercase.rebuildFactFingerprints.proxyEnvironment
+    )
+  })
+
+  it('ignores a cached Cherry proxy after the current proxy is disabled', async () => {
+    const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: staleProxyUrl,
+      HTTPS_PROXY: staleProxyUrl,
+      NO_PROXY: 'stale.internal',
+      no_proxy: 'stale.internal'
+    })
+    const staleShell = await deriveSignature()
+
+    mocks.getShellEnv.mockResolvedValue({})
+    const cleanShell = await deriveSignature()
+
+    expect(staleShell.rebuildSignature).toBe(cleanShell.rebuildSignature)
+    expect(staleShell.rebuildFactFingerprints.proxyEnvironment).toBe(
+      cleanShell.rebuildFactFingerprints.proxyEnvironment
+    )
+  })
+
+  it('preserves login-shell proxy values that differ from cached Cherry markers in rebuild facts', async () => {
+    const staleCherryProxyUrl = 'http://stale-cherry-proxy.example:7890'
+    const loginShellProxyUrl = 'http://login-shell-proxy.example:8080'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: staleCherryProxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: loginShellProxyUrl,
+      HTTPS_PROXY: staleCherryProxyUrl,
+      NO_PROXY: 'login.internal'
+    })
+    const mixedShell = await deriveSignature()
+
+    mocks.getShellEnv.mockResolvedValue({
+      HTTP_PROXY: loginShellProxyUrl,
+      NO_PROXY: 'login.internal'
+    })
+    const loginShellOnly = await deriveSignature()
+
+    expect(mixedShell.rebuildSignature).toBe(loginShellOnly.rebuildSignature)
+    expect(mixedShell.rebuildFactFingerprints.proxyEnvironment).toBe(
+      loginShellOnly.rebuildFactFingerprints.proxyEnvironment
+    )
+  })
+
+  it('keeps the rebuild signature stable for semantically equivalent Agent bypass env vars', async () => {
+    const proxyUrl = 'http://agent-proxy.example.com:8080'
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {
+        env_vars: {
+          HTTP_PROXY: proxyUrl,
+          no_proxy: 'service.internal; localhost 127.0.0.1 ::1 [::1]'
+        }
+      }
+    })
+    const fromLowercase = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {
+        env_vars: {
+          HTTP_PROXY: proxyUrl,
+          NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+        }
+      }
+    })
+    const fromUppercase = await deriveSignature()
+
+    expect(fromUppercase.rebuildSignature).toBe(fromLowercase.rebuildSignature)
+    expect(fromUppercase.rebuildFactFingerprints.proxyEnvironment).toBe(
+      fromLowercase.rebuildFactFingerprints.proxyEnvironment
+    )
+  })
+
+  it('reports only the proxy-environment rebuild fact when an Agent proxy URL changes', async () => {
+    const agentWithProxy = (proxyUrl: string) => ({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { env_vars: { HTTP_PROXY: proxyUrl } }
+    })
+    mocks.getAgent.mockReturnValue(agentWithProxy('http://agent-proxy-a.example.com:8080'))
+    const first = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue(agentWithProxy('http://agent-proxy-b.example.com:8080'))
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
+    expect(
+      Object.keys(first.rebuildFactFingerprints).filter(
+        (name) => first.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['proxyEnvironment'])
   })
 
   it('changes the rebuild signature when model context metadata changes', async () => {

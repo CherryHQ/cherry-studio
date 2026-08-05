@@ -17,7 +17,9 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -37,6 +39,11 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import type { AgentSessionUsageCapture } from '../types'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  stripInheritedCherryProxyEnvironment
+} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -89,6 +96,7 @@ interface ConnectionMaterializationFacts {
   skills: string[]
   linkedChannelId: string | null
   contextWindow: number | null
+  proxyEnvironmentFingerprint: string
 }
 
 /**
@@ -285,6 +293,14 @@ export async function deriveConnectionConfig(
   }
 }
 
+async function deriveAgentProxyEnvironmentFingerprint(agent: AgentEntity): Promise<string> {
+  return createAgentProxyEnvironmentFingerprint({
+    ...stripInheritedCherryProxyEnvironment(await getShellEnv()),
+    ...getProxyEnvironment(process.env),
+    ...agent.configuration?.env_vars
+  })
+}
+
 async function deriveConnectionConfigFromSnapshot(
   session: AgentSessionEntity,
   agent: AgentEntity,
@@ -320,6 +336,8 @@ async function deriveConnectionConfigFromSnapshot(
   const linkedChannelId = materialized
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const proxyEnvironmentFingerprint =
+    materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent))
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
@@ -333,7 +351,10 @@ async function deriveConnectionConfigFromSnapshot(
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
-    envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    envVars: Object.entries(agent.configuration?.env_vars ?? {})
+      .filter(([key]) => !isAgentProxyEnvironmentKey(key))
+      .sort(([a], [b]) => a.localeCompare(b)),
+    proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
@@ -481,7 +502,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
-      contextWindow: contextWindow ?? null
+      contextWindow: contextWindow ?? null,
+      proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {})
     }
   )
   const sdkModelId = route.modelIds.primary
