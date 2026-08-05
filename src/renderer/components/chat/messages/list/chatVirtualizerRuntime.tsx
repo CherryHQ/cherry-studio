@@ -154,6 +154,21 @@ function keysMatchAt(container: readonly string[], candidate: readonly string[],
   return candidate.every((key, index) => container[index + offset] === key)
 }
 
+// An anchor inside a nested scroll region moves when that region scrolls on its
+// own, and reasserting that drift would write the inner scroll delta into the
+// outer scrollTop. Anchor to the outermost scroll container instead — its border
+// box stays put while its content scrolls.
+function hoistAnchorOutOfNestedScroller(element: HTMLElement, itemElement: HTMLElement): HTMLElement {
+  let anchor = element
+  for (let ancestor = element.parentElement; ancestor && ancestor !== itemElement; ancestor = ancestor.parentElement) {
+    const overflowY = getComputedStyle(ancestor).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && ancestor.scrollHeight > ancestor.clientHeight) {
+      anchor = ancestor
+    }
+  }
+  return anchor
+}
+
 export function useChatVirtualizerRuntime<T>({
   items,
   getItemKey,
@@ -287,8 +302,9 @@ export function useChatVirtualizerRuntime<T>({
     const itemElement = htmlCandidate.closest<HTMLElement>('[data-message-key]')
     const itemKey = itemElement?.dataset.messageKey
     if (!itemElement || !itemKey) return null
-    const semanticElement = htmlCandidate.closest<HTMLElement>(FREEZE_SEMANTIC_ANCHOR_SELECTOR) ?? htmlCandidate
-    return itemElement.contains(semanticElement) ? { element: semanticElement, itemKey } : null
+    const semanticCandidate = htmlCandidate.closest<HTMLElement>(FREEZE_SEMANTIC_ANCHOR_SELECTOR) ?? htmlCandidate
+    if (!itemElement.contains(semanticCandidate)) return null
+    return { element: hoistAnchorOutOfNestedScroller(semanticCandidate, itemElement), itemKey }
   }, [])
 
   // Capture stable item identity plus an optional visible DOM element. Virtua's

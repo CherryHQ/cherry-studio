@@ -2346,6 +2346,62 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('anchors to the nested scroll container instead of an element inside its scrolled content', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      let paragraphTop = 220
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      const item = document.createElement('div')
+      item.dataset.messageKey = 'message-a'
+      const region = document.createElement('div')
+      region.style.overflowY = 'auto'
+      setElementMetric(region, 'clientHeight', () => 100)
+      setElementMetric(region, 'scrollHeight', () => 300)
+      Object.defineProperty(region, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: 200 })
+      })
+      setElementLayoutPresence(region)
+      const paragraph = document.createElement('p')
+      Object.defineProperty(paragraph, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: paragraphTop })
+      })
+      setElementLayoutPresence(paragraph)
+      region.append(paragraph)
+      item.append(region)
+      runtime!.contentRef.current!.prepend(item)
+
+      act(() => runtime!.takeUserControl('disclosure', paragraph))
+
+      // The user scrolls the nested region on its own: the paragraph moves, the
+      // scroll container's border box does not. The freeze must be anchored to
+      // the container, so the inner scroll delta never rewrites outer scrollTop.
+      paragraphTop = 120
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+
+      expect(scrollTop).toBe(500)
+    } finally {
+      restoreResizeObserver()
+    }
+  })
+
   it('adds temporary bottom slack so a frozen viewport survives content shrink', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

@@ -182,23 +182,23 @@ export function MessageVirtualList<T>({
 
   // Inner scrollers own their input independently. Only input aimed at the
   // outer list seeds its single scroll runtime.
-  const pointerDownInsideScrollerRef = useRef(false)
+  const pointerDownAimedAtListRef = useRef(false)
   useEffect(() => {
     if (!scrollerElement) return
     const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
-      pointerDownInsideScrollerRef.current = !isInsideNestedScroller(event.target, scrollerElement)
+      pointerDownAimedAtListRef.current = !isInsideNestedScroller(event.target, scrollerElement)
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
     const onPointerMove = (event: PointerEvent) => {
-      if (event.buttons !== 0 && pointerDownInsideScrollerRef.current) {
+      if (event.buttons !== 0 && pointerDownAimedAtListRef.current) {
         markUserInput()
       }
     }
     // The release can land anywhere (a scrollbar drag ends off-list), so the
     // gesture flag resets at the document level.
     const onPointerEnd = () => {
-      pointerDownInsideScrollerRef.current = false
+      pointerDownAimedAtListRef.current = false
       endScrollbarDrag()
     }
     const onKeyDown = (event: KeyboardEvent) => {
