@@ -21,6 +21,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -35,7 +36,12 @@ import { useTranslation } from 'react-i18next'
 
 import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
+import {
+  type ArtifactFileTreeErrorKind,
+  type ArtifactFileTreeModel,
+  isSelectableFileNode,
+  useArtifactFileTreeModel
+} from './useArtifactFileTreeModel'
 
 // Re-exported from their home modules so existing imports of these from
 // `ArtifactPane` keep working.
@@ -47,6 +53,17 @@ export {
 } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
+
+const ARTIFACT_FILE_TREE_ERROR_KEYS = {
+  invalid_path: {
+    description: 'agent.preview_pane.tree_error.invalid_path.description',
+    title: 'agent.preview_pane.tree_error.invalid_path.title'
+  },
+  load_error: {
+    description: 'agent.preview_pane.tree_error.load_error.description',
+    title: 'agent.preview_pane.tree_error.load_error.title'
+  }
+} as const satisfies Record<ArtifactFileTreeErrorKind, { description: string; title: string }>
 
 export interface ArtifactPaneProps {
   workspacePath?: string
@@ -151,18 +168,30 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const { refresh, reloadExpandedDirectories } = model
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const previewSelectionWorkspacePath = previewFileSelection?.workspacePath
+  const parsedPreviewWorkspacePath = useMemo(
+    () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
+    [previewSelectionWorkspacePath]
+  )
+  const hasInvalidPreviewSelection = Boolean(previewFileSelection && !parsedPreviewWorkspacePath?.success)
+  const validPreviewFileSelection = parsedPreviewWorkspacePath?.success ? previewFileSelection : null
+  const effectiveTreeErrorKind: ArtifactFileTreeErrorKind | undefined = hasInvalidPreviewSelection
+    ? 'invalid_path'
+    : model.errorKind
+  const treeErrorKeys = effectiveTreeErrorKind ? ARTIFACT_FILE_TREE_ERROR_KEYS[effectiveTreeErrorKind] : undefined
+  const hasInvalidWorkspacePath = effectiveTreeErrorKind === 'invalid_path'
   const overlaySelection = useMemo(
     () =>
-      previewFileSelection
-        ? previewFileSelection
-        : workspacePath && selectedFile
+      validPreviewFileSelection
+        ? validPreviewFileSelection
+        : workspacePath && !hasInvalidWorkspacePath && selectedFile
           ? { workspacePath, filePath: selectedFile }
           : null,
-    [previewFileSelection, selectedFile, workspacePath]
+    [hasInvalidWorkspacePath, selectedFile, validPreviewFileSelection, workspacePath]
   )
   const overlayWorkspacePath = overlaySelection?.workspacePath
   const overlayFilePath = overlaySelection?.filePath
-  const previewWorkspacePath = overlayWorkspacePath ?? workspacePath
+  const previewWorkspacePath = overlayWorkspacePath ?? (hasInvalidWorkspacePath ? undefined : workspacePath)
   const previewFilePath = overlayFilePath ?? selectedFile
   const previewKey = `${previewWorkspacePath ?? ''}\0${previewFilePath ?? ''}`
   const previousPreviewKeyRef = useRef(previewKey)
@@ -392,10 +421,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       props.headerVariant === 'pane' ? undefined : (
         <div className="flex shrink-0 items-center gap-1">
           {refreshButton}
-          {workspacePath ? <OpenExternalAppButton workdir={workspacePath} /> : null}
+          {workspacePath && !hasInvalidWorkspacePath ? <OpenExternalAppButton workdir={workspacePath} /> : null}
         </div>
       ),
-    [props.headerVariant, refreshButton, workspacePath]
+    [hasInvalidWorkspacePath, props.headerVariant, refreshButton, workspacePath]
   )
 
   const handleEditorModeChange = useCallback(
@@ -652,8 +681,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           getMenuItems={getFileTreeMenuItems}
           emptyState={
             <div className="px-2 py-3 text-muted-foreground text-xs">
-              {model.error
-                ? t('common.error')
+              {treeErrorKeys
+                ? t(treeErrorKeys.title)
                 : trimmedFileSearch
                   ? t('agent.preview_pane.no_search_results')
                   : workspacePath
@@ -668,7 +697,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       model.filteredTree,
       model.effectiveExpandedIds,
       model.setExpandedIds,
-      model.error,
+      treeErrorKeys,
       selectedFile,
       handleSelectedChange,
       enableFileSearch,
@@ -700,7 +729,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     )
   }
 
-  if (model.error && !overlaySelection) {
+  if (treeErrorKeys && !overlaySelection) {
     return (
       <div
         ref={artifactPaneRef}
@@ -709,7 +738,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
         {paneHeader}
-        <EmptyState icon={AlertCircle} title={t('common.error')} description={model.error.message} />
+        <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
     )
   }
