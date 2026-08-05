@@ -17,5 +17,5 @@
  * └──────────┴──────────┴──────────┴───────────────┴──────────────┴────────────┴───────────┘
  */
 
-export { HANDSHAKE_PROTOCOL_VERSION, LanTransferService } from './LanTransferService'
+export { deleteTransferFile, HANDSHAKE_PROTOCOL_VERSION, LanTransferService } from './LanTransferService'
 export type { ActiveFileTransfer, ConnectionContext, FileTransferContext, PendingResponse } from './types'

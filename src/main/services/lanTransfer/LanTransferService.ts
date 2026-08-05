@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
+import * as path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -17,6 +18,7 @@ import type {
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/types/lanTransfer'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
+import fsExtra from 'fs-extra'
 
 import {
   abortTransfer,
@@ -742,3 +744,34 @@ export class LanTransferService extends BaseService {
 }
 
 export { HANDSHAKE_PROTOCOL_VERSION }
+
+/**
+ * Delete a transfer's temporary archive once it has been sent.
+ *
+ * Confined to the LAN-transfer temp directory: the path arrives from the
+ * renderer, and a delete that trusted it would let any caller name a file
+ * anywhere on disk. The trailing-separator comparison is what stops a sibling
+ * whose name merely starts with the temp path (`…/lan-transfer-evil`) from
+ * passing as inside it.
+ */
+export async function deleteTransferFile(filePath: string): Promise<boolean> {
+  try {
+    const tempBase = path.normalize(application.getPath('feature.lan_transfer.temp'))
+    const resolvedPath = path.normalize(path.resolve(filePath))
+
+    if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
+      logger.warn(`Refused to delete a file outside the transfer directory: ${filePath}`)
+      return false
+    }
+
+    if (await fsExtra.pathExists(resolvedPath)) {
+      await fsExtra.remove(resolvedPath)
+      logger.info(`Deleted temp transfer file: ${resolvedPath}`)
+      return true
+    }
+    return false
+  } catch (error) {
+    logger.error('Failed to delete temp transfer file:', error as Error)
+    return false
+  }
+}

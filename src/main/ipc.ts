@@ -6,6 +6,7 @@ import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
+import { deleteTransferFile } from '@main/services/lanTransfer'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
@@ -17,7 +18,6 @@ import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
@@ -25,8 +25,6 @@ import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
-
-const backupManager = new LegacyBackupManager()
 
 export async function registerIpc() {
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
@@ -145,8 +143,7 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
+  ipcMain.handle(IpcChannel.LanTransfer_DeleteFile, (_, filePath: string) => deleteTransferFile(filePath))
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
