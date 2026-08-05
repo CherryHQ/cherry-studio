@@ -355,8 +355,8 @@ export const searchOrchestrationPlugin = (
                 (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
               )
               // When web search is the only tool, don't set activeTools to [] — Anthropic
-              // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
-              // already prevents actual re-searching.
+              // rejects empty tools arrays. The tool's query-keyed cache still de-duplicates
+              // identical follow-up searches.
               if (filteredTools.length === 0) return stepConfig
               return { ...stepConfig, activeTools: filteredTools }
             }
