@@ -1138,14 +1138,15 @@ async function materializeUserContent(
 
   let routedParts = firstPartyParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
-  if (firstPartyParts.some((part) => part.type === 'file')) {
+  const hasRoutableFirstPartyFiles = firstPartyParts.some((part) => part.type === 'file')
+  if (supportsAttachmentReads && (hasRoutableFirstPartyFiles || firstPartyArchiveParts.length > 0)) {
+    turnAttachments = collectAssistantFileAttachments([
+      { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
+    ])
+  }
+  if (hasRoutableFirstPartyFiles) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
-    const attachments = supportsAttachmentReads
-      ? collectAssistantFileAttachments([
-          { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
-        ])
-      : collectFileAttachments([userMessage])
-    if (supportsAttachmentReads) turnAttachments = attachments
+    const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },

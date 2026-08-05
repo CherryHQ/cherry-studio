@@ -876,6 +876,62 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('adds an attachment handle when a turn contains only a first-party archive', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this archive' },
+            {
+              type: 'file',
+              url: 'file:///tmp/BUNDLE.ZIP',
+              mediaType: 'application/zip',
+              filename: 'BUNDLE.ZIP',
+              providerMetadata: { cherry: { fileEntryId: 'entry-archive-secret' } }
+            }
+          ]
+        }
+      }
+    })
+
+    const archiveHandle = createAssistantFileAttachmentHandle('entry-archive-secret')
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: `inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP\n\nAttachment manifest:\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+    expect(JSON.stringify(await nextInput)).not.toContain('entry-archive-secret')
+    void connection.close()
+  })
+
   it('routes first-party image attachments to OCR text when the model lacks vision support', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
