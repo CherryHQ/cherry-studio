@@ -1749,6 +1749,9 @@
       }
     },
     "save": {
+      "file": {
+        "title": "保存到本地文件"
+      },
       "knowledge": {
         "content": {
           "citation": {

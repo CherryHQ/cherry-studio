@@ -699,8 +699,9 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select', 'export'])
-    expect(menuActions[2]?.children.map((action) => action.id)).toEqual(['export.markdown'])
+    expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select', 'save', 'export'])
+    expect(menuActions[2]?.children.map((action) => action.id)).toEqual(['save.file'])
+    expect(menuActions[3]?.children.map((action) => action.id)).toEqual(['export.markdown'])
   })
 
   it('orders message export actions by destination and behavior', () => {
@@ -895,6 +896,17 @@ describe('messageMenuBarActions', () => {
 
     expect(copyText).toHaveBeenCalledWith('hello', { successMessage: 'message.copied' })
     expect(setCopied).toHaveBeenCalledWith(true)
+  })
+
+  it('saves the original main text through the local file action', async () => {
+    const saveTextFile = vi.fn()
+    const context = createActionContext({
+      actions: { saveTextFile } as MessageListActions
+    })
+
+    await executeMessageMenuBarAction('save.file', context)
+
+    expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

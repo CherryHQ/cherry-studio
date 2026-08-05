@@ -19,6 +19,7 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
   AtSign,
@@ -201,6 +202,11 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
 
 registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
+})
+
+registerCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
+  const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
+  await actions.saveTextFile?.(fileName, mainTextContent)
 })
 
 registerCommand('message.saveKnowledge', async ({ actions, messageForExport }) => {
@@ -466,17 +472,24 @@ registerAction({
   surface: 'menu',
   children: [
     {
+      id: 'save.file',
+      commandId: 'message.saveFile',
+      label: ({ t }) => t('chat.save.file.title'),
+      order: 10,
+      availability: ({ actions }) => !!actions.saveTextFile
+    },
+    {
       id: 'save.notes',
       commandId: 'message.exportNotes',
       label: ({ t }) => t('notes.save'),
-      order: 10,
+      order: 20,
       availability: ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
     },
     {
       id: 'save.knowledge',
       commandId: 'message.saveKnowledge',
       label: ({ t }) => t('chat.save.knowledge.title'),
-      order: 20,
+      order: 30,
       availability: ({ actions }) => !!actions.saveToKnowledge
     }
   ]
