@@ -18,6 +18,7 @@ describe('RadioGroupItem', () => {
 
     const item = screen.getByRole('radio', { name: 'Selected option' })
     expect(item).toHaveClass('data-[state=checked]:border-control-accent')
+    expect(item).toHaveClass('focus-visible:ring-inset')
     expect(item.querySelector('[data-slot=radio-group-indicator] span')).toHaveClass('bg-control-accent', 'size-2')
   })
 

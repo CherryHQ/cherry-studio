@@ -14,6 +14,7 @@ describe('Input', () => {
     expect(input).toHaveClass('h-8', 'rounded-lg', 'px-2.5')
     expect(input.className).toContain('focus-visible:border-ring')
     expect(input.className).toContain('focus-visible:ring-1')
+    expect(input.className).toContain('focus-visible:ring-inset')
     expect(input.className).not.toContain('focus-visible:outline-')
   })
 })

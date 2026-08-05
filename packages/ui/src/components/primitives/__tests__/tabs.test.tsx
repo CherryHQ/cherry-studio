@@ -24,8 +24,10 @@ describe('Tabs default variant', () => {
     )
 
     expect(screen.getByRole('tablist')).toHaveClass('h-7', 'rounded-lg', 'p-0.5')
-    expect(screen.getByRole('tab', { name: 'First' })).toHaveClass('px-2', 'text-xs', 'font-normal')
-    expect(screen.getByRole('tab', { name: 'First' }).className).toContain('data-[state=active]:bg-background')
+    const firstTab = screen.getByRole('tab', { name: 'First' })
+    expect(firstTab).toHaveClass('px-2', 'text-xs', 'font-normal', 'focus-visible:bg-accent')
+    expect(firstTab.className).toContain('data-[state=active]:bg-background')
+    expect(firstTab.className).not.toContain('focus-visible:ring')
   })
 })
 

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -83,7 +85,24 @@ describe('ColorPicker', () => {
 
     fireEvent(selection, new MouseEvent('pointerdown', { bubbles: true, clientX: 50, clientY: 0 }))
 
+    expect(selection).toHaveFocus()
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([255, 128, 128, 1]))
+  })
+
+  it('keeps focus indicators inside the color controls', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerSelection />
+        <ColorPickerHue />
+        <ColorPickerAlpha />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Color saturation and brightness' })).toHaveClass(
+      'focus-visible:ring-inset'
+    )
+    expect(screen.getByRole('slider', { name: 'Hue' })).toHaveClass('focus-visible:ring-inset')
+    expect(screen.getByRole('slider', { name: 'Alpha' })).toHaveClass('focus-visible:ring-inset')
   })
 
   it('labels the interactive hue and alpha sliders', () => {

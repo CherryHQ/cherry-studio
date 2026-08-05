@@ -37,7 +37,7 @@ describe('Switch', () => {
   it('keeps a white thumb with the loading indicator and its public className hook', () => {
     const { container } = render(<Switch loading classNames={{ thumbSvg: 'custom-spinner' }} />)
 
-    expect(screen.getByRole('switch')).toHaveClass('bg-control-accent/60!')
+    expect(screen.getByRole('switch')).toHaveClass('bg-control-accent/60!', 'focus-visible:ring-inset')
     const thumb = container.querySelector('[data-slot="switch-thumb"]')
     const svg = thumb?.querySelector('svg')
     expect(thumb).toHaveClass('bg-white')

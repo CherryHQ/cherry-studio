@@ -44,6 +44,14 @@ describe('Combobox', () => {
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
   })
 
+  it('keeps the invalid state contained when opened', () => {
+    render(<Combobox open error options={options} placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('button')
+    expect(trigger).toHaveClass('border-destructive!')
+    expect(trigger.className).not.toContain('aria-expanded:ring')
+  })
+
   it('keeps the trigger-search input outlined and transparent', () => {
     render(<Combobox options={options} searchPlacement="trigger" placeholder="Pick one" emptyText="No results" />)
 

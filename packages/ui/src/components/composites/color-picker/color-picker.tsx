@@ -258,7 +258,7 @@ export const ColorPickerSelection = memo(
     return (
       <div
         className={cn(
-          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35',
+          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 focus-visible:ring-inset',
           className
         )}
         tabIndex={0}
@@ -271,6 +271,7 @@ export const ColorPickerSelection = memo(
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
           event.preventDefault()
+          containerRef.current?.focus({ preventScroll: true })
           setIsDragging(true)
           commitFromEvent(event.nativeEvent)
         }}
@@ -312,7 +313,7 @@ export const ColorPickerHue = ({ className, 'aria-label': ariaLabel, ...props }:
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         aria-label={ariaLabel ?? 'Hue'}
-        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
       />
     </SliderPrimitive.Root>
   )
@@ -350,7 +351,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         aria-label={ariaLabel ?? 'Alpha'}
-        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
       />
     </SliderPrimitive.Root>
   )

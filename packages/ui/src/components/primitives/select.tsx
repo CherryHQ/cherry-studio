@@ -36,7 +36,7 @@ const selectTriggerVariants = cva(
     variants: {
       state: {
         default: 'aria-expanded:bg-transparent',
-        error: 'border-destructive! aria-expanded:ring-1 aria-expanded:ring-destructive/20',
+        error: 'border-destructive!',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {

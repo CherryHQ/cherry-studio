@@ -56,6 +56,23 @@ describe('SelectContent', () => {
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
   })
 
+  it('keeps the invalid state contained when opened', () => {
+    render(
+      <Select open value="alpha">
+        <SelectTrigger aria-label="Mode" aria-invalid>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="alpha">Alpha</SelectItem>
+        </SelectContent>
+      </Select>
+    )
+
+    const trigger = document.querySelector('[data-slot="select-trigger"]')
+    expect(trigger).toHaveClass('border-destructive!')
+    expect(trigger?.className).not.toContain('aria-expanded:ring')
+  })
+
   it('opens and closes without controlled open props', async () => {
     render(
       <Select defaultValue="alpha">

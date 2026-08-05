@@ -14,7 +14,7 @@ const textareaVariants = cva(
     'flex field-sizing-content min-h-16 w-full resize-y border bg-transparent px-2.5 py-2 text-lg outline-none transition-[color,box-shadow]',
     'rounded-lg',
     'border-input text-foreground placeholder:text-muted-foreground',
-    'focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/35',
+    'focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/35 focus-visible:ring-inset',
     'disabled:cursor-not-allowed disabled:opacity-50',
     'md:text-sm'
   ),

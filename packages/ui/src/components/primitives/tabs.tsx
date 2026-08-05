@@ -87,7 +87,7 @@ const tabsTriggerVariants = cva(
           'h-[calc(100%-1px)] flex-1 gap-1 px-2 py-0.5 rounded-md',
           'text-foreground border border-transparent',
           'dark:text-muted-foreground',
-          'focus-visible:border-ring focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-ring/35',
+          'focus-visible:border-ring focus-visible:bg-accent',
           'data-[state=active]:bg-background data-[state=active]:shadow-sm',
           'dark:data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30'
         ],

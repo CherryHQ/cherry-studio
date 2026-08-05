@@ -20,7 +20,7 @@ describe('Slider', () => {
 
     expect(container.querySelector('[data-slot="slider-range"]')).toHaveClass('bg-control-accent')
     const thumb = container.querySelector('[data-slot="slider-thumb"]')
-    expect(thumb).toHaveClass('bg-white')
+    expect(thumb).toHaveClass('bg-white', 'ring-inset')
     expect(thumb).not.toHaveClass('bg-background')
   })
 })
