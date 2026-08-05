@@ -364,7 +364,6 @@ const Sessions = ({
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
