@@ -372,6 +372,8 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Display name of the exact connection-scoped model selected by the request builder. */
+  runtimeContextModelName?: string
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -557,6 +559,14 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(agentConfig?.runtime_context_enabled
+      ? {
+          runtimeContext: {
+            template: agentConfig.runtime_context_prompt,
+            modelName: options?.runtimeContextModelName ?? agent.modelName ?? agent.model ?? undefined
+          }
+        }
+      : {}),
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
@@ -1438,7 +1448,6 @@ export async function buildSystemPrompt(
     'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   const workspaceContextBlock = `\n\n${workspaceBlock}`
-
   // Assistant mode
   if (isAssistant) {
     const memoriesPrompt = await promptBuilder.buildMemoriesSection(agentDataPath)

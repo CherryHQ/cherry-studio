@@ -234,4 +234,32 @@ describe('transformAnthropicCacheParams', () => {
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
     expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
   })
+
+  it('skips volatile cache markers when runtime context is enabled', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1 }),
+      { id: 'a1', prompt: 'Stable prompt', settings: { enableRuntimeContext: true } } as Assistant
+    )
+
+    expect(countCacheMarkers(out)).toBe(0)
+  })
+
+  it('keeps cache markers for a static runtime context override', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1 }),
+      {
+        id: 'a1',
+        prompt: 'Stable prompt',
+        settings: { enableRuntimeContext: true, runtimeContextPrompt: 'Static device context' }
+      } as Assistant
+    )
+
+    expect(countCacheMarkers(out)).toBeGreaterThan(0)
+  })
 })

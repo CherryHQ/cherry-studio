@@ -3564,6 +3564,13 @@
         "insert_variable": "Εισαγωγή μεταβλητής",
         "label": "Προτροπή συστήματος",
         "placeholder": "Εισαγάγετε οδηγίες για τον βοηθό, όπως στιλ απάντησης, ρόλο ή πληροφορίες πλαισίου",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "polish": "Πολωνική προτροπή",
         "polish_failed_description": "Ελέγξτε ή αλλάξτε το προεπιλεγμένο μοντέλο και δοκιμάστε ξανά.",
         "polish_failed_title": "Αποτυχία γυαλίσματος της προτροπής",

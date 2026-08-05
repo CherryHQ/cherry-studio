@@ -3564,6 +3564,13 @@
         "insert_variable": "Inserează variabilă",
         "label": "Prompt de sistem",
         "placeholder": "Introduceți instrucțiuni pentru asistent, cum ar fi stilul răspunsului, rolul sau contextul",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "polish": "Prompt polonez",
         "polish_failed_description": "Verificați sau schimbați modelul implicit, apoi încercați din nou.",
         "polish_failed_title": "Eșuat la îmbunătățirea promptului",
