@@ -20,7 +20,7 @@ export interface DiagnosisContext {
   modelId?: string
 }
 
-async function readFreeDiagnosisModel(): Promise<Model> {
+async function getCherryAiDefaultFreeModel(): Promise<Model> {
   const model = await dataApiService.get(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
   if (!model) {
     throw new Error(`Diagnosis model not found: ${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
@@ -249,7 +249,7 @@ Output: {"summary":"OpenAI account balance is exhausted","category":"quota","exp
   const content = JSON.stringify(errorInfo)
 
   try {
-    const model = await readFreeDiagnosisModel()
+    const model = await getCherryAiDefaultFreeModel()
     const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
     if (!response) {
       throw new Error(`Empty response from model: ${model.id}`)
@@ -270,7 +270,7 @@ export async function classifyErrorByAI(error: SerializedError, language: string
   const content = `Error: ${error.name}: ${error.message}`
 
   try {
-    const model = await readFreeDiagnosisModel()
+    const model = await getCherryAiDefaultFreeModel()
     const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
     return response?.trim() || ''
   } catch (error) {
