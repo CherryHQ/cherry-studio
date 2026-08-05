@@ -37,10 +37,6 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => mockUseQuickPanel()
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'provider-1' } })
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))

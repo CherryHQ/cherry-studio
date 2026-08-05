@@ -1005,7 +1005,33 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
     // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
-    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__*']))
+    expect(settings.allowedTools).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
+    )
+  })
+
+  it('does not auto-approve disabled MCP tools', async () => {
+    const disabledTools = ['mcp__cherry-tools__web_fetch', 'mcp__agent-memory__memory']
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools,
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(disabledTools))
+    for (const toolName of disabledTools) expect(settings.allowedTools).not.toContain(toolName)
+    expect(settings.allowedTools).toContain('mcp__cherry-tools__web_search')
   })
 
   it('appends web-only citation guidance to the system prompt by default', async () => {
