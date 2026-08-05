@@ -32,6 +32,9 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
+  // The field edits a draft; only a validated blur reaches the preference, so a
+  // half-typed path is never persisted.
+  const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -44,6 +47,10 @@ const LocalBackupSettings: React.FC = () => {
     if (localBackupDir) {
       void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
     }
+  }, [localBackupDir])
+
+  useEffect(() => {
+    setLocalBackupDirDraft(localBackupDir)
   }, [localBackupDir])
 
   const { theme } = useTheme()
@@ -92,6 +99,7 @@ const LocalBackupSettings: React.FC = () => {
 
   const handleLocalBackupDirChange = async (value: string) => {
     if (value === localBackupDir) {
+      setLocalBackupDirDraft(localBackupDir)
       return
     }
 
@@ -102,6 +110,7 @@ const LocalBackupSettings: React.FC = () => {
 
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
+      setLocalBackupDirDraft(value)
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
@@ -109,10 +118,7 @@ const LocalBackupSettings: React.FC = () => {
       return
     }
 
-    if (localBackupDir) {
-      await setLocalBackupDir(localBackupDir)
-      return
-    }
+    setLocalBackupDirDraft(localBackupDir)
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -137,6 +143,7 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const handleClearDirectory = async () => {
+    setLocalBackupDirDraft('')
     await setLocalBackupDir('')
     await setLocalBackupAutoSync(false)
     await refreshAutoSync()
@@ -185,8 +192,8 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           <Input
-            value={localBackupDir}
-            onChange={(e) => setLocalBackupDir(e.target.value)}
+            value={localBackupDirDraft}
+            onChange={(e) => setLocalBackupDirDraft(e.target.value)}
             onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
