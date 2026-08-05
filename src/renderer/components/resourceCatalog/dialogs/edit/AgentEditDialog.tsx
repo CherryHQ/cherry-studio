@@ -724,7 +724,7 @@ function AgentPromptField({
             label={
               <FieldLabelWithHelp
                 label={t('library.config.agent.field.instructions.label')}
-                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} hidden />}
                 formLabel={false}
               />
             }

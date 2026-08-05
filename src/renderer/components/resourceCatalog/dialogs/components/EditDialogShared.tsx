@@ -801,8 +801,16 @@ export function CompactModelField({
   )
 }
 
-export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
+export function PromptVariablesPopover({
+  portalContainer,
+  hidden = false
+}: {
+  portalContainer: HTMLElement | null
+  hidden?: boolean
+}) {
   const { t } = useTranslation()
+  if (hidden) return null
+
   const copyVariable = (variable: string) => {
     navigator.clipboard
       .writeText(variable)

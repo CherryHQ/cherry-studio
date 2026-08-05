@@ -120,6 +120,12 @@ describe('EditDialogShared', () => {
     }
   })
 
+  it('does not render the prompt variables trigger when hidden', () => {
+    render(<PromptVariablesPopover portalContainer={null} hidden />)
+
+    expect(screen.queryByRole('button', { name: 'System variables' })).not.toBeInTheDocument()
+  })
+
   it('opens the knowledge page in a standalone window without closing the knowledge step', () => {
     function Harness() {
       const form = useForm<ResourceCreateWizardFormValues>({
