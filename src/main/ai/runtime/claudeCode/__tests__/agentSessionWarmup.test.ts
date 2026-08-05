@@ -25,8 +25,8 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
   getAppLanguage: vi.fn(),
-  getShellEnv: vi.fn(),
-  getProxyEnvironment: vi.fn()
+  getProxyEnvironment: vi.fn(),
+  getClaudeCodeLoginShellEnvironment: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -96,17 +96,14 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
-vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: mocks.getShellEnv
-}))
-
 vi.mock('../../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
 }))
 
 vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
-  buildSkillWhitelist: mocks.buildSkillWhitelist
+  buildSkillWhitelist: mocks.buildSkillWhitelist,
+  getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
@@ -159,8 +156,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-internal-usage-token': 'internal-token'
     })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.getShellEnv.mockResolvedValue({})
     mocks.getProxyEnvironment.mockReturnValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -943,8 +940,8 @@ describe('deriveConnectionConfig', () => {
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.getShellEnv.mockResolvedValue({})
     mocks.getProxyEnvironment.mockReturnValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
   })
 
   async function deriveSignature() {
@@ -1095,48 +1092,21 @@ describe('deriveConnectionConfig', () => {
     )
   })
 
-  it('keeps ambiguous cached proxy values in rebuild facts after removing Cherry markers', async () => {
-    const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
-    mocks.getShellEnv.mockResolvedValue({
-      CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
-      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
-      HTTP_PROXY: staleProxyUrl,
-      HTTPS_PROXY: staleProxyUrl,
-      NO_PROXY: 'stale.internal',
-      no_proxy: 'stale.internal'
+  it('derives proxy rebuild facts from the provenance-aware login-shell snapshot', async () => {
+    const currentProxyEnvironment = { HTTP_PROXY: 'http://current-cherry-proxy.example:7890' }
+    mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({
+      SOCKS_PROXY: 'socks5://user-shell-proxy.example:1080'
     })
-    const staleShell = await deriveSignature()
+    const withUserShellProxy = await deriveSignature()
 
-    mocks.getShellEnv.mockResolvedValue({})
-    const cleanShell = await deriveSignature()
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValueOnce({})
+    const withoutUserShellProxy = await deriveSignature()
 
-    expect(staleShell.rebuildSignature).not.toBe(cleanShell.rebuildSignature)
-    expect(staleShell.rebuildFactFingerprints.proxyEnvironment).not.toBe(
-      cleanShell.rebuildFactFingerprints.proxyEnvironment
-    )
-  })
-
-  it('does not discard cached proxy values from rebuild facts based on marker equality', async () => {
-    const staleCherryProxyUrl = 'http://stale-cherry-proxy.example:7890'
-    const loginShellProxyUrl = 'http://login-shell-proxy.example:8080'
-    mocks.getShellEnv.mockResolvedValue({
-      CHERRY_STUDIO_NODE_PROXY_RULES: staleCherryProxyUrl,
-      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
-      HTTP_PROXY: loginShellProxyUrl,
-      HTTPS_PROXY: staleCherryProxyUrl,
-      NO_PROXY: 'login.internal'
-    })
-    const mixedShell = await deriveSignature()
-
-    mocks.getShellEnv.mockResolvedValue({
-      HTTP_PROXY: loginShellProxyUrl,
-      NO_PROXY: 'login.internal'
-    })
-    const loginShellOnly = await deriveSignature()
-
-    expect(mixedShell.rebuildSignature).not.toBe(loginShellOnly.rebuildSignature)
-    expect(mixedShell.rebuildFactFingerprints.proxyEnvironment).not.toBe(
-      loginShellOnly.rebuildFactFingerprints.proxyEnvironment
+    expect(mocks.getClaudeCodeLoginShellEnvironment).toHaveBeenCalledWith(currentProxyEnvironment)
+    expect(withUserShellProxy.rebuildSignature).not.toBe(withoutUserShellProxy.rebuildSignature)
+    expect(withUserShellProxy.rebuildFactFingerprints.proxyEnvironment).not.toBe(
+      withoutUserShellProxy.rebuildFactFingerprints.proxyEnvironment
     )
   })
 

@@ -93,6 +93,29 @@ export const stripInheritedCherryProxyMarkers = (environment: Environment): Reco
   return result
 }
 
+const normalizeCherryProxyMarker = (value: string | undefined): string | undefined => {
+  const normalized = value?.trim()
+  return normalized ? normalized : undefined
+}
+
+/** Whether a cached shell snapshot carries Cherry proxy metadata that no longer matches the current proxy. */
+export const hasStaleCherryProxyMarkers = (
+  cachedEnvironment: Environment,
+  currentProxyEnvironment: Environment
+): boolean => {
+  const hasCachedMarker =
+    cachedEnvironment[CHERRY_NODE_PROXY_RULES_ENV] !== undefined ||
+    cachedEnvironment[CHERRY_NODE_PROXY_BYPASS_RULES_ENV] !== undefined
+  if (!hasCachedMarker) return false
+
+  return (
+    normalizeCherryProxyMarker(cachedEnvironment[CHERRY_NODE_PROXY_RULES_ENV]) !==
+      normalizeCherryProxyMarker(currentProxyEnvironment[CHERRY_NODE_PROXY_RULES_ENV]) ||
+    normalizeCherryProxyMarker(cachedEnvironment[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]) !==
+      normalizeCherryProxyMarker(currentProxyEnvironment[CHERRY_NODE_PROXY_BYPASS_RULES_ENV])
+  )
+}
+
 export const isAgentProxyEnvironmentKey = (key: string, options: AgentProxyEnvironmentOptions = {}): boolean => {
   const platform = options.platform ?? process.platform
   const isProxyKey =

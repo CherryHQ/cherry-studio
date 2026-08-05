@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createAgentProxyEnvironmentFingerprint,
+  hasStaleCherryProxyMarkers,
   isAgentProxyEnvironmentKey,
   mergeAgentLoopbackProxyBypass,
   stripInheritedCherryProxyMarkers
@@ -159,6 +160,57 @@ describe('stripInheritedCherryProxyMarkers', () => {
       HTTP_PROXY: proxyUrl,
       NO_PROXY: 'service.internal'
     })
+  })
+})
+
+describe('hasStaleCherryProxyMarkers', () => {
+  it('detects a cached Cherry proxy after the current proxy is disabled', () => {
+    expect(
+      hasStaleCherryProxyMarkers(
+        {
+          CHERRY_STUDIO_NODE_PROXY_RULES: 'http://stale.example:7890',
+          CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal'
+        },
+        {}
+      )
+    ).toBe(true)
+  })
+
+  it('keeps a cached Cherry proxy when its markers match the current proxy', () => {
+    const currentProxy = {
+      CHERRY_STUDIO_NODE_PROXY_RULES: 'http://current.example:7890',
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: ''
+    }
+
+    expect(hasStaleCherryProxyMarkers(currentProxy, currentProxy)).toBe(false)
+    expect(
+      hasStaleCherryProxyMarkers(currentProxy, {
+        CHERRY_STUDIO_NODE_PROXY_RULES: 'http://current.example:7890'
+      })
+    ).toBe(false)
+  })
+
+  it('detects a bypass-rule change for the same Cherry proxy URL', () => {
+    expect(
+      hasStaleCherryProxyMarkers(
+        {
+          CHERRY_STUDIO_NODE_PROXY_RULES: 'http://current.example:7890',
+          CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal'
+        },
+        {
+          CHERRY_STUDIO_NODE_PROXY_RULES: 'http://current.example:7890'
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('does not treat an unmarked user proxy as stale Cherry state', () => {
+    expect(
+      hasStaleCherryProxyMarkers(
+        { HTTP_PROXY: 'http://user.example:7890' },
+        { CHERRY_STUDIO_NODE_PROXY_RULES: 'http://current.example:7890' }
+      )
+    ).toBe(false)
   })
 })
 

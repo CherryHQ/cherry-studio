@@ -19,7 +19,6 @@ import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
-import { getShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -42,13 +41,17 @@ import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
-  mergeAgentLoopbackProxyBypass,
-  stripInheritedCherryProxyMarkers
+  mergeAgentLoopbackProxyBypass
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
+import {
+  buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
+  getClaudeCodeLoginShellEnvironment,
+  type McpServerSnapshotMap
+} from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
@@ -309,10 +312,11 @@ async function deriveAgentProxyEnvironmentFingerprint(
   agent: AgentEntity,
   route: ClaudeCodeRouteFacts
 ): Promise<string> {
+  const proxyEnvironment = getProxyEnvironment(process.env)
   return createAgentProxyEnvironmentFingerprint(
     {
-      ...stripInheritedCherryProxyMarkers(await getShellEnv()),
-      ...getProxyEnvironment(process.env),
+      ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)),
+      ...proxyEnvironment,
       ...agent.configuration?.env_vars
     },
     { additionalBypassRule: gatewayBypassRule(route) }
