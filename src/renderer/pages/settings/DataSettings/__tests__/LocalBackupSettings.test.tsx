@@ -44,7 +44,13 @@ describe('LocalBackupSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('data.backup.local.dir', '/saved-backups')
     vi.stubGlobal('api', {
       ipcApi: {
-        request: vi.fn(async (route: string) => ({ ok: true, data: route === 'app.get_info' ? appInfo : undefined })),
+        request: vi.fn(async (route: string) => {
+          // The page also reads its scheduled-backup status on mount; these cases
+          // are about the directory field, so answer with an empty set.
+          if (route === 'app.get_info') return { ok: true, data: appInfo }
+          if (route === 'backup.get_auto_sync_status') return { ok: true, data: [] }
+          return { ok: true, data: undefined }
+        }),
         on: vi.fn(() => () => {})
       },
       resolvePath: vi.fn(async (value: string) => value),
