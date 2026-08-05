@@ -53,10 +53,14 @@ export function useOpenClawGatewayController({
 
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
+    const url = new URL(dashboardUrl)
+    // A fresh document navigation recovers a keep-alive WebView whose first
+    // OpenClaw bundle load failed while the gateway was restarting.
+    url.searchParams.set('cherry_cache_bust', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',
       name: 'OpenClaw',
-      url: dashboardUrl,
+      url: url.toString(),
       logo: 'openclaw'
     })
   }, [openSmartMiniApp])

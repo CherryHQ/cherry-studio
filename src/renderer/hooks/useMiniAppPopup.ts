@@ -303,13 +303,21 @@ export const useMiniAppPopup = () => {
       })
 
       const list = keepAliveRef.current
-      const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
+      const cachedIndex = list.findIndex((item) => item.appId === app.appId)
+      const wasCached = cachedIndex !== -1
       if (!wasCached) {
         const targetSize = Math.max(cap - 1, 0)
         const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
         const next = [...keep, app]
         setOpenedKeepAliveMiniApps(next)
         for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
+      } else {
+        const cached = list[cachedIndex]
+        if (cached.url !== app.url) {
+          const next = [...list]
+          next[cachedIndex] = app
+          setOpenedKeepAliveMiniApps(next)
+        }
       }
 
       setCurrentMiniAppId(app.appId)
@@ -317,8 +325,8 @@ export const useMiniAppPopup = () => {
 
       // Always activate the mini-app tab even when the keep-alive entry
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
-      // URL, not pool membership. Webview re-use stays correct: when cached we
-      // don't recreate the entry or reset `src`, only the tab route activates.
+      // URL, not pool membership. An unchanged URL keeps the existing webview;
+      // a changed transient URL updates that webview through the pool.
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       openTab(`/app/mini-app/${app.appId}`, {
         title: app.name,
