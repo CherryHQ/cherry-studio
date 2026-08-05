@@ -1416,6 +1416,11 @@
         "placeholder": "搜尋"
       }
     },
+    "compaction": {
+      "compacted": "上下文已壓縮，~{{count}} 個標記已節省",
+      "compacted_plain": "情境已壓縮",
+      "compacting": "壓縮內容中…"
+    },
     "conversation": {
       "new": "新聊天"
     },
@@ -1611,6 +1616,10 @@
           "description": "關閉網路搜尋",
           "label": "關閉網路搜尋"
         },
+        "route": {
+          "builtin": "使用模型內建工具進行搜尋",
+          "client": "使用 {{provider}} 搜尋"
+        },
         "settings": "網路搜尋設定"
       }
     },
@@ -1693,6 +1702,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳轉到第 {{number}} 回合"
+      },
       "bottom": "回到底端",
       "close": "關閉",
       "first": "已經是第一條訊息",
@@ -3162,6 +3174,7 @@
         "threshold": "用於過濾低相關性重排片段的相似度閾值，數值越高召回越嚴格。"
       },
       "processor": "处理服务商",
+      "processor_not_configured": "未配置",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢復預設",
@@ -3412,7 +3425,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自動壓縮",
+        "context_compress_model": "壓縮模型",
+        "context_compress_model_follow": "預設",
         "context_count": "情境計數",
+        "context_management": "上下文管理",
+        "context_truncate_threshold": "工具輸出截斷閾值（字元）",
         "creative": "創意",
         "custom_params": "自訂參數",
         "custom_params_add": "新增參數",
@@ -3424,8 +3442,17 @@
           "avatar": {
             "hint": "用於在圖書館和聊天中識別助理"
           },
+          "context_compress_enabled": {
+            "hint": "當接近上下文視窗限制時自動摘要較早的對話回合"
+          },
           "context_count": {
             "hint": "保留作為上下文之近期訊息數量"
+          },
+          "context_management": {
+            "hint": "覆寫此助理的全域內容管理設定；關閉則繼承全域設定"
+          },
+          "context_truncate_threshold": {
+            "hint": "超出此字元數的工具輸出將被卸載並截斷"
           },
           "custom_params": {
             "hint": "與請求一同發送的額外提供者參數"
@@ -4269,6 +4296,7 @@
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
       "fetch_empty": "找不到搜尋結果",
+      "fetch_opaque": "由模型搜尋",
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
@@ -5141,6 +5169,7 @@
     "reset": "重設",
     "rotate_left": "向左旋轉",
     "rotate_right": "向右旋轉",
+    "save_as": "另存為",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
@@ -5779,7 +5808,25 @@
         "title": "企業版"
       },
       "feedback": {
+        "agent": {
+          "description": "與 Cherry Assistant 聊天以分享反饋。",
+          "title": "使用代理"
+        },
+        "agent_error": "無法開啟 Cherry Assistant 以提供回饋。請再試一次。",
         "button": "回饋",
+        "dialog": {
+          "description": "選擇分享回饋的方式，協助我們讓 Cherry Studio 變得更好。",
+          "title": "選擇回饋管道"
+        },
+        "github": {
+          "description": "在 GitHub 上建立錯誤回報或功能請求。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "推薦",
+        "survey": {
+          "description": "透過我們的飛書調查分享意見。",
+          "title": "意見調查"
+        },
         "title": "回饋"
       },
       "label": "關於與回饋",
@@ -8066,6 +8113,10 @@
         "check": "檢查",
         "check_failed": "驗證失敗",
         "check_success": "驗證成功",
+        "client_tools_preferred": {
+          "description": "即使模型內建搜尋功能，仍使用上方配置的搜尋與網址擷取服務。關閉時，由模型自行處理。",
+          "label": "偏好設定的搜尋服務"
+        },
         "compression": {
           "cutoff": {
             "limit": {

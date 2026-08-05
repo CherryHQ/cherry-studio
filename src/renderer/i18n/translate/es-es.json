@@ -1416,6 +1416,11 @@
         "placeholder": "Buscar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens guardados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Nueva conversación"
     },
@@ -1611,6 +1616,10 @@
           "description": "No activar la función de búsqueda web",
           "label": "Sin búsqueda web"
         },
+        "route": {
+          "builtin": "Búsquedas con la herramienta integrada del modelo",
+          "client": "Búsquedas con {{provider}}"
+        },
         "settings": "Configuración de búsqueda en red"
       }
     },
@@ -1693,6 +1702,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Saltar al turno {{number}}"
+      },
       "bottom": "Volver abajo",
       "close": "Cerrar",
       "first": "Ya es el primer mensaje",
@@ -3162,6 +3174,7 @@
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta."
       },
       "processor": "Proveedor de Procesamiento",
+      "processor_not_configured": "No configurado",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
       "reset_action": "Restablecer valores predeterminados",
@@ -3412,7 +3425,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Compresión automática",
+        "context_compress_model": "Modelo de compresión",
+        "context_compress_model_follow": "Predeterminado",
         "context_count": "Recuento de contexto",
+        "context_management": "Gestión de contexto",
+        "context_truncate_threshold": "Umbral de truncamiento de salida de herramienta (caracteres)",
         "creative": "Creativo",
         "custom_params": "Parámetros personalizados",
         "custom_params_add": "Agregar parámetro",
@@ -3424,8 +3442,17 @@
           "avatar": {
             "hint": "Utilizado para identificar al asistente en la biblioteca y en los chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automáticamente los turnos anteriores al acercarse a la ventana de contexto"
+          },
           "context_count": {
             "hint": "Número de mensajes recientes conservados como contexto"
+          },
+          "context_management": {
+            "hint": "Anular la configuración global de gestión de contexto para este asistente; desactivado hereda la configuración global"
+          },
+          "context_truncate_threshold": {
+            "hint": "Las salidas de la herramienta que superen esta cantidad de caracteres se descargan y se truncan"
           },
           "custom_params": {
             "hint": "Parámetros adicionales del proveedor enviados con las solicitudes"
@@ -4269,6 +4296,7 @@
       "cutoff": "Truncando el contenido de búsqueda...",
       "fetch_complete": "{{count}} resultados de búsqueda",
       "fetch_empty": "No se encontraron resultados de búsqueda",
+      "fetch_opaque": "Buscado por el modelo",
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
@@ -5141,6 +5169,7 @@
     "reset": "Restablecer",
     "rotate_left": "Rotar a la izquierda",
     "rotate_right": "Rotar a la derecha",
+    "save_as": "Guardar como",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
@@ -5779,7 +5808,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatea con Cherry Assistant para compartir comentarios.",
+          "title": "Usar Agente"
+        },
+        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Por favor, inténtalo de nuevo.",
         "button": "Enviar feedback",
+        "dialog": {
+          "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
+          "title": "Elige un canal de retroalimentación"
+        },
+        "github": {
+          "description": "Crear un informe de error o solicitud de función en GitHub.",
+          "title": "Problema de GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Comparta sus comentarios a través de nuestra encuesta de Feishu.",
+          "title": "Encuesta de retroalimentación"
+        },
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
@@ -8066,6 +8113,10 @@
         "check": "Comprobar",
         "check_failed": "Verificación fallida",
         "check_success": "Verificación exitosa",
+        "client_tools_preferred": {
+          "description": "Utilice los servicios de búsqueda y recuperación de URL configurados anteriormente incluso cuando el modelo tenga búsqueda integrada. Cuando está desactivado, el modelo lo maneja.",
+          "label": "Preferir servicios de búsqueda configurados"
+        },
         "compression": {
           "cutoff": {
             "limit": {

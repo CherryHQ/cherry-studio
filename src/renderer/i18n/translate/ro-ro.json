@@ -1416,6 +1416,11 @@
         "placeholder": "Caută"
       }
     },
+    "compaction": {
+      "compacted": "Context compactat, ~{{count}} tokeni economisiți",
+      "compacted_plain": "Context compactat",
+      "compacting": "Compactarea contextului…"
+    },
     "conversation": {
       "new": "Chat nou"
     },
@@ -1611,6 +1616,10 @@
           "description": "Nu activa căutarea web",
           "label": "Dezactivează căutarea web"
         },
+        "route": {
+          "builtin": "Căutări cu instrumentul integrat al modelului",
+          "client": "Căutări cu {{provider}}"
+        },
         "settings": "Setări căutare web"
       }
     },
@@ -1693,6 +1702,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Sări la runda {{number}}"
+      },
       "bottom": "Înapoi jos",
       "close": "Închide",
       "first": "Deja la primul mesaj",
@@ -3162,6 +3174,7 @@
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă."
       },
       "processor": "Furnizor de procesare",
+      "processor_not_configured": "Necofigurat",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -3412,7 +3425,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-comprimare",
+        "context_compress_model": "Model de compresie",
+        "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
+        "context_management": "Gestionarea contextului",
+        "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
         "custom_params": "Parametri personalizați",
         "custom_params_add": "Adaugă parametru",
@@ -3424,8 +3442,17 @@
           "avatar": {
             "hint": "Folosit pentru a identifica asistentul în bibliotecă și în conversații"
           },
+          "context_compress_enabled": {
+            "hint": "Rezumați automat conversațiile mai vechi când vă apropiați de limita contextului"
+          },
           "context_count": {
             "hint": "Numărul de mesaje recente păstrate ca context"
+          },
+          "context_management": {
+            "hint": "Suprascrie setările globale de gestionare a contextului pentru acest asistent; dezactivat moștenește setările globale"
+          },
+          "context_truncate_threshold": {
+            "hint": "Ieșirile instrumentului care depășesc acest număr de caractere sunt descărcate și trunchiate"
           },
           "custom_params": {
             "hint": "Parametri suplimentari ai furnizorului trimiși împreună cu cererile"
@@ -4269,6 +4296,7 @@
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
       "fetch_empty": "Nu au fost găsite rezultate de căutare",
+      "fetch_opaque": "Căutat de model",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
@@ -5141,6 +5169,7 @@
     "reset": "Resetează",
     "rotate_left": "Rotire la stânga",
     "rotate_right": "Rotire la dreapta",
+    "save_as": "Salvare ca",
     "source": "Vezi codul sursă",
     "zoom_in": "Mărește",
     "zoom_out": "Micșorează"
@@ -5779,7 +5808,25 @@
         "title": "Enterprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Discută cu Cherry Assistant pentru a împărtăși feedback.",
+          "title": "Utilizați Agentul"
+        },
+        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Vă rugăm să încercați din nou.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Alege cum să împărtășești feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
+          "title": "Alegeți un canal de feedback"
+        },
+        "github": {
+          "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "title": "Problemă GitHub"
+        },
+        "recommended": "Recomandat",
+        "survey": {
+          "description": "Trimiteți feedback prin sondajul nostru Feishu.",
+          "title": "Chestionar de feedback"
+        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",
@@ -8066,6 +8113,10 @@
         "check": "Verifică",
         "check_failed": "Verificare eșuată",
         "check_success": "Verificare reușită",
+        "client_tools_preferred": {
+          "description": "Utilizați serviciile de căutare și preluare URL configurate mai sus chiar și atunci când modelul are căutare integrată. Când este dezactivată, modelul se ocupă de acest lucru.",
+          "label": "Preferă serviciile de căutare configurate"
+        },
         "compression": {
           "cutoff": {
             "limit": {
