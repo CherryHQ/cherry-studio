@@ -275,14 +275,14 @@ describe('useSessions', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps revalidateAll off while a load-all session chain is still growing', () => {
+  it('disables loaded-page revalidation while a load-all session chain is still growing', () => {
     renderHook(() => useSessions(undefined, { loadAll: true, pageSize: 200 }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
       query: undefined,
       limit: 200,
       enabled: undefined,
-      swrOptions: { revalidateAll: false }
+      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
     })
   })
 
@@ -300,7 +300,7 @@ describe('useSessions', () => {
       query: undefined,
       limit: 200,
       enabled: undefined,
-      swrOptions: { revalidateAll: true }
+      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
     })
   })
 
@@ -311,7 +311,7 @@ describe('useSessions', () => {
       query: undefined,
       limit: 20,
       enabled: undefined,
-      swrOptions: { revalidateAll: false }
+      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
     })
   })
 
@@ -319,9 +319,9 @@ describe('useSessions', () => {
     // Simulate a multi-page loadAll: each render grows `pages` by one and
     // keeps `hasNext` true until the final page. The auto-paginate effect
     // drives `loadNext`; we assert that across every growth render the
-    // `swrOptions.revalidateAll` passed to `useInfiniteQuery` stays false
-    // (no quadratic re-fetch of earlier pages) and `loadNext` is invoked
-    // once per new page — never extra revalidation-triggered fetches.
+    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
+    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
+    // prevents one redundant page-0 request per `loadNext`.
     const loadNext = vi.fn()
     let pages: Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }> = [
       { items: [{ id: 's1', name: 'S1' }], nextCursor: 'c1' }
@@ -348,21 +348,20 @@ describe('useSessions', () => {
     act(() => rerender())
 
     // The auto-paginate effect drives loadNext; the key regression check is
-    // that revalidateAll stays false across every growth render so earlier
-    // pages are never re-fetched on each setSize (1+2+...+n IPC traffic).
+    // that neither previous pages nor page 0 are revalidated during growth.
     expect(loadNext).toHaveBeenCalled()
 
     // All calls during growth (every call except the final post-fully-loaded
-    // re-render where the effect flips revalidateAll on) must keep
-    // revalidateAll off.
+    // re-render where the effect flips revalidateAll on) must keep both
+    // growth-time revalidation modes off.
     const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
     expect(growthCalls.length).toBeGreaterThan(0)
     for (const call of growthCalls) {
-      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false } })
+      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
     }
     // The final call — after the chain is fully loaded — flips revalidateAll on.
     const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
-    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true } })
+    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
   })
 
   it('returns empty sessions when agentId is null', () => {
