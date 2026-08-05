@@ -242,7 +242,10 @@ describe('EnvironmentDependencies', () => {
   it('renders all preset tools from snapshots', async () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
-    expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    const ripgrepCard = screen.getByText('ripgrep').closest('[role="listitem"]') as HTMLElement
+    expect(ripgrepCard.querySelector('[data-slot="dependency-card-icon"]')).toHaveClass(
+      '[&_.lucide:not(.lucide-custom)]:text-current!'
+    )
   })
 
   it('renders install actions in the shared dependency card action area', async () => {

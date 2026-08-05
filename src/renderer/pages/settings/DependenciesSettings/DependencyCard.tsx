@@ -1,3 +1,4 @@
+import { cn } from '@renderer/utils/style'
 import type { FC, ReactNode } from 'react'
 
 interface DependencyCardProps {
@@ -29,11 +30,10 @@ const DependencyCard: FC<DependencyCardProps> = ({
     <div className="flex items-start gap-3">
       <div
         data-slot="dependency-card-icon"
-        className={
-          available
-            ? 'flex size-10 shrink-0 items-center justify-center rounded-xl bg-success-subtle text-success-subtle-foreground'
-            : 'flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground'
-        }>
+        className={cn(
+          'flex size-10 shrink-0 items-center justify-center rounded-xl [&_.lucide:not(.lucide-custom)]:text-current!',
+          available ? 'bg-success-subtle text-success-subtle-foreground' : 'bg-muted text-muted-foreground'
+        )}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
