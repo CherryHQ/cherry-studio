@@ -8,13 +8,14 @@ import OpenExternalAppButton from '../OpenExternalAppButton'
 
 const mocks = vi.hoisted(() => ({
   externalApps: [] as Array<{
-    id: 'vscode' | 'cursor' | 'zed'
+    id: 'vscode' | 'cursor' | 'zed' | 'wt'
     name: string
     protocol: string
     tags: string[]
     path: string
+    executable?: string
   }>,
-  lastUsedTarget: null as 'vscode' | 'cursor' | 'zed' | 'file_manager' | null,
+  lastUsedTarget: null as 'vscode' | 'cursor' | 'zed' | 'wt' | 'file_manager' | null,
   setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
@@ -106,7 +107,11 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
 }))
 
 vi.mock('@renderer/utils/editor', () => ({
-  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`
+  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`,
+  openExternalApp: (app: { id: string }, workdir: string) => {
+    window.open(`editor://${app.id}${workdir}`)
+    return Promise.resolve()
+  }
 }))
 
 vi.mock('@renderer/components/icons/EditorIcon', () => ({
@@ -145,6 +150,15 @@ const cursorApp = {
   protocol: 'cursor://',
   tags: ['code-editor'],
   path: '/Applications/Cursor.app'
+}
+
+const windowsTerminalApp = {
+  id: 'wt' as const,
+  name: 'Windows Terminal',
+  protocol: '',
+  tags: ['terminal'],
+  path: 'C:\\Users\\test\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe',
+  executable: 'wt.exe'
 }
 
 describe('OpenExternalAppButton', () => {
@@ -241,6 +255,17 @@ describe('OpenExternalAppButton', () => {
     fireEvent.click(primaryButton)
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
     expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
+  })
+
+  it('lists and opens a terminal app from the workspace toolbar', () => {
+    mocks.externalApps = [windowsTerminalApp]
+
+    render(<OpenExternalAppButton workdir="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Windows Terminal' }))
+
+    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://wt/tmp/workspace')
+    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('wt')
   })
 
   it('opens a selected file in the selected editor', () => {

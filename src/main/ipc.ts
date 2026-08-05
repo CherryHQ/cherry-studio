@@ -8,6 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { ExternalAppId } from '@shared/types/externalApp'
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
@@ -182,6 +183,9 @@ export async function registerIpc() {
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
+  ipcMain.handle(IpcChannel.ExternalApps_Open, (_, appId: ExternalAppId, targetPath: string) =>
+    externalAppsService.open(appId, targetPath)
+  )
 
   // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
   // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).

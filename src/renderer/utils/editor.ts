@@ -7,6 +7,9 @@ import type { ExternalAppInfo } from '@shared/types/externalApp'
  * @see https://github.com/zed-industries/zed/issues/8482
  */
 export function buildEditorUrl(app: ExternalAppInfo, filePath: string): string {
+  if (!app.protocol) {
+    throw new Error(`External app "${app.id}" has no URL protocol and cannot be opened via a deep link`)
+  }
   const encodedPath = filePath.split(/[/\\]/).map(encodeURIComponent).join('/')
   if (app.id === 'zed') {
     // Zed parses URLs by stripping "zed://file" prefix, so the format is
@@ -14,4 +17,17 @@ export function buildEditorUrl(app: ExternalAppInfo, filePath: string): string {
     return `${app.protocol}file${encodedPath}`
   }
   return `${app.protocol}file/${encodedPath}?windowId=_blank`
+}
+
+/**
+ * Open a file/folder in an external app. Protocol-based apps (VS Code, Cursor,
+ * Zed) open a deep-link URL in the browser; executable-based apps (Windows
+ * Terminal) are launched through the main process instead.
+ */
+export async function openExternalApp(app: ExternalAppInfo, targetPath: string): Promise<void> {
+  if (app.executable) {
+    await window.api.externalApps.open(app.id, targetPath)
+    return
+  }
+  window.open(buildEditorUrl(app, targetPath))
 }

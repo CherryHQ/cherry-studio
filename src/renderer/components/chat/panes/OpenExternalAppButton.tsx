@@ -13,7 +13,7 @@ import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { toast } from '@renderer/services/toast'
-import { buildEditorUrl } from '@renderer/utils/editor'
+import { openExternalApp } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
@@ -49,7 +49,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
     if (!externalApps) {
       return []
     }
-    return externalApps.filter((app) => app.tags.includes('code-editor'))
+    return externalApps.filter((app) => app.tags.includes('code-editor') || app.tags.includes('terminal'))
   }, [externalApps])
 
   const fileManagerName = useMemo(() => {
@@ -81,7 +81,7 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      window.open(buildEditorUrl(app, openTargetPath))
+      void openExternalApp(app, openTargetPath)
       setLastUsedTarget(app.id)
     },
     [openTargetPath, setLastUsedTarget]

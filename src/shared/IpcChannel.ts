@@ -141,6 +141,7 @@ export enum IpcChannel {
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
+  ExternalApps_Open = 'external-apps:open',
 
   // Global Skills
   Skill_ReadFile = 'skill:read-file',
