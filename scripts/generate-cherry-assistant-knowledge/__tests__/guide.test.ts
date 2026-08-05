@@ -80,6 +80,8 @@ describe('Cherry Assistant guide', () => {
     expect(agent.instructions['en-US']).toContain('Help users get started')
     expect(agent.instructions['zh-CN']).toContain('帮助用户开始使用 Cherry Studio')
     expect(soul).toContain('Warm, patient, and practical')
+    expect(soul).toContain("Mirror the user's terminology and level of formality")
+    expect(soul).not.toContain("Match the user's language")
     expect(soul).not.toContain('Working principles')
     expect(soul).not.toContain('Hard safety constraints')
   })
