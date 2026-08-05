@@ -221,6 +221,14 @@ describe('processMessage (streaming)', () => {
     expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
   })
 
+  it('marks streaming requests as caller-owned', async () => {
+    const { response, listener } = await startStreaming()
+    commit(listener)
+    await response
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
+  })
+
   it('returns JSON (not a stream) for non-streaming requests', async () => {
     const resPromise = processMessage({
       params: { model: 'openai:gpt-4', messages: [] } as any,

@@ -136,6 +136,7 @@ export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: num
 export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
+    if (scope.request.contextOwner === 'caller') return false
     const topicId = scope.request.chatId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false

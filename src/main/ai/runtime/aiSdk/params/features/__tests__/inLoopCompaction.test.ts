@@ -32,6 +32,7 @@ const provider = (adapterFamily = 'anthropic') =>
 
 const scope = (overrides: {
   chatId?: string
+  contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
@@ -39,7 +40,7 @@ const scope = (overrides: {
   adapterFamily?: string
 }) =>
   ({
-    request: { chatId: overrides.chatId },
+    request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -117,6 +118,14 @@ describe('inLoopCompactionFeature', () => {
 
   it('does not apply for temporary-chat topics', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'temp:t1', contextWindow: CONTEXT_WINDOW }))).toBe(false)
+  })
+
+  it('does not apply for caller-owned gateway requests', () => {
+    expect(
+      inLoopCompactionFeature.applies?.(
+        scope({ chatId: 'gateway-request-1', contextOwner: 'caller', contextWindow: CONTEXT_WINDOW })
+      )
+    ).toBe(false)
   })
 
   it('does not apply when context-build is disabled', () => {
