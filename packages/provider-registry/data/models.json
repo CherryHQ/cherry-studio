@@ -424,6 +424,24 @@
       }
     },
     {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "qwen-image-3",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen: Qwen Image 3",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "qwen-image-3-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen: Qwen Image 3 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
       "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "qwen",
       "id": "qwen-image-edit",
@@ -2143,9 +2161,12 @@
             "kind": "budget",
             "max": 262144,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "xhigh"],
+        "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
           "max": 262144,
           "min": 0
@@ -7423,13 +7444,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
+            "values": ["none", "high", "max", "low", "xhigh"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
       }
     },
     {
@@ -7463,11 +7484,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
+      "contextWindow": 1048600,
       "family": "deepseek-thinking",
       "id": "deepseek-v4-pro",
       "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
+      "maxOutputTokens": 1048600,
       "metadata": {},
       "name": "DeepSeek V4 Pro",
       "openWeights": true,
@@ -13093,11 +13114,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09375
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.25
         }
       }
     },
@@ -20996,5 +21017,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "3c1a2cdf9bbd80a9"
+  "version": "1d6b730d3fd11b20"
 }
