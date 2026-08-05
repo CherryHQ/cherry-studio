@@ -378,6 +378,8 @@ export interface GeneratePainting extends PaintingParams {
   moderation?: string
   n?: number
   size?: string
+  customWidth?: number
+  customHeight?: number
   background?: string
   personGeneration?: GenerateImagesConfig['personGeneration']
   numberOfImages?: number
