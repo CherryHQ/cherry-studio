@@ -222,6 +222,36 @@ describe('SelectionContextMenu', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(texSource)
   })
 
+  it('preserves Markdown boundaries around a selected KaTeX formula', () => {
+    const texSource = String.raw`x^2`
+    const markup = [
+      `<p>before ${katex.renderToString(texSource)}</p>`,
+      '<p>after<br>continued</p>',
+      '<ul><li>first item</li><li>last item</li></ul>'
+    ].join('')
+    vi.mocked(window.getSelection).mockRestore()
+
+    render(
+      <SelectionContextMenu>
+        <div data-testid="target" dangerouslySetInnerHTML={{ __html: markup }} />
+      </SelectionContextMenu>
+    )
+
+    const target = screen.getByTestId('target')
+    const range = document.createRange()
+    range.selectNodeContents(target)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    fireEvent.contextMenu(target)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      `before ${texSource}\nafter\ncontinued\nfirst item\nlast item`
+    )
+  })
+
   it('keeps whitespace-only code selections actionable', () => {
     mockSelection('1    ', createCodeSelectionFragment(['    ']))
 

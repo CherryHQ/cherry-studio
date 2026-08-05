@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionContextMenu')
 
+const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
+
 interface SelectionContextMenuProps {
   children: React.ReactNode
 }
@@ -57,9 +59,13 @@ function extractSelectedText(selection: Selection): string {
       result += node.textContent
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as Element
-      if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) {
+      if (element.tagName === 'BR') {
         result += '\n'
-      } else if (element.classList.contains('line')) {
+      } else if (
+        result.length > 0 &&
+        !result.endsWith('\n') &&
+        (TEXT_BLOCK_TAGS.has(element.tagName) || element.classList.contains('line'))
+      ) {
         result += '\n'
       }
     }
@@ -67,7 +73,7 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.startsWith('\n') ? result.slice(1) : result
+  return result
 }
 
 /**
