@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const ipcRequest = vi.fn()
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: any[]) => ipcRequest(...args) } }))
 
-import UserAvatar from '@renderer/assets/images/avatar.png'
+import UserAvatar from '@renderer/assets/images/avatar.svg'
 
 import useAvatar from '../useAvatar'
 
