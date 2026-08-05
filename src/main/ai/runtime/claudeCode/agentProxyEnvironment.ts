@@ -4,6 +4,11 @@ import { CHERRY_NODE_PROXY_BYPASS_RULES_ENV, CHERRY_NODE_PROXY_RULES_ENV } from 
 
 export type Environment = Readonly<Record<string, string | undefined>>
 
+interface AgentProxyEnvironmentOptions {
+  platform?: NodeJS.Platform
+  additionalBypassRule?: string
+}
+
 const AGENT_PROXY_ENDPOINT_KEYS = [
   'HTTP_PROXY',
   'HTTPS_PROXY',
@@ -19,16 +24,49 @@ const AGENT_PROXY_ENDPOINT_KEYS = [
 const AGENT_PROXY_BYPASS_KEYS = ['NO_PROXY', 'no_proxy'] as const
 const AGENT_PROXY_ENVIRONMENT_KEYS = [...AGENT_PROXY_ENDPOINT_KEYS, ...AGENT_PROXY_BYPASS_KEYS] as const
 const AGENT_PROXY_ENVIRONMENT_KEY_SET = new Set<string>(AGENT_PROXY_ENVIRONMENT_KEYS)
+const AGENT_PROXY_ENDPOINT_NORMALIZED_KEYS = [...new Set(AGENT_PROXY_ENDPOINT_KEYS.map((key) => key.toLowerCase()))]
+const AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET = new Set(AGENT_PROXY_ENDPOINT_NORMALIZED_KEYS)
+const AGENT_PROXY_ENVIRONMENT_NORMALIZED_KEY_SET = new Set(AGENT_PROXY_ENVIRONMENT_KEYS.map((key) => key.toLowerCase()))
+const AGENT_PROXY_BYPASS_NORMALIZED_KEY_SET = new Set(['no_proxy'])
 const CHERRY_PROXY_MARKER_KEY_SET = new Set([CHERRY_NODE_PROXY_RULES_ENV, CHERRY_NODE_PROXY_BYPASS_RULES_ENV])
 const LOOPBACK_BYPASS_RULES = ['localhost', '127.0.0.1', '::1', '[::1]'] as const
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === 'string' && value.trim() !== ''
 
-const normalizeBypassRules = (environment: Environment): string[] => {
+const compareEnvironmentKeys = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0)
+
+const selectWindowsEnvironmentEntries = (
+  environment: Environment,
+  normalizedKeys: ReadonlySet<string>
+): Map<string, readonly [key: string, value: string]> => {
+  // Node sorts child-process env keys and passes only the first case-insensitive
+  // match on Windows. Mirror that rule so bypass detection and fingerprints
+  // describe the environment the Agent subprocess actually receives.
+  const selected = new Map<string, readonly [key: string, value: string]>()
+
+  for (const [key, value] of Object.entries(environment).sort(([left], [right]) =>
+    compareEnvironmentKeys(left, right)
+  )) {
+    if (value === undefined) continue
+
+    const normalizedKey = key.toLowerCase()
+    if (normalizedKeys.has(normalizedKey) && !selected.has(normalizedKey)) {
+      selected.set(normalizedKey, [key, value])
+    }
+  }
+
+  return selected
+}
+
+const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platform): string[] => {
   const rules: string[] = []
   const normalizedRules = new Set<string>()
+  const values =
+    platform === 'win32'
+      ? [selectWindowsEnvironmentEntries(environment, AGENT_PROXY_BYPASS_NORMALIZED_KEY_SET).get('no_proxy')?.[1]]
+      : [environment.no_proxy, environment.NO_PROXY]
 
-  for (const value of [environment.no_proxy, environment.NO_PROXY]) {
+  for (const value of values) {
     if (!value) continue
 
     for (const rule of value.split(/[\s,;]+/)) {
@@ -45,43 +83,42 @@ const normalizeBypassRules = (environment: Environment): string[] => {
   return rules
 }
 
-export const stripInheritedCherryProxyEnvironment = (environment: Environment): Record<string, string | undefined> => {
+/** Remove internal metadata only; equal values cannot prove that Cherry owns a shell proxy variable. */
+export const stripInheritedCherryProxyMarkers = (environment: Environment): Record<string, string | undefined> => {
   const result = { ...environment }
-  const cherryProxyUrl = result[CHERRY_NODE_PROXY_RULES_ENV]
-  const cherryBypassRules = result[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]
 
   delete result[CHERRY_NODE_PROXY_RULES_ENV]
   delete result[CHERRY_NODE_PROXY_BYPASS_RULES_ENV]
 
-  if (cherryProxyUrl !== undefined) {
-    for (const key of AGENT_PROXY_ENDPOINT_KEYS) {
-      if (result[key] === cherryProxyUrl) {
-        delete result[key]
-      }
-    }
-  }
-
-  if (cherryBypassRules !== undefined) {
-    for (const key of AGENT_PROXY_BYPASS_KEYS) {
-      if (result[key] === cherryBypassRules) {
-        delete result[key]
-      }
-    }
-  }
-
   return result
 }
 
-export const isAgentProxyEnvironmentKey = (key: string): boolean =>
-  AGENT_PROXY_ENVIRONMENT_KEY_SET.has(key) || CHERRY_PROXY_MARKER_KEY_SET.has(key.toUpperCase())
+export const isAgentProxyEnvironmentKey = (key: string, options: AgentProxyEnvironmentOptions = {}): boolean => {
+  const platform = options.platform ?? process.platform
+  const isProxyKey =
+    platform === 'win32'
+      ? AGENT_PROXY_ENVIRONMENT_NORMALIZED_KEY_SET.has(key.toLowerCase())
+      : AGENT_PROXY_ENVIRONMENT_KEY_SET.has(key)
+  return isProxyKey || CHERRY_PROXY_MARKER_KEY_SET.has(key.toUpperCase())
+}
 
-export const mergeAgentLoopbackProxyBypass = (environment: Environment): Record<string, string | undefined> => {
+export const mergeAgentLoopbackProxyBypass = (
+  environment: Environment,
+  options: AgentProxyEnvironmentOptions = {}
+): Record<string, string | undefined> => {
+  const platform = options.platform ?? process.platform
   const result = { ...environment }
-  if (!AGENT_PROXY_ENDPOINT_KEYS.some((key) => isNonEmpty(environment[key]))) {
+  const activeProxyValues =
+    platform === 'win32'
+      ? [...selectWindowsEnvironmentEntries(environment, AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET).values()].map(
+          ([, value]) => value
+        )
+      : AGENT_PROXY_ENDPOINT_KEYS.map((key) => environment[key])
+  if (!activeProxyValues.some(isNonEmpty)) {
     return result
   }
 
-  const rules = normalizeBypassRules(environment)
+  const rules = normalizeBypassRules(environment, platform)
   if (rules.includes('*')) {
     result.no_proxy = '*'
     result.NO_PROXY = '*'
@@ -89,9 +126,13 @@ export const mergeAgentLoopbackProxyBypass = (environment: Environment): Record<
   }
 
   const normalizedRules = new Set(rules.map((rule) => rule.toLowerCase()))
-  for (const rule of LOOPBACK_BYPASS_RULES) {
+  const requiredRules: readonly string[] = options.additionalBypassRule
+    ? [...LOOPBACK_BYPASS_RULES, options.additionalBypassRule]
+    : LOOPBACK_BYPASS_RULES
+  for (const rule of requiredRules) {
     if (!normalizedRules.has(rule.toLowerCase())) {
       rules.push(rule)
+      normalizedRules.add(rule.toLowerCase())
     }
   }
 
@@ -101,12 +142,31 @@ export const mergeAgentLoopbackProxyBypass = (environment: Environment): Record<
   return result
 }
 
-export const createAgentProxyEnvironmentFingerprint = (environment: Environment): string => {
-  const normalizedEnvironment = mergeAgentLoopbackProxyBypass(environment)
-  const fingerprintEntries = AGENT_PROXY_ENVIRONMENT_KEYS.flatMap((key) => {
-    const value = normalizedEnvironment[key]
-    return isNonEmpty(value) ? [[key, value] as const] : []
-  })
+export const createAgentProxyEnvironmentFingerprint = (
+  environment: Environment,
+  options: AgentProxyEnvironmentOptions = {}
+): string => {
+  const platform = options.platform ?? process.platform
+  const normalizedEnvironment = mergeAgentLoopbackProxyBypass(environment, options)
+  const selectedWindowsEndpoints =
+    platform === 'win32'
+      ? selectWindowsEnvironmentEntries(normalizedEnvironment, AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET)
+      : undefined
+  const fingerprintEntries =
+    platform === 'win32'
+      ? [
+          ...AGENT_PROXY_ENDPOINT_NORMALIZED_KEYS.flatMap((normalizedKey) => {
+            const selected = selectedWindowsEndpoints?.get(normalizedKey)
+            return selected && isNonEmpty(selected[1]) ? [[normalizedKey, selected[1]] as const] : []
+          }),
+          ...(isNonEmpty(normalizedEnvironment.NO_PROXY)
+            ? ([['no_proxy', normalizedEnvironment.NO_PROXY]] as const)
+            : [])
+        ]
+      : AGENT_PROXY_ENVIRONMENT_KEYS.flatMap((key) => {
+          const value = normalizedEnvironment[key]
+          return isNonEmpty(value) ? [[key, value] as const] : []
+        })
 
   return createHash('sha256').update(JSON.stringify(fingerprintEntries)).digest('hex')
 }

@@ -719,6 +719,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
+    const proxyUrl = 'http://remote-proxy.example:7890'
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.2', port: 23333, apiKey: 'gateway-key' })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.api_gateway.api_key' ? 'gateway-key' : undefined
+    )
+    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
+    mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+    expect(request.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.2:23333',
+      NO_PROXY: 'localhost,127.0.0.1,::1,[::1],127.0.0.2',
+      no_proxy: 'localhost,127.0.0.1,::1,[::1],127.0.0.2'
+    })
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
   it('carries Codex Fast through the internal gateway header', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1068,7 +1095,7 @@ describe('deriveConnectionConfig', () => {
     )
   })
 
-  it('ignores a cached Cherry proxy after the current proxy is disabled', async () => {
+  it('keeps ambiguous cached proxy values in rebuild facts after removing Cherry markers', async () => {
     const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
     mocks.getShellEnv.mockResolvedValue({
       CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
@@ -1083,13 +1110,13 @@ describe('deriveConnectionConfig', () => {
     mocks.getShellEnv.mockResolvedValue({})
     const cleanShell = await deriveSignature()
 
-    expect(staleShell.rebuildSignature).toBe(cleanShell.rebuildSignature)
-    expect(staleShell.rebuildFactFingerprints.proxyEnvironment).toBe(
+    expect(staleShell.rebuildSignature).not.toBe(cleanShell.rebuildSignature)
+    expect(staleShell.rebuildFactFingerprints.proxyEnvironment).not.toBe(
       cleanShell.rebuildFactFingerprints.proxyEnvironment
     )
   })
 
-  it('preserves login-shell proxy values that differ from cached Cherry markers in rebuild facts', async () => {
+  it('does not discard cached proxy values from rebuild facts based on marker equality', async () => {
     const staleCherryProxyUrl = 'http://stale-cherry-proxy.example:7890'
     const loginShellProxyUrl = 'http://login-shell-proxy.example:8080'
     mocks.getShellEnv.mockResolvedValue({
@@ -1107,8 +1134,8 @@ describe('deriveConnectionConfig', () => {
     })
     const loginShellOnly = await deriveSignature()
 
-    expect(mixedShell.rebuildSignature).toBe(loginShellOnly.rebuildSignature)
-    expect(mixedShell.rebuildFactFingerprints.proxyEnvironment).toBe(
+    expect(mixedShell.rebuildSignature).not.toBe(loginShellOnly.rebuildSignature)
+    expect(mixedShell.rebuildFactFingerprints.proxyEnvironment).not.toBe(
       loginShellOnly.rebuildFactFingerprints.proxyEnvironment
     )
   })

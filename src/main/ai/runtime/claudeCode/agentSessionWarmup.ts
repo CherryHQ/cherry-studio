@@ -42,7 +42,8 @@ import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
-  stripInheritedCherryProxyEnvironment
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
@@ -88,6 +89,17 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
   internalRequestToken?: string
+}
+
+/** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
+function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl'>): string | undefined {
+  if (route.branch !== 'gateway' || !route.baseUrl) return undefined
+
+  try {
+    return new URL(route.baseUrl).hostname
+  } catch {
+    return undefined
+  }
 }
 
 interface ConnectionMaterializationFacts {
@@ -293,12 +305,18 @@ export async function deriveConnectionConfig(
   }
 }
 
-async function deriveAgentProxyEnvironmentFingerprint(agent: AgentEntity): Promise<string> {
-  return createAgentProxyEnvironmentFingerprint({
-    ...stripInheritedCherryProxyEnvironment(await getShellEnv()),
-    ...getProxyEnvironment(process.env),
-    ...agent.configuration?.env_vars
-  })
+async function deriveAgentProxyEnvironmentFingerprint(
+  agent: AgentEntity,
+  route: ClaudeCodeRouteFacts
+): Promise<string> {
+  return createAgentProxyEnvironmentFingerprint(
+    {
+      ...stripInheritedCherryProxyMarkers(await getShellEnv()),
+      ...getProxyEnvironment(process.env),
+      ...agent.configuration?.env_vars
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
 }
 
 async function deriveConnectionConfigFromSnapshot(
@@ -337,7 +355,7 @@ async function deriveConnectionConfigFromSnapshot(
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const proxyEnvironmentFingerprint =
-    materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent))
+    materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
@@ -503,7 +521,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
       contextWindow: contextWindow ?? null,
-      proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {})
+      proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
+        additionalBypassRule: gatewayBypassRule(route)
+      })
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -845,9 +865,8 @@ function mergeRuntimeSettings(
     route.customHeaders,
     fastModeHeaders
   )
-  return {
-    ...settings,
-    env: {
+  const env = mergeAgentLoopbackProxyBypass(
+    {
       ...settings.env,
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
@@ -856,7 +875,12 @@ function mergeRuntimeSettings(
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
       ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
       ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
-    }
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
+  return {
+    ...settings,
+    env
   }
 }
 

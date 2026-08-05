@@ -586,7 +586,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it('does not revive a cached Cherry proxy after the current proxy is disabled', async () => {
+  it('removes cached Cherry markers without inferring ownership of equal proxy values', async () => {
     const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
     mocks.getShellEnv.mockResolvedValue({
       CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
@@ -614,18 +614,20 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
-    expect(settings.env).not.toHaveProperty('HTTP_PROXY')
-    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
-    expect(settings.env).not.toHaveProperty('http_proxy')
-    expect(settings.env).not.toHaveProperty('https_proxy')
-    expect(settings.env).not.toHaveProperty('ALL_PROXY')
-    expect(settings.env).not.toHaveProperty('all_proxy')
-    expect(settings.env).not.toHaveProperty('grpc_proxy')
-    expect(settings.env).not.toHaveProperty('NO_PROXY')
-    expect(settings.env).not.toHaveProperty('no_proxy')
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: staleProxyUrl,
+      HTTPS_PROXY: staleProxyUrl,
+      http_proxy: staleProxyUrl,
+      https_proxy: staleProxyUrl,
+      ALL_PROXY: staleProxyUrl,
+      all_proxy: staleProxyUrl,
+      grpc_proxy: staleProxyUrl,
+      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1,[::1]',
+      no_proxy: 'stale.internal,localhost,127.0.0.1,::1,[::1]'
+    })
   })
 
-  it('preserves login-shell proxy values that differ from cached Cherry markers', async () => {
+  it('preserves login-shell proxy values without using marker equality as provenance', async () => {
     const staleCherryProxyUrl = 'http://stale-cherry-proxy.example:7890'
     const loginShellProxyUrl = 'http://login-shell-proxy.example:8080'
     mocks.getShellEnv.mockResolvedValue({
@@ -648,10 +650,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.env).toMatchObject({
       HTTP_PROXY: loginShellProxyUrl,
+      HTTPS_PROXY: staleCherryProxyUrl,
       NO_PROXY: 'login.internal,localhost,127.0.0.1,::1,[::1]',
       no_proxy: 'login.internal,localhost,127.0.0.1,::1,[::1]'
     })
-    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
   })

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { createAgentProxyEnvironmentFingerprint, mergeAgentLoopbackProxyBypass } from '../agentProxyEnvironment'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
+} from '../agentProxyEnvironment'
 
 const ACTIVE_PROXY_KEYS = [
   'HTTP_PROXY',
@@ -95,6 +100,78 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     expect(environment).toEqual(snapshot)
     expect(result).not.toBe(environment)
   })
+
+  it('recognizes mixed-case proxy and bypass keys on Windows', () => {
+    const result = mergeAgentLoopbackProxyBypass(
+      {
+        Http_Proxy: 'http://proxy.example.com:8080',
+        No_Proxy: 'service.internal'
+      },
+      { platform: 'win32' }
+    )
+
+    expect(result).toMatchObject({
+      Http_Proxy: 'http://proxy.example.com:8080',
+      No_Proxy: 'service.internal',
+      no_proxy: 'service.internal,localhost,127.0.0.1,::1,[::1]',
+      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+    })
+  })
+
+  it('uses Windows child-process precedence for duplicate bypass-key variants', () => {
+    const result = mergeAgentLoopbackProxyBypass(
+      {
+        HTTP_PROXY: 'http://proxy.example.com:8080',
+        no_proxy: 'lower.internal',
+        No_Proxy: 'mixed.internal',
+        NO_PROXY: 'upper.internal'
+      },
+      { platform: 'win32' }
+    )
+
+    expect(result.NO_PROXY).toBe('upper.internal,localhost,127.0.0.1,::1,[::1]')
+    expect(result.no_proxy).toBe(result.NO_PROXY)
+  })
+
+  it('adds an exact materialized gateway host to the bypass rules', () => {
+    const result = mergeAgentLoopbackProxyBypass(
+      { HTTP_PROXY: 'http://proxy.example.com:8080' },
+      { additionalBypassRule: '127.0.0.2' }
+    )
+
+    expect(result.NO_PROXY).toBe('localhost,127.0.0.1,::1,[::1],127.0.0.2')
+    expect(result.no_proxy).toBe(result.NO_PROXY)
+  })
+})
+
+describe('stripInheritedCherryProxyMarkers', () => {
+  it('removes Cherry markers without deleting an equal user-owned proxy value', () => {
+    const proxyUrl = 'http://127.0.0.1:7890'
+
+    expect(
+      stripInheritedCherryProxyMarkers({
+        CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+        CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'service.internal',
+        HTTP_PROXY: proxyUrl,
+        NO_PROXY: 'service.internal'
+      })
+    ).toEqual({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'service.internal'
+    })
+  })
+})
+
+describe('isAgentProxyEnvironmentKey', () => {
+  it('recognizes mixed-case proxy keys on Windows', () => {
+    expect(isAgentProxyEnvironmentKey('Http_Proxy', { platform: 'win32' })).toBe(true)
+    expect(isAgentProxyEnvironmentKey('No_Proxy', { platform: 'win32' })).toBe(true)
+  })
+
+  it('keeps proxy-key matching case-sensitive on POSIX', () => {
+    expect(isAgentProxyEnvironmentKey('Http_Proxy', { platform: 'linux' })).toBe(false)
+    expect(isAgentProxyEnvironmentKey('No_Proxy', { platform: 'darwin' })).toBe(false)
+  })
 })
 
 describe('createAgentProxyEnvironmentFingerprint', () => {
@@ -162,5 +239,28 @@ describe('createAgentProxyEnvironmentFingerprint', () => {
 
     expect(fingerprint).toMatch(/^[a-f\d]{64}$/)
     expect(fingerprint).not.toContain(proxyUrl)
+  })
+
+  it('normalizes proxy-key casing on Windows before hashing', () => {
+    const proxyUrl = 'http://proxy.example.com:8080'
+
+    expect(createAgentProxyEnvironmentFingerprint({ Http_Proxy: proxyUrl }, { platform: 'win32' })).toBe(
+      createAgentProxyEnvironmentFingerprint({ HTTP_PROXY: proxyUrl }, { platform: 'win32' })
+    )
+  })
+
+  it('uses the same case-insensitive duplicate precedence as Windows child processes', () => {
+    const effective = createAgentProxyEnvironmentFingerprint(
+      {
+        http_proxy: 'http://lower.example.com:8080',
+        Http_Proxy: 'http://mixed.example.com:8080',
+        HTTP_PROXY: 'http://upper.example.com:8080'
+      },
+      { platform: 'win32' }
+    )
+
+    expect(effective).toBe(
+      createAgentProxyEnvironmentFingerprint({ HTTP_PROXY: 'http://upper.example.com:8080' }, { platform: 'win32' })
+    )
   })
 })
