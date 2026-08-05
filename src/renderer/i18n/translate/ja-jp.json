@@ -1419,6 +1419,11 @@
         "placeholder": "検索"
       }
     },
+    "compaction": {
+      "compacted": "コンテキストを圧縮しました、約{{count}}トークンを節約しました",
+      "compacted_plain": "コンテキストが圧縮されました",
+      "compacting": "コンテキストを圧縮しています…"
+    },
     "conversation": {
       "new": "新しいチャット"
     },
@@ -1614,6 +1619,10 @@
           "description": "ウェブ検索を無効にする",
           "label": "ウェブ検索を無効にする"
         },
+        "route": {
+          "builtin": "モデルの組み込みツールを使用した検索",
+          "client": "{{provider}}での検索"
+        },
         "settings": "ウェブ検索設定"
       }
     },
@@ -1696,6 +1705,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "{{number}}ターン目に移動"
+      },
       "bottom": "下部に戻る",
       "close": "閉じる",
       "first": "最初のメッセージです",
@@ -3165,6 +3177,7 @@
         "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。"
       },
       "processor": "処理プロバイダ",
+      "processor_not_configured": "未設定",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -3415,7 +3428,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自動圧縮",
+        "context_compress_model": "圧縮モデル",
+        "context_compress_model_follow": "デフォルト",
         "context_count": "コンテキストカウント",
+        "context_management": "コンテキスト管理",
+        "context_truncate_threshold": "ツール出力の切り捨てしきい値（文字数）",
         "creative": "クリエイティブ",
         "custom_params": "カスタムパラメータ",
         "custom_params_add": "パラメータを追加",
@@ -3427,8 +3445,17 @@
           "avatar": {
             "hint": "ライブラリおよびチャット内でアシスタントを識別するために使用されます"
           },
+          "context_compress_enabled": {
+            "hint": "コンテキストウィンドウに近づいた際、古いターンを自動的に要約する"
+          },
           "context_count": {
             "hint": "コンテキストとして保持される最近のメッセージ数"
+          },
+          "context_management": {
+            "hint": "このアシスタントのグローバルコンテキスト管理設定を上書きします。オフの場合はグローバル設定を継承します"
+          },
+          "context_truncate_threshold": {
+            "hint": "この文字数を超えるツール出力はオフロードされ、切り捨てられます"
           },
           "custom_params": {
             "hint": "リクエストと共に送信される追加プロバイダーパラメータ"
@@ -4273,6 +4300,7 @@
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
       "fetch_empty": "検索結果は見つかりませんでした",
+      "fetch_opaque": "モデルで検索されました",
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
@@ -5145,6 +5173,7 @@
     "reset": "リセット",
     "rotate_left": "左回転",
     "rotate_right": "右に回転",
+    "save_as": "名前を付けて保存",
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
@@ -5783,7 +5812,25 @@
         "title": "エンタープライズ"
       },
       "feedback": {
+        "agent": {
+          "description": "Cherry Assistantとチャットしてフィードバックを共有してください。",
+          "title": "エージェントを使用する"
+        },
+        "agent_error": "Cherry Assistant for feedback を開くことができません。もう一度お試しください。",
         "button": "フィードバック",
+        "dialog": {
+          "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",
+          "title": "フィードバックチャネルを選択してください"
+        },
+        "github": {
+          "description": "GitHubでバグレポートまたは機能リクエストを作成する。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "推奨",
+        "survey": {
+          "description": "Feishuアンケートでフィードバックをお寄せください。",
+          "title": "フィードバック調査"
+        },
         "title": "フィードバック"
       },
       "label": "について",
@@ -8071,6 +8118,10 @@
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
+        "client_tools_preferred": {
+          "description": "上記で設定された検索およびURL取得サービスを、モデルに組み込みの検索機能がある場合でも使用します。オフの場合、モデルが処理します。",
+          "label": "設定された検索サービスを優先"
+        },
         "compression": {
           "cutoff": {
             "limit": {

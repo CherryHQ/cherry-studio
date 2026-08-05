@@ -1419,6 +1419,11 @@
         "placeholder": "Pesquisar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens economizados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Novo Chat"
     },
@@ -1614,6 +1619,10 @@
           "description": "Não ativar a função de busca na web",
           "label": "Sem busca na web"
         },
+        "route": {
+          "builtin": "Pesquisas com a ferramenta integrada do modelo",
+          "client": "Pesquisas com {{provider}}"
+        },
         "settings": "Configurações de Pesquisa na Web"
       }
     },
@@ -1696,6 +1705,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Saltar para o turno {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -3165,6 +3177,7 @@
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
       "processor": "Processador de Provedor",
+      "processor_not_configured": "Não configurado",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3415,7 +3428,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Compressão automática",
+        "context_compress_model": "Modelo de compressão",
+        "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_management": "Gestão de contexto",
+        "context_truncate_threshold": "Limite de truncamento da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
         "custom_params_add": "Adicionar parâmetro",
@@ -3427,8 +3445,17 @@
           "avatar": {
             "hint": "Usado para identificar o assistente na biblioteca e nos chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automaticamente os turnos mais antigos ao aproximar-se da janela de contexto"
+          },
           "context_count": {
             "hint": "Número de mensagens recentes mantidas como contexto"
+          },
+          "context_management": {
+            "hint": "Substituir as configurações globais de gerenciamento de contexto para este assistente; desativado herda as configurações globais"
+          },
+          "context_truncate_threshold": {
+            "hint": "Saídas de ferramentas além deste número de caracteres são descarregadas e truncadas"
           },
           "custom_params": {
             "hint": "Parâmetros extras do provedor enviados com as solicitações"
@@ -4273,6 +4300,7 @@
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
       "fetch_empty": "Nenhum resultado de pesquisa encontrado",
+      "fetch_opaque": "Pesquisado pelo modelo",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -5145,6 +5173,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Salvar Como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -5783,7 +5812,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Converse com a Assistente Cherry para partilhar feedback.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Escolha como compartilhar feedback e nos ajude a melhorar o Cherry Studio.",
+          "title": "Escolha um canal de feedback"
+        },
+        "github": {
+          "description": "Crie um relatório de bug ou solicitação de recurso no GitHub.",
+          "title": "Problema do GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Partilhe feedback através do nosso questionário Feishu.",
+          "title": "Pesquisa de feedback"
+        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -8071,6 +8118,10 @@
         "check": "Verificar",
         "check_failed": "Falha na verificação",
         "check_success": "Verificação bem-sucedida",
+        "client_tools_preferred": {
+          "description": "Use os serviços de pesquisa e busca de URL configurados acima mesmo quando o modelo tem pesquisa integrada. Quando desativado, o modelo lida com isso.",
+          "label": "Serviços de pesquisa configurados preferidos"
+        },
         "compression": {
           "cutoff": {
             "limit": {
