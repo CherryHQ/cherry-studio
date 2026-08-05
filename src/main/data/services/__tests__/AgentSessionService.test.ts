@@ -192,6 +192,39 @@ describe('AgentSessionService', () => {
       expect(latest?.workspace.id).toBe(workspace.id)
     })
 
+    it('does not treat task relation changes as session activity', async () => {
+      const workspace = await createWorkspace('relation-recency')
+      const task = createTaskSchedule()
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'bound-older',
+          agentId: 'agent-session-test',
+          name: 'Bound older',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'actually-latest',
+          agentId: 'agent-session-test',
+          name: 'Actually latest',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        }
+      ])
+
+      bindTaskSession('bound-older', task.id)
+
+      expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
+
+      dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
+
+      expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
+    })
+
     it('returns null when there are no sessions', () => {
       expect(agentSessionService.getLatestUpdated()).toBeNull()
     })

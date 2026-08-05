@@ -266,35 +266,40 @@ export class AgentSessionService {
       .all()
     if (alreadyBound.length > 0) return false
 
-    return (
-      tx
-        .update(sessionsTable)
-        .set({ taskScheduleId: params.taskScheduleId })
-        .where(and(eq(sessionsTable.id, params.sessionId), isNull(sessionsTable.taskScheduleId)))
-        .run().changes > 0
+    return this.updateTaskScheduleRelationTx(
+      tx,
+      params.taskScheduleId,
+      and(eq(sessionsTable.id, params.sessionId), isNull(sessionsTable.taskScheduleId))!
     )
   }
 
   clearTaskScheduleTx(tx: DbOrTx, taskScheduleId: string): boolean {
-    return (
-      tx
-        .update(sessionsTable)
-        .set({ taskScheduleId: null })
-        .where(eq(sessionsTable.taskScheduleId, taskScheduleId))
-        .run().changes > 0
-    )
+    return this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.taskScheduleId, taskScheduleId))
   }
 
   /** Clear bindings before an agent FK detaches its sessions. */
   clearTaskSchedulesForAgentTx(tx: DbOrTx, agentId: string): string[] {
     const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
     if (taskScheduleIds.length > 0) {
-      tx.update(sessionsTable)
-        .set({ taskScheduleId: null })
-        .where(and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId)))
-        .run()
+      this.updateTaskScheduleRelationTx(
+        tx,
+        null,
+        and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
+      )
     }
     return taskScheduleIds
+  }
+
+  /** Relation maintenance is not session activity and must not affect recency restore. */
+  private updateTaskScheduleRelationTx(tx: DbOrTx, taskScheduleId: string | null, where: SQL): boolean {
+    return (
+      tx
+        .update(sessionsTable)
+        // Explicit self-assignment suppresses updatedAt's table-level $onUpdateFn.
+        .set({ taskScheduleId, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .where(where)
+        .run().changes > 0
+    )
   }
 
   /**
@@ -470,7 +475,7 @@ export class AgentSessionService {
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
-      tx.update(sessionsTable).set({ taskScheduleId: null }).where(eq(sessionsTable.id, id)).run()
+      this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))
     }
     const [row] = tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning().all()
     return { row, clearedTaskScheduleIds }

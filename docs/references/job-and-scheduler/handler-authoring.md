@@ -82,7 +82,9 @@ Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without sig
 
 ### Job metadata vs schedule metadata
 
-`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). State that must survive across fires belongs on the **schedule** row's own `metadata` column instead — ask the schedule's command owner to write it with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s session-reuse pointer (`metadata.reuse`, see `AgentJobsService.bindTaskSessionReuse`) is the reference example. Keep runtime-produced state out of `jobInputTemplate`: that is command-owned input; only the owner may update its configuration snapshots.
+`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). Schedule-owned state that must survive across fires belongs on the **schedule** row's own `metadata` column instead — ask the schedule's command owner to write it with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s `metadata.reuse.revision` is one example: it is a configuration epoch used to fence jobs queued under older settings. Keep runtime-produced state out of `jobInputTemplate`: that is command-owned input; only the owner may update its configuration snapshots.
+
+Generic metadata is not a substitute for a database relationship. A stable reference to an entity owned by another domain must use database constraints and lifecycle APIs owned by that entity's service. For example, the `agent.task` sticky-session relationship is the constrained `agent_session.taskScheduleId` relation maintained by `AgentSessionService`, not a session id in schedule metadata.
 
 ## Settled event (`onSettled`)
 
