@@ -8,13 +8,13 @@ import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
+import { deleteTransferFile } from '@main/services/lanTransfer'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getHostname } from './utils/system'
@@ -23,8 +23,6 @@ import { decompress } from './utils/zip'
 const logger = loggerService.withContext('IPC')
 
 export async function registerIpc() {
-  void backupManager.cleanupStaleTempArtifacts()
-
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerService = application.get('PowerService')
   // powerService.registerShutdownHandler(() => {
@@ -80,9 +78,7 @@ export async function registerIpc() {
   // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
-  // backup
-  handleGuarded(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
+  handleGuarded(IpcChannel.LanTransfer_DeleteFile, (_, filePath: string) => deleteTransferFile(filePath))
 
   // file
   handleGuarded(IpcChannel.File_Open, fileManager.open.bind(fileManager))

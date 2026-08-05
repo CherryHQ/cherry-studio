@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
-  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
-  BACKUP_DISK_FULL_ERROR_CODE
-} from '@shared/types/backup'
-
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '../backup'
 import { getLocalizedBackupErrorMessage } from '../backup'
 
 const mocks = vi.hoisted(() => ({
@@ -29,27 +24,11 @@ describe('getLocalizedBackupErrorMessage', () => {
     expect(result).not.toContain('conversation')
   })
 
-  it.each(['message.backup.failed', 'message.restore.failed'] as const)(
-    'explains unfinished background tasks instead of the generic %s fallback after IPC',
-    (fallback) => {
-      const error = new Error(
-        `Error invoking remote method 'backup:backupToLocalDir': Error: ${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`
-      )
-      expect(getLocalizedBackupErrorMessage(error, fallback)).toBe('localized:backup.error.background_tasks')
-    }
-  )
-
   it.each([
     Object.assign(new Error('copy failed'), { code: 'ENOSPC' }),
     new Error('Error invoking remote method: ENOSPC: no space left on device')
   ])('maps disk-full failures to an actionable localized error', (error) => {
     expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.disk_full')
-  })
-
-  it('includes the available space reported by the failing filesystem', () => {
-    const error = new Error(`Error invoking remote method: ${BACKUP_DISK_FULL_ERROR_CODE}:536870912`)
-
-    expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.disk_full_with_available:512.0 MB')
   })
 
   it('uses the operation-neutral disk-full error for restore failures', () => {

@@ -1,15 +1,15 @@
 import i18n from '@renderer/i18n/resolver'
-import { formatFileSize } from '@renderer/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupExportSourceDiagnostic } from '@shared/ipc/schemas/backup'
-import {
-  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
-  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
-  BACKUP_DISK_FULL_ERROR_CODE,
-  BACKUP_NEWER_VERSION_ERROR_CODE,
-  BACKUP_OPERATION_BUSY_ERROR_CODE
-} from '@shared/types/backup'
+
+/**
+ * Marker main puts in the error message when a backup is refused because data
+ * writers are still active. Renderer-only: nothing in main reads it back, so it
+ * stays out of `@shared` (shared-layer-architecture.md — cross-process is the
+ * entry gate, not a description).
+ */
+export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'
 
 type BackupErrorFallbackKey =
   | 'error.backup.file_format'
@@ -40,24 +40,12 @@ function isTlsCertificateFailure(error: unknown): boolean {
 type BackupMessageKey =
   | BackupErrorFallbackKey
   | 'backup.error.active_data_writers'
-  | 'backup.error.background_tasks'
   | 'backup.error.disk_full'
-  | 'backup.error.newer_version'
-  | 'backup.error.operation_busy'
   | 'backup.error.webdav_tls_certificate'
 
 function resolveBackupErrorKey(error: unknown): string | null {
   if (!(error instanceof Error)) {
     return null
-  }
-  if (error.message.includes(BACKUP_NEWER_VERSION_ERROR_CODE)) {
-    return 'backup.error.newer_version'
-  }
-  if (error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) || error.name === 'BackupOperationBusyError') {
-    return 'backup.error.operation_busy'
-  }
-  if (error.message.includes(BACKUP_BACKGROUND_TASKS_ERROR_CODE)) {
-    return 'backup.error.background_tasks'
   }
   if (error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
     return 'backup.error.active_data_writers'
@@ -75,14 +63,6 @@ export function getLocalizedBackupErrorMessage(
     typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
       ? error.code
       : undefined
-
-  // Disk-full carries a parameterized payload, so it renders outside the key union.
-  const diskFullDetails = errorMessage.match(new RegExp(`${BACKUP_DISK_FULL_ERROR_CODE}:(\\d+)`))
-  if (diskFullDetails) {
-    return i18n.t('backup.error.disk_full_with_available', {
-      available: formatFileSize(Number(diskFullDetails[1]))
-    })
-  }
 
   const resolvedKey = resolveBackupErrorKey(error)
   if (resolvedKey) {
