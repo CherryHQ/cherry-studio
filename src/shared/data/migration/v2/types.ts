@@ -44,6 +44,8 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
+  /** Irrecoverable legacy IndexedDB data skipped so the remaining migration could complete. */
+  dexieRecovery?: DexieRecoveryReport[]
   /**
    * Resolved v1 data directory to surface on the introduction screen, seeded
    * only when the migration gate auto-recovered a non-default custom userData
@@ -113,6 +115,16 @@ export interface MigrationResult {
   error?: string
 }
 
+export type DexieRecoveryReport =
+  | {
+      scope: 'records'
+      table: string
+      skippedRecords: number
+      samplePrimaryKeys: string[]
+    }
+  | { scope: 'table'; table: string }
+  | { scope: 'database' }
+
 // Migration status stored in app_state table
 export interface MigrationStatusValue {
   status: 'completed' | 'failed' | 'in_progress'
@@ -132,6 +144,7 @@ export interface StartMigrationPayload {
   reduxData: Record<string, unknown>
   dexieExportPath: string
   localStorageExportPath?: string
+  dexieRecovery?: DexieRecoveryReport[]
 }
 
 export type MigrationDiagnosticSaveResult =

@@ -38,33 +38,38 @@ function createTableMock(inputRows: LegacyRecord[]) {
   const rows = [...inputRows].sort((a, b) => a.id.localeCompare(b.id))
   const rowsById = new Map(rows.map((row) => [row.id, row]))
   const pageQuery = vi.fn()
+  const primaryKeys = vi.fn(async (lastPrimaryKey: string | undefined, limit: number) => {
+    pageQuery()
+    return rows
+      .filter((row) => lastPrimaryKey === undefined || row.id > lastPrimaryKey)
+      .slice(0, limit)
+      .map((row) => row.id)
+  })
 
   const createCollection = (lastPrimaryKey?: string) => ({
     limit: (limit: number) => ({
-      primaryKeys: async () => {
-        pageQuery()
-        return rows
-          .filter((row) => lastPrimaryKey === undefined || row.id > lastPrimaryKey)
-          .slice(0, limit)
-          .map((row) => row.id)
-      }
+      primaryKeys: () => primaryKeys(lastPrimaryKey, limit)
     })
   })
 
   return {
     bulkGet: vi.fn(async (keys: string[]) => keys.map((key) => rowsById.get(key))),
+    get: vi.fn(async (key: string) => rowsById.get(key)),
     orderBy: vi.fn(() => createCollection()),
     pageQuery,
+    primaryKeys,
     toArray: vi.fn(async () => rows),
     where: vi.fn(() => ({ above: (key: string) => createCollection(key) }))
   }
 }
 
 function exportedText(): string {
-  return invoke.mock.calls
-    .filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
-    .map(([, , , chunk]) => chunk)
-    .join('')
+  let text = ''
+  for (const [channel, , , chunk, writeMode = 'overwrite'] of invoke.mock.calls) {
+    if (channel !== MigrationIpcChannels.WriteExportFile) continue
+    text = writeMode === 'append' ? `${text}${chunk}` : String(chunk)
+  }
+  return text
 }
 
 describe('DexieExporter', () => {
@@ -179,5 +184,182 @@ describe('DexieExporter', () => {
     await expect(new DexieExporter('/export').exportAll()).rejects.toThrow(
       'Failed to export Dexie table "message_blocks" at primary key "block-1"'
     )
+  })
+
+  it('skips only irrecoverable records when a bulk page read fails', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    const dataLoss = new DOMException(
+      'Data lost due to missing file. Affected record should be considered irrecoverable',
+      'NotReadableError'
+    )
+    table.bulkGet.mockRejectedValueOnce(new Error('Dexie read failed', { cause: dataLoss }))
+    table.get.mockImplementation(async (key) => {
+      if (key === 'block-2') throw dataLoss
+      return rows.find((row) => row.id === key)
+    })
+    dexieMock.table.mockReturnValue(table)
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual([{ id: 'block-1' }, { id: 'block-3' }])
+    expect(result).toEqual({
+      exportPath: '/export',
+      recovery: [
+        {
+          scope: 'records',
+          table: 'message_blocks',
+          skippedRecords: 1,
+          samplePrimaryKeys: ['block-2']
+        }
+      ]
+    })
+  })
+
+  it('exports an empty table when its primary keys cannot be read', async () => {
+    const table = createTableMock([{ id: 'block-1' }])
+    table.primaryKeys.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+    dexieMock.table.mockReturnValue(table)
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(exportedText()).toBe('[]')
+    expect(result).toEqual({
+      exportPath: '/export',
+      recovery: [{ scope: 'table', table: 'message_blocks' }]
+    })
+  })
+
+  it('exports every supported table as empty when the database cannot be inspected', async () => {
+    dexieMock.exists.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    const emptyTableWrites = invoke.mock.calls
+      .filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
+      .map(([, exportPath, tableName, chunk, writeMode]) => ({ exportPath, tableName, chunk, writeMode }))
+    expect(emptyTableWrites).toEqual(
+      [
+        'topics',
+        'files',
+        'knowledge_notes',
+        'message_blocks',
+        'settings',
+        'translate_history',
+        'quick_phrases',
+        'translate_languages'
+      ].map((tableName) => ({ exportPath: '/export', tableName, chunk: '[]', writeMode: 'overwrite' }))
+    )
+    expect(result).toEqual({
+      exportPath: '/export',
+      recovery: [{ scope: 'database' }]
+    })
+  })
+
+  it('finds irrecoverable data loss in either branch of a wrapped error', async () => {
+    const dataLoss = new DOMException(
+      'Data lost due to missing file. Affected record should be considered irrecoverable',
+      'NotReadableError'
+    )
+    dexieMock.exists.mockRejectedValueOnce({
+      cause: new Error('Unrelated wrapper cause'),
+      inner: dataLoss,
+      message: 'Dexie read failed'
+    })
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(result.recovery).toEqual([{ scope: 'database' }])
+  })
+
+  it('closes the failed database handle before recovering from an open error', async () => {
+    dexieMock.open.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    expect(result.recovery).toEqual([{ scope: 'database' }])
+    expect(dexieMock.close).toHaveBeenCalledOnce()
+  })
+
+  it('aggregates skipped records across pages and caps primary-key samples', async () => {
+    const rows = Array.from({ length: 105 }, (_, index) => ({
+      id: `block-${String(index).padStart(3, '0')}`,
+      secret: `content-${index}`
+    }))
+    const badIds = new Set([...Array.from({ length: 11 }, (_, index) => rows[index].id), rows[101].id])
+    const dataLoss = new DOMException(
+      'Data lost due to missing file. Affected record should be considered irrecoverable',
+      'NotReadableError'
+    )
+    const table = createTableMock(rows)
+    table.bulkGet.mockImplementation(async (keys) => {
+      if (keys.some((key) => badIds.has(key))) throw dataLoss
+      return keys.map((key) => rows.find((row) => row.id === key))
+    })
+    table.get.mockImplementation(async (key) => {
+      if (badIds.has(key)) throw dataLoss
+      return rows.find((row) => row.id === key)
+    })
+    dexieMock.table.mockReturnValue(table)
+
+    const result = await new DexieExporter('/export').exportAll()
+
+    const exported = JSON.parse(exportedText()) as LegacyRecord[]
+    expect(exported).toHaveLength(93)
+    expect(exported.some((row) => badIds.has(row.id))).toBe(false)
+    expect(result.recovery).toEqual([
+      {
+        scope: 'records',
+        table: 'message_blocks',
+        skippedRecords: 12,
+        samplePrimaryKeys: Array.from({ length: 10 }, (_, index) => `block-${String(index).padStart(3, '0')}`)
+      }
+    ])
+    expect(JSON.stringify(result)).not.toContain('content-')
+  })
+
+  it('does not degrade for other IndexedDB read errors', async () => {
+    dexieMock.exists.mockRejectedValueOnce(new DOMException('Failed to read large IndexedDB value', 'NotReadableError'))
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow('Failed to read large IndexedDB value')
+    expect(invoke).not.toHaveBeenCalledWith(
+      MigrationIpcChannels.WriteExportFile,
+      expect.anything(),
+      expect.anything(),
+      '[]',
+      'overwrite'
+    )
+  })
+
+  it('fails when an empty-table recovery export cannot be written', async () => {
+    const table = createTableMock([{ id: 'block-1' }])
+    table.primaryKeys.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+    dexieMock.table.mockReturnValue(table)
+    invoke.mockImplementation((_channel, _exportPath, _tableName, chunk) =>
+      chunk === '[]' ? Promise.reject(new Error('disk full')) : Promise.resolve(true)
+    )
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow('disk full')
+    expect(dexieMock.close).toHaveBeenCalledOnce()
   })
 })

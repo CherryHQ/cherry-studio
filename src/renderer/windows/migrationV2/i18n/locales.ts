@@ -150,9 +150,29 @@ export const zhCN = {
     completed: {
       title: '欢迎来到 Cherry Studio V2',
       description: '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
+      degraded_title: '迁移已完成，部分数据未导入',
+      degraded_description: '无法读取的旧版数据已跳过，其余可用数据已完成迁移。重启应用即可使用 V2。',
+      degraded_alert: '旧版数据库中存在无法恢复的损坏记录。Cherry Studio 已跳过这些内容，其他可用数据均已迁移。',
       steps_label: '步骤已完成',
       items_label: '迁移项',
       duration_label: '迁移耗时',
+      recovery_records: '{{table}}：{{count}} 条无法恢复的记录未导入。',
+      recovery_table: '{{table}}：数据表无法读取，已跳过该类数据。',
+      recovery_database: '旧版本地数据库无法读取，其中的数据未导入；其他来源的数据已继续迁移。',
+      recovery_impacts: {
+        topics: '受影响的记录可能导致整个对话未导入。',
+        message_blocks: '受影响的记录可能导致部分消息内容缺失。'
+      },
+      recovery_tables: {
+        topics: '对话',
+        files: '文件记录',
+        knowledge_notes: '知识库笔记',
+        message_blocks: '消息内容',
+        settings: '应用设置',
+        translate_history: '翻译记录',
+        quick_phrases: '快捷短语',
+        translate_languages: '自定义翻译语言'
+      },
       warning_heading: '{{count}} 条迁移提示',
       warning_description: '数据已迁移完成，但以下内容需要注意。',
       warning_copy: '复制全部提示',
@@ -340,9 +360,32 @@ export const enUS = {
     completed: {
       title: 'Welcome to Cherry Studio V2',
       description: 'Migration is complete. Your data is ready. Restart the app to start using V2.',
+      degraded_title: 'Migration complete with some data not imported',
+      degraded_description:
+        'Unreadable legacy data was skipped and the remaining available data was migrated. Restart the app to use V2.',
+      degraded_alert:
+        'The legacy database contained records that could not be recovered. Cherry Studio skipped them and migrated the remaining available data.',
       steps_label: 'Steps completed',
       items_label: 'Migration items',
       duration_label: 'Migration time',
+      recovery_records: '{{table}}: {{count}} unrecoverable record(s) were not imported.',
+      recovery_table: '{{table}}: the data table could not be read and was skipped.',
+      recovery_database:
+        'The legacy local database could not be read, so its data was not imported. Data from other sources was still migrated.',
+      recovery_impacts: {
+        topics: 'Affected records may cause an entire conversation not to be imported.',
+        message_blocks: 'Affected records may leave some message content missing.'
+      },
+      recovery_tables: {
+        topics: 'Conversations',
+        files: 'File records',
+        knowledge_notes: 'Knowledge base notes',
+        message_blocks: 'Message content',
+        settings: 'App settings',
+        translate_history: 'Translation history',
+        quick_phrases: 'Quick phrases',
+        translate_languages: 'Custom translation languages'
+      },
       warning_heading: '{{count}} migration notice(s)',
       warning_description: 'Migration completed, but the following items need attention.',
       warning_copy: 'Copy all notices',

@@ -1,5 +1,5 @@
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { type DexieRecoveryReport, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,6 +38,7 @@ const migrationHookMock = vi.hoisted(() => ({
   } as {
     currentMessage: string
     dataLocation?: string
+    dexieRecovery?: DexieRecoveryReport[]
     i18nMessage?: { key: string; params?: Record<string, string | number> }
     migrators: unknown[]
     overallProgress: number
@@ -485,7 +486,10 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () =>
         ({
-          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+          exportAll: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/dexie_export',
+            recovery: []
+          })
         }) as unknown as DexieExporter
     )
     vi.mocked(LocalStorageExporter).mockImplementation(
@@ -507,6 +511,56 @@ describe('MigrationApp', () => {
       reduxData: { a: 1 },
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
+    })
+  })
+
+  it('hands recoverable Dexie data loss details to the migration process', async () => {
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () =>
+        ({
+          exportAll: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/dexie_export',
+            recovery: [
+              {
+                scope: 'records',
+                table: 'message_blocks',
+                skippedRecords: 1,
+                samplePrimaryKeys: ['block-2']
+              }
+            ]
+          })
+        }) as unknown as DexieExporter
+    )
+    vi.mocked(LocalStorageExporter).mockImplementation(
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          getEntryCount: vi.fn(() => 1)
+        }) as unknown as LocalStorageExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
+
+    render(<MigrationApp />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+    })
+
+    expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
+      reduxData: {},
+      dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
+      localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json',
+      dexieRecovery: [
+        {
+          scope: 'records',
+          table: 'message_blocks',
+          skippedRecords: 1,
+          samplePrimaryKeys: ['block-2']
+        }
+      ]
     })
   })
 
@@ -558,7 +612,10 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () =>
         ({
-          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+          exportAll: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/dexie_export',
+            recovery: []
+          })
         }) as unknown as DexieExporter
     )
     vi.mocked(LocalStorageExporter).mockImplementation(
@@ -652,6 +709,63 @@ describe('MigrationApp', () => {
     )
     expect(toastSuccessMock).toHaveBeenCalledWith('migration.completed.warning_copy_success')
     expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('completes with a visible degradation warning when irrecoverable Dexie data was skipped', async () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Completed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed',
+      warnings: ['Existing migration notice'],
+      dexieRecovery: [
+        {
+          scope: 'records',
+          table: 'topics',
+          skippedRecords: 2,
+          samplePrimaryKeys: ['topic-1', 'topic-2']
+        },
+        { scope: 'table', table: 'message_blocks' }
+      ]
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.getByText('migration.completed.degraded_title')).toBeInTheDocument()
+    expect(screen.getByText('migration.completed.degraded_description')).toBeInTheDocument()
+    expect(screen.queryByText('migration.completed.title')).not.toBeInTheDocument()
+    expect(screen.queryByText('🎉')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'migration.buttons.restart' })).toBeInTheDocument()
+    const alert = screen.getByTestId('alert')
+    expect(alert).toHaveAttribute('data-type', 'warning')
+    expect(alert).toHaveTextContent('migration.completed.degraded_alert')
+
+    fireEvent.click(screen.getByRole('button', { name: 'migration.completed.warning_heading' }))
+
+    expect(
+      screen.getByText('migration.completed.recovery_records migration.completed.recovery_impacts.topics')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('migration.completed.recovery_table migration.completed.recovery_impacts.message_blocks')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Existing migration notice')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.completed.warning_copy' }))
+    })
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(
+      '1. migration.completed.recovery_records migration.completed.recovery_impacts.topics\n' +
+        '2. migration.completed.recovery_table migration.completed.recovery_impacts.message_blocks\n' +
+        '3. Existing migration notice'
+    )
+  })
+
+  it('explains the user-visible impact of damaged conversations and message content', () => {
+    expect(zhCN.migration.completed.recovery_impacts.topics).toContain('整个对话')
+    expect(zhCN.migration.completed.recovery_impacts.message_blocks).toContain('部分消息内容')
+    expect(enUS.migration.completed.recovery_impacts.topics).toContain('entire conversation')
+    expect(enUS.migration.completed.recovery_impacts.message_blocks).toContain('message content')
   })
 
   it('shows an error toast when completed migration notices cannot be copied', async () => {

@@ -10,14 +10,24 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
-import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { loggerService } from '@renderer/services/LoggerService'
+import {
+  type DexieRecoveryReport,
+  type MigrationExportFileWriteMode,
+  MigrationIpcChannels
+} from '@shared/data/migration/v2/types'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { Dexie, type IndexableType } from 'dexie'
+import { Dexie, type IndexableType, type Table } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
 const DEXIE_EXPORT_PAGE_SIZE = 100
 const DEXIE_EXPORT_CHUNK_CHAR_LIMIT = 1024 * 1024
+const RECOVERY_SAMPLE_KEY_LIMIT = 10
+const IRRECOVERABLE_MISSING_FILE_MESSAGE =
+  'Data lost due to missing file. Affected record should be considered irrecoverable'
+
+const logger = loggerService.withContext('DexieExporter')
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -29,11 +39,45 @@ const REQUIRED_TABLES = [
 
 // Optional tables that may not exist in older versions
 const OPTIONAL_TABLES = ['settings', 'translate_history', 'quick_phrases', 'translate_languages']
+const SUPPORTED_TABLES = [...REQUIRED_TABLES, ...OPTIONAL_TABLES]
 
 export interface ExportProgress {
   table: string
   progress: number
   total: number
+}
+
+export interface DexieExportResult {
+  exportPath: string
+  recovery: DexieRecoveryReport[]
+}
+
+interface PageRecord {
+  primaryKey: IndexableType
+  record: Record<string, unknown> | undefined
+}
+
+interface PageReadResult {
+  records: PageRecord[]
+  skippedPrimaryKeys: IndexableType[]
+}
+
+function isIrrecoverableMissingFileError(error: unknown): boolean {
+  const visited = new Set<object>()
+  const pending: unknown[] = [error]
+
+  while (pending.length > 0) {
+    const current = pending.pop()
+    if (typeof current !== 'object' || current === null || visited.has(current)) continue
+    visited.add(current)
+    const candidate = current as { cause?: unknown; inner?: unknown; message?: unknown }
+    if (typeof candidate.message === 'string' && candidate.message.includes(IRRECOVERABLE_MISSING_FILE_MESSAGE)) {
+      return true
+    }
+    pending.push(candidate.cause, candidate.inner)
+  }
+
+  return false
 }
 
 export class DexieExporter {
@@ -66,6 +110,19 @@ export class DexieExporter {
     }
   }
 
+  private async writeEmptySupportedTables(): Promise<void> {
+    for (const tableName of SUPPORTED_TABLES) {
+      await this.writeExportText(tableName, '[]', 'overwrite')
+    }
+  }
+
+  private createResult(recovery: DexieRecoveryReport[]): DexieExportResult {
+    if (recovery.length > 0) {
+      logger.warn('Recovered migration export from irrecoverable IndexedDB data loss', { recovery })
+    }
+    return { exportPath: this.exportPath, recovery }
+  }
+
   private createRecordExportError(tableName: string, primaryKey: IndexableType, cause: unknown): Error {
     const causeMessage = cause instanceof Error ? cause.message : String(cause)
     return new Error(
@@ -74,28 +131,71 @@ export class DexieExporter {
     )
   }
 
-  private async exportTable(db: Dexie, tableName: string): Promise<void> {
+  private async readPage(
+    table: Table<Record<string, unknown>, IndexableType>,
+    tableName: string,
+    primaryKeys: IndexableType[]
+  ): Promise<PageReadResult> {
+    try {
+      const records = await table.bulkGet(primaryKeys)
+      return {
+        records: primaryKeys.map((primaryKey, index) => ({ primaryKey, record: records[index] })),
+        skippedPrimaryKeys: []
+      }
+    } catch (error) {
+      if (!isIrrecoverableMissingFileError(error)) throw error
+    }
+
+    const records: PageRecord[] = []
+    const skippedPrimaryKeys: IndexableType[] = []
+    for (const primaryKey of primaryKeys) {
+      try {
+        records.push({ primaryKey, record: await table.get(primaryKey) })
+      } catch (error) {
+        if (!isIrrecoverableMissingFileError(error)) {
+          throw this.createRecordExportError(tableName, primaryKey, error)
+        }
+        skippedPrimaryKeys.push(primaryKey)
+      }
+    }
+
+    return { records, skippedPrimaryKeys }
+  }
+
+  private async exportTable(db: Dexie, tableName: string): Promise<DexieRecoveryReport | undefined> {
     const table = db.table<Record<string, unknown>, IndexableType>(tableName)
     let lastPrimaryKey: IndexableType | undefined
     let pendingChunk = ''
     let hasRecords = false
+    let skippedRecords = 0
+    const samplePrimaryKeys: string[] = []
 
     await this.writeExportText(tableName, '[', 'overwrite')
 
     while (true) {
       const collection = lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
-      const primaryKeys = await collection.limit(DEXIE_EXPORT_PAGE_SIZE).primaryKeys()
+      let primaryKeys: IndexableType[]
+      try {
+        primaryKeys = await collection.limit(DEXIE_EXPORT_PAGE_SIZE).primaryKeys()
+      } catch (error) {
+        if (!isIrrecoverableMissingFileError(error)) throw error
+        await this.writeExportText(tableName, '[]', 'overwrite')
+        return { scope: 'table', table: tableName }
+      }
 
       if (primaryKeys.length === 0) {
         break
       }
 
-      const records = await table.bulkGet(primaryKeys)
+      const page = await this.readPage(table, tableName, primaryKeys)
+      skippedRecords += page.skippedPrimaryKeys.length
+      for (const primaryKey of page.skippedPrimaryKeys) {
+        if (samplePrimaryKeys.length < RECOVERY_SAMPLE_KEY_LIMIT) {
+          samplePrimaryKeys.push(String(primaryKey))
+        }
+      }
 
-      for (let index = 0; index < primaryKeys.length; index++) {
-        const primaryKey = primaryKeys[index]
-        const record = records[index]
-
+      for (const { primaryKey, record } of page.records) {
         if (record === undefined) {
           throw this.createRecordExportError(tableName, primaryKey, new Error('Record missing from IndexedDB page'))
         }
@@ -132,6 +232,11 @@ export class DexieExporter {
       await this.writeExportText(tableName, pendingChunk, 'append')
     }
     await this.writeExportText(tableName, ']', 'append')
+
+    if (skippedRecords > 0) {
+      return { scope: 'records', table: tableName, skippedRecords, samplePrimaryKeys }
+    }
+    return undefined
   }
 
   /**
@@ -144,8 +249,13 @@ export class DexieExporter {
       return null
     }
     const db = new Dexie(DEXIE_DB_NAME)
-    await db.open()
-    return db
+    try {
+      await db.open()
+      return db
+    } catch (error) {
+      db.close()
+      throw error
+    }
   }
 
   /**
@@ -153,18 +263,26 @@ export class DexieExporter {
    * @param onProgress - Progress callback
    * @returns Export path
    */
-  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
-    const db = await this.openLegacyDb()
+  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<DexieExportResult> {
+    let db: Dexie | null
+    try {
+      db = await this.openLegacyDb()
+    } catch (error) {
+      if (!isIrrecoverableMissingFileError(error)) throw error
+      await this.writeEmptySupportedTables()
+      return this.createResult([{ scope: 'database' }])
+    }
     if (!db) {
       // No Dexie database at all — fresh install, nothing to export
-      return this.exportPath
+      return this.createResult([])
     }
 
     try {
+      const recovery: DexieRecoveryReport[] = []
       const existingTables = db.tables.map((t) => t.name)
 
       // Determine which tables to export (skip missing ones gracefully)
-      const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES].filter((t) => existingTables.includes(t))
+      const tablesToExport = SUPPORTED_TABLES.filter((t) => existingTables.includes(t))
 
       // Export each table
       for (let i = 0; i < tablesToExport.length; i++) {
@@ -176,7 +294,8 @@ export class DexieExporter {
           total: tablesToExport.length
         })
 
-        await this.exportTable(db, tableName)
+        const issue = await this.exportTable(db, tableName)
+        if (issue) recovery.push(issue)
 
         onProgress?.({
           table: tableName,
@@ -185,7 +304,7 @@ export class DexieExporter {
         })
       }
 
-      return this.exportPath
+      return this.createResult(recovery)
     } finally {
       db.close()
     }

@@ -228,7 +228,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
-      const { reduxData, dexieExportPath, localStorageExportPath } = payload
+      const { reduxData, dexieExportPath, localStorageExportPath, dexieRecovery } = payload
 
       if (!reduxData || !dexieExportPath) {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
@@ -267,7 +267,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
             status: 'completed'
           })),
           warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
-          summary: createMigrationSummary(result, currentProgress)
+          summary: createMigrationSummary(result, currentProgress),
+          ...(dexieRecovery?.length ? { dexieRecovery } : {})
         })
       } else {
         updateProgress({

@@ -434,7 +434,7 @@ describe('MigrationIpcHandler', () => {
     expect(windowSetStageMock).toHaveBeenCalledWith('introduction')
   })
 
-  it('derives summary and warnings on successful completion', async () => {
+  it('derives summary and preserves recovery details on successful completion', async () => {
     const result: MigrationResult = {
       success: true,
       totalDuration: 4200,
@@ -445,7 +445,18 @@ describe('MigrationIpcHandler', () => {
     }
     engineMock.run.mockResolvedValue(result)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await invoke(MigrationIpcChannels.StartMigration, {
+      reduxData: {},
+      dexieExportPath: '/dexie',
+      dexieRecovery: [
+        {
+          scope: 'records',
+          table: 'message_blocks',
+          skippedRecords: 1,
+          samplePrimaryKeys: ['block-2']
+        }
+      ]
+    })
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -456,6 +467,14 @@ describe('MigrationIpcHandler', () => {
       durationMs: 4200
     })
     expect(progress.warnings).toEqual(['w1'])
+    expect(progress.dexieRecovery).toEqual([
+      {
+        scope: 'records',
+        table: 'message_blocks',
+        skippedRecords: 1,
+        samplePrimaryKeys: ['block-2']
+      }
+    ])
   })
 
   it('uses the live migrator count for totalMigrators, distinct from completedMigrators', async () => {

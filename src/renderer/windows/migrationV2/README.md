@@ -26,6 +26,7 @@ src/renderer/windows/migrationV2/
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.
    - `DexieExporter` reads Dexie tables in primary-key pages and sends bounded JSON-array chunks via IPC (`migration:write-export-file`), so main can assemble the files on disk without direct browser access or whole-table renderer strings.
+   - For Chromium's exact irrecoverable missing-file error, `DexieExporter` falls back from a page to individual records, then to an empty table, then to empty supported Dexie tables if the database cannot open. Other errors remain fatal and the legacy database stays read-only.
 5. Components render the per-migrator list (`MigratorProgressList`), skip/close dialogs, window controls, and completion confetti used by the wizard.
 
 ## Failure Diagnostics
@@ -56,6 +57,11 @@ own.
 On completion, non-fatal migration notices stay collapsed into a single-line warning entry below Restart. The
 entry opens a scrollable dialog with the full notice list and a full-width copy action at the bottom of the
 content; the dialog intentionally has no footer.
+
+An IndexedDB recovery report still reaches the completed stage, but replaces confetti with a warning state and
+explains which user-facing data categories were not imported. Recovery notices are aggregated by table and
+merged with existing migrator notices in both the dialog and copied text. The UI never shows sampled primary
+keys or record content; conversation and message-content notices state their possible user-visible impact.
 
 ## Implementation Notes
 

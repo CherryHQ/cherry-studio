@@ -352,6 +352,22 @@ const themeLabelKey: Record<string, string> = {
   system: 'settings.theme.system'
 }
 
+const dexieTableLabelKey: Record<string, string> = {
+  files: 'migration.completed.recovery_tables.files',
+  knowledge_notes: 'migration.completed.recovery_tables.knowledge_notes',
+  message_blocks: 'migration.completed.recovery_tables.message_blocks',
+  quick_phrases: 'migration.completed.recovery_tables.quick_phrases',
+  settings: 'migration.completed.recovery_tables.settings',
+  topics: 'migration.completed.recovery_tables.topics',
+  translate_history: 'migration.completed.recovery_tables.translate_history',
+  translate_languages: 'migration.completed.recovery_tables.translate_languages'
+}
+
+const dexieTableImpactKey: Partial<Record<string, string>> = {
+  message_blocks: 'migration.completed.recovery_impacts.message_blocks',
+  topics: 'migration.completed.recovery_impacts.topics'
+}
+
 const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { progress, lastError } = useMigrationProgress()
@@ -456,11 +472,11 @@ const MigrationApp: React.FC = () => {
       const dexieExportPath = `${exportBasePath}/dexie_export`
       const dexieExporter = new DexieExporter(dexieExportPath)
 
-      await dexieExporter.exportAll((p) => {
+      const dexieResult = await dexieExporter.exportAll((p) => {
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+      logger.info('Dexie data exported', { exportPath: dexieResult.exportPath })
 
       // Export localStorage data
       const localStorageExportPath = `${exportBasePath}/localstorage_export`
@@ -474,8 +490,9 @@ const MigrationApp: React.FC = () => {
       // Start migration with exported data
       await actions.startMigration({
         reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        dexieExportPath: dexieResult.exportPath,
+        localStorageExportPath: localStorageFilePath,
+        ...(dexieResult.recovery.length > 0 ? { dexieRecovery: dexieResult.recovery } : {})
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
@@ -639,21 +656,44 @@ const MigrationApp: React.FC = () => {
 
       case 'completed': {
         const summary = progress.summary
-        const warnings = progress.warnings ?? []
+        const recoveryIssues = progress.dexieRecovery ?? []
+        const isDegraded = recoveryIssues.length > 0
+        const recoveryWarnings = recoveryIssues.map((issue) => {
+          if (issue.scope === 'database') {
+            return t('migration.completed.recovery_database')
+          }
+
+          const table = dexieTableLabelKey[issue.table] ? t(dexieTableLabelKey[issue.table]) : issue.table
+          const recoveryWarning =
+            issue.scope === 'records'
+              ? t('migration.completed.recovery_records', { count: issue.skippedRecords, table })
+              : t('migration.completed.recovery_table', { table })
+          const impactKey = dexieTableImpactKey[issue.table]
+          return impactKey ? `${recoveryWarning} ${t(impactKey)}` : recoveryWarning
+        })
+        const warnings = [...recoveryWarnings, ...(progress.warnings ?? [])]
         return (
           <div className="space-y-5">
             <TopContent>
-              <div className="relative mx-auto mb-4 inline-block text-[56px] leading-none">
-                🎉
-                <Confetti />
-              </div>
+              {isDegraded ? (
+                <StageBadge tone="warning">
+                  <AlertTriangle size={26} strokeWidth={1.5} />
+                </StageBadge>
+              ) : (
+                <div className="relative mx-auto mb-4 inline-block text-[56px] leading-none">
+                  🎉
+                  <Confetti />
+                </div>
+              )}
               <h2 className="font-semibold text-2xl text-foreground tracking-tight">
-                {t('migration.completed.title')}
+                {t(isDegraded ? 'migration.completed.degraded_title' : 'migration.completed.title')}
               </h2>
               <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
-                {t('migration.completed.description')}
+                {t(isDegraded ? 'migration.completed.degraded_description' : 'migration.completed.description')}
               </p>
             </TopContent>
+
+            {isDegraded && <Alert type="warning" showIcon description={t('migration.completed.degraded_alert')} />}
 
             {summary && (
               <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/10 py-4">
