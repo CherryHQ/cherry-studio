@@ -5942,11 +5942,6 @@
         "label": "应用日志"
       },
       "backup": {
-        "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
-        "skip_file_data_title": "精简备份",
-        "v2_unavailable": "云端备份位置尚未可用。请使用「备份与恢复」导出备份文件并从中恢复。"
-      },
-      "backup_v2": {
         "compatibility": {
           "ahead_lineage": "该备份比当前构建多 {{count}} 项数据库升级。请使用创建该备份的构建，或同一迁移链上更新的构建，然后重新选择备份文件。",
           "ahead_title": "该备份需要更新的数据库版本",

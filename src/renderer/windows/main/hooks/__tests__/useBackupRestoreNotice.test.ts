@@ -45,8 +45,8 @@ describe('useBackupRestoreNotice', () => {
     expect(toast.warning).toHaveBeenCalledWith({
       key: 'backup-restore-notice',
       timeout: 0,
-      title: 'settings.data.backup_v2.notice.completed_title',
-      description: 'settings.data.backup_v2.notice.completed_description'
+      title: 'settings.data.backup.notice.completed_title',
+      description: 'settings.data.backup.notice.completed_description'
     })
   })
 
@@ -63,14 +63,14 @@ describe('useBackupRestoreNotice', () => {
     expect(toast.warning).toHaveBeenCalledWith({
       key: 'backup-restore-notice',
       timeout: 0,
-      title: 'settings.data.backup_v2.notice.rolled_back_title',
-      description: 'settings.data.backup_v2.notice.rolled_back_description'
+      title: 'settings.data.backup.notice.rolled_back_title',
+      description: 'settings.data.backup.notice.rolled_back_description'
     })
   })
 
   it.each([
-    ['failed', 'settings.data.backup_v2.notice.failed_title'],
-    ['expired', 'settings.data.backup_v2.notice.expired_title']
+    ['failed', 'settings.data.backup.notice.failed_title'],
+    ['expired', 'settings.data.backup.notice.expired_title']
   ])('reports that a %s restore did not happen', async (state, title) => {
     statusIs({ kind: 'journal', state, restoreId: 'r1' })
 

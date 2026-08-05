@@ -7,7 +7,6 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { loggerService } from '@logger'
-import type { S3Config } from '@shared/types/backup'
 import fs from 'fs-extra'
 import * as net from 'net'
 import { Readable } from 'stream'
@@ -19,34 +18,23 @@ const logger = loggerService.withContext('S3Storage')
 const SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024
 const PUT_MAX_ATTEMPTS = 3
 
-/**
- * 将可读流转换为 Buffer
- */
-function streamToBuffer(stream: Readable): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(Buffer.concat(chunks)))
-  })
-}
-
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
 /**
- * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
+ * What this client needs to reach a bucket. Scheduling and rotation policy are
+ * deliberately absent — those belong to the destination, not to storage.
  */
-/**
- * What this class actually needs. `S3Config` also carries `autoSync` /
- * `syncInterval` / `maxBackups`, which are scheduling and rotation policy — no
- * business of a storage client.
- */
-export type S3StorageConfig = Pick<
-  S3Config,
-  'endpoint' | 'region' | 'accessKeyId' | 'secretAccessKey' | 'bucket' | 'root'
->
+export interface S3StorageConfig {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
+}
 
+/** A minimal S3 wrapper over AWS SDK v3. */
 export default class S3Storage {
   private client: S3Client
   private bucket: string
@@ -90,8 +78,6 @@ export default class S3Storage {
     this.bucket = bucket
     this.root = root?.replace(/^\/+/g, '').replace(/\/+$/g, '') || ''
 
-    this.putFileContents = this.putFileContents.bind(this)
-    this.getFileContents = this.getFileContents.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
     this.listFiles = this.listFiles.bind(this)
     this.checkConnection = this.checkConnection.bind(this)
@@ -103,37 +89,6 @@ export default class S3Storage {
   private buildKey(key: string): string {
     if (!this.root) return key
     return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
-  }
-
-  async putFileContents(key: string, data: Buffer | string) {
-    try {
-      const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
-
-      return await this.client.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: this.buildKey(key),
-          Body: data,
-          ContentType: contentType
-        })
-      )
-    } catch (error) {
-      logger.error('[S3Storage] Error putting object:', error as Error)
-      throw error
-    }
-  }
-
-  async getFileContents(key: string): Promise<Buffer> {
-    try {
-      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
-      if (!res.Body || !(res.Body instanceof Readable)) {
-        throw new Error('Empty body received from S3')
-      }
-      return await streamToBuffer(res.Body as Readable)
-    } catch (error) {
-      logger.error('[S3Storage] Error getting object:', error as Error)
-      throw error
-    }
   }
 
   async deleteFile(key: string) {

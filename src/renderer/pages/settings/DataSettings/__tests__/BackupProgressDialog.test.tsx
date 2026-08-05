@@ -32,7 +32,7 @@ describe('BackupProgressDialog', () => {
     render(<BackupProgressDialog open operation="export" />)
     emit({ operation: 'export', stage: 'snapshotting-db' })
 
-    expect(await screen.findByText('settings.data.backup_v2.progress.stage.snapshotting-db')).toBeInTheDocument()
+    expect(await screen.findByText('settings.data.backup.progress.stage.snapshotting-db')).toBeInTheDocument()
   })
 
   it('names the unit being worked on and how far through the set it is', () => {
@@ -53,7 +53,7 @@ describe('BackupProgressDialog', () => {
     render(<BackupProgressDialog open operation="export" />)
     emit({ operation: 'prepare-restore', stage: 'admitting' })
 
-    expect(screen.queryByText('settings.data.backup_v2.progress.stage.admitting')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.progress.starting')).toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup.progress.stage.admitting')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.progress.starting')).toBeInTheDocument()
   })
 })

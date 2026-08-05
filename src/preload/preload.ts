@@ -79,12 +79,6 @@ const api = {
   zip: {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
-  backup: {
-    createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
-    deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
-  },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
@@ -285,6 +279,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
   },
   lanTransfer: {
+    deleteFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.LanTransfer_DeleteFile, filePath),
     startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
     stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),
     connect: (payload: LanTransferConnectPayload): Promise<LanHandshakeAckMessage> =>

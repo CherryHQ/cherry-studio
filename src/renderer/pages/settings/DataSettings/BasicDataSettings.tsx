@@ -19,7 +19,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BackupV2Settings from './BackupV2Settings'
+import BackupSettings from './BackupSettings'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
 
@@ -211,7 +211,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
-      <BackupV2Settings />
+      <BackupSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

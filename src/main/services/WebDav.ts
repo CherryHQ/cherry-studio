@@ -1,18 +1,19 @@
 import { loggerService } from '@logger'
-import type { WebDavConfig } from '@shared/types/backup'
 import https from 'https'
 import path from 'path'
 import type Stream from 'stream'
-import type {
-  BufferLike,
-  CreateDirectoryOptions,
-  GetFileContentsOptions,
-  PutFileContentsOptions,
-  WebDAVClient
-} from 'webdav'
+import type { BufferLike, CreateDirectoryOptions, PutFileContentsOptions, WebDAVClient } from 'webdav'
 import { createClient } from 'webdav'
 
 const logger = loggerService.withContext('WebDav')
+
+/** What this client needs to reach a server. Resolved in main, never over IPC. */
+export interface WebDavConfig {
+  webdavHost: string
+  webdavUser?: string
+  webdavPass?: string
+  webdavPath?: string
+}
 
 export default class WebDav {
   public instance: WebDAVClient | undefined
@@ -32,7 +33,6 @@ export default class WebDav {
     })
 
     this.putFileContents = this.putFileContents.bind(this)
-    this.getFileContents = this.getFileContents.bind(this)
     this.createDirectory = this.createDirectory.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
   }
@@ -67,24 +67,8 @@ export default class WebDav {
     }
   }
 
-  public getFileContents = async (filename: string, options?: GetFileContentsOptions) => {
-    if (!this.instance) {
-      throw new Error('WebDAV client not initialized')
-    }
-
-    const remoteFilePath = path.posix.join(this.webdavPath, filename)
-
-    try {
-      return await this.instance.getFileContents(remoteFilePath, options)
-    } catch (error) {
-      logger.error('Error getting file contents on WebDAV:', error as Error)
-      throw error
-    }
-  }
-
   /**
-   * Stream a remote file. Downloads go through this rather than
-   * {@link getFileContents} so a profile-sized archive never has to fit in heap.
+   * Stream a remote file — a profile-sized archive must never have to fit in heap.
    */
   public createReadStream = (filename: string): Stream.Readable => {
     if (!this.instance) {

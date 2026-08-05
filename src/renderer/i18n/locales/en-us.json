@@ -5942,11 +5942,6 @@
         "label": "App Logs"
       },
       "backup": {
-        "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup",
-        "v2_unavailable": "Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
-      },
-      "backup_v2": {
         "compatibility": {
           "ahead_lineage": "This backup contains {{count}} database update(s) this build does not have. Use the build that created it, or a later build from the same migration line, then choose the backup again.",
           "ahead_title": "This backup needs a newer database version",

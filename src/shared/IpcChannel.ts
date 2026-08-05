@@ -89,8 +89,6 @@ export enum IpcChannel {
   File_TreeMutation = 'file:tree:mutation',
 
   // backup
-  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Decompress = 'zip:decompress',
@@ -99,7 +97,6 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
 
   // events
-  BackupProgress = 'backup-progress',
   RestoreProgress = 'restore-progress',
 
   // Data: Preference
@@ -144,7 +141,8 @@ export enum IpcChannel {
   LanTransfer_Disconnect = 'lan-transfer:disconnect',
   LanTransfer_ClientEvent = 'lan-transfer:client-event',
   LanTransfer_SendFile = 'lan-transfer:send-file',
-  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer'
+  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
+  LanTransfer_DeleteFile = 'lan-transfer:delete-file'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via
