@@ -56,6 +56,26 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     expect(config).toEqual({ openai: {} })
   })
 
+  it('emits the openrouter web_search server-tool args (camelCase, mapped to the wire tool)', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openrouter',
+      webSearchConfig,
+      model({ id: 'openrouter::anthropic/claude-4', providerId: 'openrouter', apiModelId: 'anthropic/claude-4' }),
+      preset('openrouter')
+    )
+    expect(config).toEqual({ openrouter: { maxResults: 50 } })
+  })
+
+  it('forwards excluded domains to the openrouter web_search tool (→ excluded_domains)', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openrouter',
+      { maxResults: 10, excludeDomains: ['example.com', 'https://foo.dev/bar'] },
+      model({ id: 'openrouter::x/y', providerId: 'openrouter', apiModelId: 'x/y' }),
+      preset('openrouter')
+    )
+    expect(config).toEqual({ openrouter: { maxResults: 10, excludedDomains: ['example.com', 'foo.dev'] } })
+  })
+
   it('keeps searchContextSize for real openai models', () => {
     const config = buildProviderBuiltinWebSearchConfig(
       'openai',
