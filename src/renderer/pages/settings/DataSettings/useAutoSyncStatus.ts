@@ -14,8 +14,8 @@ const REFRESH_INTERVAL_MS = 30_000
 
 /** Why the latest scheduled run wrote nothing, as the sentence the status tooltip shows. */
 export const AUTO_SYNC_PROBLEM_KEYS: Record<NonNullable<AutoSyncStatus['problem']>, string> = {
-  failed: 'settings.data.backup_v2.error.unexpected',
-  'not-configured': 'settings.data.backup_v2.error.destination_not_configured'
+  failed: 'settings.data.backup.error.unexpected',
+  'not-configured': 'settings.data.backup.error.destination_not_configured'
 }
 
 /**

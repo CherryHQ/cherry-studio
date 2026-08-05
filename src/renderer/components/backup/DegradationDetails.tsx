@@ -11,21 +11,21 @@ export type BackupDegradation = Extract<
 
 /** Written out rather than interpolated, so the keys stay greppable. */
 const DEGRADATION_KEYS: Record<BackupDegradationCode, string> = {
-  'capability-malformed': 'settings.data.backup_v2.outcome.degradation.capability_malformed',
-  'external-file-dropped': 'settings.data.backup_v2.outcome.degradation.external_file_dropped',
-  'path-unportable': 'settings.data.backup_v2.outcome.degradation.path_unportable',
-  'path-collision': 'settings.data.backup_v2.outcome.degradation.path_collision',
-  'resource-unavailable': 'settings.data.backup_v2.outcome.degradation.resource_unavailable',
-  'resource-changed': 'settings.data.backup_v2.outcome.degradation.resource_changed',
-  'resource-nonportable': 'settings.data.backup_v2.outcome.degradation.resource_nonportable',
-  'resource-limit': 'settings.data.backup_v2.outcome.degradation.resource_limit',
-  'workspace-disconnected': 'settings.data.backup_v2.outcome.degradation.workspace_disconnected',
-  'external-reference': 'settings.data.backup_v2.outcome.degradation.external_reference',
-  'dangling-reference': 'settings.data.backup_v2.outcome.degradation.dangling_reference',
-  'cyclic-reference': 'settings.data.backup_v2.outcome.degradation.cyclic_reference',
-  'unclassified-reference': 'settings.data.backup_v2.outcome.degradation.unclassified_reference',
-  'knowledge-index-rebuild': 'settings.data.backup_v2.outcome.degradation.knowledge_index_rebuild',
-  unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
+  'capability-malformed': 'settings.data.backup.outcome.degradation.capability_malformed',
+  'external-file-dropped': 'settings.data.backup.outcome.degradation.external_file_dropped',
+  'path-unportable': 'settings.data.backup.outcome.degradation.path_unportable',
+  'path-collision': 'settings.data.backup.outcome.degradation.path_collision',
+  'resource-unavailable': 'settings.data.backup.outcome.degradation.resource_unavailable',
+  'resource-changed': 'settings.data.backup.outcome.degradation.resource_changed',
+  'resource-nonportable': 'settings.data.backup.outcome.degradation.resource_nonportable',
+  'resource-limit': 'settings.data.backup.outcome.degradation.resource_limit',
+  'workspace-disconnected': 'settings.data.backup.outcome.degradation.workspace_disconnected',
+  'external-reference': 'settings.data.backup.outcome.degradation.external_reference',
+  'dangling-reference': 'settings.data.backup.outcome.degradation.dangling_reference',
+  'cyclic-reference': 'settings.data.backup.outcome.degradation.cyclic_reference',
+  'unclassified-reference': 'settings.data.backup.outcome.degradation.unclassified_reference',
+  'knowledge-index-rebuild': 'settings.data.backup.outcome.degradation.knowledge_index_rebuild',
+  unknown: 'settings.data.backup.outcome.degradation.unknown'
 }
 
 export function degradationCount(degradations: readonly BackupDegradation[]): number {

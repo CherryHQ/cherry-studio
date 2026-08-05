@@ -34,7 +34,7 @@ import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
-import BackupV2Settings from './BackupV2Settings'
+import BackupSettings from './BackupSettings'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
 import {
   beginLegacyV1Cleanup,
@@ -302,7 +302,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
-      <BackupV2Settings />
+      <BackupSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

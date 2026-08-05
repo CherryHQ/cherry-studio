@@ -65,10 +65,10 @@ describe('LocalBackupManager restore', () => {
     await clickRestore()
 
     const props = vi.mocked(popup.confirm).mock.calls[0][0]
-    expect(props.title).toBe('settings.data.backup_v2.restore.confirm_title')
+    expect(props.title).toBe('settings.data.backup.restore.confirm_title')
     const details = render(props.content as ReactElement)
-    expect(details.getByText('settings.data.backup_v2.restore.confirm_content')).toBeInTheDocument()
-    expect(details.getByText('settings.data.backup_v2.outcome.degradation.resource_unavailable')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup.restore.confirm_content')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup.outcome.degradation.resource_unavailable')).toBeInTheDocument()
     expect(details.getByText('Data/Files/a.pdf')).toBeInTheDocument()
   })
 

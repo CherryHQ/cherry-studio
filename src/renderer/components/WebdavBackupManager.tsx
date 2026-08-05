@@ -178,10 +178,10 @@ export function WebdavBackupManager({
       if (result.status === 'canceled') return
 
       const confirmed = await popup.confirm({
-        title: t('settings.data.backup_v2.restore.confirm_title'),
+        title: t('settings.data.backup.restore.confirm_title'),
         icon: <CircleAlert />,
         content: <RestoreConfirmContent preview={result.preview} />,
-        okText: t('settings.data.backup_v2.restore.confirm_ok'),
+        okText: t('settings.data.backup.restore.confirm_ok'),
         cancelText: t('common.cancel'),
         centered: true,
         okButtonProps: { danger: true }

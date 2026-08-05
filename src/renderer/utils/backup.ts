@@ -92,27 +92,27 @@ export interface BackupErrorMessage {
   readonly params?: { readonly path: string }
 }
 
-const UNEXPECTED_KEY = 'settings.data.backup_v2.error.unexpected'
+const UNEXPECTED_KEY = 'settings.data.backup.error.unexpected'
 
 // One sentence per IpcApi backup code, so adding a code without one fails to compile.
 const BACKUP_ERROR_KEYS: Record<BackupErrorCode, string> = {
-  [backupErrorCodes.BUSY]: 'settings.data.backup_v2.error.busy',
+  [backupErrorCodes.BUSY]: 'settings.data.backup.error.busy',
   // Only a window this app does not manage can hit it; there is nothing to tell a user.
   [backupErrorCodes.SENDER_NOT_ALLOWED]: UNEXPECTED_KEY,
-  [backupErrorCodes.ARCHIVE_REJECTED]: 'settings.data.backup_v2.error.archive_rejected',
-  [backupErrorCodes.RESTORE_REQUIRES_NEWER_APP]: 'settings.data.backup_v2.compatibility.ahead_title',
-  [backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE]: 'settings.data.backup_v2.compatibility.fork_title',
-  [backupErrorCodes.FORMAT_UNSUPPORTED]: 'settings.data.backup_v2.compatibility.format_title',
-  [backupErrorCodes.RESTORE_STATE]: 'settings.data.backup_v2.error.restore_state',
-  [backupErrorCodes.JOURNAL_UNREADABLE]: 'settings.data.backup_v2.error.journal_unreadable',
-  [backupErrorCodes.ARM_FAILED]: 'settings.data.backup_v2.error.arm_failed',
-  [backupErrorCodes.ROLLBACK_UNAVAILABLE]: 'settings.data.backup_v2.error.rollback_unavailable',
-  [backupErrorCodes.RECOVERY_INCOMPLETE]: 'settings.data.backup_v2.error.recovery_incomplete',
-  [backupErrorCodes.STORAGE_UNAVAILABLE]: 'settings.data.backup_v2.error.storage_unavailable',
-  [backupErrorCodes.EXPORT_SOURCE]: 'settings.data.backup_v2.error.export_source',
-  [backupErrorCodes.EXPORT_DESTINATION]: 'settings.data.backup_v2.error.export_destination',
-  [backupErrorCodes.RESTORE_RESOURCES]: 'settings.data.backup_v2.error.restore_resources',
-  [backupErrorCodes.DESTINATION_NOT_CONFIGURED]: 'settings.data.backup_v2.error.destination_not_configured'
+  [backupErrorCodes.ARCHIVE_REJECTED]: 'settings.data.backup.error.archive_rejected',
+  [backupErrorCodes.RESTORE_REQUIRES_NEWER_APP]: 'settings.data.backup.compatibility.ahead_title',
+  [backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE]: 'settings.data.backup.compatibility.fork_title',
+  [backupErrorCodes.FORMAT_UNSUPPORTED]: 'settings.data.backup.compatibility.format_title',
+  [backupErrorCodes.RESTORE_STATE]: 'settings.data.backup.error.restore_state',
+  [backupErrorCodes.JOURNAL_UNREADABLE]: 'settings.data.backup.error.journal_unreadable',
+  [backupErrorCodes.ARM_FAILED]: 'settings.data.backup.error.arm_failed',
+  [backupErrorCodes.ROLLBACK_UNAVAILABLE]: 'settings.data.backup.error.rollback_unavailable',
+  [backupErrorCodes.RECOVERY_INCOMPLETE]: 'settings.data.backup.error.recovery_incomplete',
+  [backupErrorCodes.STORAGE_UNAVAILABLE]: 'settings.data.backup.error.storage_unavailable',
+  [backupErrorCodes.EXPORT_SOURCE]: 'settings.data.backup.error.export_source',
+  [backupErrorCodes.EXPORT_DESTINATION]: 'settings.data.backup.error.export_destination',
+  [backupErrorCodes.RESTORE_RESOURCES]: 'settings.data.backup.error.restore_resources',
+  [backupErrorCodes.DESTINATION_NOT_CONFIGURED]: 'settings.data.backup.error.destination_not_configured'
 }
 
 function isBackupErrorCode(code: string): code is BackupErrorCode {
@@ -159,34 +159,34 @@ function exportSourceMessage(data: unknown): BackupErrorMessage {
   switch (diagnostic.kind) {
     case 'source-changed':
       return params
-        ? { key: 'settings.data.backup_v2.error.export_source_changed_path', params }
-        : { key: 'settings.data.backup_v2.error.export_source_changed' }
+        ? { key: 'settings.data.backup.error.export_source_changed_path', params }
+        : { key: 'settings.data.backup.error.export_source_changed' }
     case 'non-regular':
       return params
-        ? { key: 'settings.data.backup_v2.error.export_source_non_regular_path', params }
-        : { key: 'settings.data.backup_v2.error.export_source_non_regular' }
+        ? { key: 'settings.data.backup.error.export_source_non_regular_path', params }
+        : { key: 'settings.data.backup.error.export_source_non_regular' }
     case 'unportable-path':
       if (diagnostic.reason === 'name-collision') {
         return params
-          ? { key: 'settings.data.backup_v2.error.export_source_collision_path', params }
-          : { key: 'settings.data.backup_v2.error.export_source_collision' }
+          ? { key: 'settings.data.backup.error.export_source_collision_path', params }
+          : { key: 'settings.data.backup.error.export_source_collision' }
       }
       return params
-        ? { key: 'settings.data.backup_v2.error.export_source_unportable_path', params }
-        : { key: 'settings.data.backup_v2.error.export_source_unportable' }
+        ? { key: 'settings.data.backup.error.export_source_unportable_path', params }
+        : { key: 'settings.data.backup.error.export_source_unportable' }
     case 'limit-exceeded':
       switch (diagnostic.limit) {
         case 'entry-count':
         case 'resource-entries':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_count' }
+          return { key: 'settings.data.backup.error.export_source_limit_count' }
         case 'entry-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_entry' }
+          return { key: 'settings.data.backup.error.export_source_limit_entry' }
         case 'total-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_total' }
+          return { key: 'settings.data.backup.error.export_source_limit_total' }
         case 'manifest-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_manifest' }
+          return { key: 'settings.data.backup.error.export_source_limit_manifest' }
         case 'unknown':
-          return { key: 'settings.data.backup_v2.error.export_source_limit' }
+          return { key: 'settings.data.backup.error.export_source_limit' }
       }
   }
 }
