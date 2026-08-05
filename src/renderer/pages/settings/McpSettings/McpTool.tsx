@@ -71,7 +71,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
   const getTypeBadgeClass = (type: string) => {
     switch (type) {
       case 'string':
-        return 'border-primary/30 bg-primary/10 text-primary'
+        return 'border-control-accent/30 bg-control-accent/10 text-control-accent'
       case 'number':
         return 'border-success-border bg-success-subtle text-success-subtle-foreground'
       case 'boolean':

@@ -29,9 +29,9 @@ const SourceFilterTrigger = ({
     type="button"
     className={cn(
       'inline-flex h-8 w-fit min-w-[128px] max-w-[220px] items-center justify-between gap-2 whitespace-nowrap',
-      'rounded-md border border-border bg-transparent px-3 font-normal text-foreground text-xs outline-none transition-colors',
-      'hover:bg-accent/40 focus-visible:bg-accent/40',
-      'data-[state=open]:bg-accent/40',
+      'rounded-md border border-input bg-transparent px-3 font-normal text-foreground text-xs outline-none transition-colors',
+      'hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent',
+      'data-[state=open]:bg-transparent dark:bg-transparent',
       className
     )}
     {...props}>

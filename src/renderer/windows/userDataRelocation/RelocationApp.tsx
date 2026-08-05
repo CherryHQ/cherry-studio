@@ -74,11 +74,11 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
       <div className="h-2 w-full overflow-hidden rounded-full bg-border">
         {hasTotal ? (
           <div
-            className="h-full rounded-full bg-primary transition-[width] duration-200"
+            className="h-full rounded-full bg-control-accent transition-[width] duration-200"
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-control-accent" />
         )}
       </div>
       <span className="min-h-4 text-foreground-tertiary text-xs">{hasTotal ? `${percent}%` : ''}</span>

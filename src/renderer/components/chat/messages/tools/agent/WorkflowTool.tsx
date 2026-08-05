@@ -72,7 +72,7 @@ export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentTo
                     size="icon-sm"
                     aria-label={copied ? t('common.copied') : t('common.copy')}
                     onClick={copyScript}>
-                    {copied ? <Check size={14} className="text-primary" /> : <CopyIcon size={14} />}
+                    {copied ? <Check size={14} className="text-control-accent" /> : <CopyIcon size={14} />}
                   </Button>
                 </Tooltip>
               ) : null}

@@ -227,10 +227,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const stepDotClass = (status: 'finish' | 'process' | 'wait' | 'error') =>
     cn(
       'mt-0.5 mb-0.5 size-2.5 shrink-0 rounded-full border-2 border-background',
-      status === 'finish' && 'bg-primary',
-      status === 'process' && 'bg-primary ring-2 ring-primary/30',
+      status === 'finish' && 'bg-success',
+      status === 'process' && 'bg-control-accent ring-2 ring-control-accent/30',
       status === 'wait' && 'bg-muted',
-      status === 'error' && 'bg-destructive'
+      status === 'error' && 'bg-error'
     )
 
   const renderAuthContent = () => {
@@ -276,8 +276,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   <div className="mb-3 flex items-start gap-3">
                     <span
                       className={cn(
-                        'flex size-6 shrink-0 items-center justify-center rounded-full font-bold text-primary-foreground text-xs',
-                        currentStep > 1 ? 'bg-primary' : 'bg-primary'
+                        'flex size-6 shrink-0 items-center justify-center rounded-full font-bold text-control-accent-foreground text-xs',
+                        currentStep > 1 ? 'bg-control-accent' : 'bg-control-accent'
                       )}>
                       2
                     </span>
@@ -301,7 +301,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               {currentStep >= 1 && (
                 <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-control-accent font-bold text-control-accent-foreground text-xs">
                       3
                     </span>
                     <div>
@@ -323,7 +323,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               {currentStep >= 2 && (
                 <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border">
                   <div className="mb-3 flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-control-accent font-bold text-control-accent-foreground text-xs">
                       4
                     </span>
                     <div>

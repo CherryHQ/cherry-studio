@@ -88,7 +88,7 @@ export const FileProcessorSelector = ({
           variant="outline"
           aria-label={ariaLabel}
           className={cn(
-            'h-8 w-full min-w-0 justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+            'h-8 w-full min-w-0 justify-between gap-2 rounded-md border-input bg-transparent px-3 font-normal text-sm shadow-none hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent',
             selectedOption ? 'text-foreground' : 'text-muted-foreground'
           )}>
           <span className="flex min-w-0 flex-1 items-center gap-2">

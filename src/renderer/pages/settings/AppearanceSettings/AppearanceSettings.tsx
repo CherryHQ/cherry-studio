@@ -78,7 +78,6 @@ type ThemePreviewOption = {
 }
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
-const fontComboboxClassName = 'h-8 rounded-md border-border bg-transparent pl-3 pr-8 text-sm dark:bg-input/30'
 const logger = loggerService.withContext('AppearanceSettings')
 
 export async function confirmMenuPresentationModeChange({
@@ -456,7 +455,6 @@ const AppearanceSettings: FC = () => {
                 onChange={handleUserFontComboboxChange}
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
-                className={fontComboboxClassName}
                 triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
                 popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
@@ -481,7 +479,6 @@ const AppearanceSettings: FC = () => {
                 onChange={handleUserCodeFontComboboxChange}
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
-                className={fontComboboxClassName}
                 triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
                 popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
@@ -644,7 +641,7 @@ const ThemePreviewSelector = ({
               'rounded-lg border bg-background-subtle p-1.5 transition-colors',
               'group-focus-visible:border-ring group-focus-visible:bg-accent',
               value === option.value
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'border-control-accent ring-2 ring-control-accent/20'
                 : 'border-border group-hover:border-border-strong group-hover:bg-accent'
             )}>
             <ThemePreview mode={option.value} />

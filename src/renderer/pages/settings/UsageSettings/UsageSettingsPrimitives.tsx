@@ -267,7 +267,7 @@ export function MetricSparkline({ values }: { values: number[] }) {
 
   return (
     <div className="flex h-8 w-12 shrink-0 items-center" aria-hidden>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-8 w-full text-primary">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-8 w-full text-control-accent">
         <polyline
           points={points}
           fill="none"

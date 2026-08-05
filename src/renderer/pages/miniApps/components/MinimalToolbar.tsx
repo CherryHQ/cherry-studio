@@ -347,7 +347,7 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
     disabled
       ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
       : active
-        ? 'text-primary hover:text-primary'
+        ? 'text-control-accent hover:text-control-accent'
         : 'text-muted-foreground hover:text-foreground'
   )
 

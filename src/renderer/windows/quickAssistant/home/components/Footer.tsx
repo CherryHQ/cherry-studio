@@ -80,7 +80,9 @@ const Footer: FC<FooterProps> = ({
           <Pin
             size={14}
             className={
-              isPinned ? 'rotate-[40deg] text-primary transition-transform' : 'text-foreground transition-transform'
+              isPinned
+                ? 'rotate-[40deg] text-control-accent transition-transform'
+                : 'text-foreground transition-transform'
             }
           />
         </Tooltip>

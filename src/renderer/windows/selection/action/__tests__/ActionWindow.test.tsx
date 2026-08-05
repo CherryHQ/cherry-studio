@@ -75,12 +75,14 @@ describe('ActionWindow surface', () => {
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('uses an opaque popover surface at 100% window opacity', () => {
+  it('uses the rounded sidebar shell and opaque content frame at 100% window opacity', () => {
     const { container } = render(<ActionWindow />)
     const windowFrame = container.firstElementChild
+    const contentFrame = container.querySelector('[class~="rounded-[16px]"]')
 
-    expect(windowFrame).toHaveClass('bg-popover')
+    expect(windowFrame).toHaveClass('rounded-[20px]', 'bg-sidebar')
     expect(windowFrame).not.toHaveClass('bg-background')
+    expect(contentFrame).toHaveClass('bg-background', 'border-border-subtle')
     expect(windowFrame).toHaveStyle({ opacity: '1' })
   })
 
@@ -101,7 +103,7 @@ describe('ActionWindow surface', () => {
     expect(titleBar).toHaveStyle({ paddingLeft: '78px' })
   })
 
-  it('uses compact title-bar icons and a neutral pinned state', () => {
+  it('uses compact title-bar icons and the control accent for active controls', () => {
     const { container } = render(<ActionWindow />)
 
     expect(screen.getByTestId('action-icon')).toHaveAttribute('data-size', '14')
@@ -113,14 +115,14 @@ describe('ActionWindow surface', () => {
     const pinButton = container.querySelector('.lucide-pin')?.closest('button')
     fireEvent.click(pinButton!)
 
-    expect(pinButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
+    expect(pinButton).toHaveClass('bg-control-accent/10', 'text-control-accent', 'hover:bg-control-accent/10')
     expect(pinButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('text-accent-foreground')
+    expect(container.querySelector('.lucide-pin')).toHaveClass('text-control-accent')
 
     const opacityButton = container.querySelector('.lucide-droplet')?.closest('button')
     fireEvent.click(opacityButton!)
 
-    expect(opacityButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
+    expect(opacityButton).toHaveClass('bg-control-accent/10', 'text-control-accent', 'hover:bg-control-accent/10')
     expect(opacityButton).not.toHaveClass('bg-primary/10', 'text-primary')
     const opacitySlider = container.querySelector('[data-slot="slider"]')
 
@@ -135,7 +137,7 @@ describe('ActionWindow surface', () => {
 
     fireEvent.click(pinButton!)
     fireEvent.click(opacityButton!)
-    expect(pinButton).toHaveClass('bg-accent')
+    expect(pinButton).toHaveClass('bg-control-accent/10')
     expect(container.querySelector('[data-slot="slider"]')).toBeInTheDocument()
 
     vi.mocked(HTMLElement.prototype.scrollTo).mockClear()
@@ -146,7 +148,7 @@ describe('ActionWindow surface', () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="slider"]')).not.toBeInTheDocument()
-      expect(pinButton).not.toHaveClass('bg-accent')
+      expect(pinButton).not.toHaveClass('bg-control-accent/10')
     })
     expect(container.firstElementChild).toHaveStyle({ opacity: '0.6' })
     expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({ top: 0 })

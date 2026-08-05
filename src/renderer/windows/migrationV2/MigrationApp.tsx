@@ -66,7 +66,7 @@ const logger = loggerService.withContext('MigrationApp')
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
-  primary: 'border-primary/20 bg-primary/10 text-primary',
+  primary: 'border-control-accent/20 bg-control-accent/10 text-control-accent',
   success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
   warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
   destructive: 'border-error-border bg-error-subtle text-error-subtle-foreground',
@@ -86,7 +86,7 @@ const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
   <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
     <div
-      className="h-full rounded-full bg-primary transition-[width] duration-300"
+      className="h-full rounded-full bg-control-accent transition-[width] duration-300"
       style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
     />
   </div>
@@ -149,7 +149,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 <span
                   className={cn(
                     '-translate-x-1/2 absolute top-1/2 left-3 h-11 w-px',
-                    done ? 'bg-primary/40' : 'bg-border'
+                    done ? 'bg-control-accent/40' : 'bg-border'
                   )}
                 />
               )}
@@ -157,7 +157,7 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
                   isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
-                  !isError && (active || done) && 'bg-primary text-primary-foreground',
+                  !isError && (active || done) && 'bg-control-accent text-control-accent-foreground',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
                 )}>
                 {isError ? (

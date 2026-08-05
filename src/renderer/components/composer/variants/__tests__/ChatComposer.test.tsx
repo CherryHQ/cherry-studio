@@ -1227,6 +1227,16 @@ describe('ChatComposer', () => {
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A')).toBeInTheDocument()
+    expect(screen.getByText('Assistant 1').closest('button')).toHaveClass(
+      'h-7',
+      'rounded-lg',
+      'border-input',
+      'bg-transparent',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'aria-expanded:bg-transparent'
+    )
+    expect(screen.getByText('Assistant 1').closest('button')).not.toHaveClass('rounded-full')
   })
 
   it('does not enable skill marker paste handling', () => {
@@ -2845,6 +2855,15 @@ describe('ChatComposer', () => {
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
     expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Assistant 1').closest('button')).toHaveClass(
+      'h-8',
+      'rounded-lg',
+      'border-input',
+      'bg-transparent',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'aria-expanded:bg-transparent'
+    )
 
     await notifyComposerBottomToolbarWidth(420)
 

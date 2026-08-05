@@ -178,7 +178,7 @@ const NpxSearch: FC = () => {
                         }
                       }}
                       disabled={isInstalled}>
-                      {isInstalled ? <Check size={14} className="text-primary" /> : <Plus size={14} />}
+                      {isInstalled ? <Check size={14} className="text-success" /> : <Plus size={14} />}
                     </Button>
                   </Flex>
                 </div>

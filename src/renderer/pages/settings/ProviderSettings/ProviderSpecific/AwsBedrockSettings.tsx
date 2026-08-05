@@ -134,9 +134,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     <>
       <ProviderSettingsSubtitle className="mt-1.5">{t('settings.provider.aws-bedrock.title')}</ProviderSettingsSubtitle>
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-info-border bg-info-subtle px-3 py-2.5 text-info-subtle-foreground text-sm"
         role="status">
-        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
         <span>{t('settings.provider.aws-bedrock.description')}</span>
       </div>
 

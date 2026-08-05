@@ -41,7 +41,7 @@ const ActionIcons: FC<{
         {copyIconStatus === 'success' && (
           <ClipboardCheck
             className={cn(
-              'btn-icon text-primary',
+              'btn-icon text-control-accent',
               COPY_ICON_CLASS_NAME,
               copyIconAnimation === 'enter' && 'scale-100 opacity-100',
               copyIconAnimation !== 'enter' && 'scale-0 opacity-0'
@@ -82,7 +82,7 @@ const ActionIcons: FC<{
             className={cn(
               'relative flex size-4 items-center justify-center bg-transparent',
               '[&_svg]:text-card-foreground',
-              'group-hover:[&_svg]:text-primary'
+              'group-hover:[&_svg]:text-control-accent'
             )}>
             {action.id === 'copy' ? (
               renderCopyIcon()
@@ -100,7 +100,7 @@ const ActionIcons: FC<{
             <span
               className={cn(
                 'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-card-foreground text-sm leading-[1.1] transition-colors duration-100',
-                'group-hover:text-primary'
+                'group-hover:text-control-accent'
               )}>
               {displayName}
             </span>

@@ -64,8 +64,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       minHeight: MIN_WINDOW_HEIGHT,
       autoHideMenuBar: true,
       transparent: false,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      // Bright glass while key; macOS flattens it when the window deactivates.
+      vibrancy: 'menu',
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
@@ -213,8 +214,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // is never silently flipped to false (which would re-introduce the empty-shell first-paint
       // flash on reuse and the never-fires ready-to-show stuck-hidden failure mode).
       paintWhenInitiallyHidden: true,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      // Match the main shell's active/inactive native material behavior.
+      vibrancy: 'menu',
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',

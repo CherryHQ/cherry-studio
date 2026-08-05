@@ -2148,7 +2148,7 @@ export default function ComposerSurface({
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
         belowControls ? 'mb-0.5' : 'mb-3',
-        isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
+        isEditingBorderHighlighted && !isDragging && 'border-control-accent ring-2 ring-control-accent/20',
         isDragging &&
           "border-2 border-success border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
@@ -2167,8 +2167,8 @@ export default function ComposerSurface({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-control-accent/40 focus-visible:outline-none">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-control-accent/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-control-accent/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
             <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">

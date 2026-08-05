@@ -105,7 +105,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
-                {copied ? <Check size={14} color="var(--primary)" /> : <CopyIcon size={14} />}
+                {copied ? <Check size={14} color="var(--control-accent)" /> : <CopyIcon size={14} />}
               </div>
             </Tooltip>
           )}

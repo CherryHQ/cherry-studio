@@ -143,7 +143,7 @@ export const drawerClasses = {
     'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring',
   inputDisabled: 'bg-muted text-foreground-disabled',
   selectTrigger:
-    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-muted-foreground focus-visible:border-ring',
+    'h-auto w-full rounded-md border-input bg-transparent px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-muted-foreground focus-visible:border-ring dark:bg-transparent',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
   helpText: 'text-xs leading-tight text-muted-foreground',
   errorText: 'text-xs leading-tight text-destructive',
@@ -167,7 +167,7 @@ export const drawerClasses = {
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
-  healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
+  healthProgressFill: 'h-full rounded-full bg-control-accent transition-[width] duration-300 ease-out',
   healthProgressMeta: 'text-[13px] tabular-nums text-foreground-tertiary',
   healthProgressCurrent: 'truncate text-[13px] text-foreground'
 } as const
@@ -264,7 +264,7 @@ export const modelListClasses = {
   manageDrawerBulkGhost:
     'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs tracking-[-0.14px] text-muted-foreground shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
   /** Enable-all hover — primary action color. */
-  manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
+  manageDrawerBulkGhostEnableHover: 'hover:!text-control-accent',
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
@@ -355,7 +355,7 @@ export const modelSyncClasses = {
   fetchSection: 'min-w-0',
   fetchSectionHeader: 'mb-2.5 flex items-center justify-between gap-3',
   fetchSectionTitleRow: 'flex items-center gap-1.5',
-  fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-primary',
+  fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-control-accent',
   fetchDotRemoved: 'h-[6px] w-[6px] shrink-0 rounded-full bg-destructive',
   fetchSectionTitle: 'text-sm text-foreground leading-5',
   fetchSectionCount: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
@@ -466,7 +466,7 @@ export const oauthCardClasses = {
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
-    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground',
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-control-accent text-xs font-semibold text-control-accent-foreground',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',

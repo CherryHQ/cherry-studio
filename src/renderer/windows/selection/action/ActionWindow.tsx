@@ -201,11 +201,11 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   return (
     <div
       data-ui="selection.action"
-      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--border)]"
+      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-[20px] border-[0.5px] border-border-subtle bg-sidebar shadow-[0_0_2px_var(--border)]"
       style={{ opacity: opacity / 100 }}>
       <div
         className={cn(
-          'flex h-8 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
+          'flex h-8 shrink-0 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
           isWindowFocus ? 'bg-muted' : 'bg-secondary'
         )}
         style={isMac ? { paddingLeft: '78px' } : {}}>
@@ -223,8 +223,8 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             placement="bottom">
             <WindowButton
               onClick={togglePin}
-              className={isPinned ? 'bg-accent text-accent-foreground hover:bg-accent' : ''}>
-              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-accent-foreground')} />
+              className={isPinned ? 'bg-control-accent/10 text-control-accent hover:bg-control-accent/10' : ''}>
+              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-control-accent')} />
             </WindowButton>
           </Tooltip>
           <Tooltip
@@ -233,12 +233,14 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             isOpen={showOpacitySlider ? false : undefined}>
             <WindowButton
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
-              className={showOpacitySlider ? 'bg-accent text-accent-foreground hover:bg-accent' : 'pb-0.5'}>
+              className={
+                showOpacitySlider ? 'bg-control-accent/10 text-control-accent hover:bg-control-accent/10' : 'pb-0.5'
+              }>
               <Droplet className="size-[13px]" />
             </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
-            <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
+            <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded-lg bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
                 className="data-[orientation=vertical]:min-h-0"
                 orientation="vertical"
@@ -264,12 +266,14 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           )}
         </div>
       </div>
-      <div className="flex h-full w-full justify-center overflow-auto">
-        <div
-          ref={contentElementRef}
-          className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+      <div className="min-h-0 flex-1 px-1.5 pb-1.5">
+        <div className="relative flex h-full w-full justify-center overflow-hidden rounded-[16px] border-[0.5px] border-border-subtle bg-background">
+          <div
+            ref={contentElementRef}
+            className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
+            {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+            {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+          </div>
         </div>
       </div>
     </div>
@@ -282,7 +286,7 @@ const WindowButton: FC<ComponentProps<typeof Button>> = ({ className, ...props }
     variant="ghost"
     size="icon-sm"
     className={cn(
-      'size-6 rounded border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
+      'size-6 rounded-full border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:[stroke-width:var(--icon-stroke)]',
       className
     )}
     {...props}

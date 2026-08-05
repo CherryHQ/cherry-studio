@@ -82,7 +82,7 @@ export function ModelPurposeFields({
               className={cn(
                 'flex min-h-10 cursor-pointer items-start gap-3 rounded-lg border border-border-subtle px-3 py-2.5',
                 'transition-[background-color,border-color,box-shadow] duration-150 hover:bg-accent',
-                purpose === option && 'border-primary bg-accent'
+                purpose === option && 'border-control-accent bg-accent'
               )}>
               <RadioGroupItem id={optionId} value={option} className="mt-0.5" />
               <span>

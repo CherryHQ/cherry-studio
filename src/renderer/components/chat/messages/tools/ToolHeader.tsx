@@ -558,7 +558,7 @@ function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
     'items-center gap-1.5',
     variant === 'collapse-label' &&
       'font-normal text-muted-foreground group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-tertiary',
-    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-primary'
+    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-control-accent'
   ]
     .filter(Boolean)
     .join(' ')
@@ -615,7 +615,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
         )}
         {autoApproved && (
           <Tooltip content={t('message.tools.autoApproveEnabled')}>
-            <ShieldCheck size={14} color="var(--primary)" />
+            <ShieldCheck size={14} color="var(--control-accent)" />
           </Tooltip>
         )}
       </ToolName>

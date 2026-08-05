@@ -15,7 +15,7 @@ export const AdvancedSettingsButton: FC<React.ComponentPropsWithoutRef<typeof Bu
     variant={variant}
     size={size}
     className={cn(
-      'h-8 w-fit gap-1.5 bg-transparent px-0 text-primary opacity-70 shadow-none hover:bg-transparent hover:text-primary hover:opacity-100 active:bg-transparent active:opacity-100',
+      'h-8 w-fit gap-1.5 bg-transparent px-0 text-link opacity-70 shadow-none hover:bg-transparent hover:text-link hover:opacity-100 active:bg-transparent active:opacity-100',
       className
     )}
     {...props}

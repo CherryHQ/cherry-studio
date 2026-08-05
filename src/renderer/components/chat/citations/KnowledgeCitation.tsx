@@ -44,7 +44,7 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
               {documentTitle(citation.title)}
             </span>
           )}
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-control-accent/15 text-[10px] text-control-accent leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {citation.content && <CopyButton content={citation.content} actions={actions} />}

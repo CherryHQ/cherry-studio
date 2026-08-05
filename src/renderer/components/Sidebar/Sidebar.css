@@ -1,13 +1,29 @@
 .sidebar-theme {
-  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --sidebar-glow-line: rgba(16, 185, 129, 0.5);
+  --sidebar-active-bg: var(--app-shell-selected-surface, var(--sidebar-accent));
+  --sidebar-active-border: var(--app-shell-selected-border, var(--sidebar-border));
+  --sidebar-active-shadow: inset 0 0 0 0.5px var(--sidebar-active-border);
+  --sidebar-hover-bg: var(--accent);
+  --sidebar-floating-bg: color-mix(in srgb, var(--sidebar) 70%, transparent);
+  --sidebar-floating-shadow: rgba(0, 0, 0, 0.25);
 }
 
-.dark .sidebar-theme {
-  --sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --sidebar-glow-line: rgba(114, 255, 121, 0.35);
+.app-shell-theme[data-glass-active='true'] .sidebar-theme {
+  --sidebar-active-bg: var(--app-shell-tab-glass-surface);
+  --sidebar-active-border: var(--app-shell-tab-glass-border);
+  --sidebar-active-shadow: inset 0 0 0 1px var(--app-shell-tab-glass-highlight);
+  --sidebar-hover-bg: var(--app-shell-tab-glass-hover);
+}
+
+.sidebar-theme .sidebar-entry:hover {
+  background: var(--sidebar-hover-bg);
+}
+
+.sidebar-theme .sidebar-entry[data-active='true'] {
+  border-color: var(--sidebar-active-border);
+  background: var(--sidebar-active-bg);
+  box-shadow: var(--sidebar-active-shadow);
+}
+
+.app-shell-theme[data-glass-active='true'] .sidebar-entry[data-active='true'] {
+  backdrop-filter: blur(4px);
 }

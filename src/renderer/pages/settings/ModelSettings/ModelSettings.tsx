@@ -109,7 +109,7 @@ const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
       variant="outline"
       size={compact ? 'lg' : 'default'}
       className={cn(
-        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+        'min-w-0 flex-1 justify-between border-input bg-transparent px-2.5 text-left font-normal hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent',
         compact ? 'h-9' : 'h-7.5',
         className
       )}>
@@ -142,6 +142,7 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
+    contentWidth="var(--radix-popover-trigger-width)"
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
     }

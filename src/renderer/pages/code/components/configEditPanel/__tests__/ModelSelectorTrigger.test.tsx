@@ -46,6 +46,8 @@ describe('ModelSelectorTrigger', () => {
     expect(triggerRef).toBe(trigger)
     expect(trigger).toHaveAttribute('data-state', 'open')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveClass('border-input', 'bg-transparent', 'hover:bg-transparent', 'dark:bg-transparent')
+    expect(trigger).not.toHaveClass('bg-muted/30', 'hover:bg-muted/50')
 
     fireEvent.click(trigger)
 

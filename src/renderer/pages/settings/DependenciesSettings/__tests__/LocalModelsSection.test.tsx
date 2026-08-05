@@ -27,16 +27,21 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  CircularProgress: ({ value }: { value: number }) => <span data-testid="circular-progress">{value}</span>,
   Button: ({
     children,
     onClick,
+    className,
+    variant,
     'aria-label': ariaLabel
   }: {
     children?: ReactNode
     onClick?: () => void
+    className?: string
+    variant?: string
     'aria-label'?: string
   }) => (
-    <button type="button" onClick={onClick} aria-label={ariaLabel}>
+    <button type="button" className={className} data-variant={variant} onClick={onClick} aria-label={ariaLabel}>
       {children}
     </button>
   )
@@ -49,6 +54,40 @@ describe('LocalModelsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     progressHandlers.length = 0
+  })
+
+  it('renders models through the shared dependency card action area', async () => {
+    mockRequest.mockImplementation((route: string) => {
+      if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2))
+
+    const card = embeddingCard()
+    const downloadButton = within(card)
+      .getByText('settings.dependencies.localModels.download')
+      .closest('button') as HTMLButtonElement
+
+    expect(card).toHaveAttribute('data-slot', 'dependency-card')
+    expect(downloadButton.closest('[data-slot="dependency-card-actions"]')).toBeInTheDocument()
+  })
+
+  it('uses the shared destructive button variant for removing a ready model', async () => {
+    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: input?.model === 'embedding' ? 'ready' : 'not_downloaded' })
+      }
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    const removeButton = await within(embeddingCard()).findByRole('button', {
+      name: 'settings.dependencies.localModels.remove'
+    })
+    expect(removeButton).toHaveAttribute('data-variant', 'destructiveSubtle')
   })
 
   it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
@@ -64,14 +103,17 @@ describe('LocalModelsSection', () => {
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
 
     fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
-    await waitFor(() =>
-      expect(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel')).toBeInTheDocument()
-    )
+    const cancelButton = await within(embeddingCard()).findByRole('button', {
+      name: 'settings.dependencies.localModels.cancel'
+    })
+    expect(cancelButton).toHaveClass('size-7', 'rounded-full')
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
-    expect(within(embeddingCard()).getByText('45%')).toBeInTheDocument()
+    const progress = within(embeddingCard()).getByRole('progressbar')
+    expect(progress).toHaveAttribute('aria-valuenow', '45')
+    expect(within(embeddingCard()).getByTestId('circular-progress')).toHaveTextContent('45')
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel'))
+    fireEvent.click(cancelButton)
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
 
     // Backend aborts → the in-flight download resolves as cancelled. A user cancel must not

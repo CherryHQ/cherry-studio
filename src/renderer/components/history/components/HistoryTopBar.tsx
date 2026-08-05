@@ -219,7 +219,7 @@ const HistoryTopBar = ({
               onSelect={setMoveTargetId}
               placeholder={t('history.records.bulkMoveTopics.placeholder')}
               emptyText={t('history.records.bulkMoveTopics.empty')}
-              triggerClassName="h-8 rounded-md border-border-subtle bg-card text-xs shadow-none"
+              triggerClassName="h-8 bg-transparent text-xs shadow-none dark:bg-transparent"
               renderSelected={(target) => <HistoryBulkMoveTargetLabel target={target} />}
               renderItem={(target) => <HistoryBulkMoveTargetLabel target={target} />}
             />

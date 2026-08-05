@@ -116,8 +116,12 @@ vi.mock('@cherrystudio/ui', () => {
       : null
   return {
     Badge: passthrough('span'),
-    Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
-      React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
+    Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title, variant, className }: any) =>
+      React.createElement(
+        'button',
+        { onClick, 'aria-label': ariaLabel, disabled, title, className, 'data-variant': variant ?? 'default' },
+        children
+      ),
     ConfirmDialog: ({ open, title, description, confirmText, cancelText, onConfirm }: any) =>
       open
         ? React.createElement(
@@ -238,7 +242,27 @@ describe('EnvironmentDependencies', () => {
   it('renders all preset tools from snapshots', async () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
-    expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    const ripgrepCard = screen.getByText('ripgrep').closest('[role="listitem"]') as HTMLElement
+    expect(ripgrepCard.querySelector('[data-slot="dependency-card-icon"]')).toHaveClass(
+      '[&_.lucide:not(.lucide-custom)]:text-current!'
+    )
+  })
+
+  it('renders install actions in the shared dependency card action area', async () => {
+    setSnapshots({
+      fd: {
+        name: 'fd',
+        availability: { source: 'none' },
+        application: { status: 'absent' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('fd')).closest('[role="listitem"]') as HTMLElement
+    const installButton = within(card).getByText('settings.mcp.install').closest('button') as HTMLButtonElement
+
+    expect(card).toHaveAttribute('data-slot', 'dependency-card')
+    expect(installButton.closest('[data-slot="dependency-card-actions"]')).toBeInTheDocument()
   })
 
   it('gives the public icon-only dependency actions accessible names', async () => {
@@ -322,7 +346,10 @@ describe('EnvironmentDependencies', () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0', true) })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).getByLabelText('settings.dependencies.uninstall')).toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.uninstall')).toHaveAttribute(
+      'data-variant',
+      'destructiveSubtle'
+    )
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
@@ -363,8 +390,11 @@ describe('EnvironmentDependencies', () => {
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+    const installButton = within(card).getByText('settings.mcp.install').closest('button') as HTMLButtonElement
+
+    expect(card).toHaveAttribute('data-slot', 'dependency-card')
+    expect(installButton.closest('[data-slot="dependency-card-actions"]')).toBeInTheDocument()
     expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
-    expect(within(card).getByText('settings.mcp.install')).toBeInTheDocument()
   })
 
   it('never renders an install retry after a custom tool removal failed', async () => {
@@ -685,7 +715,10 @@ describe('EnvironmentDependencies', () => {
     const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
 
     expect(card).toHaveTextContent('settings.dependencies.source.system')
-    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.remove')).toHaveAttribute(
+      'data-variant',
+      'destructiveSubtle'
+    )
     expect(within(card).queryByTitle('settings.dependencies.update')).not.toBeInTheDocument()
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
   })

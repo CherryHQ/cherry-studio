@@ -370,7 +370,10 @@ export function ContentSearch({
                   <ActionIconButton
                     onClick={userOutlinedButtonOnClick}
                     icon={
-                      <User size={18} style={{ color: includeUser ? 'var(--primary)' : 'var(--muted-foreground)' }} />
+                      <User
+                        size={18}
+                        style={{ color: includeUser ? 'var(--control-accent)' : 'var(--muted-foreground)' }}
+                      />
                     }
                   />{' '}
                 </Tooltip>
@@ -382,7 +385,7 @@ export function ContentSearch({
                     <CaseSensitive
                       size={18}
                       style={{
-                        color: isCaseSensitive ? 'var(--primary)' : 'var(--muted-foreground)'
+                        color: isCaseSensitive ? 'var(--control-accent)' : 'var(--muted-foreground)'
                       }}
                     />
                   }
@@ -394,7 +397,7 @@ export function ContentSearch({
                   icon={
                     <WholeWord
                       size={18}
-                      style={{ color: isWholeWord ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                      style={{ color: isWholeWord ? 'var(--control-accent)' : 'var(--muted-foreground)' }}
                     />
                   }
                 />
@@ -465,7 +468,7 @@ const SearchBarContainer = ({
 }: React.HTMLAttributes<HTMLDivElement> & { position: 'fixed' | 'absolute' | 'sticky' }) => (
   <div
     className={classNames(
-      'mb-[5px] flex flex-[1_1_auto] items-center justify-center rounded-[10px] border border-primary',
+      'mb-[5px] flex flex-[1_1_auto] items-center justify-center rounded-[10px] border border-control-accent',
       'bg-background px-[15px] py-[5px] transition-all duration-200 ease-in-out',
       className
     )}

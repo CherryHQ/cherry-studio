@@ -402,7 +402,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       </div>
 
       {isDragOverSidebar && (
-        <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />
+        <div className="pointer-events-none absolute inset-0 rounded border-2 border-control-accent border-dashed bg-control-accent/10" />
       )}
     </div>
   )

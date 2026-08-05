@@ -96,5 +96,16 @@ describe('PaintingModelSelector', () => {
     const options = within(screen.getByTestId('selector-options'))
     expect(options.queryByText('GPT-5')).not.toBeInTheDocument()
     expect(options.getByText('GPT-5 Image')).toBeInTheDocument()
+
+    expect(screen.getByRole('button')).toHaveClass(
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:bg-transparent',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
   })
 })

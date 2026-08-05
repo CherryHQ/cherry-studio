@@ -119,7 +119,7 @@ describe('ShellTabBarActions', () => {
     expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
     expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
       'text-muted-foreground',
-      'dark:text-muted-foreground'
+      '[&_svg]:text-current'
     )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
@@ -199,8 +199,8 @@ describe('ShellTabBarActions', () => {
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
-      'text-muted-foreground',
-      'dark:text-muted-foreground'
+      'text-sidebar-foreground',
+      '[&_svg]:text-current'
     )
   })
 
@@ -219,7 +219,7 @@ describe('ShellTabBarActions', () => {
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start', 'text-foreground')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start', 'text-sidebar-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })

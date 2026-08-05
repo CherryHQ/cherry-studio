@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Plus, X } from 'lucide-react'
@@ -57,7 +58,7 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
+const Separator = () => <div className="mx-0.5 h-3.5 w-0.5 shrink-0 rounded-full bg-border/50" />
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -94,7 +95,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
+          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag] [&_svg]:text-current',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
@@ -237,7 +238,7 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
+        'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag] [&_svg]:text-current',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         // While closing, pin the tone the tab had when the close started — losing
         // the active/hover state mid-collapse reads as a white flash.
@@ -485,25 +486,28 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
   const tabTone = useMemo<TabToneProps>(
     () =>
-      isMacTransparentWindow
+      isGlassActive
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+              'border border-[var(--app-shell-tab-glass-border)] bg-[var(--app-shell-tab-glass-surface)] text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--app-shell-tab-glass-highlight)] backdrop-blur-sm',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]',
+              'text-muted-foreground hover:bg-[var(--app-shell-tab-glass-hover)] hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_var(--app-shell-tab-glass-highlight)] data-[menu-open=true]:bg-[var(--app-shell-tab-glass-hover)] data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_var(--app-shell-tab-glass-highlight)]',
             closingClass: 'bg-accent text-accent-foreground'
           }
         : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            activeClass:
+              'bg-[var(--app-shell-selected-surface)] text-sidebar-foreground shadow-[var(--app-shell-selected-outline)]',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
+              'text-muted-foreground hover:bg-accent hover:text-sidebar-foreground data-[menu-open=true]:bg-accent data-[menu-open=true]:text-sidebar-foreground',
             closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
           },
-    [isMacTransparentWindow]
+    [isGlassActive]
   )
 
   // Chrome-style close-in-place: a pointer-initiated close freezes every normal
@@ -940,7 +944,7 @@ export const AppShellTabBar = ({
               onClick={handleOpenLaunchpad}
               className={cn(
                 'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
-                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
+                isGlassActive ? 'hover:bg-[var(--app-shell-tab-glass-hover)]' : 'hover:bg-sidebar-accent'
               )}>
               <Plus size={14} />
             </button>

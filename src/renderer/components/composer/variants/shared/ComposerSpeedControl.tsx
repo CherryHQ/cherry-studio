@@ -121,7 +121,7 @@ export function ComposerSpeedControl({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className={cn('ml-auto rounded-full', fastMode && 'text-primary hover:text-primary')}
+              className={cn('ml-auto rounded-full', fastMode && 'text-control-accent hover:text-control-accent')}
               aria-label={t('agent.speed.fast')}
               aria-pressed={fastMode}
               onClick={() => onFastModeChange(!fastMode)}>
@@ -133,7 +133,7 @@ export function ComposerSpeedControl({
           <div className="mx-2.5 mt-1 mb-2">
             <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
-              <span className="text-primary">{t('agent.speed.smarter')}</span>
+              <span className="text-control-accent">{t('agent.speed.smarter')}</span>
             </div>
             <div className="relative mt-1.5 h-8">
               <Slider
@@ -147,7 +147,7 @@ export function ComposerSpeedControl({
                 className={cn(
                   'h-8',
                   '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
-                  '[&_[data-slot=slider-range]]:bg-primary',
+                  '[&_[data-slot=slider-range]]:bg-control-accent',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
                   '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'

@@ -248,7 +248,7 @@ const McpServersList: FC = () => {
                     <Filter
                       size={14}
                       color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
-                      className={filter === 'all' ? undefined : 'text-primary'}
+                      className={filter === 'all' ? undefined : 'text-control-accent'}
                     />
                   </button>
                 </PopoverTrigger>

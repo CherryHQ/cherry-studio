@@ -13,7 +13,7 @@ const ReasoningIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement
       <Tooltip content={t('models.type.reasoning')}>
         <i
           {...(iconProps as any)}
-          className={cn('iconfont icon-thinking mr-[6px] text-[16px] text-primary', className)}
+          className={cn('iconfont icon-thinking mr-[6px] text-[16px] text-control-accent', className)}
         />
       </Tooltip>
     </div>

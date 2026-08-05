@@ -171,7 +171,19 @@ describe('QuickAssistantSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
     render(<QuickAssistantSettings />)
 
-    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    const trigger = screen.getByRole('button', { expanded: false })
+    expect(trigger).toHaveClass(
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:bg-transparent',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
+
+    fireEvent.click(trigger)
     expect(screen.getByTestId('assistant-popover')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Assistant 2' }))

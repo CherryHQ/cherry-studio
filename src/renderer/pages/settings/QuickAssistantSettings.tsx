@@ -153,7 +153,7 @@ const QuickAssistantSettings: FC = () => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="h-8.5 w-75 justify-between px-2 shadow-none"
+                        className="h-8.5 w-75 justify-between border-input bg-transparent px-2 shadow-none hover:border-border-strong hover:bg-transparent focus-visible:border-ring focus-visible:bg-transparent aria-expanded:bg-transparent dark:bg-transparent"
                         aria-expanded={assistantSelectOpen}>
                         <AssistantOption
                           assistant={selectedAssistant}
@@ -189,7 +189,7 @@ const QuickAssistantSettings: FC = () => {
                                   defaultModel={defaultModel}
                                 />
                                 {assistant.id === quickAssistantId && (
-                                  <Check size={14} className="ml-auto text-primary" />
+                                  <Check size={14} className="ml-auto text-control-accent" />
                                 )}
                               </CommandItem>
                             ))}
@@ -268,7 +268,11 @@ const DefaultTag = ({
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
   <span
-    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-tertiary', className)}
+    className={cn(
+      'rounded px-1 py-0.5 text-xs',
+      isCurrent ? 'text-control-accent' : 'text-foreground-tertiary',
+      className
+    )}
     {...props}
   />
 )

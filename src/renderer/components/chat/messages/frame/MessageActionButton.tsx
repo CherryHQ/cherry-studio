@@ -27,7 +27,7 @@ export const MessageActionButton = ({
         'enabled:[&_.iconfont]:cursor-pointer enabled:[&_svg]:cursor-pointer',
         softHoverBg ? 'enabled:hover:bg-muted' : 'enabled:hover:bg-accent',
         'disabled:cursor-not-allowed disabled:opacity-40',
-        active && 'text-primary!',
+        active && 'text-control-accent!',
         className
       )}
       {...props}

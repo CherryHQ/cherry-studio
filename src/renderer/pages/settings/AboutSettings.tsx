@@ -236,7 +236,7 @@ const AboutSettings: FC = () => {
                 aria-label={t('settings.about.releases.title')}
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 className="mt-1.5">
-                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
+                <Badge className="cursor-pointer rounded-md border-control-accent/20 bg-control-accent/10 px-1.5 py-0 text-[11px] text-control-accent leading-4 transition-colors hover:bg-control-accent/15">
                   v{version}
                 </Badge>
               </button>
@@ -254,7 +254,7 @@ const AboutSettings: FC = () => {
                 className={cn(
                   'w-fit! min-w-0! shrink-0',
                   isUpdateReady &&
-                    'bg-success text-primary-foreground hover:bg-success/90 dark:bg-success dark:text-primary-foreground dark:hover:bg-success/90'
+                    'bg-success text-white hover:bg-success/90 dark:bg-success dark:text-white dark:hover:bg-success/90'
                 )}>
                 {appUpdateState.downloading
                   ? t('settings.about.downloading')

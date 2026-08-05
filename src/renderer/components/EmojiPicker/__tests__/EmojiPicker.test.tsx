@@ -235,7 +235,7 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.style).toMatchObject({
       '--epr-bg-color': 'var(--popover)',
       '--epr-picker-border-color': 'transparent',
-      '--epr-highlight-color': 'var(--primary)',
+      '--epr-highlight-color': 'var(--control-accent)',
       '--epr-hover-bg-color-reduced-opacity': 'var(--accent)',
       '--epr-text-color': 'var(--popover-foreground)',
       '--epr-category-label-bg-color': 'var(--popover)',
@@ -247,7 +247,7 @@ describe('EmojiPicker', () => {
       '--epr-search-input-text-color': 'var(--foreground)',
       '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
       '--epr-search-border-color': 'var(--input)',
-      '--epr-search-border-color-active': 'var(--primary)',
+      '--epr-search-border-color-active': 'var(--control-accent)',
       '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
       '--epr-emoji-hover-color': 'var(--accent)',
       '--epr-emoji-variation-indicator-color': 'var(--border)',

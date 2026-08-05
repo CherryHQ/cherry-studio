@@ -163,7 +163,7 @@ export const RagSliderField = ({
           step={step}
           size="md"
           disabled={disabled}
-          className="w-full **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
+          className="w-full **:data-[slot=slider-thumb]:border-control-accent **:data-[slot=slider-range]:bg-control-accent **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
         />
 
         <div className="mt-px flex items-center justify-between text-foreground-tertiary text-xs leading-4">

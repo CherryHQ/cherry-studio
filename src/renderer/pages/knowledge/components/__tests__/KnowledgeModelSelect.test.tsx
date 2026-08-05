@@ -101,6 +101,17 @@ describe('KnowledgeModelSelect', () => {
     expect(mockModelSelectorProps.at(-1)?.filter).toBe(filter)
     expect(mockModelSelectorProps.at(-1)?.noneOptionLabel).toBe('no-model')
     expect(screen.getAllByRole('button')).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'embedding-model' })).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'embedding-model' })
+    expect(trigger).toHaveClass(
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:bg-transparent',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
+    expect(trigger).not.toHaveClass('aria-expanded:border-control-accent', 'aria-expanded:ring-control-accent/20')
   })
 })

@@ -2,7 +2,6 @@ import { MenuItem } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 
-import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
@@ -57,7 +56,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       items={entries}
       itemKey="key"
       onReorder={onReorder}
-      className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
+      className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
         const isActive = entry.isActive(active)
 
@@ -68,13 +67,10 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 type="button"
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-[var(--sidebar-active-bg)] text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 [&_svg]:text-current ${
+                  isActive ? 'bg-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground hover:bg-accent/60'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
-                {entry.renderIcon(18, 'lg')}
+                {entry.renderIcon(16, 'lg')}
               </button>
             </EntryContextMenu>
           </SidebarTooltip>
@@ -103,10 +99,9 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
+                className="sidebar-entry gap-2.5 rounded-xl py-1 text-sidebar-foreground data-[active=true]:text-sidebar-accent-foreground [&_svg]:text-current"
               />
             </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
           </div>
         )
       }}

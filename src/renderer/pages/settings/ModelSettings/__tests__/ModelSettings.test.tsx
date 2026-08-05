@@ -14,6 +14,7 @@ const harness = vi.hoisted(() => ({
   setTranslateModel: vi.fn(),
   setPaintingModel: vi.fn(),
   onDefaultModelSelected: vi.fn(),
+  selectorContentWidths: [] as Array<number | string | undefined>,
   selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
   selectorFilters: [] as Array<(model: Model) => boolean>
 }))
@@ -45,14 +46,17 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: () => undefined,
   ModelSelector: ({
+    contentWidth,
     filter,
     onSelect,
     trigger
   }: {
+    contentWidth?: number | string
     filter: (model: Model) => boolean
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
   }) => {
+    harness.selectorContentWidths.push(contentWidth)
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
     return trigger
@@ -120,6 +124,7 @@ describe('ModelSettings', () => {
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
+    harness.selectorContentWidths = []
     harness.selectorCallbacks = []
     harness.selectorFilters = []
     harness.setDefaultModel.mockResolvedValue(undefined)
@@ -149,6 +154,16 @@ describe('ModelSettings', () => {
 
     await waitFor(() => expect(harness.setDefaultModel).toHaveBeenCalledWith(selectedModel, { forceCascade: true }))
     expect(harness.onDefaultModelSelected).toHaveBeenCalledWith(selectedModel)
+  })
+
+  it('matches model selector panels to their settings-row triggers', () => {
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(harness.selectorContentWidths).toEqual([
+      'var(--radix-popover-trigger-width)',
+      'var(--radix-popover-trigger-width)',
+      'var(--radix-popover-trigger-width)'
+    ])
   })
 
   it('does not fill the other models when any visible model is already selected', async () => {
