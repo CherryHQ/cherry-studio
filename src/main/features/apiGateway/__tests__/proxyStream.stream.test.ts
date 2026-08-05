@@ -1,7 +1,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -173,7 +173,7 @@ function commit(listener: StreamListener): void {
 const NO_PREFILL_CONTINUATION_TEXT =
   'Continue with the original user request above. The preceding assistant message is context, not a reply to complete.'
 
-function useGatewayModel(apiModelId: string, endpointType = ENDPOINT_TYPE.ANTHROPIC_MESSAGES): void {
+function useGatewayModel(apiModelId: string, endpointType: EndpointType = ENDPOINT_TYPE.ANTHROPIC_MESSAGES): void {
   mockGetProvider.mockReturnValue({ id: 'aihubmix', name: 'AiHubMix', isEnabled: true })
   mockListModels.mockReturnValue([
     {
