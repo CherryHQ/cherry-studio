@@ -41,13 +41,15 @@ import {
   unlink
 } from 'node:fs/promises'
 import path from 'node:path'
-import { Writable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
+import { addAbortSignal, Writable } from 'node:stream'
+import { finished, pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
+import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import mime from 'mime'
-import xxhashLoader from 'xxhash-wasm'
+
+import { createContentHasher } from './contentHash'
 
 const logger = loggerService.withContext('utils/file/fs')
 
@@ -82,6 +84,32 @@ export async function read(
     return { data: buf.toString('base64'), mime: inferredMime }
   }
   return { data: new Uint8Array(buf), mime: inferredMime }
+}
+
+/** Read at most `length` bytes starting at the absolute byte `offset`. */
+export async function readChunk(
+  path: AbsoluteFilePath,
+  offset: number,
+  length: number
+): Promise<Uint8Array<ArrayBuffer>> {
+  const fileHandle = await fsOpen(path, 'r')
+  try {
+    const buffer = new Uint8Array(length)
+    let totalBytesRead = 0
+    while (totalBytesRead < length) {
+      const { bytesRead } = await fileHandle.read(
+        buffer,
+        totalBytesRead,
+        length - totalBytesRead,
+        offset + totalBytesRead
+      )
+      if (bytesRead === 0) break
+      totalBytesRead += bytesRead
+    }
+    return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
+  } finally {
+    await fileHandle.close()
+  }
 }
 
 /** Returns true iff the path exists and is readable by the current process. */
@@ -267,31 +295,8 @@ export async function atomicWriteFile(
   data: string | Uint8Array,
   options?: { mode?: number }
 ): Promise<void> {
-  const tmp = tmpNameFor(target)
-  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
-  try {
-    try {
-      await tmpHandle.writeFile(data)
-      await tmpHandle.sync()
-    } catch (err) {
-      await tmpHandle.close().catch(() => undefined)
-      await bestEffortUnlinkTmp(tmp, target)
-      throw err
-    }
-    await tmpHandle.close()
-  } catch (err) {
-    // tmpHandle.close() above can throw on its own; if it does, the tmp
-    // file is still on disk and must be cleaned up here.
-    await bestEffortUnlinkTmp(tmp, target)
-    throw err
-  }
-  try {
-    await rename(tmp, target)
-  } catch (err) {
-    await bestEffortUnlinkTmp(tmp, target)
-    throw err
-  }
-  await fsyncDirectoryOf(target)
+  const prepared = await prepareAtomicWrite(target, data, options)
+  await prepared.commit()
 }
 
 /**
@@ -304,40 +309,187 @@ export async function atomicWriteFile(
  * `FileManager.AtomicWriteStream` JSDoc for the full lifecycle contract.
  */
 export interface AtomicWriteStream extends Writable {
+  /** True once the prepared tmp file has entered the DB + rename commit phase. */
+  readonly commitStarted: boolean
   abort(): Promise<void>
+}
+
+export type PreparedAtomicWriteState = 'prepared' | 'committed' | 'aborted'
+
+/**
+ * A fully-written, closed tmp file that has not yet replaced its target.
+ *
+ * FileManager uses this pause point to mark bytes-derived DB metadata unknown
+ * before the atomic rename. Generic path writers call {@link commit}
+ * immediately and preserve their existing one-step API.
+ */
+export interface PreparedAtomicWrite {
+  readonly target: AbsoluteFilePath
+  readonly size: number
+  readonly contentHash: ContentHash
+  readonly state: PreparedAtomicWriteState
+  commit(): Promise<PathVersion>
+  abort(): Promise<void>
+}
+
+class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
+  private currentState: PreparedAtomicWriteState = 'prepared'
+  private committedVersion: PathVersion | undefined
+  private settlement: Promise<PathVersion | undefined> | undefined
+
+  constructor(
+    readonly target: AbsoluteFilePath,
+    private readonly tmp: string,
+    readonly size: number,
+    readonly contentHash: ContentHash
+  ) {}
+
+  get state(): PreparedAtomicWriteState {
+    return this.currentState
+  }
+
+  async commit(): Promise<PathVersion> {
+    if (this.currentState === 'committed') {
+      return this.committedVersion!
+    }
+    if (this.currentState === 'aborted') {
+      throw new Error(`Prepared atomic write for ${this.target} was already aborted`)
+    }
+    if (this.settlement) {
+      const version = await this.settlement
+      if (version) return version
+      throw new Error(`Prepared atomic write for ${this.target} was already aborted`)
+    }
+
+    this.settlement = this.commitOnce()
+    return (await this.settlement)!
+  }
+
+  async abort(): Promise<void> {
+    if (this.currentState !== 'prepared') return
+    if (this.settlement) {
+      await this.settlement.catch(() => undefined)
+      return
+    }
+    this.settlement = this.abortOnce()
+    await this.settlement
+  }
+
+  private async commitOnce(): Promise<PathVersion> {
+    let version: PathVersion
+    try {
+      const fd = await fsOpen(this.tmp, 'r+')
+      try {
+        await fd.sync()
+        const s = await fd.stat()
+        version = { mtime: Math.floor(s.mtimeMs), size: s.size }
+      } finally {
+        await fd.close()
+      }
+      await rename(this.tmp, this.target)
+    } catch (err) {
+      await bestEffortUnlinkTmp(this.tmp, this.target)
+      this.currentState = 'aborted'
+      throw err
+    }
+
+    this.currentState = 'committed'
+    this.committedVersion = version
+    await fsyncDirectoryOf(this.target)
+    return version
+  }
+
+  private async abortOnce(): Promise<undefined> {
+    this.currentState = 'aborted'
+    await bestEffortUnlinkTmp(this.tmp, this.target)
+    return undefined
+  }
+}
+
+/** Prepare an in-memory payload without replacing `target` yet. */
+export async function prepareAtomicWrite(
+  target: AbsoluteFilePath,
+  data: string | Uint8Array,
+  options?: { mode?: number }
+): Promise<PreparedAtomicWrite> {
+  const tmp = tmpNameFor(target)
+  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
+  const bytes = typeof data === 'string' ? Buffer.from(data) : data
+  try {
+    try {
+      await tmpHandle.writeFile(bytes)
+    } catch (err) {
+      await tmpHandle.close().catch(() => undefined)
+      await bestEffortUnlinkTmp(tmp, target)
+      throw err
+    }
+    await tmpHandle.close()
+  } catch (err) {
+    await bestEffortUnlinkTmp(tmp, target)
+    throw err
+  }
+  return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes))
+}
+
+function createContentHasherDigest(bytes: Uint8Array): ContentHash {
+  const hasher = createContentHasher()
+  hasher.update(bytes)
+  return hasher.digest()
 }
 
 class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   private readonly target: string
   private readonly tmp: string
   private readonly underlying: ReturnType<typeof nodeCreateWriteStream>
+  private readonly hasher = createContentHasher()
+  private readonly onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>
+  private size = 0
   private aborted = false
-  private committed = false
+  private finalized = false
+  private enteredCommit = false
 
-  constructor(target: string) {
+  constructor(target: AbsoluteFilePath, onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>) {
     super()
     this.target = target
     this.tmp = tmpNameFor(target)
+    this.onPrepared = onPrepared
     this.underlying = nodeCreateWriteStream(this.tmp)
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
+  get commitStarted(): boolean {
+    return this.enteredCommit
+  }
+
   override _write(chunk: unknown, encoding: BufferEncoding, callback: (err?: Error | null) => void): void {
-    this.underlying.write(chunk as Buffer | string, encoding, callback)
+    const bytes =
+      typeof chunk === 'string'
+        ? Buffer.from(chunk, encoding)
+        : Buffer.isBuffer(chunk)
+          ? chunk
+          : Buffer.from(chunk as Uint8Array)
+    this.hasher.update(bytes)
+    this.size += bytes.byteLength
+    this.underlying.write(bytes, callback)
   }
 
   override _final(callback: (err?: Error | null) => void): void {
     this.underlying.end(async () => {
       try {
-        const fd = await fsOpen(this.tmp, 'r+')
-        try {
-          await fd.sync()
-        } finally {
-          await fd.close()
+        const prepared = new PreparedAtomicWriteImpl(
+          AbsoluteFilePathSchema.parse(this.target),
+          this.tmp,
+          this.size,
+          this.hasher.digest()
+        )
+        if (this.aborted) {
+          await prepared.abort()
+          callback()
+          return
         }
-        await rename(this.tmp, this.target)
-        await fsyncDirectoryOf(this.target)
-        this.committed = true
+        this.enteredCommit = true
+        await this.onPrepared(prepared)
+        this.finalized = true
         callback()
       } catch (err) {
         // Mirror the atomicWriteFile contract: tmp cleanup is best-effort
@@ -352,7 +504,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   }
 
   override _destroy(err: Error | null, callback: (err: Error | null) => void): void {
-    if (this.committed) {
+    if (this.finalized) {
       callback(err)
       return
     }
@@ -371,7 +523,11 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   }
 
   async abort(): Promise<void> {
-    if (this.aborted || this.committed) return
+    if (this.aborted || this.finalized) return
+    if (this.enteredCommit) {
+      await finished(this).catch(() => undefined)
+      return
+    }
     this.aborted = true
     return new Promise<void>((resolve) => {
       this.once('close', () => resolve())
@@ -386,7 +542,47 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
  * full lifecycle contract.
  */
 export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteStream {
-  return new AtomicWriteStreamImpl(target)
+  return createPreparedAtomicWriteStream(target, async (prepared) => {
+    await prepared.commit()
+  })
+}
+
+/**
+ * Create a stream whose tmp file is handed to `onPrepared` after fsync.
+ * The stream emits `finish` only after that callback resolves.
+ */
+export function createPreparedAtomicWriteStream(
+  target: AbsoluteFilePath,
+  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>
+): AtomicWriteStream {
+  return new AtomicWriteStreamImpl(target, onPrepared)
+}
+
+async function prepareAtomicCopyStream(
+  src: AbsoluteFilePath,
+  dest: AbsoluteFilePath,
+  signal?: AbortSignal
+): Promise<PreparedAtomicWrite> {
+  let result: PreparedAtomicWrite | undefined
+  const writer = createPreparedAtomicWriteStream(dest, async (prepared) => {
+    result = prepared
+  })
+  if (signal) {
+    await pipeline(createReadStream(src), writer, { signal })
+  } else {
+    await pipeline(createReadStream(src), writer)
+  }
+  if (!result) throw new Error(`Atomic copy to ${dest} finished without a prepared write`)
+  return result
+}
+
+/** Copy `src` into a prepared tmp file without replacing `dest` yet. */
+export async function prepareAtomicCopy(
+  src: AbsoluteFilePath,
+  dest: AbsoluteFilePath,
+  signal?: AbortSignal
+): Promise<PreparedAtomicWrite> {
+  return prepareAtomicCopyStream(src, dest, signal)
 }
 
 /**
@@ -407,8 +603,27 @@ export async function atomicWriteIfUnchanged(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
   expected: PathVersion,
-  expectedContentHash?: string
+  expectedContentHash?: ContentHash
 ): Promise<PathVersion> {
+  const prepared = await prepareAtomicWrite(target, data)
+  try {
+    // The payload may take arbitrarily long to materialize. Validate only
+    // after it is durable and immediately before the atomic rename so an
+    // edit that lands during preparation is not silently overwritten.
+    await assertPathVersionUnchanged(target, expected, expectedContentHash)
+    return await prepared.commit()
+  } catch (error) {
+    await prepared.abort()
+    throw error
+  }
+}
+
+/** Validate optimistic-concurrency state without mutating the target. */
+export async function assertPathVersionUnchanged(
+  target: AbsoluteFilePath,
+  expected: PathVersion,
+  expectedContentHash?: ContentHash
+): Promise<void> {
   const s = await fsStat(target)
   const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
   const sizeMatch = current.size === expected.size
@@ -437,9 +652,6 @@ export async function atomicWriteIfUnchanged(
       { target }
     )
   }
-  await atomicWriteFile(target, data)
-  const s2 = await fsStat(target)
-  return { mtime: Math.floor(s2.mtimeMs), size: s2.size }
 }
 
 /** Get file/directory stats. */
@@ -490,13 +702,8 @@ export async function realpath(target: AbsoluteFilePath): Promise<AbsoluteFilePa
  * forever — see the knowledge directory-import freeze this guards against.
  */
 export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal?: AbortSignal): Promise<void> {
-  // `pipeline` treats an explicit trailing `undefined` as a stream (and throws on
-  // validation), so branch instead of forwarding `undefined` as its options arg.
-  if (signal) {
-    await pipeline(createReadStream(src), createAtomicWriteStream(dest), { signal })
-  } else {
-    await pipeline(createReadStream(src), createAtomicWriteStream(dest))
-  }
+  const prepared = await prepareAtomicCopyStream(src, dest, signal)
+  await prepared.commit()
 }
 
 /**
@@ -568,6 +775,12 @@ export async function compressImage(_input: AbsoluteFilePath | Uint8Array, _outp
  * dest file. Throws on non-2xx responses.
  */
 export async function download(url: string, dest: AbsoluteFilePath): Promise<void> {
+  const prepared = await prepareAtomicDownload(url, dest)
+  await prepared.commit()
+}
+
+/** Download into a prepared tmp file without replacing `dest` yet. */
+export async function prepareAtomicDownload(url: string, dest: AbsoluteFilePath): Promise<PreparedAtomicWrite> {
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
@@ -575,7 +788,10 @@ export async function download(url: string, dest: AbsoluteFilePath): Promise<voi
   if (!response.body) {
     throw new Error(`download(${url}): response has no body`)
   }
-  const writer = createAtomicWriteStream(dest)
+  let prepared: PreparedAtomicWrite | undefined
+  const writer = createPreparedAtomicWriteStream(dest, async (result) => {
+    prepared = result
+  })
   const reader = response.body.getReader()
   await new Promise<void>((resolve, reject) => {
     writer.on('error', (err) => {
@@ -604,31 +820,31 @@ export async function download(url: string, dest: AbsoluteFilePath): Promise<voi
     }
     void pump()
   })
+  if (!prepared) throw new Error(`download(${url}): stream finished without a prepared write`)
+  return prepared
 }
 
 /**
- * Compute the content hash of a file (streaming).
- *
- * Algorithm: xxhash-h64 — non-cryptographic, ~10× faster than MD5, and the
- * `writeIfUnchanged` precision-fallback only needs collision resistance under
- * a single file's write history (which h64 trivially satisfies).
- *
- * The architecture doc names xxhash-128 as the conceptual contract; the
- * `xxhash-wasm` package available at this version exposes only h32 / h64,
- * so we ship h64 and revisit if a 128-bit variant becomes necessary.
+ * Compute the tagged XXH3-64 content hash of a file without buffering it whole.
  */
-let xxhashApi: Awaited<ReturnType<typeof xxhashLoader>> | undefined
-async function getXxhash() {
-  if (!xxhashApi) xxhashApi = await xxhashLoader()
-  return xxhashApi
+export async function hash(path: AbsoluteFilePath, signal?: AbortSignal): Promise<ContentHash> {
+  return (await hashWithSize(path, signal)).contentHash
 }
 
-export async function hash(path: AbsoluteFilePath): Promise<string> {
-  const api = await getXxhash()
-  const hasher = api.create64()
+/** Compute content hash and byte count from the same read stream. */
+export async function hashWithSize(
+  path: AbsoluteFilePath,
+  signal?: AbortSignal
+): Promise<{ contentHash: ContentHash; size: number }> {
+  signal?.throwIfAborted()
+  const hasher = createContentHasher()
   const stream = createReadStream(path)
+  let size = 0
+  if (signal) addAbortSignal(signal, stream)
   for await (const chunk of stream) {
-    hasher.update(new Uint8Array(chunk as Buffer))
+    const bytes = chunk as Buffer
+    hasher.update(bytes)
+    size += bytes.byteLength
   }
-  return hasher.digest().toString(16).padStart(16, '0')
+  return { contentHash: hasher.digest(), size }
 }

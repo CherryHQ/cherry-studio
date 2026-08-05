@@ -79,6 +79,7 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -154,50 +155,44 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.2 - Model Routing, Clear Context & v2 Stabilization
+    Cherry Studio 2.0.0 - A New AI Workspace, from Chat to Getting Work Done
 
-    ✨ New Features
-    - [Knowledge] Added a Select All control when importing notes into a knowledge base.
-    - [Claude Code] Claude Code provider now offers Claude Opus 5 and Claude Sonnet 5, plus 1M-context variants of Opus 4.6/4.7/4.8/5 and Sonnet 4.6.
-    - [Chat] Home Chat can now start a fresh model context without creating a new conversation. Use Cmd/Ctrl+K or the input QuickPanel; the optional eraser button remains hidden by default and can be enabled from toolbar customization.
+    ✨ New Interface, New Experience
+    - Upgraded interactions and visual design make chats, roles, projects, and tasks clearer and easier to organize
+    - Built for multitasking, with multi-window and split-view layouts for switching between work and reviewing progress and deliverables
 
-    🐛 Bug Fixes
-    - [Chat] Fixed chat message toolbar icon buttons (edit, copy, regenerate, delete, save to notes) missing accessible names, so screen readers and keyboard users can now identify them.
-    - [Models] Fixed incorrect model grouping for providers that return flat model IDs.
-    - [Agent] Editing an assistant or agent now keeps the edit dialog open after each automatic save.
-    - [Chat] Fixed message-list flickering and ghosting when reversing direction while dragging the scrollbar thumb.
-    - [MCP] MCP JSON import now supports configurations containing multiple servers.
-    - [Agent] Changing the app language now updates existing agent sessions on their next turn instead of retaining the previous response-language instruction.
-    - [Chat] Fixed drag selection so messages leave the multi-select set when the selection box shrinks.
-    - [Agent] Fixed OpenCode Go and other mixed-endpoint providers returning a 400 error in new Agent Sessions by routing each model through its declared protocol.
-    - [Chat] Conversations and agent sessions without a valid owner are now consistently labeled Unlinked Assistant or Unlinked Agent while preserving their titles.
-    - [MCP] Fixed MCP server environment variables and headers remaining configured after all entries are cleared.
-    - [Notes] Opening an existing note no longer steals focus or jumps the caret to the end of the document; only new (empty) notes automatically focus the editor.
-    - [Migration] Migrated Agent tasks now preserve managed workspace files and relocate available Claude session caches while surfacing unavailable resume data through the normal runtime error.
-    - [Migration] Fixed model endpoint routing after migrating from Cherry Studio v1, including NewAPI-compatible providers.
-    - [Data] Existing v1 clear-context boundaries are preserved during migration when they have not already been discarded by an earlier v2 preview migration.
+    🤖 More Powerful Agents
+    - Supports both OpenAI and Anthropic endpoints, reuses Claude and Codex subscriptions, and works with more models
+    - The core Agent runtime is built in, greatly reducing dependency installation and environment setup
+    - Complete research, documents, presentations, data analysis, and coding faster, with one-click previews of results
+
+    🛠️ More Tool Upgrades
+    - Agents can read and maintain knowledge bases, helping your knowledge grow continuously like a Wiki
+    - Code tools are upgraded to Code Mate, with one-click model service configuration for Claude Code, Codex, and more
+    - Image generation dynamically shows the parameters available for each model, making results easier to control
+
+    ⚡ Performance
+    - A fully upgraded data foundation stays responsive even with extensive history
+    - Smoother scrolling in very long conversations, while large-folder imports no longer block the interface
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.2 - 模型路由、清除上下文与 v2 稳定化
+    Cherry Studio 2.0.0 - 全新 AI 工作台，从对话到完成任务
 
-    ✨ 新功能
-    - [知识库] 在向知识库导入笔记时新增“全选”控件。
-    - [Claude Code] Claude Code 服务商现已提供 Claude Opus 5 与 Claude Sonnet 5，以及 Opus 4.6/4.7/4.8/5 和 Sonnet 4.6 的 1M 上下文变体。
-    - [聊天] 主聊天现可在不新建对话的情况下开启全新的模型上下文。使用 Cmd/Ctrl+K 或输入框快捷面板；可选的橡皮擦按钮默认隐藏，可在工具栏自定义中开启。
+    ✨ 全新界面，全新体验
+    - 交互与视觉全面升级，更清晰简约，让聊天、角色、项目和任务更容易组织
+    - 面向多任务协作，支持多窗口与分屏布局，灵活切换，随时查看进度和产物
 
-    🐛 问题修复
-    - [聊天] 修复了聊天消息工具栏图标按钮（编辑、复制、重新生成、删除、保存到笔记）缺少无障碍名称的问题，屏幕阅读器与键盘用户现可识别它们。
-    - [模型] 修复了返回扁平模型 ID 的服务商的模型分组错误。
-    - [智能体] 编辑助手或智能体时，每次自动保存后编辑对话框现保持打开。
-    - [聊天] 修复了反向拖动滚动条滑块时消息列表的闪烁与残影问题。
-    - [MCP] MCP JSON 导入现支持包含多个服务器的配置。
-    - [智能体] 更改应用语言后，已有智能体会话在下一轮对话中随即更新，不再沿用旧的回复语言指令。
-    - [聊天] 修复了拖选：当选择框缩小时，消息会移出多选集合。
-    - [智能体] 修复了 OpenCode Go 等混合端点服务商在新智能体会话中返回 400 错误的问题，现按各模型声明的协议进行路由。
-    - [聊天] 没有有效属主的对话与智能体会话现统一标记为“未关联助手”或“未关联智能体”，并保留标题。
-    - [MCP] 修复了 MCP 服务器环境变量与请求头在所有条目清空后仍保留配置的问题。
-    - [笔记] 打开已有笔记不再抢占焦点或将光标跳到文档末尾；仅新建（空白）笔记会自动聚焦编辑器。
-    - [迁移] 迁移后的智能体任务现保留受管工作区文件，并迁移可用的 Claude 会话缓存，不可用的恢复数据通过常规运行时错误展示。
-    - [迁移] 修复了从 Cherry Studio v1 迁移后的模型端点路由，含 NewAPI 兼容服务商。
-    - [数据] 既有 v1 的清除上下文边界在迁移时被保留（未被早期 v2 预览迁移丢弃的情况下）。
+    🤖 Agent 能力强化
+    - 同时兼容 OpenAI 与 Anthropic 端点，可复用 Claude 和 Codex 订阅，支持更多模型
+    - Agent 核心运行环境内置，大幅减少依赖安装和环境配置
+    - 更快完成信息收集、文档撰写、PPT、数据分析和代码开发，一键预览成果
+
+    🛠️ 更多工具升级
+    - Agent 可读取和维护知识库，让知识像 Wiki 一样持续积累
+    - 代码工具升级为 Code Mate，可将模型服务一键配置到 Claude Code、Codex 等编程工具
+    - 绘图根据不同生图模型动态显示可用参数，更容易控制生成结果
+
+    ⚡ 性能优化
+    - 数据底座全面升级，历史记录再多也能保持流畅
+    - 优化超长对话滚动和大文件夹导入，不再阻塞界面操作
     <!--LANG:END-->

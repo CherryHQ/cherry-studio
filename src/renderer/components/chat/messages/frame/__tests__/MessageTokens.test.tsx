@@ -99,7 +99,10 @@ function createMessage(
   }
 }
 
-function renderWithProvider(message: MessageListItem) {
+function renderWithProvider(
+  message: MessageListItem,
+  aiUsageMessageKind?: MessageListProviderValue['meta']['aiUsageMessageKind']
+) {
   const locateMessage = vi.fn()
   const value: MessageListProviderValue = {
     state: {
@@ -126,7 +129,8 @@ function renderWithProvider(message: MessageListItem) {
       locateMessage
     },
     meta: {
-      selectionLayer: false
+      selectionLayer: false,
+      aiUsageMessageKind
     }
   }
 
@@ -168,6 +172,29 @@ describe('MessageTokens', () => {
     )
   })
 
+  it('queries the agent-session usage partition when provided by the message-list adapter', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 10,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      }),
+      'agent-session'
+    )
+
+    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'agent-session',
+          messageId: 'assistant-message-1'
+        })
+      })
+    )
+  })
+
   it('loads remaining invocation pages while the duration distribution is open', () => {
     const loadNext = vi.fn()
     dataApiMocks.useInfiniteQuery.mockReturnValue({
@@ -195,7 +222,7 @@ describe('MessageTokens', () => {
     const tokenStats = container.querySelector('.message-tokens')
 
     expect(tokenStats).toHaveTextContent('42 Tokens')
-    expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-foreground-secondary', 'tabular-nums')
+    expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-muted-foreground', 'tabular-nums')
     expect(screen.queryByTestId('message-token-hover-card')).not.toBeInTheDocument()
   })
 

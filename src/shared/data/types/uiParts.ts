@@ -22,7 +22,7 @@
  * - data-code (code blocks)
  */
 
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -62,14 +62,14 @@ export interface CompactPartData {
 }
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */
-export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+export type CompactionAnchorPartData = CompactionAnchorData
 
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
   toolUseId?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'error'
+  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title?: string
   activeText?: string
   description?: string
@@ -81,6 +81,8 @@ export interface AgentTaskEventPartData {
   lastToolName?: string
   outputFile?: string
   error?: string
+  /** Per-task edge authority for whether this task has detached from its spawning turn. */
+  isBackgrounded?: boolean
   skipTranscript?: boolean
   usage?: {
     totalTokens?: number
@@ -96,6 +98,9 @@ export interface KnowledgeScopePartData {
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
+
+/** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
+export type ConversationResetPartData = Record<string, never>
 
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
@@ -117,6 +122,7 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
+  'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData

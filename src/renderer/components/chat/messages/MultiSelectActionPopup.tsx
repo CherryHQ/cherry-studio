@@ -96,7 +96,7 @@ const ActionButtons: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props
 )
 
 const SelectionCount: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('shrink-0 pl-2 text-[14px] text-foreground-secondary', className)} {...props} />
+  <div className={cn('shrink-0 pl-2 text-[14px] text-muted-foreground', className)} {...props} />
 )
 
 export default MultiSelectActionPopup

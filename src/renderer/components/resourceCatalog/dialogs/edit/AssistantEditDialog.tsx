@@ -7,6 +7,7 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -17,6 +18,7 @@ import {
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
@@ -33,6 +35,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
@@ -44,6 +47,8 @@ import {
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
+  editDialogFormRowClassName,
+  editDialogFormRowLabelClassName,
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
@@ -82,6 +87,10 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   mcpMode: AssistantFormState['mcpMode']
+  contextOverrideEnabled: boolean
+  contextCompressEnabled: boolean
+  contextTruncateThreshold: number
+  contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
 }
@@ -118,6 +127,10 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     mcpMode: form.mcpMode,
+    contextOverrideEnabled: form.contextOverrideEnabled,
+    contextCompressEnabled: form.contextCompressEnabled,
+    contextTruncateThreshold: form.contextTruncateThreshold,
+    contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
   }
@@ -127,7 +140,8 @@ function modelLabelsForAssistant(resource: AssistantEditDialogResource): ModelLa
   return {
     modelId: resource.modelName ?? null,
     planModelId: null,
-    smallModelId: null
+    smallModelId: null,
+    contextCompressModelId: null
   }
 }
 
@@ -151,6 +165,10 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     mcpMode: values.mcpMode,
+    contextOverrideEnabled: values.contextOverrideEnabled,
+    contextCompressEnabled: values.contextCompressEnabled,
+    contextTruncateThreshold: values.contextTruncateThreshold,
+    contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
   }
@@ -365,7 +383,12 @@ function AssistantEditDialogContent({
           </TabsContent>
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
+          <AssistantAdvancedFields
+            form={form}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+          />
         </TabsContent>
         <CreateGroupDialog
           open={createGroupDialogOpen}
@@ -417,64 +440,64 @@ function AssistantBasicFields({
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-[auto_1fr] gap-4">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="💬"
-          portalContainer={portalContainer}
-          size="sm"
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('common.name')}
-          placeholder={t('library.config.basic.field.name.placeholder')}
-          required
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="min-w-0">
-          <CompactModelField
-            form={form}
-            name="modelId"
-            label={t('common.model')}
-            allowClear
-            filter={modelFilter}
-            portalContainer={portalContainer}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            onModelChange={handleAssistantModelChange}
-            onSettingsNavigate={onSettingsNavigate}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="groupId"
-          render={({ field }) => (
-            <FormItem className="min-w-0">
-              <FormLabel className="font-normal">{t('library.config.basic.group')}</FormLabel>
-              <GroupSelector
-                value={field.value}
-                onChange={field.onChange}
-                groups={groups}
-                isLoading={groupsLoading}
-                error={groupsError}
-                portalContainer={portalContainer}
-                onCreateGroup={onCreateGroup}
-              />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+      <AvatarField
+        form={form}
+        emojiPickerOpen={emojiPickerOpen}
+        setEmojiPickerOpen={setEmojiPickerOpen}
+        fallback="💬"
+        portalContainer={portalContainer}
+        size="sm"
+        layout="row"
+      />
+      <TextInputField
+        form={form}
+        name="name"
+        label={t('common.name')}
+        placeholder={t('library.config.basic.field.name.placeholder')}
+        required
+        layout="row"
+      />
       <TextInputField
         form={form}
         name="description"
         label={t('common.description')}
         placeholder={t('library.config.basic.field.description.placeholder')}
+        layout="row"
+      />
+      <CompactModelField
+        form={form}
+        name="modelId"
+        label={t('common.model')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={handleAssistantModelChange}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <FormField
+        control={form.control}
+        name="groupId"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.group')}</FormLabel>
+            <GroupSelector
+              value={field.value}
+              onChange={field.onChange}
+              groups={groups}
+              isLoading={groupsLoading}
+              error={groupsError}
+              portalContainer={portalContainer}
+              onCreateGroup={onCreateGroup}
+              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+            />
+            <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
       />
     </div>
   )
@@ -557,9 +580,7 @@ function AssistantToolsFields({
   const { t } = useTranslation()
   const mcpMode = form.watch('mcpMode')
   const mcpServerIds = form.watch('mcpServerIds')
-  const mcpEnabled = mcpMode !== 'disabled'
   const mcpModeLabel = t('library.config.basic.mcp_mode')
-  const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
 
   const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
   const toggleMcpServer = (id: string, enabled: boolean) =>
@@ -575,45 +596,23 @@ function AssistantToolsFields({
         control={form.control}
         name="mcpMode"
         render={() => (
-          <FormItem className="grid gap-3">
+          <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{`${t('library.action.enable')} MCP`}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
               <FormControl>
-                <Switch
+                <SegmentedControl<AssistantFormState['mcpMode']>
                   size="sm"
-                  checked={mcpEnabled}
-                  onCheckedChange={(checked) =>
-                    form.setValue('mcpMode', checked ? 'auto' : 'disabled', { shouldDirty: true })
-                  }
-                  aria-label={`${t('library.action.enable')} MCP`}
+                  className="shrink-0"
+                  aria-label={mcpModeLabel}
+                  value={mcpMode}
+                  onValueChange={(value) => form.setValue('mcpMode', value, { shouldDirty: true })}
+                  options={MCP_MODE_OPTIONS.map((mode) => ({
+                    value: mode.id,
+                    label: t(mode.labelKey)
+                  }))}
                 />
               </FormControl>
             </div>
-            {mcpEnabled ? (
-              <div className="flex items-start justify-between gap-3">
-                <FormLabel className="pt-2 font-normal text-[13px]">{mcpModeLabel}</FormLabel>
-                <div className="w-36 shrink-0">
-                  <Select
-                    value={mcpMode === 'manual' ? 'manual' : 'auto'}
-                    onValueChange={(value) =>
-                      form.setValue('mcpMode', value as AssistantFormState['mcpMode'], { shouldDirty: true })
-                    }>
-                    <FormControl>
-                      <SelectTrigger className="w-full" aria-label={mcpModeLabel}>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent portalContainer={portalContainer}>
-                      {selectableMcpModes.map((mode) => (
-                        <SelectItem key={mode.id} value={mode.id}>
-                          {t(mode.labelKey)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : null}
             <FormMessage />
           </FormItem>
         )}
@@ -643,13 +642,22 @@ function AssistantToolsFields({
 
 function AssistantAdvancedFields({
   form,
-  portalContainer
+  portalContainer,
+  modelLabels,
+  setModelLabels
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   portalContainer: HTMLElement | null
+  modelLabels: ModelLabels
+  setModelLabels: (labels: ModelLabels) => void
 }) {
   const { t } = useTranslation()
   const values = form.watch()
+  // Global defaults, shown as the seed when the user turns the override on for
+  // an assistant that has none stored yet.
+  const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
+  const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
+  const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
     { value: 1, label: '1' },
@@ -662,7 +670,7 @@ function AssistantAdvancedFields({
   ]
 
   return (
-    <div className="grid gap-4">
+    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
@@ -731,7 +739,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
@@ -793,7 +801,7 @@ function AssistantAdvancedFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={field.value}
                 onChange={(value) =>
                   field.onChange(
@@ -804,6 +812,18 @@ function AssistantAdvancedFields({
             )}
           />
         }
+      />
+
+      <ContextManagementFields
+        form={form}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        globalDefaults={{
+          compressEnabled: globalCompressEnabled,
+          truncateThreshold: globalTruncateThreshold,
+          compressModelId: globalCompressModelId || null
+        }}
       />
 
       <FormField
@@ -818,6 +838,119 @@ function AssistantAdvancedFields({
         )}
       />
     </div>
+  )
+}
+
+function ContextManagementFields({
+  form,
+  portalContainer,
+  modelLabels,
+  setModelLabels,
+  globalDefaults
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  portalContainer: HTMLElement | null
+  modelLabels: ModelLabels
+  setModelLabels: (labels: ModelLabels) => void
+  globalDefaults: { compressEnabled: boolean; truncateThreshold: number; compressModelId: string | null }
+}) {
+  const { t } = useTranslation()
+  const values = form.watch()
+  // Only re-seed from globals the first time an assistant WITHOUT a stored
+  // override is customized — an ON→OFF→ON round trip on a stored override must
+  // preserve the saved values.
+  const hadStoredOverride = useRef(values.contextOverrideEnabled)
+
+  const onOverrideToggle = (checked: boolean) => {
+    if (checked && !hadStoredOverride.current) {
+      form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
+      form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
+      form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
+    }
+    form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
+  }
+
+  return (
+    <>
+      <ToggleFieldGroup
+        label={t('library.config.basic.context_management')}
+        description={t('library.config.basic.field.context_management.hint')}
+        enabled={values.contextOverrideEnabled}
+        onEnabledChange={onOverrideToggle}
+      />
+      {values.contextOverrideEnabled ? (
+        <div className="grid gap-4 border-border/60 border-l pl-4">
+          <FormField
+            control={form.control}
+            name="contextCompressEnabled"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <FieldLabelWithHelp
+                      label={t('library.config.basic.context_compress_enabled')}
+                      help={t('library.config.basic.field.context_compress_enabled.hint')}
+                    />
+                  </div>
+                  <FormControl>
+                    <Switch
+                      size="sm"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label={t('library.config.basic.context_compress_enabled')}
+                    />
+                  </FormControl>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="contextTruncateThreshold"
+            render={({ field }) => (
+              <FormItem>
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.context_truncate_threshold')}
+                  help={t('library.config.basic.field.context_truncate_threshold.hint')}
+                />
+                <FormControl>
+                  <EditableNumber
+                    block
+                    min={1}
+                    step={1000}
+                    precision={0}
+                    align="start"
+                    changeOnBlur
+                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    value={field.value}
+                    onChange={(value) =>
+                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <CompactModelField
+            form={form}
+            name="contextCompressModelId"
+            label={t('library.config.basic.context_compress_model')}
+            allowClear
+            emptyLabel={t('library.config.basic.context_compress_model_follow')}
+            // A compression model summarizes history — only chat-capable models qualify.
+            filter={(model) => !isNonChatModel(model)}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => form.setValue('contextCompressModelId', modelId, { shouldDirty: true })}
+          />
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -844,7 +977,7 @@ function ToggleFieldGroup({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground/60 text-xs">{valueLabel}</span> : null}
+          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {enabled && control ? <div className="w-36">{control}</div> : null}
@@ -964,7 +1097,7 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+    <div className="rounded-xs border border-border-subtle bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
@@ -1031,9 +1164,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? (
-            <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>
-          ) : null}
+          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>

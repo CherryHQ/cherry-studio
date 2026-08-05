@@ -36,7 +36,7 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
-export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
@@ -160,6 +160,14 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /**
+   * When true, every fire continues the same agent session instead of creating
+   * a fresh one. Off by default — a sticky session accumulates context without
+   * bound, which is why the scheduler creates a new session per fire otherwise.
+   */
+  reuseSession: z.boolean(),
+  /** The sticky session bound by the last fire; null until the first fire (or while `reuseSession` is off). */
+  reuseSessionId: z.string().nullable(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),

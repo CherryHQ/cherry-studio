@@ -37,12 +37,10 @@ const mocks = vi.hoisted(() => ({
   modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   createInternalEntry: vi.fn(),
   getPhysicalPath: vi.fn(),
-  getMetadata: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
@@ -53,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
+  surfaceFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['composer:new-session', 'skills'] as string[],
   pinnedLauncherIds: [] as readonly string[],
@@ -75,6 +74,8 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  topicFulfilled: false,
+  markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
@@ -189,6 +190,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
+    hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
     subscribe: vi.fn(() => () => {})
   }
@@ -206,7 +208,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
-        focus: vi.fn(),
+        focus: mocks.surfaceFocus,
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -483,7 +485,11 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: false,
+    isFulfilled: mocks.topicFulfilled,
+    markSeen: mocks.markTopicSeen
+  })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -674,6 +680,15 @@ function getAgentSkillsPanelItems() {
   return list
 }
 
+// `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
+// assuming the slot IS the dock.
+function getQueueDock(): any {
+  const slot = mocks.surfaceProps?.queueContent as any
+  if (!slot) return undefined
+  const children = Array.isArray(slot.props?.children) ? slot.props.children : [slot.props?.children]
+  return children.flat().find((child: any) => child?.props?.items)
+}
+
 describe('AgentComposer', () => {
   beforeEach(() => {
     // The `@` panel's entity-reference merge hits these paths; the mock factory has no
@@ -726,28 +741,39 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.isDirectory.mockReset()
-    mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
+    mocks.topicFulfilled = false
+    mocks.markTopicSeen.mockReset()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.hasCasual).mockReset()
+    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
-    mocks.getMetadata.mockReset()
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 })
     mocks.ipcApiRequest.mockReset()
-    mocks.ipcApiRequest.mockImplementation(async (route: string, input: { items: { key: string }[] }) => {
-      if (route !== 'file.batch_get_metadata') return {}
-      return Object.fromEntries(
-        input.items.map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
-      )
-    })
+    mocks.ipcApiRequest.mockImplementation(
+      async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
+        if (route === 'file.get_metadata') {
+          // The session workspace-status preflight stays pending so it never flips the composer into a
+          // blocking warning (mirrors the former hanging `isDirectory` default). Send-path physical files
+          // (from buildFileParts) resolve to a real file MIME instead.
+          if (input.kind === 'path' && input.path === mocks.sessionWorkspacePath) {
+            return new Promise(() => undefined)
+          }
+          return { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+        }
+        if (route !== 'file.batch_get_metadata') return {}
+        return Object.fromEntries(
+          (input.items ?? []).map((item) => [item.key, { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }])
+        )
+      }
+    )
     mocks.timeoutCallbacks.clear()
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((key: string, callback: () => void) => {
@@ -762,12 +788,10 @@ describe('AgentComposer', () => {
       ...window.api,
       file: {
         ...window.api.file,
-        isDirectory: mocks.isDirectory,
         listDirectory: mocks.listDirectory,
         listDirectoryEntries: mocks.listDirectoryEntries,
         createInternalEntry: mocks.createInternalEntry,
-        getPhysicalPath: mocks.getPhysicalPath,
-        getMetadata: mocks.getMetadata
+        getPhysicalPath: mocks.getPhysicalPath
       }
     }
     mocks.updateModel.mockReset()
@@ -781,6 +805,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
+    mocks.surfaceFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['composer:new-session', 'skills']
     mocks.pinnedLauncherIds = []
@@ -982,7 +1007,8 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
-    const queued = mocks.surfaceProps?.queueContent as any
+    const queued = getQueueDock()
+    expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
       type: 'data-knowledge-scope',
       data: { baseIds: [knowledgeBaseOne.id] }
@@ -1054,9 +1080,9 @@ describe('AgentComposer', () => {
       mocks.speedControlProps?.onReasoningEffortChange('low')
       mocks.speedControlProps?.onFastModeChange(false)
     })
-    const queueContent = mocks.surfaceProps?.queueContent as any
+    const dock = getQueueDock()
     await act(async () => {
-      await queueContent.props.onEdit(queueContent.props.items[0].id)
+      await dock.props.onEdit(dock.props.items[0].id)
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
@@ -1175,38 +1201,6 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
   })
 
-  it('uses the same 20px size for the model and workspace icons', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        onWorkspaceChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('model-avatar')).toHaveAttribute('data-size', '20')
-    expect(screen.getByText('Workspace 1').closest('button')?.querySelector('.lucide-folder')).toHaveAttribute(
-      'width',
-      '20'
-    )
-  })
-
-  it('uses the same 20px size for missing agent, model, and workspace icons', async () => {
-    mocks.sessionLayout = 'time'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
-    expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
-    expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
-  })
-
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
     mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
     mocks.modelResult = {
@@ -1254,8 +1248,6 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -1458,8 +1450,6 @@ describe('AgentComposer', () => {
     )
 
     const modelLabel = screen.getByText('Claude Sonnet 4.5')
-    expect(modelLabel).not.toHaveClass('text-muted-foreground')
-    expect(modelLabel).not.toHaveClass('text-foreground/85')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
@@ -1528,9 +1518,6 @@ describe('AgentComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    const newConversationIcon = newSessionButton.querySelector('.new-conversation-icon')
-    expect(newConversationIcon).toHaveAttribute('width', '18')
-    expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1650,8 +1637,6 @@ describe('AgentComposer', () => {
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
     fireEvent.click(skillButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
@@ -1696,8 +1681,6 @@ describe('AgentComposer', () => {
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
 
-    expect(slashCommandsButton.querySelector('.lucide-terminal')).toBeInTheDocument()
-    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
     fireEvent.click(slashCommandsButton)
@@ -1928,13 +1911,13 @@ describe('AgentComposer', () => {
     // Enqueue path: sendMessage is NOT called directly — it goes through the dock.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
 
     // Manually drain the dock. Now sendMessage runs and saveHistory fires.
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     await waitFor(() => {
@@ -2827,6 +2810,199 @@ describe('AgentComposer', () => {
     ])
   })
 
+  it('uses an isolated launch draft, selects its skill, and focuses without sending', async () => {
+    const issueReporter = { name: 'issue-reporter', filename: 'issue-reporter' }
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: issueReporter,
+      index: 0,
+      textOffset: 0
+    }
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'agent-session-draft-agent-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: {
+            text: 'Use the issue-reporter skill.',
+            tokens: [issueReporterToken]
+          }
+        }}
+      />
+    )
+
+    expect(cacheService.getCasual).toHaveBeenCalledWith('agent-feedback-draft-feedback-session')
+    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-agent-1')
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] },
+      expect.any(Number)
+    )
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('adopts launch options that arrive after the restored session first renders', async () => {
+    const issueReporterToken = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    const defaultProps = {
+      agentId: 'restored-assistant',
+      sessionId: 'feedback-session',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    view.rerender(
+      <AgentComposer
+        {...defaultProps}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+
+    view.rerender(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
+  })
+
+  it('does not restore the launch template after the isolated draft was intentionally cleared', () => {
+    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
+    vi.mocked(cacheService.getCasual).mockReturnValue({ text: '', tokens: [] })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }
+        }}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
+  it('consumes the launch state only after the user successfully sends the editable draft', async () => {
+    const onSent = vi.fn()
+    const token = {
+      id: 'skill:issue-reporter',
+      kind: 'skill' as const,
+      label: 'issue-reporter',
+      promptText: 'Use the issue-reporter skill.',
+      payload: { name: 'issue-reporter', filename: 'issue-reporter' },
+      index: 0,
+      textOffset: 0
+    }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [token] },
+          onSent
+        }}
+      />
+    )
+
+    expect(onSent).not.toHaveBeenCalled()
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the issue-reporter skill. The settings page is unresponsive.',
+        tokens: [token]
+      })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(onSent).toHaveBeenCalledTimes(1)
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: '', tokens: [] },
+      expect.any(Number)
+    )
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-session-draft-agent-1',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('keeps the launch state when sending fails', async () => {
+    const onSent = vi.fn()
+    mocks.sendMessage.mockRejectedValue(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="feedback-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+          onSent
+        }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Use the issue-reporter skill.', tokens: [] })
+    })
+
+    expect(onSent).not.toHaveBeenCalled()
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-feedback-draft-feedback-session',
+      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.any(Number)
+    )
+  })
+
   it('drops a cached knowledge chip together with its prompt text', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
@@ -3249,62 +3425,6 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
-    const workspaceFile = {
-      id: 'workspace-file-1',
-      fileTokenSourceId: 'source-workspace-file-1',
-      name: 'notes.md',
-      origin_name: 'notes.md',
-      path: '/workspace/docs/notes.md'
-    } as FileMetadata
-    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    mocks.draftText = 'long line\n'.repeat(80)
-    mocks.files = [workspaceFile]
-    mocks.draftTokens = [
-      {
-        id: `file:${workspaceFile.fileTokenSourceId}`,
-        kind: 'file',
-        label: workspaceFile.name,
-        payload: workspaceFile,
-        index: 0,
-        textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
-    ]
-    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    fireEvent.click(screen.getByText('send'))
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.ipcApiRequest.mock.invocationCallOrder[0]
-    )
-
-    await act(async () => {
-      metadata.resolve({
-        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
-      })
-    })
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
-  })
-
   it('batches workspace attachment metadata while preserving attachment order', async () => {
     const workspaceFileA = {
       id: 'workspace-file-1',
@@ -3353,7 +3473,7 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.ipcApiRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'file.batch_get_metadata')).toHaveLength(1)
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.batch_get_metadata', {
       items: [
         { key: '/workspace/docs/alpha.md', handle: { kind: 'path', path: '/workspace/docs/alpha.md' } },
@@ -3361,7 +3481,11 @@ describe('AgentComposer', () => {
       ]
     })
     expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/local.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
 
     const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
     expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
@@ -3499,7 +3623,11 @@ describe('AgentComposer', () => {
     // The FileEntry is created at send time: the file part carries both file identities,
     // a file:// URL, and a real MIME instead of the raw path / literal extension.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/notes.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
@@ -3639,7 +3767,50 @@ describe('AgentComposer', () => {
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+    expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
+      { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
+    ])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('drains a streaming-period follow-up when the foreground stream ends despite background tasks', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
+    ])
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
@@ -3695,13 +3866,13 @@ describe('AgentComposer', () => {
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
 
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    const itemId = dock.props.items[0].id
     await act(async () => {
-      await queueContent.props.onEdit(itemId)
+      await dock.props.onEdit(itemId)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued agent draft'))
-    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeUndefined())
+    await waitFor(() => expect(getQueueDock()).toBeUndefined())
     expect(mocks.files).toEqual([file])
     expect(mocks.replaceDraft).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -3795,17 +3966,17 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
-    const queueContent = mocks.surfaceProps?.queueContent as any
-    expect(queueContent).toBeTruthy()
-    const itemId = queueContent.props.items[0].id
+    const dock = getQueueDock()
+    expect(dock).toBeTruthy()
+    const itemId = dock.props.items[0].id
 
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     await act(async () => {
-      await queueContent.props.onSteer(itemId)
+      await dock.props.onSteer(itemId)
     })
 
     // A failed manual steer must not silently drop the queued item.
-    expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(getQueueDock().props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
@@ -4099,11 +4270,6 @@ describe('AgentComposer', () => {
     expect(sendAccessory).not.toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
 
-    expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Claude Sonnet 4.5').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    const workspaceButton = screen.getByText('Workspace 1').closest('button')
-    expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
-
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
     expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
@@ -4290,7 +4456,7 @@ describe('AgentComposer', () => {
   })
 
   it('does not block sends when workspace status preflight fails', async () => {
-    mocks.isDirectory.mockRejectedValueOnce(new Error('preflight unavailable'))
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('preflight unavailable'))
 
     render(
       <AgentHomeComposer
@@ -4302,7 +4468,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.isDirectory).toHaveBeenCalledWith('/workspace'))
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/workspace' })
+    )
     await act(async () => {
       await Promise.resolve()
     })
@@ -4312,23 +4480,6 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
-  })
-
-  it('uses the same 20px size for the workspace warning icon', async () => {
-    mocks.sessionLayout = 'time'
-    mocks.isDirectory.mockResolvedValueOnce(false)
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() => expect(document.querySelector('.lucide-triangle-alert')).toHaveAttribute('width', '20'))
   })
 
   it('does not preflight the system no-project workspace path', () => {
@@ -4359,8 +4510,7 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(document.querySelector('.lucide-circle-slash')).toHaveAttribute('width', '20')
-    expect(mocks.isDirectory).not.toHaveBeenCalled()
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 })
 

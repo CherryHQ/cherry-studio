@@ -67,13 +67,13 @@ describe('toModelMessages', () => {
     ])
   })
 
-  it('strips media the model cannot accept', async () => {
+  it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
-      [ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])],
-      { image: false, video: true, audio: true }
+      [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],
+      { image: true, video: false, audio: true }
     )
     expect(model).toEqual([
-      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('image attachment omitted') }] }
+      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('video attachment omitted') }] }
     ])
   })
 

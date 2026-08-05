@@ -6,6 +6,7 @@ import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import type { AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
 import {
   createRecentSessionEntryFromSession,
   recordGlobalSearchRecentEntry
@@ -36,6 +37,7 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useModelById } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -52,7 +54,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -63,6 +65,14 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import Sessions from './components/Sessions'
+import {
+  clearFeedbackComposerLaunch,
+  FEEDBACK_INTENT_GUARD_TTL_MS,
+  type FeedbackComposerLaunch,
+  getFeedbackIntentGuardCacheKey,
+  persistFeedbackComposerLaunch,
+  readFeedbackComposerLaunch
+} from './feedbackComposerLaunch'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
 
@@ -168,20 +178,17 @@ const AgentPage = () => {
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const navigate = useNavigate()
+  const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
+  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
   const agentSessionsSource = useAgentSessionsSource()
   const { sessions: agentSessions } = agentSessionsSource
-  // First-entry selection resumes the most-recently-updated session. A dedicated `updatedAt DESC LIMIT 1`
-  // query proves the global latest, so it neither waits for the full session history to paginate in nor
-  // depends on the `orderKey`-paged `/agent-sessions` list order (which holds the newest-created, not the
-  // most-recently-active, sessions on its first page).
-  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
-  const isLatestSessionReady = isMessageOnlyView || !isLatestSessionLoading
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -201,7 +208,6 @@ const AgentPage = () => {
     isMessageOnlyView ? routeSessionId : null
   )
   const { agents, isLoading: isAgentsLoading } = useAgents()
-  const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', {
@@ -235,14 +241,23 @@ const AgentPage = () => {
   // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
   // targets take precedence over resume.
   const [resumeSessionId] = useState<string | null>(() =>
-    isMessageOnlyView || routeActiveSessionId ? null : lastUsedSessionId
+    isMessageOnlyView || isFeedbackIntent || routeActiveSessionId ? null : lastUsedSessionId
   )
   const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
+  // The global latest query is the final fallback, not a parallel page dependency. An explicit route/tab
+  // target wins outright; a remembered session gets one chance to resolve before we ask for latest.
+  const shouldLoadLatestSession =
+    !isMessageOnlyView && !isFeedbackIntent && !routeActiveSessionId && !isResumeSessionLoading && !resumeSession
+  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({
+    enabled: shouldLoadLatestSession
+  })
+  const isLatestSessionReady = !shouldLoadLatestSession || !isLatestSessionLoading
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialEmptySessionEvaluatedRef = useRef(false)
+  const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(null)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
@@ -268,6 +283,9 @@ const AgentPage = () => {
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
+  const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
+  // Start the managed model query before agent details resolve; AgentChat shares the same SWR request.
+  useModelById(visibleAgentFromList?.model)
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -754,10 +772,57 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [currentTabId])
 
+  const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
+    initialEmptySessionEvaluatedRef.current = true
+    setFeedbackComposerLaunch(null)
+    closeSurface()
+    setPendingLocateMessageId(undefined)
+    setMissingAgentSelection(false)
+
+    try {
+      if (!routeSessionId) {
+        throw new Error('Feedback intent is missing its prepared session')
+      }
+      try {
+        await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`])
+      } catch (err) {
+        logger.warn('Failed to refresh Agent cache for prepared feedback session', err as Error, {
+          sessionId: routeSessionId
+        })
+      }
+      setFeedbackComposerLaunch(persistFeedbackComposerLaunch(routeSessionId))
+    } catch (err) {
+      logger.error('Failed to prepare Cherry Assistant feedback session', err as Error)
+      toast.error(t('settings.about.feedback.agent_error'))
+      showMissingAgentSelection()
+    } finally {
+      try {
+        await navigate({
+          to: '/app/agents',
+          search: routeSessionId ? { sessionId: routeSessionId } : {},
+          replace: true
+        })
+      } finally {
+        cacheService.deleteCasual(intentGuardCacheKey)
+      }
+    }
+  })
+
+  useEffect(() => {
+    if (!isFeedbackIntent || !currentTabId) return
+    const intentGuardCacheKey = getFeedbackIntentGuardCacheKey(currentTabId)
+    if (cacheService.hasCasual(intentGuardCacheKey)) return
+    cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
+    void runFeedbackIntent(intentGuardCacheKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
+  }, [currentTabId, isFeedbackIntent, routeSessionId])
+
   useEffect(() => {
     if (initialEmptySessionEvaluatedRef.current) {
       return
     }
+
+    if (isFeedbackIntent) return
 
     if (isMessageOnlyView) {
       initialEmptySessionEvaluatedRef.current = true
@@ -814,6 +879,7 @@ const AgentPage = () => {
     agents,
     createDefaultEmptySession,
     isAgentsLoading,
+    isFeedbackIntent,
     isLatestSessionReady,
     isMessageOnlyView,
     isResumeSessionLoading,
@@ -824,6 +890,33 @@ const AgentPage = () => {
     setActiveSession,
     setActiveSessionId
   ])
+
+  const visibleSessionId = visibleSession?.id
+  useEffect(() => {
+    if (!visibleSessionId) return
+    const cachedLaunch = readFeedbackComposerLaunch(visibleSessionId)
+    if (!cachedLaunch) return
+    setFeedbackComposerLaunch((current) => (current?.sessionId === visibleSessionId ? current : cachedLaunch))
+  }, [visibleSessionId])
+
+  const visibleFeedbackComposerLaunch =
+    feedbackComposerLaunch?.sessionId === visibleSessionId
+      ? feedbackComposerLaunch
+      : visibleSessionId
+        ? readFeedbackComposerLaunch(visibleSessionId)
+        : null
+  const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
+    if (!visibleFeedbackComposerLaunch) return undefined
+    const launch = visibleFeedbackComposerLaunch
+    return {
+      draftCacheKey: launch.draftCacheKey,
+      initialDraft: launch.initialDraft,
+      onSent: () => {
+        clearFeedbackComposerLaunch(launch)
+        setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+      }
+    }
+  }, [visibleFeedbackComposerLaunch])
 
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
@@ -933,6 +1026,7 @@ const AgentPage = () => {
     isClassicSessionLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
         activeAgentId={activeResourceAgentId}
+        dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
           setAgentCreateOpen(true)
@@ -953,6 +1047,7 @@ const AgentPage = () => {
     ) : (
       <AgentSidePanel
         activeSessionId={activeSessionId}
+        dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
@@ -978,6 +1073,7 @@ const AgentPage = () => {
           node: (
             <Sessions
               agentSessionsSource={agentSessionsSource}
+              dataEnabled={sessionPaneOpen}
               presentation="right-panel"
               activeSessionId={activeSessionId}
               agentIdFilter={activeResourceAgentId}
@@ -1077,6 +1173,7 @@ const AgentPage = () => {
           sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
           onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
           sessionPaneUserOpenIntentSeq={sessionPaneUserOpenIntentSeq}
+          composerLaunchOptions={composerLaunchOptions}
         />
       </div>
       <AgentCreateDialog
@@ -1090,7 +1187,10 @@ const AgentPage = () => {
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
-    <div id="agent-page" className={cn('relative flex flex-1 flex-col overflow-hidden', className)}>
+    <div
+      data-ui="agent.view"
+      id="agent-page"
+      className={cn('relative flex flex-1 flex-col overflow-hidden', className)}>
       {children}
     </div>
   )

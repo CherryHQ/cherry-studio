@@ -1,6 +1,7 @@
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -19,7 +20,10 @@ import {
   AgentConversationControls,
   type AgentConversationControlsProps
 } from '@renderer/components/composer/variants/agent/AgentConversationControls'
-import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
+import {
+  type AgentComposerLaunchOptions,
+  MissingAgentHomeComposer
+} from '@renderer/components/composer/variants/AgentComposer'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -107,6 +111,7 @@ interface AgentChatProps {
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
   sessionPaneUserOpenIntentSeq?: number
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
 interface AgentChatLayoutProps {
@@ -169,7 +174,8 @@ const AgentChat = ({
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange,
-  sessionPaneUserOpenIntentSeq
+  sessionPaneUserOpenIntentSeq,
+  composerLaunchOptions
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -445,6 +451,7 @@ const AgentChat = ({
         sessionMessagesEnabled={sessionMessagesEnabled}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        composerLaunchOptions={composerLaunchOptions}
       />
     )
   }
@@ -539,6 +546,7 @@ interface AgentChatSessionCenterProps {
   sessionMessagesEnabled: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
 const AgentChatSessionCenter = ({
@@ -554,7 +562,8 @@ const AgentChatSessionCenter = ({
   isMultiSelectMode,
   sessionMessagesEnabled,
   onOpenCitationsPanel,
-  onCreateEmptySession
+  onCreateEmptySession,
+  composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <AgentComposerSlot
@@ -566,12 +575,12 @@ const AgentChatSessionCenter = ({
       session={session}
       sessionId={runtime.sessionId}
       sendMessage={runtime.sendMessage}
-      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       stop={runtime.stop}
       isStreaming={runtime.isPending}
       sendDisabled={composerPending}
       onCreateEmptySession={onCreateEmptySession}
       composerContext={runtime.composerContext}
+      composerLaunchOptions={composerLaunchOptions}
     />
   )
   const main = (
@@ -593,8 +602,6 @@ const AgentChatSessionCenter = ({
         activeAgent={activeAgent}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
-        localSendGeneration={runtime.localSendGeneration}
-        onBindRuntime={runtime.bindMessageListRuntime}
         optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
         isLoading={runtime.isLoading}
         hasOlder={runtime.hasOlder}
@@ -667,7 +674,11 @@ function AgentChatLayout({
         topBar={topBar}
         topRightTool={topRightTool}
         showTopRightToolWhenPaneOpen
-        center={center}
+        center={
+          // The layout-mode provider links the message column and the composer so
+          // both yield the same anchor-rail gutter and stay aligned.
+          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+        }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}
         centerId={centerSurface?.id}

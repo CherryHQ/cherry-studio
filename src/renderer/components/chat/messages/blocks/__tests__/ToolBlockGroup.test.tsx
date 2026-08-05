@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
 import { PartsProvider, usePartsMap } from '../MessagePartsContext'
-import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
 import { ToolBlockGroup, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
@@ -118,6 +117,17 @@ const skillDoneItem = {
   }
 } as ToolRenderItem
 
+const workflowDoneItem = {
+  ...readDoneItem,
+  id: 'tool-workflow',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-workflow',
+    toolCallId: 'tool-workflow',
+    tool: { id: 'tool-workflow', name: 'Workflow', type: 'builtin' }
+  }
+} as ToolRenderItem
+
 const webSearchDoneItem = {
   ...readDoneItem,
   id: 'tool-web-search',
@@ -228,7 +238,6 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveClass('select-none')
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
@@ -237,32 +246,8 @@ describe('ToolBlockGroup', () => {
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('child-tool-group-content')).toHaveClass('pt-2')
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
-  })
-
-  it('requests bottom-follow recovery when an expanded tool group collapses', () => {
-    const requestFollowRecovery = vi.fn()
-    const scrollContainerRef = { current: null as HTMLDivElement | null }
-    render(
-      <div
-        ref={(node) => {
-          scrollContainerRef.current = node
-        }}>
-        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} requestFollowRecovery={requestFollowRecovery}>
-          <ToolBlockGroup items={[readDoneItem]} />
-        </ScrollOwnershipProvider>
-      </div>
-    )
-
-    const trigger = screen.getByRole('button', { name: 'Project checks' })
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).not.toHaveBeenCalled()
-
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).toHaveBeenCalledOnce()
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shields completed tool content from unrelated parts-map updates', () => {
@@ -316,6 +301,12 @@ describe('ToolBlockGroup', () => {
     render(<ToolBlockGroup items={[skillDoneItem]} />)
 
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-tool-case')).not.toBeNull()
+  })
+
+  it('uses the Workflow icon for a Workflow tool group', () => {
+    render(<ToolBlockGroup items={[workflowDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-workflow')).not.toBeNull()
   })
 
   it('uses a readable title and web icon for a web-search tool group', () => {

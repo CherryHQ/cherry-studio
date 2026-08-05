@@ -12,7 +12,9 @@ export {
   MODEL_CAPABILITY,
   objectValues,
   REASONING_EFFORT,
-  REASONING_EFFORT_ORDER
+  REASONING_EFFORT_ORDER,
+  SERVER_TOOL,
+  SERVER_TOOL_MODEL_SCOPE
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
@@ -34,11 +36,13 @@ export type {
   EndpointType,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  ServerTool,
+  ServerToolModelScope
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES } from './reasoningProfiles'
+export { REASONING_FORMAT_PROFILES, selectFormatWire } from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -50,6 +54,7 @@ export type {
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningControl,
   ReasoningSupport,
+  ReasoningWireDialect,
   SupportSpec
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'
@@ -59,9 +64,10 @@ export type {
   ProviderConfig,
   ProviderReasoningFormat,
   ReasoningFormatType,
-  RegistryEndpointConfig
+  RegistryEndpointConfig,
+  ServerToolConfig
 } from './schemas/provider'
-export { FastModeTransportSchema, REASONING_FORMAT_TYPES } from './schemas/provider'
+export { FastModeTransportSchema, REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,
@@ -110,3 +116,5 @@ export {
   inferReasoningMembership,
   inferReasoningOwnedBy
 } from './patterns/reasoning-heuristics'
+export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
+export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'

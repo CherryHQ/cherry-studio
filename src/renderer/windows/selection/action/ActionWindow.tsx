@@ -200,6 +200,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
 
   return (
     <div
+      data-ui="selection.action"
       className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--border)]"
       style={{ opacity: opacity / 100 }}>
       <div
@@ -220,8 +221,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
-            <WindowButton onClick={togglePin} className={isPinned ? 'bg-accent text-foreground hover:bg-accent' : ''}>
-              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-foreground')} />
+            <WindowButton
+              onClick={togglePin}
+              className={isPinned ? 'bg-accent text-accent-foreground hover:bg-accent' : ''}>
+              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-accent-foreground')} />
             </WindowButton>
           </Tooltip>
           <Tooltip
@@ -230,7 +233,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             isOpen={showOpacitySlider ? false : undefined}>
             <WindowButton
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
-              className={showOpacitySlider ? 'bg-accent text-foreground hover:bg-accent' : 'pb-0.5'}>
+              className={showOpacitySlider ? 'bg-accent text-accent-foreground hover:bg-accent' : 'pb-0.5'}>
               <Droplet className="size-[13px]" />
             </WindowButton>
           </Tooltip>
@@ -254,7 +257,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
               <WindowButton onClick={handleMinimize}>
                 <Minus className="size-3.5" />
               </WindowButton>
-              <WindowButton onClick={handleClose} className="hover:bg-error-base hover:text-white">
+              <WindowButton onClick={handleClose} className="hover:bg-destructive hover:text-destructive-foreground">
                 <X className="size-3.5" />
               </WindowButton>
             </>

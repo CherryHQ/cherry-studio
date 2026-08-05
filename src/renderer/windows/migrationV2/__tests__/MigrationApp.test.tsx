@@ -436,7 +436,7 @@ describe('MigrationApp', () => {
       'border-0',
       'bg-transparent',
       'px-1.5',
-      'text-foreground-muted',
+      'text-muted-foreground',
       'text-xs',
       'shadow-none',
       'hover:bg-transparent',
@@ -729,6 +729,8 @@ describe('MigrationApp', () => {
 
     render(<MigrationApp />)
     const errorDetails = screen.getByRole('button', { name: 'migration.diagnostics.open_from_error' })
+    expect(errorDetails).toHaveClass('focus-visible:border-ring', 'focus-visible:outline-none')
+    expect(errorDetails).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring/50')
 
     fireEvent.keyDown(errorDetails, { key })
 

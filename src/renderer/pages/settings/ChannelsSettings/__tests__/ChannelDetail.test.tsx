@@ -99,8 +99,20 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
-    Dialog: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
-      open ? <div>{children}</div> : null,
+    Dialog: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: React.ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => (
+      <div data-open={open}>
+        {children}
+        {open && onOpenChange && <button type="button" aria-label="close dialog" onClick={() => onOpenChange(false)} />}
+      </div>
+    ),
     DialogContent: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
@@ -157,9 +169,25 @@ describe('ChannelDetail', () => {
     available: true,
     defaultConfig: { bot_token: '', allowed_chat_ids: [] }
   }
+  const feishuChannelDef: AvailableChannel = {
+    type: 'feishu',
+    name: 'Feishu',
+    titleKey: 'agent.channels.feishu.title',
+    description: 'agent.channels.feishu.description',
+    available: true,
+    defaultConfig: {
+      app_id: '',
+      app_secret: '',
+      encrypt_key: '',
+      verification_token: '',
+      allowed_chat_ids: [],
+      domain: 'feishu'
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    HTMLElement.prototype.scrollIntoView = vi.fn()
     channelMocks.channels = [
       {
         id: 'channel-1',
@@ -223,5 +251,45 @@ describe('ChannelDetail', () => {
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', { permissionMode: null })
     })
+  })
+
+  it('creates Feishu channels active so binding an agent can start QR registration', async () => {
+    channelMocks.channels = []
+    channelMocks.createChannel.mockResolvedValue({
+      id: 'new-feishu-channel',
+      type: 'feishu',
+      name: 'Feishu 1',
+      config: feishuChannelDef.defaultConfig,
+      isActive: true
+    })
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'feishu',
+          config: feishuChannelDef.defaultConfig,
+          isActive: true
+        })
+      )
+    })
+  })
+
+  it('closes the edit dialog without clearing its content first', () => {
+    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = screen.getByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    fireEvent.click(editButton)
+    fireEvent.click(screen.getByRole('button', { name: 'close dialog' }))
+
+    channelMocks.channels = []
+    rerender(<ChannelDetail channelDef={channelDef} />)
+
+    const title = screen.getByRole('heading', { name: 'Telegram channel' })
+    expect(title).toBeInTheDocument()
+    expect(title.closest('[data-open]')).toHaveAttribute('data-open', 'false')
   })
 })

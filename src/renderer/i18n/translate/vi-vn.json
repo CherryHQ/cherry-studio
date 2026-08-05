@@ -139,11 +139,16 @@
         "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
         "disconnected": "Chưa đăng nhập",
         "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
+        "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
         "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
         "qrTitle": "Đăng nhập bằng mã QR WeChat",
         "title": "WeChat",
         "whoamiTip": "Mẹo: Gửi /whoami trong WeChat để lấy ID của người dùng."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} tác vụ nền đang chạy",
+      "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
       "content": "Xóa tác nhân sẽ buộc dừng và xóa tất cả các phiên liên kết với tác nhân này. Bạn có chắc chắn không?",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Loại bỏ và tiếp tục",
           "title": "Hủy bỏ các thay đổi chưa lưu?"
         },
+        "metadata_pending": "Tệp đã được lưu, nhưng siêu dữ liệu của nó vẫn đang được khôi phục. Không thử lại thao tác lưu này.",
         "refresh_failed": "Không thể tải lại nội dung tệp mới nhất.",
         "save_failed": "Không thể lưu tệp này. Tính năng tự động lưu đã tạm dừng cho đến khi bạn thử lại hoặc hủy bỏ các thay đổi.",
         "unsaved": "Chưa lưu",
@@ -320,16 +326,25 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
-        "subagents": "Đại lý phụ"
+        "shell_tasks": "Lệnh nền",
+        "subagents": "Đại lý phụ",
+        "workflows": "Quy trình làm việc"
       },
       "status": {
         "activity": "Hoạt động",
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "{{count}} trực tiếp",
+        "run_task_live_other": "{{count}} trực tiếp",
+        "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
+        "stop_run_task": "Dừng tác vụ",
+        "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
+        "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
@@ -614,12 +629,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "Có thể đọc và chỉnh sửa tập tin tự do. Hỏi trước khi chạy lệnh.",
-            "title": "Chế độ tự động chỉnh sửa"
+            "description": "Chỉnh sửa tệp tự do. Hỏi trước khi chạy lệnh.",
+            "title": "Tự động chấp nhận chỉnh sửa"
+          },
+          "auto": {
+            "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "title": "Phê duyệt thay tôi",
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
           },
           "bypassPermissions": {
-            "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
-            "title": "Chế độ Tự động Hoàn toàn",
+            "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
+            "title": "Toàn quyền truy cập",
             "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
           },
           "confirmChange": {
@@ -627,14 +647,14 @@
             "title": "Thay đổi chế độ quyền?"
           },
           "default": {
-            "description": "Có thể đọc tập tin tự do. Hỏi trước khi chỉnh sửa hoặc chạy lệnh.",
-            "title": "Chế độ Thường"
+            "description": "Hỏi trước khi chỉnh sửa tệp hoặc chạy lệnh.",
+            "title": "Hỏi trước khi thực hiện"
           },
           "helper": "Chọn cách tác nhân xử lý việc phê duyệt công cụ.",
           "placeholder": "Chọn chế độ quyền",
           "plan": {
-            "description": "Chỉ có thể đọc tệp và lập kế hoạch. Không thể chỉnh sửa tệp hoặc chạy lệnh.",
-            "title": "Chế độ Kế hoạch"
+            "description": "Lập kế hoạch mà không chỉnh sửa tệp. Chỉ chạy các lệnh chỉ đọc hoặc đã được kiểm duyệt.",
+            "title": "Chỉ lập kế hoạch"
           },
           "title": "Chế độ quyền"
         },
@@ -1249,10 +1269,6 @@
           "tip": "Trợ lý sẽ sử dụng khả năng nhận diện ý định của mô hình lớn để xác định xem có nên sử dụng cơ sở tri thức để trả lời hay không. Tính năng này sẽ phụ thuộc vào khả năng của mô hình"
         }
       },
-      "max_tool_calls": {
-        "label": "Số lần gọi công cụ tối đa",
-        "tip": "Số lượng tối đa các lệnh gọi công cụ được phép trong một cuộc trò chuyện. Giá trị cao hơn cho phép thực hiện các thao tác nhiều bước phức tạp hơn nhưng có thể làm tăng lượng token sử dụng và thời gian phản hồi."
-      },
       "mcp": {
         "description": "Servidores MCP habilitados por defecto",
         "enableFirst": "Bật máy chủ này trong cài đặt MCP trước",
@@ -1334,6 +1350,9 @@
       "label": "Bạn có chắc chắn muốn sao lưu dữ liệu không?"
     },
     "content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
+    "error": {
+      "active_data_writers": "Một cuộc trò chuyện hoặc tác nhân vẫn đang chạy. Hãy đợi nó hoàn thành, sau đó thử lại."
+    },
     "progress": {
       "completed": "Sao lưu đã hoàn tất",
       "compressing": "Compressando arquivos...",
@@ -1458,9 +1477,8 @@
       "image_preview_failed": "Xem trước hình ảnh thất bại",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
-      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
+      "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
       "locate_editing_message": "Định vị thông điệp gốc",
-      "mcp_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
       "new": {
         "context": "Clear Context"
       },
@@ -1580,7 +1598,6 @@
         "image_or_document": "Tải lên tệp hình ảnh hoặc tài liệu",
         "upload_from_local": "Tải tệp tin cục bộ..."
       },
-      "url_context": "Bối cảnh URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Mô hình hiện tại không hỗ trợ tìm kiếm web",
@@ -1601,14 +1618,8 @@
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Không thể chuyển đổi sang định dạng cuộc gọi công cụ hợp lệ: {{toolCall}}"
-      },
       "warning": {
-        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
-        "multiple_tools": "Tồn tại nhiều công cụ MCP khớp, {{tool}} đã được chọn",
-        "no_tool": "Không tìm thấy công cụ MCP phù hợp cho {{tool}}",
-        "url_context": "Gemini không hỗ trợ sử dụng ngữ cảnh url và gọi hàm đồng thời"
+        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm"
       }
     },
     "message": {
@@ -2472,6 +2483,7 @@
       "content": "Nội dung bị chặn bởi hệ thống an toàn, vui lòng sửa đổi và thử lại",
       "context_length": "Cuộc hội thoại quá dài, vui lòng xóa lịch sử hoặc bắt đầu cuộc trò chuyện mới",
       "deprecated": "Mô hình này đã ngừng hoạt động, vui lòng chuyển sang mô hình khác",
+      "free_model_unavailable": "Chẩn đoán AI tạm thời không khả dụng",
       "go_to_settings": "Đi tới Cài đặt",
       "knowledge": "Vector hóa cơ sở tri thức thất bại",
       "mcp": "Kết nối máy chủ MCP thất bại, hãy kiểm tra xem dịch vụ có đang chạy không",
@@ -2576,6 +2588,10 @@
     "user": "Người dùng"
   },
   "file_preview": {
+    "directory": {
+      "description": "Chọn một tệp trong thư mục này để xem trước.",
+      "title": "Đây là một thư mục"
+    },
     "html": {
       "empty": {
         "description": "Tệp HTML này không có nội dung.",
@@ -2641,6 +2657,10 @@
         "description": "Các tệp văn bản lớn hơn {{limit}} MiB không thể được xem trước.",
         "title": "Tệp quá lớn"
       }
+    },
+    "unavailable": {
+      "description": "Tệp có thể đã được di chuyển, xóa hoặc không thể truy cập được.",
+      "title": "Tệp không khả dụng"
     },
     "unsupported": {
       "action": "Mở bằng ứng dụng mặc định",
@@ -3048,6 +3068,7 @@
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
+        "copying": "Đang sao chép {{percent}}%",
         "embedding": "Nhúng",
         "error": "Lỗi",
         "pending": "Đang chờ",
@@ -3344,7 +3365,7 @@
             "label": "Mô hình nhỏ (tùy chọn)"
           }
         },
-        "model_config": "Cấu hình mô hình",
+        "model_config": "Mô hình",
         "section": {
           "advanced": {
             "desc": "Giới hạn thực thi và các tham số thời gian chạy",
@@ -3449,6 +3470,7 @@
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
+        "max_tool_calls_default": "Mặc định ({{count}} vòng)",
         "mcp_mode": "Chế độ MCP",
         "model": "Mô hình mặc định",
         "model_clear": "Rõ ràng",
@@ -3464,8 +3486,7 @@
         "tags": "Thẻ",
         "temperature": "Nhiệt độ",
         "title": "Cài đặt cơ bản",
-        "top_p": "Top-P",
-        "unlimited": "Không giới hạn"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Thư viện",
       "dialogs": {
@@ -3823,6 +3844,7 @@
       "pasted_text": "Văn bản đã dán"
     },
     "backup": {
+      "cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",
       "failed": "Sao lưu thất bại",
       "start": {
         "success": "Đã bắt đầu sao lưu"
@@ -3838,7 +3860,9 @@
       }
     },
     "citation": "{{count}} trích dẫn",
+    "citation_source": "Nguồn trích dẫn {{number}}",
     "citations": "Tài liệu tham khảo",
+    "conversation_reset": "Không tìm thấy lịch sử cuộc trò chuyện trước đó — tiếp tục trong cuộc trò chuyện mới",
     "copied": "Đã sao chép!",
     "copy": {
       "failed": "Sao chép thất bại",
@@ -4120,6 +4144,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
+      "agent_background": "Đang chạy trong nền",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",
@@ -4151,6 +4176,7 @@
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
         "webSearch": "Tìm kiếm trên web",
+        "workflow": "Quy trình làm việc",
         "write": "Viết"
       },
       "noData": "Không có dữ liệu nào cho công cụ này",
@@ -4208,6 +4234,15 @@
         "plan_other": "{{count}} gói",
         "result_one": "{{count}} kết quả",
         "result_other": "{{count}} kết quả"
+      },
+      "workflow": {
+        "orchestrating": "Điều phối quy trình làm việc",
+        "run_id": "ID chạy",
+        "script": "Kịch bản quy trình làm việc",
+        "script_path": "Đường dẫn tập lệnh",
+        "started": "Đã bắt đầu quy trình làm việc",
+        "summary": "Tóm tắt",
+        "workflow": "quy trình làm việc"
       }
     },
     "topic": {
@@ -4472,7 +4507,8 @@
     "save_blocked_load_failed": "Không thể lưu vì ghi chú không tải được",
     "save_failed": "Không lưu được ghi chú",
     "save_failure": {
-      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng."
+      "description": "Ghi chú này không thể được lưu. Các chỉnh sửa của bạn vẫn còn trong trình chỉnh sửa và tính năng tự động lưu đã bị tạm dừng.",
+      "metadata_pending": "Ghi chú đã được lưu, nhưng siêu dữ liệu tệp của nó vẫn đang được khôi phục. Không thử lại việc lưu này."
     },
     "search": {
       "both": "Tên+Nội dung",
@@ -5166,7 +5202,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Mô hình cục bộ",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5194,6 +5230,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Đám mây GPU AMD",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -6080,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Đường dẫn hiện tại",
+          "fetchError": "Không tải được danh sách thư mục Nutstore",
           "return": "Trở lại",
           "title": "Đường dẫn lưu trữ Nutstore"
         },
@@ -6744,6 +6782,7 @@
         "allStatuses": "Tất cả trạng thái",
         "allTypes": "Tất cả các loại",
         "builtinOnly": "Chỉ tích hợp sẵn",
+        "label": "Lọc",
         "status": "Lọc theo trạng thái",
         "type": "Lọc theo loại"
       },
@@ -6810,6 +6849,9 @@
         "loadError": "Lỗi lấy prompt",
         "noPromptsAvailable": "Không có lời nhắc nào có sẵn",
         "requiredField": "Trường bắt buộc"
+      },
+      "protocolInstall": {
+        "title": "Cài đặt MCP"
       },
       "protocolInstallWarning": {
         "command": "Lệnh khởi động",
@@ -7678,6 +7720,13 @@
         "usage_title": "Cách sử dụng",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Mở Token Factory",
+          "description": "Quy đổi từ 10 USD tín dụng API mỗi ngày: khoảng 10M–111M token đầu vào/đầu ra theo mức giá hiện tại, tùy vào mô hình và loại token. Tín dụng được đặt lại hằng ngày; hiện chưa hỗ trợ nạp thêm.",
+          "title": "10 USD tín dụng API miễn phí mỗi ngày"
+        }
+      },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "reorder_failed": "Không thể sắp xếp lại các nhà cung cấp",
@@ -8049,7 +8098,7 @@
           "save_failed": "Lưu thất bại",
           "zhipu_sync_failed": "Không thể đồng bộ khóa API Zhipu với Tìm kiếm Web. Vui lòng lưu lại khóa hoặc kiểm tra cài đặt Tìm kiếm Web."
         },
-        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL mặc định",
+        "fetch_urls_provider": "Nhà cung cấp tìm nạp URL",
         "free": "Miễn phí",
         "is_default": "Mặc định",
         "local_provider": {

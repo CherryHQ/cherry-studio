@@ -58,7 +58,13 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
     scheduleId: 's1',
     parentId: null,
     status: 'failed',
-    input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 30, workspace: WORKSPACE_SOURCE },
+    input: {
+      agentId: 'a1',
+      prompt: '__heartbeat__',
+      timeoutMinutes: 30,
+      workspace: WORKSPACE_SOURCE,
+      reuseRevision: 0
+    },
     output: null,
     error: { code: 'TEST', message: 'boom', retryable: false },
     attempt: 0,
@@ -86,7 +92,7 @@ describe('AgentTaskJobHandler', () => {
   })
 
   describe('metadata', () => {
-    it('declares per-agent queue + concurrency 1 + retry-once policy', () => {
+    it('declares per-agent queue + concurrency 1 + retry-on-restart policy', () => {
       expect(agentTaskJobHandler.recovery).toBe('retry')
       expect(agentTaskJobHandler.defaultConcurrency).toBe(1)
       expect(agentTaskJobHandler.defaultRetryPolicy).toEqual({
@@ -100,7 +106,8 @@ describe('AgentTaskJobHandler', () => {
           agentId: 'a-42',
           prompt: 'x',
           timeoutMinutes: 2,
-          workspace: WORKSPACE_SOURCE
+          workspace: WORKSPACE_SOURCE,
+          reuseRevision: 0
         })
       ).toBe('agent:a-42')
     })
@@ -111,7 +118,7 @@ describe('AgentTaskJobHandler', () => {
       vi.mocked(runAgentTask).mockResolvedValueOnce({ sessionId: 'sess-1', result: 'ok' })
       const ctx = {
         jobId: 'j1',
-        input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE }
+        input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
       } as JobContext<AgentTaskInput>
 
       const out = await agentTaskJobHandler.execute(ctx)

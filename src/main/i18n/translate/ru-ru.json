@@ -97,6 +97,14 @@
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
+      "more_issues": "и ещё проблем: {{count}}",
+      "preflight_failed": "Cherry Studio не удалось проверить конфигурацию OpenClaw."
+    }
+  },
   "paintings": {
     "generate_failed": "Не удалось сгенерировать изображение",
     "image_mix_failed": "Не удалось объединить изображения"

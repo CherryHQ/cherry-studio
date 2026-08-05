@@ -93,6 +93,7 @@ export const SubWindowAppShell = () => {
     // title bar stays outside every route so hosted pages can keep their normal page chrome.
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div
+        data-ui="app.detached-window"
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
         <SubWindowTitleBar />

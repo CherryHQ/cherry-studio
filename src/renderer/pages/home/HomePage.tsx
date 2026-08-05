@@ -31,6 +31,7 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useModelById } from '@renderer/hooks/useModel'
 import {
   mapApiTopicToRendererTopic,
   useActiveTopic,
@@ -186,12 +187,6 @@ const HomePage: FC = () => {
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics } = assistantTopicsSource
-  // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
-  // query proves the global latest, so it neither waits for the full topic history to paginate in nor
-  // depends on the pinned-first `/topics` list order (which would miss the latest unpinned topic when
-  // ≥200 pinned topics fill the first page).
-  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
-  const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -255,6 +250,20 @@ const HomePage: FC = () => {
     shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
   )
   const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
+  // The global latest query is the final fallback, not a parallel page dependency. An explicit
+  // topic/tab or assistant deep link wins outright; a remembered topic gets one chance to resolve
+  // before we ask for the globally latest topic.
+  const shouldLoadLatestTopic =
+    shouldAutoCreateTopic &&
+    !isMessageOnlyView &&
+    !routeActiveTopicId &&
+    !routeAssistantId &&
+    !isResumeTopicLoading &&
+    !resumeApiTopic
+  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({
+    enabled: shouldLoadLatestTopic
+  })
+  const isLatestTopicReady = !shouldLoadLatestTopic || !isLatestTopicLoading
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -379,6 +388,8 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
+  // Start the managed model query before assistant details resolve; Chat shares the same SWR request.
+  useModelById(visibleAssistant?.modelId)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
     if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
@@ -826,6 +837,7 @@ const HomePage: FC = () => {
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
@@ -846,6 +858,7 @@ const HomePage: FC = () => {
     ) : (
       <HomeTabs
         activeTopic={visibleTopic}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
         onAddAssistant={() => {
@@ -872,6 +885,7 @@ const HomePage: FC = () => {
           node: (
             <Topics
               assistantTopicsSource={assistantTopicsSource}
+              dataEnabled={topicPaneOpen}
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={visibleAssistantId ?? null}

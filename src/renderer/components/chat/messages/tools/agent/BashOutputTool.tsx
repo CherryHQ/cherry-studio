@@ -129,10 +129,8 @@ export function BashOutputTool({
 
       {/* Standard Error */}
       {truncatedStderr.data && (
-        <div className="border border-border-muted">
-          <div className="mb-2 font-medium text-foreground-secondary text-xs">
-            {t('message.tools.sections.stderr')}:
-          </div>
+        <div className="border border-border-subtle">
+          <div className="mb-2 font-medium text-muted-foreground text-xs">{t('message.tools.sections.stderr')}:</div>
           <TerminalOutput content={truncatedStderr.data} />
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
@@ -140,10 +138,10 @@ export function BashOutputTool({
 
       {/* Tool Use Error */}
       {truncatedError.data && (
-        <div className="border border-border-muted">
+        <div className="border border-border-subtle">
           <div className="mb-2 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-foreground-secondary" />
-            <span className="font-medium text-foreground-secondary text-xs">{t('message.tools.status.error')}:</span>
+            <XCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-muted-foreground text-xs">{t('message.tools.status.error')}:</span>
           </div>
           <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}

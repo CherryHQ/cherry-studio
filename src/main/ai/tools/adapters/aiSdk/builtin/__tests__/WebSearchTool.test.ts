@@ -90,6 +90,10 @@ describe('web_search', () => {
     expect(searchEntry.name).toBe(WEB_SEARCH_TOOL_NAME)
     expect(searchEntry.namespace).toBe('web')
     expect(searchEntry.defer).toBe('auto')
+    // Entity codec, not blanket truncatable:false — content trims per-entity
+    // while the id/url/title citation anchors ride the skeleton.
+    expect(searchEntry.truncatable).toBeUndefined()
+    expect(searchEntry.codec).toBeDefined()
   })
 
   it('calls WebSearchService.searchKeywords with the request abort signal', async () => {
@@ -101,14 +105,16 @@ describe('web_search', () => {
     expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal: abortSignal })
   })
 
-  it('maps WebSearchResponse to indexed output items', async () => {
+  it('maps WebSearchResponse to prefixed cite-id output items', async () => {
     searchKeywords.mockResolvedValue(response())
 
-    const result = await callSearchExecute({ query: 'q' })
+    const result = (await callSearchExecute({ query: 'q' })) as Array<{ id: string }>
     expect(result).toEqual([
-      { id: 1, title: 'A', url: 'https://a.com', content: 'about A' },
-      { id: 2, title: 'B', url: 'https://b.com', content: 'about B' }
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
     ])
+    // All ids within one call share the same random prefix
+    expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
   })
 
   it('returns an error discriminant (not []) when webSearchService throws', async () => {
@@ -231,18 +237,20 @@ describe('web_search', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+    it('returns true only when the request selected client search', () => {
       const applies = searchEntry.applies!
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
-          assistant: { id: 'a', settings: {} } as never,
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'server', webFetch: 'server' },
           mcpToolIds: new Set()
         })
       ).toBe(false)
       expect(
         applies({
           assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'client', webFetch: 'client' },
           mcpToolIds: new Set()
         })
       ).toBe(true)
@@ -308,14 +316,14 @@ describe('web_fetch', () => {
     })
   })
 
-  it('maps WebSearchResponse to indexed output items', async () => {
+  it('maps WebSearchResponse to prefixed cite-id output items', async () => {
     fetchUrls.mockResolvedValue(response())
 
     const result = await callFetchExecute({ urls: ['https://a.com', 'https://b.com'] })
 
     expect(result).toEqual([
-      { id: 1, title: 'A', url: 'https://a.com', content: 'about A' },
-      { id: 2, title: 'B', url: 'https://b.com', content: 'about B' }
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
     ])
   })
 
@@ -367,18 +375,20 @@ describe('web_fetch', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+    it('returns true only when the request selected client fetch', () => {
       const applies = fetchEntry.applies!
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
-          assistant: { id: 'a', settings: {} } as never,
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'server', webFetch: 'server' },
           mcpToolIds: new Set()
         })
       ).toBe(false)
       expect(
         applies({
           assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          webToolRoutes: { webSearch: 'client', webFetch: 'client' },
           mcpToolIds: new Set()
         })
       ).toBe(true)

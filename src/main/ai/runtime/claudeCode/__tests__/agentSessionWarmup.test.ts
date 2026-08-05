@@ -127,7 +127,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 })
     mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
     mocks.resolveApiKey.mockReturnValue({
       value: 'api-key',
@@ -196,10 +196,30 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      expect.objectContaining({ knowledgeBaseIds: ['kb-selected'] }),
+      expect.objectContaining({ contextWindow: 128_000, knowledgeBaseIds: ['kb-selected'] }),
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('pins the rebuild baseline to the context window used to materialize settings', async () => {
+    const model = { id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 }
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options).toEqual(expect.objectContaining({ contextWindow: 128_000 }))
+      model.contextWindow = 1_000_000
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    model.contextWindow = 128_000
+    const current = await deriveConnectionConfig('session-1')
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+    expect(request.connectionConfig.rebuildFactFingerprints.contextWindow).toBe(
+      current.config.rebuildFactFingerprints.contextWindow
+    )
   })
 
   it('uses the Agent static binding instead of the per-turn selection', async () => {
@@ -425,6 +445,32 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
   })
 
+  it('passes app attribution and provider extra headers to direct SDK requests with provider overrides', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: {
+        extraHeaders: {
+          'http-referer': 'https://custom.example.com',
+          'x-title': 'Custom App',
+          'X-Provider': 'provider-value',
+          'x-shared': 'provider-value'
+        }
+      }
+    })
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: {
+        ANTHROPIC_CUSTOM_HEADERS: 'X-Agent: agent-value\nX-Shared: agent-value'
+      }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'http-referer: https://custom.example.com\nX-Agent: agent-value\nX-Provider: provider-value\nx-shared: provider-value\nx-title: Custom App'
+    )
+  })
+
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -440,6 +486,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
+    )
     expect(request?.usageCapture).toEqual({
       owner: 'agent-sdk',
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
@@ -610,7 +659,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
       id: providerId,
-      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } },
+      settings: { extraHeaders: { 'X-Upstream-Secret': `${providerId}-secret` } }
     }))
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
@@ -656,9 +706,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
 
+    // `mergeAnthropicCustomHeaders` canonicalizes to a case-insensitively sorted, deduplicated list.
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_CUSTOM_HEADERS:
-        'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token'
+        'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token\nx-cherry-internal-usage-token: internal-token'
     })
   })
 
@@ -681,8 +732,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
 
+    // Sorted canonical order — the retained custom header survives the merge.
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'X-Custom-Header: retained\nx-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token'
+      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token\nx-cherry-internal-usage-token: internal-token\nX-Custom-Header: retained'
     )
   })
 
@@ -698,7 +750,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ? {
             id: 'claude-code',
             authMethods: ['external-cli'],
-            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
+            settings: { extraHeaders: { 'X-Upstream-Secret': 'subscription-secret' } }
           }
         : {
             id: providerId,
@@ -726,6 +779,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
     expect(request?.usageCapture).toEqual({
       owner: 'agent-sdk',
       credentialReceipt: { attribution: 'auth', method: 'external-cli' },
@@ -878,6 +932,60 @@ describe('deriveConnectionConfig', () => {
     const second = await deriveSignature()
 
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
+    expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
+  })
+
+  it('does not rebuild when only the usage pricing capture time changes', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      pricing: {
+        input: { perMillionTokens: 1, currency: 'USD' as const },
+        output: { perMillionTokens: 2, currency: 'USD' as const }
+      }
+    }))
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-07-30T00:00:00.000Z'))
+      const first = await deriveSignature()
+      vi.setSystemTime(new Date('2026-07-30T00:01:00.000Z'))
+      const second = await deriveSignature()
+
+      expect(second.rebuildSignature).toBe(first.rebuildSignature)
+      expect(second.rebuildFactFingerprints.route).toBe(first.rebuildFactFingerprints.route)
+
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: `${modelId}-api`,
+        pricing: {
+          input: { perMillionTokens: 3, currency: 'USD' as const },
+          output: { perMillionTokens: 2, currency: 'USD' as const }
+        }
+      }))
+      const repriced = await deriveSignature()
+
+      expect(repriced.rebuildFactFingerprints.route).not.toBe(second.rebuildFactFingerprints.route)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('changes the rebuild signature when direct-provider extra headers change', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: { extraHeaders: { 'X-Tenant': 'tenant-a' } }
+    })
+    const first = await deriveSignature()
+
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: { extraHeaders: { 'X-Tenant': 'tenant-b' } }
+    })
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
   it('changes the rebuild signature when the app language changes', async () => {
@@ -887,6 +995,34 @@ describe('deriveConnectionConfig', () => {
     const chinese = await deriveSignature()
 
     expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
+    expect(
+      Object.keys(english.rebuildFactFingerprints).filter(
+        (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['language'])
+  })
+
+  it('changes the rebuild signature when model context metadata changes', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 128_000
+    }))
+    const original = await deriveSignature()
+
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 256_000
+    }))
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(
+      Object.keys(original.rebuildFactFingerprints).filter(
+        (name) => original.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['contextWindow'])
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

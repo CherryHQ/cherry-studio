@@ -20,7 +20,7 @@ const loadHtmlToImage = () => {
   return htmlToImagePromise
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
+export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -794,7 +794,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }

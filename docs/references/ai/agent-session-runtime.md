@@ -213,6 +213,16 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## No-prefill model requests
+
+When a Cherry-internal Agent Session request targets a no-prefill Claude model
+through the `anthropic-messages` endpoint and its converted UIMessage list ends
+with a text-only assistant attachment, the API gateway appends an ephemeral
+user continuation after message conversion at the UIMessage layer. The original
+assistant attachment is preserved and the caller's params are not mutated. The
+continuation is never written to the database, the SDK transcript's user-visible
+history, or the renderer. External gateway requests are unchanged.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

@@ -7,7 +7,19 @@ export default defineCreator({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   reasoningFamilies: [
-    { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
+    // Native-protocol dialect (google-generate-content). Gemini 2.x takes
+    // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
+    // `thinkingLevel` field, so the split is declared here rather than inferred
+    // — it does not line up with the effort/budget knob rules below (several
+    // Gemini 3 SKUs carry both knobs). Most specific first; first match wins.
+    { pattern: '^gemini-2', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
+    // Robotics-ER is a 2.x-era derivative on thinking_budget — never pinned
+    // before, so it had been silently taking the Gemini 3 level wire.
+    { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+
+    { pattern: '^gemma-?4', toggle: true },
     {
       pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
       effort: ['minimal', 'low', 'medium', 'high']
@@ -26,9 +38,6 @@ export default defineCreator({
     { pattern: 'gemini-pro-latest$', budget: { min: 128, max: 32768 }, template: true },
     { pattern: 'gemini-.*-flash.*$', budget: { min: 0, max: 24576 }, template: true },
     { pattern: 'gemini-.*-pro.*$', budget: { min: 128, max: 32768 }, template: true },
-    { pattern: 'gemma-?4[:-]?e[24]b', budget: { min: 1024, max: 8192 }, template: true },
-    { pattern: 'gemma-?4[:-]?26b', budget: { min: 1024, max: 30720 }, template: true },
-    { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: '^gemini.*thinking' },
     { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
@@ -40,6 +49,7 @@ export default defineCreator({
         '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
     },
     { pattern: '^gemini-omni-flash' },
+    { pattern: '^gemini-robotics' },
     { pattern: 'gemma-?4' }
   ],
   families: ['gemini', 'gemma'],
@@ -54,16 +64,17 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
-  webSearch: [
-    'gemini-2',
-    'gemini-3-flash',
-    'gemini-3-pro',
-    'gemini-3-5-flash',
-    'gemini-3-5-pro',
-    'gemini-flash-latest',
-    'gemini-pro-latest',
-    'gemini-flash-lite-latest'
-  ],
+  // Grounding and URL context serve whole generations (2.x, 3.x, incl. the lite line), so key off
+  // the generation prefix like `serverToolFunctionMixing` below — a per-SKU list silently drops
+  // every new minor (3.1, 3.6 …). Image models are excluded at generation time, not here.
+  serverTools: {
+    'web-search': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest'],
+    // URL context serves the same lines as search grounding (ai.google.dev url-context).
+    'url-context': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
+  },
+  // Pre-3 Gemini rejects requests mixing its native tools with function
+  // declarations; Gemini 3 combines them (ai.google.dev function-calling).
+  serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
   models: [
     {
       id: 'gemini-2-5-flash-image',
@@ -96,7 +107,8 @@ export default defineCreator({
       id: 'gemini-3-pro-image-preview',
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input', 'web-search'],
+      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      serverTools: ['web-search'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -592,9 +604,9 @@ export default defineCreator({
         'image-recognition',
         'image-generation',
         'structured-output',
-        'file-input',
-        'web-search'
+        'file-input'
       ],
+      serverTools: ['web-search'],
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -20,7 +21,8 @@ import {
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -41,7 +43,6 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
-  canModelUseAssistantWebSearch,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
@@ -53,7 +54,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { Cable, Eraser } from 'lucide-react'
+import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -103,7 +104,7 @@ const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
   {
     id: ComposerPanelSymbol.McpStatus,
     label: 'MCP',
-    icon: <Cable size={18} aria-hidden />,
+    icon: <McpLogo width={18} height={18} aria-hidden />,
     onSelect: ({ unifiedPanelControl }) =>
       unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
   }
@@ -146,7 +147,6 @@ export interface ChatComposerProps {
       fastMode?: boolean
     }
   ) => void | Promise<void>
-  captureLocalSendScrollEligibility?: () => void
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -325,7 +325,6 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
-  captureLocalSendScrollEligibility,
   sendDisabled,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -379,7 +378,6 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
-            captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
             sendDisabled={sendDisabled}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -415,7 +413,6 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
-  captureLocalSendScrollEligibility,
   sendDisabled = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -446,10 +443,6 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
-  const { models: allModels } = useModels({ enabled: true })
-  const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
-  const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const {
@@ -463,6 +456,8 @@ const ChatComposerInner = ({
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
   const [searching, setSearching] = useCache('chat.web_search.searching')
@@ -481,6 +476,20 @@ const ChatComposerInner = ({
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
+    Boolean(editingMessageForCurrentTopic) ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -576,7 +585,6 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -584,10 +592,13 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
+      // an ungated providers list. This duplicate read the composer's own list, which is deferred
+      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
+      // setting for every model whose search is provider-native.
       const extraSettings: {
-        enableWebSearch: boolean
         reasoning_effort?: ReasoningEffortOption
-      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      } = {}
       if (reasoningOverride?.assistantId === assistant.id) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }
@@ -662,6 +673,11 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
       ? editingMessageForCurrentTopic.lockedMentionedModels
       : EMPTY_MODELS
+  const shouldLoadProviders =
+    !externalContextControls &&
+    (mentionedModels.length > 1 || mentionedModelSelectorValue.length > 1 || lockedMentionedModels.length > 1)
+  const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const providers = resolvedProviders ?? loadedProviders
   const effectiveSubmittedModels =
     lockedMentionedModels.length > 1
       ? lockedMentionedModels
@@ -1118,8 +1134,7 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       setIsSending(true)
 
       try {
@@ -1140,7 +1155,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [captureLocalSendScrollEligibility, onSend, saveHistory]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1173,6 +1188,10 @@ const ChatComposerInner = ({
     onDrain: sendQueuedPayload,
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
+  const queuedFollowupModelsDataEnabled = queuedFollowups.some(
+    (item) => (item.payload.mentionedModels?.length ?? 0) > 0
+  )
+  const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
   // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
   // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
@@ -1347,7 +1366,6 @@ const ChatComposerInner = ({
         return
       }
 
-      captureLocalSendScrollEligibility?.()
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
@@ -1361,7 +1379,7 @@ const ChatComposerInner = ({
       const previousKnowledgeBases = selectedKnowledgeBases
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         setText(previousText)
         setFiles(previousFiles)
@@ -1374,7 +1392,6 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
-      captureLocalSendScrollEligibility,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
@@ -1564,6 +1581,7 @@ const ChatComposerInner = ({
           editable={!searching}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
+          railGutterPx={railGutterPx}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
