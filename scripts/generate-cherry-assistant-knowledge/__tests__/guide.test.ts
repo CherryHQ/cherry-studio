@@ -60,10 +60,10 @@ describe('Cherry Assistant guide', () => {
     }
     const instructions = Object.values(agent.instructions).join('\n')
 
-    expect(agent.instructions['en-US']).toContain("Cherry Studio's built-in onboarding Agent")
-    expect(agent.instructions['en-US']).toContain('same tools and capabilities as a normal Agent')
-    expect(agent.instructions['zh-CN']).toContain('其他请求也像普通通用 Agent 一样正常完成')
-    expect(agent.instructions['zh-CN']).toContain('与普通 Agent 相同的工具和能力')
+    expect(agent.instructions['en-US']).toContain('built-in general-purpose Agent and onboarding guide')
+    expect(agent.instructions['en-US']).toContain('complete any request using the available tools')
+    expect(agent.instructions['zh-CN']).toContain('内置通用 Agent 和上手引导')
+    expect(agent.instructions['zh-CN']).toContain('帮助用户完成任何请求')
     expect(guide).toContain('mcp__assistant__product_info')
     expect(guide).toContain('必须在同一轮调用 `mcp__assistant__navigate`')
     expect(guide).toContain('不得声称已经生成入口或已经打开页面')
@@ -77,7 +77,7 @@ describe('Cherry Assistant guide', () => {
     }
     const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain('Help users get started')
+    expect(agent.instructions['en-US']).toContain('getting started with Cherry Studio')
     expect(agent.instructions['zh-CN']).toContain('帮助用户开始使用 Cherry Studio')
     expect(soul).toContain('Warm, patient, and practical')
     expect(soul).toContain("Mirror the user's terminology and level of formality")
@@ -94,6 +94,8 @@ describe('Cherry Assistant guide', () => {
 
     expect(agent.instructions['en-US']).toContain('introduce yourself as Cherry Assistant')
     expect(agent.instructions['zh-CN']).toContain('自我介绍为 Cherry Assistant')
+    expect(agent.instructions['en-US']).toContain('serve as Cherry Assistant')
+    expect(agent.instructions['en-US']).not.toContain("You are Cherry Studio's built-in onboarding Agent")
     expect(soul).not.toContain('Cherry Assistant')
     expect(soul).not.toContain('general-purpose Agent')
     expect(soul).not.toContain('same tools and capabilities')

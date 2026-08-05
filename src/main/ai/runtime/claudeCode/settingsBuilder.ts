@@ -100,7 +100,7 @@ const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
-  "You are Cherry Assistant, Cherry Studio's built-in onboarding agent. Help the user get started, and handle other requests like a normal Agent."
+  'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 const require_ = createRequire(import.meta.url)
 
 function resolveAutoCompactWindow(contextWindow: number | undefined): number | undefined {
@@ -1376,32 +1376,30 @@ export async function buildSystemPrompt(
   // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  const soulPrompt = await promptBuilder.buildSystemPrompt(
+  const promptParts = await promptBuilder.buildPromptParts(
     cwd,
     agentConfig,
     Boolean(instructions?.trim()),
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  // The Claude Code preset already owns its dynamic cwd/git context. Only a full custom
-  // system.md replacement needs Cherry to restore the workspace contract explicitly.
+  // The Claude Code preset owns its dynamic cwd/git context. A custom base replaces that
+  // preset only, so Cherry restores the workspace contract in its always-appended context.
   const workspaceContextBlock =
-    soulPrompt.base === 'custom'
+    promptParts.base.kind === 'custom'
       ? `\n\n${[
           '## Current Workspace',
           `Current working directory: ${JSON.stringify(cwd)}`,
           'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
         ].join('\n')}`
       : ''
-  const cherryContext = `${soulPrompt.content}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  const cherryContext = `${promptParts.context}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 
-  // No workspace system.md: keep the Claude Code SDK's default system prompt (the source of the
-  // agent's full default capabilities) and append the Cherry-owned context. An explicit system.md
-  // is a deliberate full replacement, so pass the composed string straight through.
-  if (soulPrompt.base === 'preset') {
+  // The workspace chooses only the base. Cherry-owned context survives either path.
+  if (promptParts.base.kind === 'claude_code') {
     return { type: 'preset', preset: 'claude_code', append: cherryContext }
   }
-  return cherryContext
+  return promptParts.base.content ? `${promptParts.base.content}\n\n${cherryContext}` : cherryContext
 }
 
 export function buildMcpServers(

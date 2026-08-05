@@ -61,24 +61,20 @@ type CacheEntry = {
  * How the agent's base system prompt should be established, decided from the
  * workspace alone and kept free of any SDK type:
  *
- * - `'preset'` — no workspace `system.md`. The runtime keeps the Claude Code
- *   SDK's default preset as the base and *appends* {@link AgentSystemPrompt.content}
- *   to it, so the agent retains its full default capabilities.
- * - `'custom'` — an explicit workspace `system.md` fully *replaces* the base.
- *   {@link AgentSystemPrompt.content} already begins with that file's body.
+ * - `claude_code` — no workspace `system.md`; the runtime uses the SDK preset.
+ * - `custom` — an explicit workspace `system.md` replaces only that base preset.
+ *
+ * Cherry-owned context remains separate and is appended in either case.
  */
-export type AgentPromptBase = 'preset' | 'custom'
+export type AgentPromptBase = { kind: 'claude_code' } | { kind: 'custom'; content: string }
 
-export interface AgentSystemPrompt {
+export interface AgentPromptParts {
   base: AgentPromptBase
   /**
-   * Cherry-owned prompt content: the `custom` base leads with the workspace
-   * `system.md` body; both bases then carry the bootstrap block (when active)
-   * and the persona/memory section. It never synthesizes a replacement base
-   * identity — that is the SDK preset's job in the `preset` case and the
-   * user's `system.md` in the `custom` case.
+   * Cherry-owned bootstrap/persona/memory context. The runtime appends it after
+   * either base; it never contains or synthesizes the base prompt itself.
    */
-  content: string
+  context: string
 }
 
 function memoriesTemplate(agentDataPath: string, sections: string): string {
@@ -106,12 +102,10 @@ ${sections}`
 /**
  * PromptBuilder assembles the Cherry-owned system prompt for CherryStudio agents.
  *
- * {@link buildSystemPrompt} — returns an {@link AgentSystemPrompt} describing
- * whether the base should be the SDK preset (append) or an explicit `system.md`
- * replacement, plus the Cherry-owned content (bootstrap instructions when
- * needed, and the agent data files SOUL.md / USER.md / FACT.md). It deliberately
- * emits no identity preamble in the `preset` case so the Claude Code default
- * prompt stays authoritative. Tool-usage guidance (autonomy, memory, web) is not
+ * {@link buildPromptParts} — returns {@link AgentPromptParts} describing
+ * whether the base should be the SDK preset or an explicit `system.md`, plus
+ * separate Cherry-owned context (bootstrap instructions when needed, and the
+ * agent data files SOUL.md / USER.md / FACT.md). Tool-usage guidance (autonomy, memory, web) is not
  * injected here — it ships lazily via the default-enabled `cherry-tool-guide`
  * builtin skill.
  *
@@ -124,25 +118,25 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(
+  async buildPromptParts(
     workspacePath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false,
     agentDataPath = workspacePath
-  ): Promise<AgentSystemPrompt> {
-    const parts: string[] = []
+  ): Promise<AgentPromptParts> {
+    const contextParts: string[] = []
 
-    // Base selection: an explicit workspace system.md (case-insensitive) REPLACES
-    // the SDK preset; its absence keeps the Claude Code default preset and appends
-    // the Cherry content instead of substituting a thin identity line.
+    // File presence is the explicit choice: even an empty system.md replaces only
+    // the SDK base preset, while Cherry-owned context remains appended separately.
     const systemPath = await resolveFile(workspacePath, 'system.md')
-    const customBase = systemPath ? await this.readCachedFile(systemPath) : undefined
-    if (customBase) parts.push(customBase)
+    const base: AgentPromptBase = systemPath
+      ? { kind: 'custom', content: (await this.readCachedFile(systemPath)) ?? '' }
+      : { kind: 'claude_code' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
     if (needsBootstrap) {
-      parts.push(
+      contextParts.push(
         `${BOOTSTRAP_INSTRUCTIONS}\n\nDuring bootstrap, write identity files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
       )
       logger.info('Bootstrap mode active — injecting onboarding instructions')
@@ -150,9 +144,9 @@ export class PromptBuilder {
 
     // Always include the storage contract and absolute identity paths. Only the
     // loaded file-content blocks inside the section are conditional.
-    parts.push(await this.buildMemoriesSection(agentDataPath))
+    contextParts.push(await this.buildMemoriesSection(agentDataPath))
 
-    return { base: customBase ? 'custom' : 'preset', content: parts.join('\n\n') }
+    return { base, context: contextParts.join('\n\n') }
   }
 
   /**
@@ -164,7 +158,7 @@ export class PromptBuilder {
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
    *
-   * Distinct from {@link buildSystemPrompt}'s memories section which also
+   * Distinct from {@link buildPromptParts}'s memories section which also
    * includes the SOUL.md / USER.md persona files. Returns undefined when no
    * FACT.md exists, so callers can omit the section entirely rather than
    * emitting an empty wrapper.

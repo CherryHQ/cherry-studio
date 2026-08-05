@@ -111,7 +111,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({
-    buildSystemPrompt: mocks.buildPrompt,
+    buildPromptParts: mocks.buildPrompt,
     buildMemoriesSection: vi.fn(async () => undefined)
   }))
 }))
@@ -277,7 +277,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
-    mocks.buildPrompt.mockResolvedValue({ base: 'preset', content: 'soul prompt' })
+    mocks.buildPrompt.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false

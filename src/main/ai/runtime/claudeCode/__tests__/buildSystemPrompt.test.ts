@@ -34,7 +34,7 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue({ base: 'preset', content: 'SOUL_PROMPT' })
+  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' })
 }))
 
 vi.mock('@logger', () => ({
@@ -85,7 +85,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({
-    buildSystemPrompt: mockBuildPrompt,
+    buildPromptParts: mockBuildPrompt,
     buildMemoriesSection: mockBuildMemoriesSection
   }))
 }))
@@ -103,7 +103,7 @@ beforeEach(() => {
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
-  mockBuildPrompt.mockReset().mockResolvedValue({ base: 'preset', content: 'SOUL_PROMPT' })
+  mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' })
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -169,7 +169,10 @@ describe('buildSystemPrompt — current workspace', () => {
 
   it('resolves the workspace dynamically for every custom system.md build', async () => {
     const agent = makeAgent()
-    mockBuildPrompt.mockResolvedValue({ base: 'custom', content: 'CUSTOM SYSTEM PROMPT' })
+    mockBuildPrompt.mockResolvedValue({
+      base: { kind: 'custom', content: 'CUSTOM SYSTEM PROMPT' },
+      context: 'SOUL_PROMPT'
+    })
 
     const first = await buildSystemPrompt(makeSession(), agent, '/workspace/project-a')
     const second = await buildSystemPrompt(makeSession(), agent, '/workspace/project-b')
@@ -180,8 +183,11 @@ describe('buildSystemPrompt — current workspace', () => {
     expect(second).not.toContain('"/workspace/project-a"')
   })
 
-  it('keeps an explicit workspace system.md as a full custom replacement', async () => {
-    mockBuildPrompt.mockResolvedValueOnce({ base: 'custom', content: 'CUSTOM SYSTEM PROMPT' })
+  it('replaces only the Claude Code base with system.md and retains Cherry context', async () => {
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'custom', content: 'CUSTOM SYSTEM PROMPT' },
+      context: 'SOUL_PROMPT'
+    })
 
     const result = await buildSystemPrompt(
       makeSession(),
@@ -190,7 +196,24 @@ describe('buildSystemPrompt — current workspace', () => {
     )
 
     expect(typeof result).toBe('string')
-    expect(result).toContain('CUSTOM SYSTEM PROMPT')
+    expect(result).toMatch(/^CUSTOM SYSTEM PROMPT\n\nSOUL_PROMPT/)
+    expect(result).toContain('Agent instructions.')
+    expect(result).toContain(WORKSPACE_MARKER)
+    expect(result).toContain(ARTIFACTS_MARKER)
+    expect(result).toContain(RUNTIME_MARKER)
+  })
+
+  it('treats an empty system.md as a custom base and still retains Cherry context', async () => {
+    mockBuildPrompt.mockResolvedValueOnce({ base: { kind: 'custom', content: '' }, context: 'SOUL_PROMPT' })
+
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({ instructions: 'Agent instructions.' }),
+      '/tmp/cwd'
+    )
+
+    expect(typeof result).toBe('string')
+    expect(result).toMatch(/^SOUL_PROMPT/)
     expect(result).toContain('Agent instructions.')
     expect(result).toContain(WORKSPACE_MARKER)
   })
@@ -383,7 +406,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
-    expect(promptText(result)).toContain("You are Cherry Assistant, Cherry Studio's built-in onboarding agent")
+    expect(promptText(result)).toContain('built-in general-purpose Agent and onboarding guide')
   })
 
   it('applies the external channel security policy for linked assistant sessions', async () => {
@@ -410,9 +433,12 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
   })
 
   it('injects the bundled Assistant role exactly once', async () => {
-    const role = "You are Cherry Studio's built-in onboarding Agent."
+    const role = 'Within Cherry Studio, you serve as Cherry Assistant, its built-in general-purpose Agent'
     mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: role })
-    mockBuildPrompt.mockResolvedValue({ base: 'preset', content: '## Personality\n\nFriendly and concise.' })
+    mockBuildPrompt.mockResolvedValue({
+      base: { kind: 'claude_code' },
+      context: '## Personality\n\nFriendly and concise.'
+    })
     const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
 
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
