@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -10,6 +9,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -42,15 +42,10 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 
-export function notifyAgentTaskReadModelChange(taskIds: readonly string[]): void {
-  const entityIds = [...new Set(taskIds)]
-  if (entityIds.length === 0) return
-  notifyDataApiDataChange([
-    { endpoint: '/agent-tasks', kind: 'projection', entityIds },
-    { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
-    { endpoint: '/agent-tasks/:taskId', entityIds },
-    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
-  ])
+function publishTaskReadModelChanges(taskIds: readonly string[]): void {
+  if (taskIds.length === 0) return
+  // Resolve lazily because AgentTaskService reads the Session-owned relation.
+  getDataService('AgentTaskService').notifyReadModelChange(taskIds)
 }
 
 type JoinedSessionRow = {
@@ -455,7 +450,7 @@ export class AgentSessionService {
       defaultHandlersFor('Session', id)
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
-    notifyAgentTaskReadModelChange(result.clearedTaskScheduleIds)
+    publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     return this.getById(id)
   }
 
@@ -564,7 +559,7 @@ export class AgentSessionService {
 
   delete(id: string): void {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
-    notifyAgentTaskReadModelChange(taskScheduleIds)
+    publishTaskReadModelChanges(taskScheduleIds)
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -595,7 +590,7 @@ export class AgentSessionService {
       return this.cascadeDeleteSessionRowsTx(tx, rows)
     })
 
-    notifyAgentTaskReadModelChange(result.taskScheduleIds)
+    publishTaskReadModelChanges(result.taskScheduleIds)
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -608,7 +603,7 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
       return { deletedIds, taskScheduleIds }
     })
-    notifyAgentTaskReadModelChange(result.taskScheduleIds)
+    publishTaskReadModelChanges(result.taskScheduleIds)
     return { deletedIds: result.deletedIds }
   }
 
@@ -630,7 +625,7 @@ export class AgentSessionService {
       return { deletedIds, taskScheduleIds }
     })
 
-    notifyAgentTaskReadModelChange(result.taskScheduleIds)
+    publishTaskReadModelChanges(result.taskScheduleIds)
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }

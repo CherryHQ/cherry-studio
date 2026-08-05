@@ -5,7 +5,8 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService, notifyAgentTaskReadModelChange } from '@data/services/AgentSessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
@@ -717,7 +718,7 @@ export class AgentService {
 
     const deleted = result.rowsAffected > 0
     if (deleted) {
-      notifyAgentTaskReadModelChange(affectedTaskScheduleIds)
+      agentTaskService.notifyReadModelChange(affectedTaskScheduleIds)
       this._onAgentDeleted.fire({ agentId: id })
     }
     return { deleted, deletedSessionIds }

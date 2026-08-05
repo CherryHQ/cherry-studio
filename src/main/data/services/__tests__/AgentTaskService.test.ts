@@ -7,6 +7,8 @@
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     getSubscribedChannels: vi.fn()
@@ -85,6 +87,7 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
     vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
@@ -98,6 +101,19 @@ describe('AgentTaskService (read side)', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('owns and publishes every task read-model projection', () => {
+    agentTaskService.notifyReadModelChange([TASK_ID, TASK_ID])
+    agentTaskService.notifyReadModelChange([])
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+    ])
   })
 
   describe('getTask', () => {

@@ -5,8 +5,10 @@
  * — this service must not reach JobManager / SchedulerService / ChannelManager.
  */
 
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -94,6 +96,18 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
+  /** Publish every DataApi projection backed by the composed task read model. */
+  notifyReadModelChange(taskIds: readonly string[]): void {
+    const entityIds = [...new Set(taskIds)]
+    if (entityIds.length === 0) return
+    notifyDataApiDataChange([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
+      { endpoint: '/agent-tasks/:taskId', entityIds },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+    ])
+  }
+
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
@@ -238,3 +252,4 @@ export class AgentTaskService {
 }
 
 export const agentTaskService = new AgentTaskService()
+registerDataService('AgentTaskService', agentTaskService)

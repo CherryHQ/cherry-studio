@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService, notifyAgentTaskReadModelChange } from '@data/services/AgentSessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   agentTaskService,
   normalizeTaskSessionReuseRevision,
@@ -176,7 +176,7 @@ export class AgentJobsService extends BaseService {
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
-    if (reuseConfigChanged || bindingCleared) notifyAgentTaskReadModelChange([taskId])
+    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
     return agentTaskService.getTask(agentId, taskId)
@@ -256,7 +256,7 @@ export class AgentJobsService extends BaseService {
         expectedAgentId: params.agentId
       })
     })
-    if (bound) notifyAgentTaskReadModelChange([params.scheduleId])
+    if (bound) agentTaskService.notifyReadModelChange([params.scheduleId])
     return bound
   }
 
