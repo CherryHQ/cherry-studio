@@ -65,6 +65,7 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
+import { replacePromptVariables } from '@main/utils/prompt'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -1412,6 +1413,12 @@ export async function buildSystemPrompt(
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
       instructions = MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS
     }
+  }
+
+  // Replace prompt variables ({{date}}, {{time}}, etc.) — the regular-chat
+  // path does this in assembleSystemPrompt; the agent-session path must too.
+  if (instructions) {
+    instructions = await replacePromptVariables(instructions)
   }
 
   // Persona and memory templates belong in the app-owned agent data directory. Bundled

@@ -22,7 +22,8 @@ const {
   mockProvisionBuiltinAgent,
   mockBuildMemoriesSection,
   mockGetAppLanguage,
-  mockBuildPrompt
+  mockBuildPrompt,
+  mockReplacePromptVariables
 } = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
@@ -34,7 +35,8 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT')
+  mockBuildPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT'),
+  mockReplacePromptVariables: vi.fn().mockImplementation(async (input: string) => input)
 }))
 
 vi.mock('@logger', () => ({
@@ -54,6 +56,10 @@ vi.mock('node:fs', async (importOriginal) => {
 
 vi.mock('@application', () => ({
   application: { get: mockApplicationGet, getPath: mockGetPath }
+}))
+
+vi.mock('@main/utils/prompt', () => ({
+  replacePromptVariables: mockReplacePromptVariables
 }))
 
 vi.mock('@main/i18n', () => ({
@@ -401,5 +407,71 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
 
     expect(result as string).not.toContain(CHANNEL_SECURITY_PROMPT)
+  })
+})
+
+describe('buildSystemPrompt — prompt variable replacement', () => {
+  beforeEach(() => {
+    mockFindBySessionId.mockReturnValue(null)
+    mockReplacePromptVariables.mockReset().mockImplementation(async (input: string) => input)
+  })
+
+  it('replaces {{date}} and {{time}} in user instructions for regular agents', async () => {
+    mockReplacePromptVariables.mockImplementation(async (input: string) =>
+      input.replace(/\{\{date\}\}/g, '2026-04-20').replace(/\{\{time\}\}/g, '10:00:00')
+    )
+
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({ instructions: 'Current time is {{date}}T{{time}}' }),
+      '/tmp/cwd'
+    )
+
+    const append = getPresetAppend(result)
+    expect(append).toContain('Current time is 2026-04-20T10:00:00')
+    expect(append).not.toContain('{{date}}')
+    expect(append).not.toContain('{{time}}')
+    expect(mockReplacePromptVariables).toHaveBeenCalledWith('Current time is {{date}}T{{time}}')
+  })
+
+  it('replaces {{date}} and {{time}} in user instructions for assistant agents', async () => {
+    mockReplacePromptVariables.mockImplementation(async (input: string) =>
+      input.replace(/\{\{date\}\}/g, '2026-04-20').replace(/\{\{time\}\}/g, '10:00:00')
+    )
+
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({
+        instructions: 'Current time is {{date}}T{{time}}',
+        configuration: { builtin_role: 'assistant' } as never
+      }),
+      '/tmp/cwd'
+    )
+
+    expect(result as string).toContain('Current time is 2026-04-20T10:00:00')
+    expect(result as string).not.toContain('{{date}}')
+    expect(result as string).not.toContain('{{time}}')
+  })
+
+  it('replaces variables in bundled builtin instructions', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled: {{date}} {{time}}' })
+    mockReplacePromptVariables.mockImplementation(async (input: string) =>
+      input.replace(/\{\{date\}\}/g, '2026-04-20').replace(/\{\{time\}\}/g, '10:00:00')
+    )
+
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never }),
+      '/tmp/cwd'
+    )
+
+    expect(result as string).toContain('Bundled: 2026-04-20 10:00:00')
+    expect(result as string).not.toContain('{{date}}')
+  })
+
+  it('does not call replacePromptVariables when instructions are empty', async () => {
+    await buildSystemPrompt(makeSession(), makeAgent({ instructions: '' }), '/tmp/cwd')
+
+    expect(mockReplacePromptVariables).not.toHaveBeenCalled()
   })
 })
