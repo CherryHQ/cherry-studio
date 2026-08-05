@@ -12,7 +12,6 @@ import {
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
 import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -169,7 +168,6 @@ function createDbMock({
   migratedBases?: MigratedKnowledgeBaseRow[]
   migratedItems?: MigratedKnowledgeItemRow[]
 }) {
-  const stagingDb = drizzle(new Database(':memory:'))
   const select = vi
     .fn()
     .mockReturnValueOnce({
@@ -183,42 +181,13 @@ function createDbMock({
   const updateCalls: Array<{ values: Record<string, unknown> }> = []
   const update = vi.fn(() => ({
     set: vi.fn((values: Record<string, unknown>) => ({
-      where: vi.fn(() => {
+      where: vi.fn(async () => {
         updateCalls.push({ values })
-        return { run: vi.fn() }
       })
     }))
   }))
 
-  // Mirrors drizzle's sync better-sqlite3 transaction: the callback runs synchronously and its
-  // tx writes only land in updateCalls if the whole callback returns — a throw rolls them back,
-  // so tests can pin the all-or-nothing snapshot-pin contract.
-  const transaction = vi.fn((callback: (tx: unknown) => unknown) => {
-    const txCalls: Array<{ values: Record<string, unknown> }> = []
-    const tx = {
-      update: vi.fn(() => ({
-        set: vi.fn((values: Record<string, unknown>) => ({
-          where: vi.fn(() => ({
-            run: vi.fn(() => {
-              txCalls.push({ values })
-            })
-          }))
-        }))
-      }))
-    }
-    const result = callback(tx)
-    updateCalls.push(...txCalls)
-    return result
-  })
-
-  return {
-    select,
-    update,
-    transaction,
-    updateCalls,
-    run: stagingDb.run.bind(stagingDb),
-    all: stagingDb.all.bind(stagingDb)
-  }
+  return { select, update, updateCalls }
 }
 
 function createMigrationCtx({
@@ -300,25 +269,7 @@ function createMigratedBase(overrides: Partial<MigratedKnowledgeBaseRow> = {}): 
 
 /** A migrated item id mapped to its prepared materials (test-only reach into private state). */
 function materialItemIds(migrator: any): string[] {
-  return [...migrator.preparedBasePlans[0].stagedItemCounts.keys()]
-}
-
-/** A KnowledgeVectorSourceReader stub whose openBase() streams the given pre-decoded rows. */
-function createVectorSourceStub(rows: Array<Record<string, unknown>>): KnowledgeVectorSourceReader {
-  return {
-    openBase: vi.fn().mockReturnValue({
-      status: 'ok',
-      dbPath: 'stub',
-      reader: {
-        *iterateRows() {
-          for (const [index, row] of rows.entries()) {
-            yield { rowid: index + 1, ...row }
-          }
-        },
-        close: vi.fn()
-      }
-    })
-  } as unknown as KnowledgeVectorSourceReader
+  return migrator.preparedBasePlans[0].materialItemIds
 }
 
 describe('KnowledgeVectorMigrator', () => {
@@ -451,7 +402,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(migrator.preparedBasePlans).toHaveLength(1)
-      expect(migrator.preparedBasePlans[0].stagedItemCounts.size).toBe(0)
+      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -530,11 +481,11 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('skips migrated bases that cannot be mapped back to legacy base ids', async () => {
-      const openBase = vi.fn()
+      const loadBase = vi.fn()
       const migrationCtx = createMissingBaseRemapMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { openBase } as any,
+        knowledgeVectorSource: { loadBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -552,7 +503,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(openBase).not.toHaveBeenCalled()
+      expect(loadBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect(
         result.warnings?.some(
@@ -617,13 +568,20 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: createVectorSourceStub([
-          {
-            pageContent: 'file chunk',
-            uniqueLoaderId: 'loader-file',
-            vector: { status: 'unsupported_encoding', encoding: 'string' }
-          }
-        ]),
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'unsupported_encoding', encoding: 'string' }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
         reduxData: {
           knowledge: {
             bases: [
@@ -641,7 +599,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].stagedItemCounts.size).toBe(0)
+      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -658,13 +616,20 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: createVectorSourceStub([
-          {
-            pageContent: 'file chunk',
-            uniqueLoaderId: 'loader-file',
-            vector: { status: 'missing' }
-          }
-        ]),
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'missing' }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
         reduxData: {
           knowledge: {
             bases: [
@@ -682,7 +647,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].stagedItemCounts.size).toBe(0)
+      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -698,13 +663,20 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ dimensions: 2 })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: createVectorSourceStub([
-          {
-            pageContent: 'file chunk',
-            uniqueLoaderId: 'loader-file',
-            vector: { status: 'decoded', value: new Float32Array([1, 2, 3]) }
-          }
-        ]),
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'decoded', value: [1, 2, 3] }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
         reduxData: {
           knowledge: {
             bases: [
@@ -722,7 +694,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(migrator.preparedBasePlans[0].stagedItemCounts.size).toBe(0)
+      expect(migrator.preparedBasePlans[0].materialItemIds).toEqual([])
       expect(migrator.skippedCount).toBe(1)
       expect(
         result.warnings?.some(
@@ -734,11 +706,11 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('skips failed bases without reading or rebuilding legacy vectors', async () => {
-      const openBase = vi.fn()
+      const loadBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ embeddingModelId: null, status: 'failed' })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { openBase } as any,
+        knowledgeVectorSource: { loadBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -756,7 +728,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(openBase).not.toHaveBeenCalled()
+      expect(loadBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect(
         result.warnings?.some((warning) =>
@@ -772,11 +744,11 @@ describe('KnowledgeVectorMigrator', () => {
       // unreadable, but its embedding model still resolved) reaches this skip branch via
       // `status==='failed'` with a non-null embeddingModelId. The summary warning must key on its
       // actual `base.error`, not lump it into "missing embedding model" — which would misdirect triage.
-      const openBase = vi.fn()
+      const loadBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: { openBase } as any,
+        knowledgeVectorSource: { loadBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -794,7 +766,7 @@ describe('KnowledgeVectorMigrator', () => {
       const result = await migrator.prepare(migrationCtx as any)
 
       expect(result.success).toBe(true)
-      expect(openBase).not.toHaveBeenCalled()
+      expect(loadBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       // Keyed on the real error...
       expect(
@@ -815,10 +787,10 @@ describe('KnowledgeVectorMigrator', () => {
       // When that base is a directory expansion, its virtual-path children must still be degraded
       // (they can never reindex), exactly like the other prepare-time skips.
       const CHILD_A = '0198f3f2-7d70-7abc-8def-123456789abc'
-      const openBase = vi.fn()
+      const loadBase = vi.fn()
       const migrationCtx = createMigrationCtx({
         migratedBases: [createMigratedBase({ dimensions: 0 })],
-        knowledgeVectorSource: { openBase } as any,
+        knowledgeVectorSource: { loadBase } as any,
         migratedItems: [
           createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
             type: 'directory',
@@ -852,7 +824,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       expect(result.success).toBe(true)
       // The invalid-dimensions gate fires before the legacy store is even read.
-      expect(openBase).not.toHaveBeenCalled()
+      expect(loadBase).not.toHaveBeenCalled()
       expect(migrator.preparedBasePlans).toEqual([])
       expect([...migrator.directoryItemsToDegrade].sort()).toEqual([CHILD_A, MIGRATED_DIRECTORY_ITEM_ID].sort())
       expect(
@@ -863,9 +835,7 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
-      const openBase = vi.fn(() => {
-        throw new Error('openBase failed')
-      })
+      const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
       const migrationCtx = createMigrationCtx({
         migratedBases: [
           createMigratedBase({ id: '22222222-2222-4222-8222-222222222222', embeddingModelId: null, status: 'failed' }),
@@ -876,7 +846,7 @@ describe('KnowledgeVectorMigrator', () => {
           ['kb-missing-model', '22222222-2222-4222-8222-222222222222'],
           ['kb-load-fails', '33333333-3333-4333-8333-333333333333']
         ]),
-        knowledgeVectorSource: { openBase } as any,
+        knowledgeVectorSource: { loadBase } as any,
         reduxData: {
           knowledge: {
             bases: [
@@ -897,7 +867,7 @@ describe('KnowledgeVectorMigrator', () => {
       // An unreadable legacy DB is a per-base skip (mirrors KnowledgeMigrator's failed tombstone),
       // not a fatal failure — re-running once the DB is readable recovers it without re-embedding.
       expect(result.success).toBe(true)
-      expect(openBase).toHaveBeenCalledWith('kb-load-fails')
+      expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
       expect(
         result.warnings?.some((warning) =>
           warning.includes(
@@ -909,53 +879,9 @@ describe('KnowledgeVectorMigrator', () => {
         result.warnings?.some(
           (warning) =>
             warning.includes('Skipped knowledge vector records (read_error): count=1') &&
-            warning.includes('openBase failed')
+            warning.includes('loadBase failed')
         )
       ).toBe(true)
-
-      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-      expect(
-        migrationCtx.db.updateCalls.some(
-          (call) => call.values.status === 'failed' && call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
-        )
-      ).toBe(true)
-    })
-
-    it('fails the migration when file-backed vector staging cannot be written', async () => {
-      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-        {
-          id: 'legacy-file-0',
-          pageContent: 'file chunk',
-          uniqueLoaderId: 'loader-file',
-          source: '/tmp/file-1.md',
-          vector: [1, 2]
-        }
-      ])
-      const migrationCtx = createMigrationCtx({
-        migratedBases: [createMigratedBase()],
-        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        reduxData: {
-          knowledge: {
-            bases: [
-              {
-                id: LEGACY_KNOWLEDGE_BASE_ID,
-                name: 'Base 1',
-                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-              }
-            ]
-          }
-        }
-      })
-      const migrator = new KnowledgeVectorMigrator() as any
-      vi.spyOn(migrator, 'stageVectorRow').mockImplementation(() => {
-        throw new Error('database or disk is full')
-      })
-
-      const result = await migrator.prepare(migrationCtx as any)
-
-      expect(result).toMatchObject({ success: false })
-      expect(migrator.stageVectorRow).toHaveBeenCalledTimes(1)
-      expect(migrator.preparedBasePlans).toEqual([])
     })
 
     it('degrades a directory child orphaned by a cross-directory shared loader-id collision (F3)', async () => {
@@ -1309,9 +1235,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource: {
-          openBase: vi.fn(() => {
-            throw new Error('database is locked')
-          })
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
         } as any,
         migratedBases: [createMigratedBase()],
         migratedItems: [
@@ -1366,9 +1290,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       // The flush runs even with zero plans because it precedes execute()'s empty-plan early-return.
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-      const degradeWrites = migrationCtx.db.updateCalls.filter(
-        (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
-      )
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
       expect(degradeWrites).toHaveLength(1)
       expect(degradeWrites[0].values).toEqual({
         status: 'failed',
@@ -1387,9 +1309,7 @@ describe('KnowledgeVectorMigrator', () => {
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource: {
-          openBase: vi.fn(() => {
-            throw new Error('database is locked')
-          })
+          loadBase: vi.fn().mockRejectedValue(new Error('database is locked'))
         } as any,
         migratedBases: [createMigratedBase()],
         migratedItems: [
@@ -1441,12 +1361,10 @@ describe('KnowledgeVectorMigrator', () => {
       expect(prepareResult.warnings?.length ?? 0).toBeGreaterThan(0)
 
       // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
-      let updateCount = 0
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn(async () => {
-            updateCount += 1
-            if (updateCount === 1) throw new Error('disk I/O error')
+            throw new Error('disk I/O error')
           })
         }))
       })) as any
@@ -1531,9 +1449,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(materialItemIds(migrator)).toEqual([CHILD_A])
 
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-      const degradeWrites = migrationCtx.db.updateCalls.filter(
-        (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
-      )
+      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
       expect(degradeWrites).toHaveLength(1)
       expect(degradeWrites[0].values).toEqual({
         status: 'failed',
@@ -1596,7 +1512,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect([...migrator.directoryItemsToDegrade]).toEqual([])
       expect(materialItemIds(migrator)).toEqual([CHILD_A])
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream').mockImplementationOnce(() => {
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
         throw new Error('rebuild failed')
       })
 
@@ -1614,7 +1530,7 @@ describe('KnowledgeVectorMigrator', () => {
         error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
       })
       // The store never landed, so the base is also marked failed/missing_vector_store (restorable).
-      expect([...migrator.basesToMarkFailed]).toEqual([])
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
       const baseFailures = migrationCtx.db.updateCalls.filter(
         (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
       )
@@ -1811,7 +1727,13 @@ describe('KnowledgeVectorMigrator', () => {
       const migrationCtx = createEmptyRemapMigrationCtx({
         migratedBases: [createMigratedBase()],
         migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        knowledgeVectorSource: createVectorSourceStub([]),
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: []
+          })
+        } as unknown as KnowledgeVectorSourceReader,
         reduxData: {
           knowledge: {
             bases: [
@@ -1966,7 +1888,7 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream').mockImplementationOnce(() => {
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
         throw new Error('rebuild failed')
       })
 
@@ -2029,7 +1951,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
       // The rebuild fails (the real error), sending execute into its catch block...
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream').mockImplementationOnce(() => {
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
         throw new Error('rebuild failed')
       })
       // ...where the partial-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
@@ -2133,7 +2055,7 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream').mockImplementationOnce(() => {
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
         throw new Error('rebuild failed')
       })
 
@@ -2183,14 +2105,14 @@ describe('KnowledgeVectorMigrator', () => {
 
       // Fail the rebuild itself: the per-base catch marks the base failed when its store never
       // finished building (storePromoted stays false).
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream').mockImplementationOnce(() => {
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
         throw new Error('rebuild failed')
       })
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
-      expect([...migrator.basesToMarkFailed]).toEqual([])
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
 
       const baseFailures = migrationCtx.db.updateCalls.filter(
         (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
@@ -2271,8 +2193,8 @@ describe('KnowledgeVectorMigrator', () => {
 
       // Only base A's rebuild fails (it is processed first, in migratedBases order); base B uses the
       // real rebuild so its store is written for real.
-      const realRebuild = KnowledgeIndexStore.prototype.rebuildMaterialStream
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterialStream')
+      const realRebuild = KnowledgeIndexStore.prototype.rebuildMaterial
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial')
         .mockImplementationOnce(() => {
           throw new Error('base a rebuild failed')
         })
@@ -2409,9 +2331,8 @@ describe('KnowledgeVectorMigrator', () => {
       })
 
       // The item row is pinned so the first reindex reads the snapshot offline.
-      const snapshotPins = migrationCtx.db.updateCalls.filter((call) => call.values.data !== undefined)
-      expect(snapshotPins).toHaveLength(1)
-      expect(snapshotPins[0].values).toEqual({
+      expect(migrationCtx.db.updateCalls).toHaveLength(1)
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
         data: {
           source: 'https://example.com/guide',
           url: 'https://example.com/guide',
@@ -2424,15 +2345,14 @@ describe('KnowledgeVectorMigrator', () => {
       expect(validateResult.errors).toStrictEqual([])
     })
 
-    it('rolls back every snapshot pin and removes the unpublished store when a pin UPDATE throws', async () => {
-      // The url snapshot store is built in place at its runtime path and the snapshot files are
-      // written before the row-pin transaction runs. If any pin UPDATE throws, the WHOLE pin
-      // transaction must roll back — a base must never publish with only SOME items pinned, which
-      // would desync item rows from the store's material paths. The per-base catch then credits
-      // the base's units to skippedCount and drops it from successfulBaseIds, so the engine
-      // reconciliation still balances and the migration survives. Because pins and base visibility
-      // are the publish point, the still-unpublished derived store is removed for a clean retry.
-      const SECOND_URL_ITEM_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
+    it('keeps the built store and credits skippedCount when the snapshot-pin UPDATE throws after the build', async () => {
+      // The url snapshot store is built in place at its runtime path and the snapshot file is written
+      // before the row-pin UPDATE runs. If that UPDATE throws, the per-base catch credits the base's
+      // units to skippedCount and drops it from successfulBaseIds, so the engine reconciliation still
+      // balances and the migration survives — but the built store is left in place at the runtime path
+      // with the row unpinned (storePromoted is already true, so the catch does not wipe it). Narrow,
+      // recoverable window: the next migration re-run re-pins it. Pin the behavior so it can't regress
+      // into an aborted migration or a silently dropped base.
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {
           id: 'legacy-url-0',
@@ -2440,13 +2360,6 @@ describe('KnowledgeVectorMigrator', () => {
           uniqueLoaderId: 'loader-url-a',
           source: 'https://example.com/guide',
           vector: [1, 2]
-        },
-        {
-          id: 'legacy-url-1',
-          pageContent: '# Other Guide',
-          uniqueLoaderId: 'loader-url-b',
-          source: 'https://example.com/other',
-          vector: [3, 4]
         }
       ])
 
@@ -2456,56 +2369,26 @@ describe('KnowledgeVectorMigrator', () => {
           createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
             type: 'url',
             data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
-          }),
-          createMigratedItem(SECOND_URL_ITEM_ID, {
-            type: 'url',
-            data: { source: 'https://example.com/other', url: 'https://example.com/other' }
           })
         ],
-        knowledgeItemIdRemap: new Map([
-          ['item-url-a', MIGRATED_SITEMAP_URL_ITEM_ID],
-          ['item-url-b', SECOND_URL_ITEM_ID]
-        ]),
         reduxData: {
           knowledge: {
             bases: [
               {
                 id: LEGACY_KNOWLEDGE_BASE_ID,
                 name: 'Base 1',
-                items: [
-                  { id: 'item-url-a', type: 'url', uniqueId: 'loader-url-a' },
-                  { id: 'item-url-b', type: 'url', uniqueId: 'loader-url-b' }
-                ]
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
               }
             ]
           }
         }
       })
-      // Fail the SECOND pin inside the transaction. The first tx write is only committed to
-      // updateCalls if the whole callback returns, so a migrator that pinned rows one
-      // transaction each would leak the first pin into updateCalls and fail the assertion below.
-      migrationCtx.db.transaction = vi.fn((callback: (tx: unknown) => unknown) => {
-        const txCalls: Array<{ values: Record<string, unknown> }> = []
-        let runs = 0
-        const tx = {
-          update: () => ({
-            set: (values: Record<string, unknown>) => ({
-              where: () => ({
-                run: () => {
-                  runs += 1
-                  if (runs === 2) {
-                    throw new Error('pin update failed')
-                  }
-                  txCalls.push({ values })
-                }
-              })
-            })
-          })
-        }
-        const result = callback(tx)
-        migrationCtx.db.updateCalls.push(...txCalls)
-        return result
-      }) as any
+      // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
+        }))
+      })) as any
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
@@ -2516,11 +2399,11 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrator.successfulBaseIds.has(MIGRATED_KNOWLEDGE_BASE_ID)).toBe(false)
       expect(migrator.executionErrors.some((message: string) => message.includes('pin update failed'))).toBe(true)
 
-      // NO row was pinned: the transaction rolled the first UPDATE back with the failed second.
-      expect(migrationCtx.db.updateCalls.filter((call) => call.values.data !== undefined)).toHaveLength(0)
-
-      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
-      // The preflight write already hid the base; no fallback mark is needed.
+      // The built store survives at the runtime path (storePromoted is true, so the catch does not
+      // wipe it), so the vectors are not lost — merely left unpinned until a re-run.
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      // The store DID land, so the base must NOT be marked missing_vector_store — that would force a
+      // needless full re-index of a present, searchable store (storePromoted gate).
       expect([...migrator.basesToMarkFailed]).toEqual([])
 
       // The skipped base's units are credited, so the engine's count reconciliation still balances.
@@ -2716,7 +2599,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'Pinned_1.md'))).toBe(false)
       const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(store.material[0]).toMatchObject({ relative_path: 'Pinned.md' })
-      expect(migrationCtx.db.updateCalls.find((call) => call.values.data !== undefined)?.values).toEqual({
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
         data: {
           source: 'https://example.com/guide',
           url: 'https://example.com/guide',
@@ -2787,9 +2670,8 @@ describe('KnowledgeVectorMigrator', () => {
       })
 
       // The item row is pinned so the first reindex reads the snapshot offline.
-      const snapshotPins = migrationCtx.db.updateCalls.filter((call) => call.values.data !== undefined)
-      expect(snapshotPins).toHaveLength(1)
-      expect(snapshotPins[0].values).toEqual({
+      expect(migrationCtx.db.updateCalls).toHaveLength(1)
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
         data: {
           source: 'Meeting notes',
           content: 'original note body',
@@ -2852,14 +2734,15 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
     })
 
-    it('stages vectors on disk and never re-reads the mutable source during execute (OOM regression guard)', async () => {
-      // OOM history this guards against: first prepare() pushed each base's full materials (joined
-      // chunk text + reused embeddings) into `preparedBasePlans`, so a many-base migration peaked
-      // at the SUM of every base's vectors (a 28-base corpus exhausted the V8 heap); the per-base
-      // re-read fix still loaded a whole base at once via loadBase(), which a single large base
-      // (six figures of chunks × high dimensions) could exhaust on its own. Now prepare() streams
-      // rows into a file-backed temp table, the retained plan exposes only scalar counts, and
-      // execute() pages that immutable snapshot without reopening the legacy DB.
+    it('never retains a base’s materials/vectors past its own prepare()/execute() pass (OOM regression guard)', async () => {
+      // Root cause of the OOM this guards against: prepare() used to push each base's full materials
+      // (joined chunk text + reused embeddings) into `preparedBasePlans`, an instance field that
+      // survived from the end of prepare() until execute() drained it — so a many-base migration held
+      // every base's vectors in memory at once, peaking at their sum (a 28-base corpus with
+      // high-dimension embeddings was enough to exhaust the V8 heap). The fix: prepare() only counts
+      // (discarding chunks/vectors at the end of each base's loop iteration) and execute() rebuilds a
+      // base's real materials from scratch, from its own local scope, right before writing them — so
+      // at most one base's vectors are ever resident, never the whole migration's.
       const MIGRATED_BASE_B_ID = '22222222-2222-4222-8222-222222222222'
       const MIGRATED_FILE_B_ITEM_ID = '0198f3f2-7f30-7abc-8def-123456789abc'
 
@@ -2883,20 +2766,7 @@ describe('KnowledgeVectorMigrator', () => {
       ])
 
       const knowledgeVectorSource = new KnowledgeVectorSourceReader(knowledgeBaseDir)
-      // Wrap openBase to prove only prepare() reads the mutable legacy source.
-      const realOpenBase = knowledgeVectorSource.openBase.bind(knowledgeVectorSource)
-      const iterateCalls: string[] = []
-      const openBaseSpy = vi.spyOn(knowledgeVectorSource, 'openBase').mockImplementation((baseId: string) => {
-        const result = realOpenBase(baseId)
-        if (result.status === 'ok') {
-          const realIterate = result.reader.iterateRows.bind(result.reader)
-          result.reader.iterateRows = () => {
-            iterateCalls.push(baseId)
-            return realIterate()
-          }
-        }
-        return result
-      })
+      const loadBaseSpy = vi.spyOn(knowledgeVectorSource, 'loadBase')
 
       const migrationCtx = createMigrationCtx({
         knowledgeVectorSource,
@@ -2939,11 +2809,10 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      // prepare() opened both legacy stores once each and streamed them into staging.
-      expect(openBaseSpy).toHaveBeenCalledTimes(2)
-      expect(iterateCalls.sort()).toEqual([LEGACY_KNOWLEDGE_BASE_ID, 'kb-2'].sort())
+      // prepare() read both legacy stores once each, to compute counts/skip decisions...
+      expect(loadBaseSpy).toHaveBeenCalledTimes(2)
 
-      // ...but the plan it retains for the whole migration carries ONLY file-backed counts —
+      // ...but the plan it retains for the whole migration carries ONLY lightweight counts/ids —
       // pinning the exact shape so a future change can't quietly reintroduce a `materials` /
       // `materialSnapshots` (or similarly named) field carrying chunk text or vectors.
       expect(migrator.preparedBasePlans).toHaveLength(2)
@@ -2951,10 +2820,11 @@ describe('KnowledgeVectorMigrator', () => {
         expect(Object.keys(plan).sort()).toEqual(
           [
             'baseId',
+            'legacyBaseId',
             'materialDirPath',
             'targetDbPath',
             'dimensions',
-            'stagedItemCounts',
+            'materialItemIds',
             'expectedUnitCount',
             'expectedEmbeddingCount',
             'sourceRowCount',
@@ -2962,19 +2832,16 @@ describe('KnowledgeVectorMigrator', () => {
             'directoryGroups'
           ].sort()
         )
-        // Each value is one scalar aggregate, never a rowid list, decoded row or vector.
-        for (const count of plan.stagedItemCounts.values()) {
-          expect(typeof count).toBe('number')
-        }
       }
 
-      openBaseSpy.mockClear()
-      iterateCalls.length = 0
+      loadBaseSpy.mockClear()
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
-      // execute() consumes the immutable SQLite snapshot and never re-opens the legacy DB.
-      expect(openBaseSpy).not.toHaveBeenCalled()
-      expect(iterateCalls).toEqual([])
+      // execute() re-reads each base's legacy vectors from scratch, right before rebuilding and
+      // writing its store — one loadBase call per base, same as prepare()'s pass. This re-read (not a
+      // reuse of anything prepare() cached) is the mechanism that bounds peak memory to a single
+      // base's vectors at a time instead of every base's for the whole migration.
+      expect(loadBaseSpy).toHaveBeenCalledTimes(2)
 
       const storeA = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(storeA.content.map((c) => String(c.text))).toEqual(['base a chunk'])

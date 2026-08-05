@@ -89,58 +89,6 @@ describe('KnowledgeIndexStore', () => {
     expect(material.rows[0].current_content_hash).not.toBeNull()
   })
 
-  it('rebuilds a material from a lazy chunk stream without an aggregate unit or embedding collection', async () => {
-    const visited: number[] = []
-    const chunks = function* () {
-      const ranges: Array<[number, number]> = [
-        [0, 5],
-        [6, 10]
-      ]
-      for (const [unitIndex, [charStart, charEnd]] of ranges.entries()) {
-        visited.push(unitIndex)
-        yield {
-          unitType: 'chunk' as const,
-          unitIndex,
-          charStart,
-          charEnd,
-          vector: new Float32Array([unitIndex + 1, unitIndex + 2])
-        }
-      }
-    }
-
-    const iterator = chunks()
-    expect(visited).toEqual([])
-    store.rebuildMaterialStream('m1', {
-      material: { relativePath: 'stream.md' },
-      content: { text: 'alpha beta' },
-      usesEmbeddings: true,
-      chunks: iterator
-    })
-
-    expect(visited).toEqual([0, 1])
-    expect(store.listMaterialUnits('m1').map((unit) => unit.text)).toEqual(['alpha', 'beta'])
-    expect(await count('search_unit')).toBe(2)
-    expect(await count('embedding')).toBe(2)
-  })
-
-  it('rolls back a streamed rebuild when a later chunk fails', () => {
-    store.rebuildMaterial('m1', buildInput('keep', [[0, 4]]))
-
-    expect(() =>
-      store.rebuildMaterialStream('m1', {
-        material: { relativePath: 'broken.md' },
-        content: { text: 'first second' },
-        usesEmbeddings: true,
-        chunks: [
-          { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 5, vector: new Float32Array([1, 2]) },
-          { unitType: 'chunk', unitIndex: 0, charStart: 6, charEnd: 12, vector: new Float32Array([3, 4]) }
-        ]
-      })
-    ).toThrow()
-
-    expect(store.listMaterialUnits('m1').map((unit) => unit.text)).toEqual(['keep'])
-  })
-
   it('keeps body text equal to the content slice (search §5.3 invariant)', async () => {
     const text = 'alpha beta gamma'
     store.rebuildMaterial(

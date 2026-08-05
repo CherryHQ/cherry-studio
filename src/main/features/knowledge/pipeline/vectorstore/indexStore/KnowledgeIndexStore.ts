@@ -8,8 +8,7 @@ import type {
   KnowledgeIndexSearchMatch,
   KnowledgeMaterialRef,
   KnowledgeSearchUnit,
-  RebuildMaterialInput,
-  RebuildMaterialStreamInput
+  RebuildMaterialInput
 } from './model'
 import type {
   SqliteDriver,
@@ -206,110 +205,6 @@ export class KnowledgeIndexStore {
       if (deletedUnits > 0 || contentChanged) {
         this.collectIndexGarbage(tx)
       }
-    })
-  }
-
-  /**
-   * Atomically rebuild a material while consuming units/vectors from a bounded
-   * iterator. Unlike rebuildMaterial(), this never creates an all-unit array or
-   * an all-embedding map in V8; only the canonical content string and current
-   * chunk are resident. Used by v1 migration for very large legacy items.
-   */
-  rebuildMaterialStream(materialId: string, input: RebuildMaterialStreamInput): void {
-    const now = Date.now()
-    const contentHash = hashContentText(input.content.text)
-
-    this.driver.transaction((tx) => {
-      const priorRow = tx.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, [materialId])
-        .rows[0]
-      const priorContentHash = priorRow === undefined ? undefined : (priorRow.current_content_hash as string | null)
-
-      tx.execute(`INSERT OR IGNORE INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`, [
-        contentHash,
-        input.content.text,
-        now
-      ])
-      tx.execute(
-        `INSERT INTO material (material_id, relative_path, created_at, updated_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(material_id) DO UPDATE SET
-           relative_path = excluded.relative_path,
-           updated_at = excluded.updated_at`,
-        [materialId, input.material.relativePath, now, now]
-      )
-
-      this.deleteMaterialSearchText(tx, materialId)
-      const deletedUnits = tx.execute(`DELETE FROM search_unit WHERE material_id = ?`, [materialId]).changes
-
-      for (const chunk of input.chunks) {
-        if (chunk.charEnd > input.content.text.length) {
-          throw new Error(
-            `Knowledge index unit ${chunk.unitIndex} of material ${materialId} has charEnd ${chunk.charEnd} beyond the content length ${input.content.text.length}`
-          )
-        }
-        const bodyText = input.content.text.slice(chunk.charStart, chunk.charEnd)
-        const embeddingTextHash = hashEmbeddingText(bodyText)
-        const unitId = computeUnitId(
-          materialId,
-          contentHash,
-          chunk.unitType,
-          chunk.unitIndex,
-          chunk.charStart,
-          chunk.charEnd
-        )
-        tx.execute(
-          `INSERT INTO search_unit
-             (unit_id, material_id, content_hash, unit_type, unit_index, title, char_start, char_end, locator_json, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            unitId,
-            materialId,
-            contentHash,
-            chunk.unitType,
-            chunk.unitIndex,
-            null,
-            chunk.charStart,
-            chunk.charEnd,
-            null,
-            now
-          ]
-        )
-        tx.execute(
-          `INSERT INTO search_text (search_text_id, target_type, target_id, kind, text, embedding_text_hash, created_at)
-           VALUES (?, 'search_unit', ?, 'body', ?, ?, ?)`,
-          [computeSearchTextId('search_unit', unitId, 'body'), unitId, bodyText, embeddingTextHash, now]
-        )
-        if (chunk.vector) {
-          tx.execute(
-            `INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`,
-            [embeddingTextHash, encodeVectorBlob(chunk.vector), now]
-          )
-        }
-      }
-
-      if (input.usesEmbeddings) {
-        const missing = Number(
-          tx.execute(
-            `SELECT count(*) AS count
-             FROM search_unit su
-             JOIN search_text st ON st.target_type = 'search_unit' AND st.target_id = su.unit_id
-             LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
-             WHERE su.material_id = ? AND e.embedding_text_hash IS NULL`,
-            [materialId]
-          ).rows[0]?.count ?? 0
-        )
-        if (missing > 0) {
-          throw new Error(`Knowledge index material ${materialId} has ${missing} unit(s) without embeddings`)
-        }
-      }
-
-      tx.execute(`UPDATE material SET current_content_hash = ?, updated_at = ? WHERE material_id = ?`, [
-        contentHash,
-        now,
-        materialId
-      ])
-      const contentChanged = priorContentHash !== undefined && priorContentHash !== contentHash
-      if (deletedUnits > 0 || contentChanged) this.collectIndexGarbage(tx)
     })
   }
 

@@ -9,7 +9,7 @@
 | Migrated knowledge base identities and dimensions | SQLite `knowledge_base` | `knowledge_base` table |
 | Migrated knowledge item identities | SQLite `knowledge_item` | `knowledge_item` table |
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
-| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.openBase(base.id)` (streaming) |
+| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.loadBase(base.id)` |
 
 The source reader is initialized by `MigrationContext` with `ctx.paths.knowledgeBaseDir`. It must read from the migration-resolved v1 userData path, not from the v2 path registry or `app.getPath()`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
 
@@ -19,7 +19,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
 - Built through `createKnowledgeIndexStoreAtPath` — the same factory the runtime
   (`KnowledgeVectorStoreService`) opens its stores with (driver → schema → `ensureIndexMeta` →
-  `KnowledgeIndexStore`) — then `KnowledgeIndexStore.rebuildMaterialStream` per item, so the migrated
+  `KnowledgeIndexStore`) — then `KnowledgeIndexStore.rebuildMaterial` per item, so the migrated
   store is byte-for-byte one the runtime would produce. One `material` per migrated item; its
   legacy chunks become that material's `search_unit`s.
 
@@ -56,11 +56,10 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
      re-chunks with the live splitter and converges. The migration is logged per base.
 
 4. Embedding reuse (no re-embedding)
-   - Legacy `vector` payloads are decoded from `F32_BLOB` to `Float32Array` (end to end — half
-     the resident size of `number[]`) and written through `encodeVectorBlob` (raw little-endian
-     float32) into the `embedding` table, keyed by the body's `embedding_text_hash`. The bytes
-     are identical to the runtime encoding, so no re-embedding happens and the store is
-     engine-portable.
+   - Legacy `vector` payloads are decoded from `F32_BLOB` to `number[]` and written through
+     `encodeVectorBlob` (raw little-endian float32) into the `embedding` table, keyed by the
+     body's `embedding_text_hash`. The bytes are identical to the runtime encoding, so no
+     re-embedding happens and the store is engine-portable.
    - Identical chunk bodies (within or across materials) collapse to one `embedding` row.
    - Unsupported vector encodings are skipped under `unsupported_vector_encoding`, separate from truly missing payloads.
    - A vector whose length disagrees with the base's recorded `dimensions` is skipped under `dimension_mismatch` rather than corrupting the brute-force cosine scan for the whole base.
@@ -75,24 +74,6 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
      `index.sqlite` on a `base_id` mismatch. Build-contract snapshots (embedding model,
      dimensions, chunker config hash) are intentionally not stored — a model/dimension change
      creates a new base and a chunker change rebuilds the derived index.
-
-## Memory Contract
-
-`prepare()` streams each base's legacy rows once (`openBase().reader.iterateRows()`) into a
-file-backed temporary SQLite table. `PreparedBasePlan` retains only scalar counts and stable path
-decisions: no rowid arrays, chunk text, decoded vectors, or embedding-hash sets. `execute()` never
-re-opens the mutable v1 database; it builds each material from the immutable staging snapshot,
-reading vectors in fixed-size pages through `KnowledgeIndexStore.rebuildMaterialStream`.
-Consequently the live payload is bounded to one material's canonical `content.text` plus one
-small vector page/current chunk. URL/note snapshots are written during that material's turn and
-never buffered base-wide, while decoded vectors stay `Float32Array` end to end (half the resident
-size of `number[]`).
-The OOM history behind this: retaining every base's materials across
-prepare→execute peaked at the sum of all bases' vectors (a 28-base corpus exhausted the V8 heap),
-and the follow-up per-base re-read still loaded a whole base at once — which one large base (six
-figures of chunks × high dimensions) could exhaust on its own, crash-looping the migration since it
-restarts from scratch on every relaunch. The OOM regression guard pins the exact
-`PreparedBasePlan` key set and proves execute does not read the legacy source again.
 
 ## File-Safety Contract
 

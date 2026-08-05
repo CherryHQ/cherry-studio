@@ -4,7 +4,7 @@
  * with no re-encode and no user migration — see knowledge-technical-design.md
  * §5.6 / decision A1.
  */
-export function encodeVectorBlob(values: ArrayLike<number>): Uint8Array {
+export function encodeVectorBlob(values: number[]): Uint8Array {
   const buffer = new ArrayBuffer(values.length * 4)
   const view = new DataView(buffer)
   for (let i = 0; i < values.length; i++) {

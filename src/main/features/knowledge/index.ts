@@ -18,8 +18,4 @@ export { buildNoteSnapshotFile } from './pipeline/sources/noteSnapshot'
 export { buildUrlSnapshotFile } from './pipeline/sources/urlSnapshot'
 export { createKnowledgeIndexStoreAtPath } from './pipeline/vectorstore/indexStore/createIndexStore'
 export { hashEmbeddingText } from './pipeline/vectorstore/indexStore/hashing'
-export type {
-  RebuildMaterialChunkInput,
-  RebuildMaterialInput,
-  RebuildMaterialStreamInput
-} from './pipeline/vectorstore/indexStore/model'
+export type { RebuildMaterialInput } from './pipeline/vectorstore/indexStore/model'
