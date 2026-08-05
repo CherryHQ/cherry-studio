@@ -145,6 +145,25 @@ describe('AgentSessionMessageService', () => {
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
 
+  it('writes neither user nor pending assistant when the session agent changed before the transaction', async () => {
+    expect(() =>
+      agentSessionMessageService.saveMessages(
+        {
+          sessionId: SESSION_ID,
+          messages: [
+            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+          ]
+        },
+        'agent-that-no-longer-owns-session'
+      )
+    ).toThrow(`Session with id '${SESSION_ID}' not found`)
+
+    expect(
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+    ).toEqual([])
+  })
+
   it('keeps createdAt stable when updating an existing message', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
 

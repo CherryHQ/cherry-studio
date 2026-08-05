@@ -169,6 +169,7 @@ type TaskDraftSnapshot = {
   schedule: ScheduleFormState
   channelIds: string[]
   workspaceId: string | null
+  reuseSession: boolean
 }
 type TaskUpdateResult = {
   succeeded: boolean
@@ -296,7 +297,8 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
       timeoutMinutes: task.timeoutMinutes > 0 ? task.timeoutMinutes.toString() : ''
     },
     channelIds: task.channelIds ?? [],
-    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
+    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null,
+    reuseSession: task.reuseSession
   }
 }
 
@@ -603,6 +605,33 @@ const TaskChannelSelector: FC<{
   )
 }
 
+const TaskSessionReuseField: FC<{
+  value: boolean
+  onChange: (value: boolean) => void
+  disabled?: boolean
+}> = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation()
+
+  return (
+    <Field>
+      <RowFlex className="items-center justify-between gap-3">
+        <div className="min-w-0">
+          <FieldLabel htmlFor="task-form-reuse-session">{t('agent.tasks.reuseSession.label')}</FieldLabel>
+          <ItemDescription>{t('agent.tasks.reuseSession.description')}</ItemDescription>
+        </div>
+        <Switch
+          id="task-form-reuse-session"
+          className="shrink-0"
+          checked={value}
+          disabled={disabled}
+          onCheckedChange={onChange}
+        />
+      </RowFlex>
+      {value && <Alert type="warning" showIcon description={t('agent.tasks.reuseSession.warning')} />}
+    </Field>
+  )
+}
+
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
@@ -751,6 +780,7 @@ const TaskDetail: FC<{
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
+  const { openConversation } = useConversationNavigation('agents')
   const isCompleted = task.status === 'completed'
   const agentName = agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId
   const taskChannels = useMemo(
@@ -802,6 +832,28 @@ const TaskDetail: FC<{
           : t('agent.tasks.timeout.placeholder')
     },
     { label: t('agent.session.display.workdir'), value: workspaceLabel },
+    {
+      label: t('agent.tasks.reuseSession.label'),
+      // A raw session UUID tells the user nothing — show the state, and make the
+      // bound case a real affordance (the same jump the run log already offers).
+      // The bound session only exists once a fire has run; until then the switch
+      // is on but there is nothing to point at yet.
+      value: !task.reuseSession ? (
+        t('common.disabled')
+      ) : task.reuseSessionId ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0"
+          onClick={() => openConversation(task.reuseSessionId as string)}>
+          {t('agent.tasks.reuseSession.bound')}
+          <ArrowRight size={13} />
+        </Button>
+      ) : (
+        t('agent.tasks.reuseSession.pending')
+      )
+    },
     {
       label: t('agent.tasks.channels.label'),
       value: selectedChannels.length > 0 ? selectedChannels.map((channel) => channel.name).join(', ') : t('common.none')
@@ -975,6 +1027,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [schedule, setSchedule] = useState<ScheduleFormState>(DEFAULT_SCHEDULE)
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const [reuseSession, setReuseSession] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
@@ -992,6 +1045,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setSchedule(draft?.schedule ?? DEFAULT_SCHEDULE)
       setChannelIds(draft?.channelIds ?? [])
       setWorkspaceId(draft?.workspaceId ?? null)
+      setReuseSession(draft?.reuseSession ?? false)
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -1045,6 +1099,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           updates.timeoutMinutes = timeoutMinutes
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
+        if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
@@ -1059,6 +1114,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           trigger,
           workspace,
           timeoutMinutes,
+          reuseSession,
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
@@ -1066,7 +1122,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, trigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1176,6 +1232,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               invalid={submitted && !trigger}
               onChange={setSchedule}
             />
+
+            <TaskSessionReuseField value={reuseSession} disabled={saving} onChange={setReuseSession} />
 
             <TaskChannelSelector
               channels={availableChannels}
