@@ -4,7 +4,6 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { hasOtherConversationAppTab } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -134,7 +133,6 @@ export const AppShell = () => {
                 tab={tab}
                 isActive={tab.id === activeTabId}
                 onUrlChange={(url) => handleUrlChange(tab.id, url)}
-                hasOtherConversationTab={(appId) => hasOtherConversationAppTab(tabs, tab.id, appId)}
               />
             ))}
         </ResourceViewSourceProvider>

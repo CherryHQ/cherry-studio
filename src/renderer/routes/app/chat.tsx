@@ -10,11 +10,9 @@ export const Route = createFileRoute('/app/chat')({
   // assistant entries pass through untouched. Message-only entries already
   // carry a topic id; a stray `view=message` without one is still a bare entry.
   // No resolvable topic → fall through bare; the page creates the first topic itself.
-  beforeLoad: async ({ context, search }) => {
+  beforeLoad: async ({ search }) => {
     if (search.topicId || search.assistantId) return
-    const topicId = await resolveChatEntryTopicId({
-      allowLatest: !context.hasOtherConversationTab('assistants')
-    })
+    const topicId = await resolveChatEntryTopicId()
     if (topicId) throw redirect({ to: '/app/chat', search: { topicId }, replace: true })
   },
   component: HomePage

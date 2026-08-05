@@ -1,6 +1,5 @@
-import type { TabRouterContext } from '@renderer/types/router'
-import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet } from '@tanstack/react-router'
 
-export const Route = createRootRouteWithContext<TabRouterContext>()({
+export const Route = createRootRoute({
   component: () => <Outlet />
 })

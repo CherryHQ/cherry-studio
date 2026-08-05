@@ -2,10 +2,6 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
-interface ConversationEntryOptions {
-  allowLatest: boolean
-}
-
 /**
  * Entry-target resolution for the conversation routes (`/app/chat`, `/app/agents`),
  * called from their `beforeLoad` interceptors on a bare entry (no explicit
@@ -13,18 +9,17 @@ interface ConversationEntryOptions {
  *
  * Resolution order: the cross-window "last focused" id, validated by its by-id
  * endpoint, then the globally most-recently-updated conversation. `null` means
- * nothing to resume — the route falls through bare and the page creates its own
- * first conversation.
+ * nothing to resume — the route falls through bare and the page decides what to
+ * show.
  *
  * `last_used_*` ids are never cleared on delete, so a remembered id may point at
  * a deleted row — that surfaces as NOT_FOUND here and falls through to latest.
  * These are one-shot reads rather than SWR preloads: the routes do not consume
  * the latest keys through hooks, so retaining a preload there would permanently
- * pin the first response. `/latest` is only allowed when the current window has
- * no other normal conversation tab for that app.
+ * pin the first response.
  */
 
-export async function resolveChatEntryTopicId({ allowLatest }: ConversationEntryOptions): Promise<string | null> {
+export async function resolveChatEntryTopicId(): Promise<string | null> {
   const lastUsedTopicId = cacheService.getPersist('ui.chat.last_used_topic_id')
   if (lastUsedTopicId) {
     try {
@@ -34,13 +29,12 @@ export async function resolveChatEntryTopicId({ allowLatest }: ConversationEntry
       if (!isDataApiNotFoundError(error)) throw error
     }
   }
-  if (!allowLatest) return null
 
   const { topic } = await dataApiService.get('/topics/latest')
   return topic?.id ?? null
 }
 
-export async function resolveAgentEntrySessionId({ allowLatest }: ConversationEntryOptions): Promise<string | null> {
+export async function resolveAgentEntrySessionId(): Promise<string | null> {
   const lastUsedSessionId = cacheService.getPersist('ui.agent.last_used_session_id')
   if (lastUsedSessionId) {
     try {
@@ -50,7 +44,6 @@ export async function resolveAgentEntrySessionId({ allowLatest }: ConversationEn
       if (!isDataApiNotFoundError(error)) throw error
     }
   }
-  if (!allowLatest) return null
 
   const { session } = await dataApiService.get('/agent-sessions/latest')
   return session?.id ?? null

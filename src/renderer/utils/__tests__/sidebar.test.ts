@@ -8,7 +8,7 @@ import {
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
-  hasOtherConversationAppTab,
+  isMessageOnlyConversationUrl,
   removeSidebarMiniApp,
   reorderLaunchpadApps,
   reorderSidebarFavorites,
@@ -136,58 +136,13 @@ describe('sidebar config helpers', () => {
     expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
   })
 
-  it('finds only other normal conversation tabs for the requested app', () => {
-    const tabs = [
-      { id: 'current', type: 'route' as const, url: '/app/chat' },
-      { id: 'message', type: 'route' as const, url: '/app/chat?topicId=message&view=message' },
-      { id: 'agent', type: 'route' as const, url: '/app/agents?sessionId=agent-session' }
-    ]
-
-    expect(hasOtherConversationAppTab(tabs, 'current', 'assistants')).toBe(false)
-    expect(hasOtherConversationAppTab(tabs, 'current', 'agents')).toBe(true)
-    expect(
-      hasOtherConversationAppTab(
-        [...tabs, { id: 'other-chat', type: 'route' as const, url: '/app/chat' }],
-        'current',
-        'assistants'
-      )
-    ).toBe(true)
-  })
-
-  it('counts message-view URLs without their matching conversation id as normal conversation tabs', () => {
-    const currentTab = { id: 'current', type: 'route' as const, url: '/settings/provider' }
-
-    expect(
-      hasOtherConversationAppTab(
-        [currentTab, { id: 'malformed-chat', type: 'route' as const, url: '/app/chat?view=message' }],
-        currentTab.id,
-        'assistants'
-      )
-    ).toBe(true)
-    expect(
-      hasOtherConversationAppTab(
-        [currentTab, { id: 'malformed-agent', type: 'route' as const, url: '/app/agents?view=message' }],
-        currentTab.id,
-        'agents'
-      )
-    ).toBe(true)
-    expect(
-      hasOtherConversationAppTab(
-        [currentTab, { id: 'chat-message', type: 'route' as const, url: '/app/chat?topicId=topic&view=message' }],
-        currentTab.id,
-        'assistants'
-      )
-    ).toBe(false)
-    expect(
-      hasOtherConversationAppTab(
-        [
-          currentTab,
-          { id: 'agent-message', type: 'route' as const, url: '/app/agents?sessionId=session&view=message' }
-        ],
-        currentTab.id,
-        'agents'
-      )
-    ).toBe(false)
+  it('classifies a message-view URL as message-only only when it carries its conversation id', () => {
+    expect(isMessageOnlyConversationUrl('/app/chat?topicId=topic&view=message')).toBe(true)
+    expect(isMessageOnlyConversationUrl('/app/agents?sessionId=session&view=message')).toBe(true)
+    // Malformed: `view=message` without an id is a bare entry, not a message-only popup.
+    expect(isMessageOnlyConversationUrl('/app/chat?view=message')).toBe(false)
+    expect(isMessageOnlyConversationUrl('/app/agents?view=message')).toBe(false)
+    expect(isMessageOnlyConversationUrl('/app/chat?topicId=topic')).toBe(false)
   })
 })
 
