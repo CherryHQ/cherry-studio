@@ -88,10 +88,33 @@ describe('WebviewContainer', () => {
 
     act(() => {
       webview?.dispatchEvent(new Event('did-finish-load'))
-      webview?.dispatchEvent(new Event('did-start-loading'))
+      webview?.dispatchEvent(Object.assign(new Event('did-start-navigation'), { isInPlace: false, isMainFrame: true }))
       vi.advanceTimersByTime(100)
     })
 
     expect(onLoaded).not.toHaveBeenCalled()
+  })
+
+  it('keeps the delayed loaded callback for an in-place main-frame navigation', () => {
+    const onLoaded = vi.fn()
+    const { container } = render(
+      <WebviewContainer
+        appid="chatgpt"
+        url="https://chat.openai.com"
+        onSetRefCallback={vi.fn()}
+        onLoadedCallback={onLoaded}
+        onNavigateCallback={vi.fn()}
+      />
+    )
+    const webview = container.querySelector('webview')
+    expect(webview).not.toBeNull()
+
+    act(() => {
+      webview?.dispatchEvent(new Event('did-finish-load'))
+      webview?.dispatchEvent(Object.assign(new Event('did-start-navigation'), { isInPlace: true, isMainFrame: true }))
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(onLoaded).toHaveBeenCalledWith('chatgpt')
   })
 })
