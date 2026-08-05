@@ -1,18 +1,68 @@
 {
-  "report_date": "2026-08-04",
+  "report_date": "2026-08-05",
   "v2_branch_status": {
     "open_prs_to_v2": 0,
     "closed_prs_to_v2_last_30d": 0,
-    "observation": "v2 branch is no longer the active development target. All current development merges to `main`. v2 content fully integrated. v1 branch actively receives hotfixes (5 open PRs targeting v1)."
+    "observation": "v2 branch is no longer the active development target. All current development merges to `main`. v1 branch receives hotfixes (4 open PRs targeting v1 today)."
   },
   "latest_release_estimate": {
     "tag": "v2.0.0-rc.4",
-    "note": "rc.4 shipped. Active regression fixes ongoing. New rc.4-specific bugs filed today (#17822). rc.5 preparation in progress."
+    "note": "rc.4 shipped. Active regression and migration fixes ongoing. 8 issues closed today, 43 new filed — v2.0 public launch surge in progress."
   },
+  "critical_fixed_today": [
+    {
+      "number": 17830,
+      "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
+      "closed": "2026-08-05",
+      "severity": "CRITICAL",
+      "labels": ["Data"]
+    },
+    {
+      "number": 17885,
+      "title": "Disabled MCP tools still listed and exposed to agents — tool is disabled errors",
+      "closed": "2026-08-05",
+      "labels": ["MCP"]
+    },
+    {
+      "number": 17851,
+      "title": "Pinning agent sessions fails — UUID v5 ids, schema only accepts v4/v7",
+      "closed": "2026-08-05"
+    },
+    {
+      "number": 17853,
+      "title": "Agent first reasoning content rendered as plain body text instead of collapsible block",
+      "closed": "2026-08-05",
+      "labels": ["UI/UX"]
+    },
+    {
+      "number": 17882,
+      "title": "After switching models, regenerating reply still uses previous model",
+      "closed": "2026-08-05",
+      "labels": ["Models"]
+    },
+    {
+      "number": 17927,
+      "title": "Reasoning effort cannot be reset to Default after moving slider",
+      "closed": "2026-08-05",
+      "labels": ["UI/UX"]
+    },
+    {
+      "number": 17850,
+      "title": "Left sidebar auto-expands when hovering left edge after collapse",
+      "closed": "2026-08-05",
+      "labels": ["UI/UX"]
+    },
+    {
+      "number": 17838,
+      "title": "Topic naming uses hidden migrated model + inherits assistant reasoning effort",
+      "closed": "2026-08-05",
+      "labels": ["Assistant", "Models"]
+    }
+  ],
   "active_development_areas": {
     "build_toolchain_modernization": {
       "status": "in_progress",
-      "description": "Full build toolchain modernization wave — TypeScript 7, Oxlint, Vite 8, ESLint removal",
+      "description": "TypeScript 7, Oxlint, Vite 8, ESLint removal wave",
       "tracking_issues": [
         "#17746 Restore typescript/no-unnecessary-type-assertion to error (tsgolint 7 backlog)"
       ],
@@ -21,8 +71,7 @@
         "Oxlint/tsgolint 7 adoption",
         "Oxfmt formatter",
         "ESLint → Oxlint replacement",
-        "Vite 8 upgrade",
-        "drop @electron-toolkit/tsconfig"
+        "Vite 8 upgrade"
       ]
     },
     "performance_lazy_loading": {
@@ -37,104 +86,101 @@
         "#17363 Chat startup eagerly bundles error detail and diagnosis modules",
         "#17362 Enabling MCP server serializes independent capability requests",
         "#17316 Painting history rehydrates every unchanged record",
-        "#17289 Painting hydration serializes independent file-entry batches",
-        "#17288 Closed history view eagerly bundles both history implementations",
-        "#17287 CLI config adapters serialize independent file pipelines",
-        "#17286 Backup dialogs serialize independent device metadata IPC",
-        "#17285 Notes eagerly bundles both mutually exclusive editor stacks",
-        "#17204 Knowledge route eagerly bundles optional RAG and recall panels",
-        "#16934 High CPU/RAM during long AI response streaming"
+        "#17289–17285 Painting/CLI/Backup/Notes lazy-load series (5 issues)",
+        "#17204 Knowledge route eagerly bundles optional RAG and recall panels"
+      ]
+    },
+    "data_migration_stability": {
+      "status": "URGENT",
+      "description": "v1→v2 migration path fixes — blocking user upgrades",
+      "new_today": [
+        "#17874 Repeated crashes during data migration upgrading to 2.0 (open, 3 comments)",
+        "#17946 Auto-Compact OpenCode startup crash — Cherry writes invalid key (open)"
       ],
-      "recent_merged_prs": [
-        "#17780 perf(conversation-load): parallelize active model loading",
-        "#17775 perf(data-api): defer inactive renderer queries"
+      "fixed_today": [
+        "#17830 v2 Agent migration ENOSPC — FIXED"
+      ],
+      "still_open": [
+        "#17709 RC users' migrated file entries remain permanently manual",
+        "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
+        "#17470 v2 migration aborts on legacy agents.db schema drift"
       ]
     },
     "agent_session_improvements": {
       "status": "active",
-      "description": "Agent session reliability, model selection, stream handling, orchestration",
+      "description": "Agent reliability, model selection, stream handling, orchestration",
       "new_today": [
-        "#17830 v2 Agent migration fans out shared workspace to every historical session → ENOSPC (URGENT)"
+        "#17895 Agent System Prompt Config Out of Sync — UI changes don't take effect (needs-triage)",
+        "#17894 Agent cannot process {{date}}, {{time}} in OpenAI Responses / Anthropic format"
       ],
       "open_issues": [
         "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions (internal_team)",
         "#17599 Pass immutable AssistantTurnOptions end to end",
-        "#17600 Unify composer tool-state snapshots",
         "#17545 Support split stream lanes for background subagents",
         "#17513 Build unified long-term memory system for non-developer users",
         "#17587 Claude Agent sessions persist zero-output results as successful turns",
-        "#17727 Agent context compression not working in Work tab"
+        "#17727 Agent context compression not working in Work tab",
+        "#17735 Built-in web search unlimited content → context overflow (3 comments)"
       ]
     },
-    "cherry_assistant_improvements": {
-      "status": "active",
-      "description": "Cherry Assistant / Quick Assistant UX and configuration",
+    "security_and_connectivity": {
+      "status": "NEW — NEEDS ATTENTION",
       "new_today": [
-        "#17828 Introduce layered preset resolution for Cherry Assistant configuration (Assistant, Data)",
-        "#17822 v2.0.0-rc.4 Quick Assistant reply color transparent — rc.4 regression (URGENT)"
-      ],
-      "open_issues": [
-        "#17726 Cherry Assistant diagnostic channel fails after upgrade (missing builtin_role)",
-        "#17329 Built-in Cherry Assistant crashes — CherryAI not routable through API gateway",
-        "#16940 Show 'using built-in default' affordance when instructions are empty"
+        "#17948 v2 portable auto exposes Cherry API on localhost (Connectivity) — privacy/security issue"
       ]
     },
     "mcp_improvements": {
       "status": "active",
       "description": "MCP reliability, OAuth, process management",
+      "fixed_today": [
+        "#17885 Disabled MCP tools still exposed to agents — FIXED"
+      ],
       "open_issues": [
-        "#17689 MCP stdio server process leak — duplicate python instances per tool call (4 comments)",
+        "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active)",
+        "#17859 Exa Web Search API Key Not Correctly Passed to MCP Service",
         "#17688 mcp-auto-install npm 404",
-        "#17000 Refactor tool rendering into single typed routing model",
-        "#17362 Enabling MCP server serializes independent capability requests"
-      ],
-      "closed_today": [
-        "#17729 MCP tool log black triangle symbol — FIXED",
-        "#17605 alphaXiv MCP OAuth — RESOLVED"
-      ]
-    },
-    "data_layer_and_gc": {
-      "status": "active",
-      "description": "v2 data layer cleanup — file refs, GC, backup, migration",
-      "critical_today": [
-        "#17830 v2 Agent migration fans out shared workspace → ENOSPC — disk exhaustion"
-      ],
-      "open_issues": [
-        "#17709 RC users' migrated file entries remain permanently manual after cleanup policy rollout",
-        "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
-        "#17501 Add ownership-derived GC for Data/Agents",
-        "#17431 Brand AgentWorkspacePathSchema as canonical filesystem path type",
-        "#17429 Consolidate path separator normalization",
-        "#17393 Make async image generation deliver result across restart",
-        "#17388 Pass FileEntry ids to image generation instead of re-encoded bytes",
-        "#17387 Saving temporary chat never registers file refs (GC risk)"
+        "#17000 Refactor tool rendering into typed routing model"
       ]
     },
     "model_compatibility": {
       "status": "active",
-      "description": "Model-specific bugs and new provider integrations",
-      "closed_today": [
-        "#17751 deepseek v4 flash chain of thought not displaying — FIXED"
+      "description": "Model-specific bugs and provider integrations",
+      "new_today": [
+        "#17924 Gemini 3 tool calls fail through OpenAI-compatible proxies — $schema strip needed",
+        "#17897 DeepSeek V4 Flash built-in search unavailable in v2.0 (regression)",
+        "#17892 gpt-5.6 terra model not working",
+        "#17900 Translation broken with deepseek v4 flash in v2.0"
       ],
-      "open_issues": [
-        "#17212 Reasoning content must be echoed in multi-turn tool calling (GLM/Kimi/MiniMax/Anthropic/Gemini)",
+      "open_ongoing": [
+        "#17212 Reasoning content must be echoed in multi-turn tool calling (multi-vendor)",
         "#17127 Agent incompatible with llama.cpp Anthropic endpoint — invalid grammar",
         "#16971 MiniMax M3 model fails in stream processing",
-        "#16790 reasoning_content unsupported by some providers (regression)",
-        "#17642 Unable to adjust Chain of Thought length for NVIDIA GLM 5.2",
+        "#17642 Cannot adjust Chain of Thought length for NVIDIA GLM 5.2",
         "#17253 GPT5.6 thinking format not supported"
+      ]
+    },
+    "v1_regression_recovery": {
+      "status": "active",
+      "description": "Features removed/broken in v2 that users expect from v1",
+      "open_regressions": [
+        "#17954 Conversation history limit option removed from Edit Assistant",
+        "#17949 Cannot check and manage topic prompt in v2",
+        "#17923 Themes, history navigation, tab behavior, reasoning effort regressions",
+        "#17571 Context count slider removed with no replacement",
+        "#17907 Mini programs not in sidebar",
+        "#17935 Model health check logic removed"
       ]
     },
     "v1_hotfix_channel": {
       "status": "active",
-      "open_prs_to_v1": 5,
-      "note": "v1 branch actively receiving hotfixes in parallel. 5 open PRs targeting v1 today (up from 3 yesterday)."
+      "open_prs_to_v1": 4,
+      "note": "v1 branch receiving hotfixes in parallel. 4 open PRs targeting v1 today."
     },
     "internal_team_roadmap": {
-      "description": "internal_team issues filed by SiinXu and kennyzheng-builds represent formal product roadmap items",
+      "description": "internal_team issues represent formal product roadmap items",
       "open_count": 30,
       "key_items": [
-        "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions, Create Agents & Sessions (Aug 3)",
+        "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions (Aug 3)",
         "#14899 Unified Notification Center (P1, Planned, v2.4.0 milestone)",
         "#16659 Streaming Idle Watchdog with Auto-Retry",
         "#16658 Background Agent Task Recovery After Process Restart",
@@ -151,53 +197,17 @@
       ]
     }
   },
-  "rc4_regressions_blocking": [
-    {
-      "number": 17830,
-      "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
-      "severity": "CRITICAL",
-      "new": true,
-      "opened_today": "2026-08-04",
-      "priority": "urgent — disk exhaustion"
-    },
-    {
-      "number": 17822,
-      "title": "v2.0.0-rc.4 Quick Assistant reply color is transparent and hard to read",
-      "severity": "HIGH",
-      "new": true,
-      "opened_today": "2026-08-04",
-      "priority": "high — UI regression in rc.4"
-    },
-    {
-      "number": 17571,
-      "title": "v2 RC1 missing context count slider (v1 Context Count slider removed with no replacement)",
-      "comments": 2,
-      "age_days": 6,
-      "priority": "high — user pressure building"
-    },
-    {
-      "number": 17470,
-      "title": "v2 migration aborts on legacy agents.db schema drift",
-      "comments": 1,
-      "priority": "medium"
-    },
-    {
-      "number": 17695,
-      "title": "Agent migration keeps old workspace root after cross-machine v1 restore",
-      "priority": "medium"
-    },
-    {
-      "number": 17341,
-      "title": "Failed to persist root span ai.turn: Cannot read properties of undefined",
-      "priority": "medium"
-    }
-  ],
-  "velocity_estimate": {
-    "prs_merged_last_30d": 572,
-    "prs_merged_per_day_avg": 19.1,
-    "issues_opened_today": 8,
-    "issues_opened_last_7d": 62,
-    "open_prs_count": 100,
-    "note": "Highest daily issue volume this week (8 today). Closed net 5 issues vs yesterday. DeJeune accounts for ~27% of open PRs."
+  "summary_for_today": {
+    "fixed_critical": 1,
+    "fixed_total_today": 8,
+    "new_issues": 43,
+    "net_open_change": "+43",
+    "top_priority_tomorrow": [
+      "Data migration crashes (#17874) — hotfix",
+      "v2 portable localhost API exposure (#17948) — security review",
+      "Auto-Compact OpenCode startup crash (#17946) — Code Mate regression",
+      "MCP process leak (#17689) — systemic reliability",
+      "Triage 246 unlabeled issues from launch spike"
+    ]
   }
 }

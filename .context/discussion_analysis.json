@@ -1,119 +1,94 @@
 {
-  "report_date": "2026-08-04",
-  "note": "Discussions analyzed from issues tagged 'discussion' and 'help wanted'. GitHub Discussions GraphQL not available in this environment.",
-  "discussion_labeled_issues_open": {
-    "count": 20,
-    "new_since_yesterday": 0,
-    "examples": [
-      {
-        "number": 17649,
-        "title": "[Discussion]: Should JobManager support cooperative safe points for long-running backup quiescence?",
-        "labels": ["help wanted", "discussion"],
-        "created_at": "2026-07-30",
-        "age_days": 5
-      },
-      {
-        "number": 17432,
-        "title": "[Discussion]: clarify and strengthen regression coverage for AI SDK Agent stream trajectories",
-        "labels": ["help wanted", "discussion"],
-        "comments": 2,
-        "created_at": "2026-07-26",
-        "age_days": 9
-      },
-      {
-        "number": 17389,
-        "title": "[Discussion]: Which sources may declare a FileEntry reference? (unwritten upstream half of file-ref contract)",
-        "labels": ["help wanted", "discussion", "Data"],
-        "created_at": "2026-07-25",
-        "age_days": 10
-      },
-      {
-        "number": 17330,
-        "title": "[Discussion]: Define Agent system workspace directory lifecycle contract",
-        "labels": ["Docs", "help wanted", "discussion"],
-        "created_at": "2026-07-24",
-        "age_days": 11
-      },
-      {
-        "number": 17271,
-        "title": "[Discussion]: Agent assistant cannot connect to knowledge base",
-        "labels": ["help wanted", "discussion", "RAG", "Assistant"],
-        "created_at": "2026-07-22",
-        "age_days": 13
-      },
-      {
-        "number": 17183,
-        "title": "[Discussion]: Make AgentSession a lifecycle-managed runtime entity",
-        "labels": ["help wanted", "discussion"],
-        "created_at": "2026-07-20",
-        "age_days": 15
-      }
+  "report_date": "2026-08-05",
+  "generated_at": "2026-08-05T22:00:00Z",
+  "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion' + 'help wanted' and high-comment issues",
+  "discussion_volume": {
+    "discussion_labeled_issues_open": 28,
+    "new_discussions_today": 5,
+    "top_new": [
+      "#17954 v2.0 conversation history limit removed from Edit Assistant (2 comments)",
+      "#17907 Restore mini programs to sidebar like v1.x (2 comments)",
+      "#17847 Reconnect on Failure (Connectivity)"
     ]
   },
-  "recurring_user_pain_points": [
-    {
-      "topic": "v2 RC regression / migration issues",
-      "frequency": "high",
+  "theme_analysis": {
+    "v2_feature_regressions": {
+      "volume": "HIGH",
       "trending": true,
-      "new_today": ["#17830 v2 Agent migration → ENOSPC", "#17822 rc.4 Quick Assistant color transparent"],
-      "sample_issues": ["#17830", "#17822", "#17571", "#17695", "#17470", "#17341", "#17343"]
+      "description": "v2.0 public launch driving regression reports from v1 users",
+      "key_issues": [
+        {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model"},
+        {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
+        {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt"},
+        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x"},
+        {"number": 17571, "title": "v2 RC1 missing context count slider"}
+      ],
+      "signal": "Growing cluster — needs product decision on which v1 features to restore vs redesign in v2"
     },
-    {
-      "topic": "Agent mode model compatibility (custom providers, OpenRouter, GLM)",
-      "frequency": "high",
+    "data_migration_reliability": {
+      "volume": "HIGH",
       "trending": true,
-      "sample_issues": ["#17260", "#17486", "#17282", "#16970", "#17781", "#17435"]
+      "description": "v1→v2 migration path has critical issues blocking upgrade",
+      "key_issues": [
+        {"number": 17874, "title": "Repeated crashes during data migration upgrading to 2.0", "comments": 3},
+        {"number": 17830, "title": "v2 Agent migration ENOSPC — FIXED Aug 5", "closed": true},
+        {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"}
+      ],
+      "signal": "URGENT — multiple users hitting migration crashes; hotfix needed"
     },
-    {
-      "topic": "MCP server reliability (process leaks, OAuth, npm 404)",
-      "frequency": "medium-high",
+    "agent_mcp_reliability": {
+      "volume": "HIGH",
       "trending": true,
-      "note": "MCP process leak #17689 now has 4 comments and was most active issue today",
-      "sample_issues": ["#17689", "#17688", "#16951"]
+      "description": "MCP process management and agent turn reliability",
+      "key_issues": [
+        {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
+        {"number": 17735, "title": "Built-in web search unlimited content → context overflow", "comments": 3},
+        {"number": 17895, "title": "Agent System Prompt Config Out of Sync"},
+        {"number": 17946, "title": "Auto-Compact OpenCode startup crash"}
+      ],
+      "signal": "Pre-stable release blockers — core agent reliability must be fixed before GA"
     },
-    {
-      "topic": "Thinking/CoT display and control across models",
-      "frequency": "medium",
-      "trending": true,
-      "note": "#17751 deepseek v4 flash CoT closed today — resolved; GLM, others still open",
-      "sample_issues": ["#17212", "#17642", "#17253"]
+    "model_compatibility": {
+      "volume": "MEDIUM",
+      "description": "Various model providers and formats failing in v2",
+      "key_issues": [
+        {"number": 17924, "title": "Gemini 3 tool calls fail through OpenAI-compatible proxies — $schema issue"},
+        {"number": 17897, "title": "DeepSeek V4 Flash built-in search unavailable in v2.0"},
+        {"number": 17892, "title": "gpt-5.6 terra model not working"},
+        {"number": 17894, "title": "Agent OpenAI Responses + Anthropic format cannot process {{date}}, {{time}}"}
+      ]
     },
-    {
-      "topic": "Agent context window management",
-      "frequency": "medium",
-      "trending": false,
-      "sample_issues": ["#17571", "#17727", "#17735"]
-    },
-    {
-      "topic": "Process not terminating after window close",
-      "frequency": "medium",
-      "trending": false,
-      "note": "#17629 still active with 2 comments, no fix PR yet",
-      "sample_issues": ["#17629"]
-    },
-    {
-      "topic": "Knowledge base / RAG embedding failures",
-      "frequency": "medium",
-      "trending": false,
-      "sample_issues": ["#17170", "#17141", "#17002", "#17002"]
+    "architecture_discussions": {
+      "volume": "LOW",
+      "description": "Internal team design discussions — healthy sign",
+      "key_issues": [
+        {"number": 17649, "title": "JobManager cooperative safe points for backup quiescence"},
+        {"number": 17330, "title": "Agent workspace directory lifecycle contract"},
+        {"number": 17389, "title": "FileEntry reference ownership contract"}
+      ]
     }
-  ],
-  "community_health": {
-    "open_help_wanted": 24,
-    "total_open_issues": 837,
-    "merged_prs_last_30d": 572,
-    "note": "Extremely active project. 8 new issues today, 572 PRs merged in last 30 days. Internal team (SiinXu, DeJeune, kennyzheng-builds) drives majority of PRs. Community contribution growing."
   },
-  "trending_today": [
-    "v2 Agent migration fans out shared workspace → ENOSPC (#17830 — DATA INTEGRITY RISK)",
-    "v2.0.0-rc.4 Quick Assistant reply color transparent/unreadable (#17822 — rc.4 UX regression)",
-    "MCP stdio process leak still active with 4 comments (#17689)",
-    "Processes not cleaning up after window close (#17629 updated today)",
-    "deepseek v4 flash CoT issue RESOLVED and closed (#17751)"
+  "top_by_engagement": [
+    {"number": 16994, "title": "Refactor Topic and Agent Session pagination", "comments": 8},
+    {"number": 17485, "title": "A JavaScript error in the main process", "comments": 6},
+    {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
+    {"number": 17874, "title": "Repeated crashes during data migration to 2.0", "comments": 3},
+    {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3},
+    {"number": 17735, "title": "Built-in web search unlimited content", "comments": 3}
   ],
-  "resolved_today": [
-    "#17751 deepseek v4 flash chain of thought not displaying — CLOSED",
-    "#17729 MCP tool log black triangle symbol — CLOSED",
-    "#17605 alphaXiv MCP OAuth failure — CLOSED"
-  ]
+  "sentiment_summary": {
+    "overall": "Mixed — Agent/Code Mate capabilities praised; v1→v2 regression pain is significant",
+    "positive_signals": [
+      "Cherry Studio v2.0 generating significant community engagement",
+      "DeJeune and team driving rapid fixes (8 issues closed today)",
+      "Internal architecture discussions show healthy design culture"
+    ],
+    "pain_points": [
+      "Data migration crashes block upgrade path",
+      "Missing v1 features: mini programs, history limit, context slider",
+      "MCP process management systemic issues",
+      "Security concern: portable build exposes localhost API",
+      "Model compatibility gaps: GPT-5.6, DeepSeek V4 Flash, Gemini 3 proxy issues"
+    ]
+  }
 }

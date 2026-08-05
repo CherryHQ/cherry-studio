@@ -1,35 +1,38 @@
 {
-  "report_date": "2026-08-04",
-  "total_open": 837,
-  "delta_from_yesterday": -5,
+  "report_date": "2026-08-05",
+  "total_open": 880,
+  "delta_from_yesterday": 43,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Jul 28 – Aug 4)",
-      "estimated_count": 302,
-      "pct": 36.1
+      "description": "Updated within last 7 days (Jul 29 – Aug 5)",
+      "estimated_count": 382,
+      "pct": 43.4,
+      "note": "Elevated by v2.0 launch — 43 new issues today alone"
     },
     "aging": {
-      "description": "Updated 7–30 days ago (Jul 5 – Jul 27)",
-      "estimated_count": 238,
-      "pct": 28.4
+      "description": "Updated 7–30 days ago (Jul 6 – Jul 28)",
+      "estimated_count": 350,
+      "pct": 39.8,
+      "note": "v2 beta period (July) backlog"
     },
     "stale": {
-      "description": "Updated 30–90 days ago (May 6 – Jul 4)",
-      "estimated_count": 198,
-      "pct": 23.7
+      "description": "Updated 30–90 days ago (May 7 – Jul 5)",
+      "estimated_count": 120,
+      "pct": 13.6
     },
     "zombie": {
-      "description": "Not updated in 90+ days (before May 6)",
-      "estimated_count": 99,
-      "pct": 11.8
+      "description": "Not updated in 90+ days (before May 7)",
+      "estimated_count": 28,
+      "pct": 3.2,
+      "note": "3 P1 issues aging in this bucket (13193, 13608, 14899)"
     }
   },
-  "note_on_inactive_label": "Many issues in the 30–90 day window carry the 'inactive' label (bot-applied). The bot's comment bumps updated_at, inflating the 'active' bucket. Counts above use estimated human-activity dates. Inactive bot continued closing old issues on Aug 4.",
+  "note_on_inactive_label": "Issues with 'inactive' bot label (78 total) have updated_at bumped by bot comments, inflating Active count. True human-activity active count may be ~30 lower.",
   "label_coverage": {
-    "labeled_count": 743,
-    "unlabeled_count": 94,
-    "unlabeled_pct": 11.2,
-    "note": "94 issues lack any label — slight improvement from 96 yesterday (2 triaged). Triage backlog remains significant."
+    "labeled_count": 634,
+    "unlabeled_count": 246,
+    "unlabeled_pct": 28.0,
+    "note": "Sharp rise from yesterday's 11.2% — v2.0 launch brought many user reports without triage. Triage backlog is now significant."
   },
   "p1_open_issues": {
     "count": 3,
@@ -37,20 +40,20 @@
       {
         "number": 14899,
         "title": "Unified Notification Center",
-        "age_days": 89,
+        "age_days": 90,
         "milestone": "v2.4.0",
         "status": "Planned — no active fix PR found"
       },
       {
         "number": 13608,
         "title": "xiaomi mimo response last-line only",
-        "age_days": 139,
-        "status": "No fix PR found — aging without triage"
+        "age_days": 140,
+        "status": "No fix PR — aging without triage"
       },
       {
         "number": 13193,
         "title": "Azure OpenAI responses API fallback failure (404)",
-        "age_days": 153,
+        "age_days": 154,
         "assignee": "DeJeune",
         "status": "Assigned to DeJeune — no fix PR yet"
       }
@@ -61,17 +64,28 @@
       "number": 17636,
       "title": "Agent session turn can hang forever after a failed turn",
       "closed_at": "2026-07-30",
-      "note": "Fixed 5 days ago — strong signal"
+      "note": "Fixed 6 days ago — strong signal"
+    }
+  ],
+  "critical_fixed_today": [
+    {
+      "number": 17830,
+      "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
+      "closed_at": "2026-08-05",
+      "labels": ["Data"],
+      "severity": "CRITICAL — disk exhaustion, data loss risk",
+      "note": "Fixed same-day after filing — responsive resolution"
     }
   ],
   "rc4_regressions_open": {
-    "count": 5,
+    "count": 6,
     "new_today": [
-      "#17822 Quick Assistant reply color is transparent/unreadable in rc.4 (Assistant, UI/UX)"
+      "#17954 v2.0 conversation history limit removed from Edit Assistant (Discussion, Performance)",
+      "#17949 V2 regression — cannot check and manage topic prompt (UI/UX)",
+      "#17900 Unable to translate normally after setting translation model to deepseek v4 flash in v2.0"
     ],
     "existing": [
-      "#17571 v2 RC1 missing context count slider — context count adjustment removed with no replacement",
-      "#17470 v2 migration aborts on legacy agents.db schema drift",
+      "#17571 v2 RC1 missing context count slider — no replacement",
       "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
       "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined"
     ]
@@ -79,64 +93,76 @@
   "new_high_impact_today": {
     "issues": [
       {
-        "number": 17830,
-        "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
+        "number": 17874,
+        "title": "Repeated crashes during data migration upgrading to 2.0",
         "labels": ["Data"],
-        "severity": "HIGH — disk exhaustion, data loss risk",
-        "comments": 2
+        "severity": "HIGH — blocks upgrade path for v1 users",
+        "comments": 3
       },
       {
-        "number": 17822,
-        "title": "v2.0.0-rc.4 Quick Assistant reply color is transparent and hard to read",
-        "labels": ["Assistant", "UI/UX"],
-        "severity": "MEDIUM — usability regression in rc.4"
+        "number": 17946,
+        "title": "Enabling Auto-Compact for OpenCode breaks startup — Cherry writes invalid key 'autoCompact'",
+        "labels": ["Code Mate"],
+        "severity": "HIGH — startup crash regression"
+      },
+      {
+        "number": 17948,
+        "title": "v2 portable auto exposes Cherry API on localhost",
+        "labels": ["Connectivity"],
+        "severity": "HIGH — security/privacy issue"
       }
     ]
   },
   "agent_bugs_cluster": {
-    "count_estimate": 26,
+    "count_estimate": 28,
     "new_today": [
-      "#17830 v2 Agent migration fans out shared workspace → ENOSPC (Data)"
+      "#17895 Agent System Prompt Config Out of Sync — UI changes don't take effect (needs-triage)",
+      "#17894 Agent using OpenAI Responses + Anthropic format cannot process {{date}}, {{time}} (Models)"
     ],
     "ongoing_priority": [
-      "#17689 MCP stdio server process leak — duplicate python per tool call (4 comments)",
+      "#17689 MCP stdio server process leak — python instances accumulate (4 comments)",
+      "#17735 Built-in web search fetches unlimited content → Agent context overflow (3 comments)",
       "#17587 Claude Agent sessions persist zero-output results as successful turns",
       "#17727 Agent context compression not working in Work tab",
-      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable",
-      "#17560 Agent disappears from sidebar after clearing conversation",
-      "#17781 'Failed to list agents' (needs-more-info)"
+      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable"
     ]
   },
   "performance_issues_open": {
     "count_estimate": 59,
-    "pattern": "Systematic lazy-load/virtualization wave filed by DeJeune. Many have corresponding open PRs. Good coverage — execution in progress."
+    "pattern": "Systematic lazy-load/virtualization wave filed by DeJeune. Many have corresponding open PRs. DeJeune is primary driver — execution in progress."
   },
   "mcp_cluster": {
     "count_estimate": 53,
+    "new_today": [
+      "#17859 Exa Web Search API Key Not Correctly Passed to MCP Service (MCP)"
+    ],
     "closed_today": [
-      "#17729 MCP tool log black triangle symbol (closed)",
-      "#17605 alphaXiv MCP OAuth (closed)"
+      "#17885 Disabled MCP tools still listed and exposed to agents (MCP) — FIXED"
     ],
     "still_open": [
-      "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active today)",
+      "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active)",
       "#17688 mcp-auto-install npm 404",
       "#17000 Refactor tool rendering into typed routing model"
     ]
   },
   "new_issue_activity_today": {
-    "count": 8,
+    "count": 43,
     "breakdown": {
-      "feature_requests": 5,
-      "bugs": 3,
-      "other_or_empty": 1
-    }
+      "bugs": 22,
+      "feature_requests": 14,
+      "discussions": 5,
+      "other_or_empty": 2
+    },
+    "note": "Largest single-day spike this month — v2.0 public availability driving heavy traffic"
   },
   "recommendations": [
-    "URGENT: #17830 v2 Agent migration → ENOSPC — disk exhaustion risk for users with large v1 history, needs hotfix priority",
-    "URGENT: #17822 rc.4 Quick Assistant reply color transparent — UX regression, blocking usability of Quick Assistant",
-    "Triage 94 unlabeled issues — 11.2% of backlog invisible to label filters",
-    "P1 issues #13608 (139 days) and #13193 (153 days) aging without fix — assign or close as wontfix",
-    "MCP process leak #17689 has 4 comments and growing — systemic, needs fix before stable",
-    "v2 context count slider #17571 missing 12 days with user pressure — needs design decision or PR"
+    "URGENT: Data migration crashes (#17874) — blocks v1→v2 upgrade path, needs hotfix",
+    "URGENT: v2 portable localhost API exposure (#17948) — security/privacy issue, needs immediate review",
+    "URGENT: Auto-Compact OpenCode startup crash (#17946) — Code Mate integration regression",
+    "Triage 246 unlabeled issues — 28% of backlog invisible to label filters (up from 11.2% yesterday)",
+    "MCP process leak #17689 (4 comments, growing) — systemic, needs fix before stable release",
+    "P1 issues #13608 (140 days) and #13193 (154 days) aging without fix — assign or close as wontfix",
+    "v2 context count slider #17571 missing 7 days with user pressure — needs design decision or PR",
+    "v2.0 regression cluster: 6 known regressions from v1 need product triage decisions"
   ]
 }
