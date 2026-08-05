@@ -546,7 +546,7 @@ describe('CodeCliService', () => {
       const launchArgs = (launchCall[1] ?? []).join(' ')
       const launchEnv = launchCall[2]?.env as Record<string, string>
       expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
       )
       expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
       expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
