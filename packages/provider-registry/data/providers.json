@@ -315,6 +315,7 @@
       "name": "deepseek",
       "serverTools": [
         {
+          "endpointTypes": ["openai-responses"],
           "id": "web-search",
           "modelScope": "model-dependent"
         }
@@ -2054,5 +2055,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "9d23ddac26bc2e63"
+  "version": "8bb73fffd9a00400"
 }
