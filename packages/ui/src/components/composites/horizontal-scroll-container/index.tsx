@@ -1,6 +1,6 @@
 // Original: src/renderer/components/horizontal-scroll-container/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
 import Scrollbar from '../scrollbar'
@@ -23,14 +23,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   expandable = false
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
-  const [canScrollRight, setCanScrollRight] = React.useState(false)
+  const [canScroll, setCanScroll] = React.useState(false)
   const [isExpanded, setIsExpanded] = React.useState(false)
-
-  const handleScrollLeft = (event: React.MouseEvent) => {
-    scrollRef.current?.scrollBy({ left: -scrollDistance, behavior: 'smooth' })
-    event.stopPropagation()
-  }
+  const [isScrolledToEnd, setIsScrolledToEnd] = React.useState(false)
 
   const handleScrollRight = (event: React.MouseEvent) => {
     scrollRef.current?.scrollBy({ left: scrollDistance, behavior: 'smooth' })
@@ -57,10 +52,14 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
     const parentElement = scrollElement.parentElement
     const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
     const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
-    setCanScrollLeft(canScrollValue && scrollElement.scrollLeft > 1)
-    setCanScrollRight(
-      canScrollValue && scrollElement.scrollLeft + scrollElement.clientWidth < scrollElement.scrollWidth - 1
-    )
+    setCanScroll(canScrollValue)
+
+    if (canScrollValue) {
+      const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
+      setIsScrolledToEnd(isAtEnd)
+    } else {
+      setIsScrolledToEnd(false)
+    }
   }, [])
 
   React.useEffect(() => {
@@ -108,31 +107,15 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         }}>
         {children}
       </Scrollbar>
-      {canScrollLeft && !isExpanded && (
-        <button
-          type="button"
-          aria-label="←"
-          data-no-expand
+      {canScroll && !isExpanded && !isScrolledToEnd && (
+        <div
           className={cn(
-            'scroll-left-button absolute top-1/2 left-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-md transition-opacity',
-            'group-hover/container:opacity-100 focus-visible:opacity-100'
-          )}
-          onClick={handleScrollLeft}>
-          <ChevronLeft size={14} className="text-muted-foreground hover:text-foreground" />
-        </button>
-      )}
-      {canScrollRight && !isExpanded && (
-        <button
-          type="button"
-          aria-label="→"
-          data-no-expand
-          className={cn(
-            'scroll-right-button absolute top-1/2 right-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-md transition-opacity',
-            'group-hover/container:opacity-100 focus-visible:opacity-100'
+            'scroll-right-button absolute top-1/2 right-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity',
+            !isScrolledToEnd && 'group-hover/container:opacity-100'
           )}
           onClick={handleScrollRight}>
           <ChevronRight size={14} className="text-muted-foreground hover:text-foreground" />
-        </button>
+        </div>
       )}
     </div>
   )
