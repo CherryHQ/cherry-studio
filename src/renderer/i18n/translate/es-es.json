@@ -2483,7 +2483,7 @@
       "content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
       "context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
       "deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",
-      "free_model_unavailable": "[to be translated]:Free diagnosis model is unavailable",
+      "free_model_unavailable": "El modelo de diagnóstico gratuito no está disponible",
       "go_to_settings": "Ir a configuración",
       "knowledge": "Error en la vectorización de la base de conocimiento",
       "mcp": "Error de conexión al servidor MCP, verifica si el servicio está en ejecución",

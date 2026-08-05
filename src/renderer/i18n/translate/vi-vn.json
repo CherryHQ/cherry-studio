@@ -2483,7 +2483,7 @@
       "content": "Nội dung bị chặn bởi hệ thống an toàn, vui lòng sửa đổi và thử lại",
       "context_length": "Cuộc hội thoại quá dài, vui lòng xóa lịch sử hoặc bắt đầu cuộc trò chuyện mới",
       "deprecated": "Mô hình này đã ngừng hoạt động, vui lòng chuyển sang mô hình khác",
-      "free_model_unavailable": "[to be translated]:Free diagnosis model is unavailable",
+      "free_model_unavailable": "Mô hình chẩn đoán miễn phí không khả dụng",
       "go_to_settings": "Đi tới Cài đặt",
       "knowledge": "Vector hóa cơ sở tri thức thất bại",
       "mcp": "Kết nối máy chủ MCP thất bại, hãy kiểm tra xem dịch vụ có đang chạy không",
