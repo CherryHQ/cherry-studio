@@ -58,6 +58,12 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
   })
 
+  it('defaults message navigation to the anchor rail for new users', () => {
+    const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
+
+    expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
+  })
+
   it('does not keep legacy classic/modern layout preferences', () => {
     expect('topic.layout' in DefaultPreferences.default).toBe(false)
     expect('agent.layout' in DefaultPreferences.default).toBe(false)
