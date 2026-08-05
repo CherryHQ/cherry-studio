@@ -74,7 +74,14 @@ describe('deepseek endpoint matrix', () => {
   })
 
   it('advertises the Responses API built-in web search tool', () => {
-    expect(provider('deepseek').serverTools).toEqual([{ id: 'web-search', modelScope: 'model-dependent' }])
+    expect(provider('deepseek').serverTools).toEqual([
+      {
+        id: 'web-search',
+        modelScope: 'model-dependent',
+        modelIdPrefixes: ['deepseek-v4-flash'],
+        endpointTypes: ['openai-responses']
+      }
+    ])
   })
 
   it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {

@@ -21,15 +21,15 @@ const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   ...overrides
 })
 
-const provider = (modelScope: 'all-chat-models' | 'model-dependent'): Provider =>
-  ({ serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
+const provider = (modelScope: 'all-chat-models' | 'model-dependent', id = 'anthropic'): Provider =>
+  ({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
 
 describe('server-tool model eligibility', () => {
   it('uses generated registry eligibility without a generic model capability', () => {
     const claude = model('claude-sonnet-4-6')
 
     expect(claude.capabilities).not.toContain('web-search')
-    expect(isServerToolModelEligible(claude, SERVER_TOOL.WEB_SEARCH)).toBe(true)
+    expect(isServerToolModelEligible(claude, { id: 'anthropic' }, SERVER_TOOL.WEB_SEARCH)).toBe(true)
     expect(isBuiltinWebSearchAvailable(claude, provider('model-dependent'))).toBe(true)
   })
 
@@ -40,12 +40,38 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
   })
 
-  it('limits DeepSeek Responses web search to V4 Flash', () => {
-    const deepseek = provider('model-dependent')
+  it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'keeps Bailian-owned DeepSeek web-search eligibility for %s',
+    (modelId) => {
+      expect(isBuiltinWebSearchAvailable(model(modelId), provider('model-dependent', 'dashscope'))).toBe(true)
+    }
+  )
 
-    expect(isBuiltinWebSearchAvailable(model('deepseek-v4-flash'), deepseek)).toBe(true)
-    expect(isBuiltinWebSearchAvailable(model('deepseek-v4-pro'), deepseek)).toBe(false)
-    expect(isBuiltinWebSearchAvailable(model('deepseek-v3.2'), deepseek)).toBe(false)
+  it('narrows official DeepSeek web search to its Responses endpoint', () => {
+    const deepseek = {
+      id: 'deepseek',
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    } as Provider
+    const flash = model('deepseek-v4-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const route = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
+      resolveWebToolRoutes(flash, deepseek, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        endpointType
+      })
+
+    expect(route(ENDPOINT_TYPE.OPENAI_RESPONSES)).toMatchObject({ webSearch: 'server' })
+    expect(route(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toMatchObject({ webSearch: 'client' })
+    expect(route(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({ webSearch: 'client' })
+    expect(isBuiltinWebSearchAvailable(model('deepseek-v3.2'), deepseek, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
   })
 
   it('rejects non-chat models even when their ids are otherwise eligible', () => {
@@ -53,7 +79,7 @@ describe('server-tool model eligibility', () => {
       capabilities: [MODEL_CAPABILITY.EMBEDDING]
     })
 
-    expect(isServerToolModelEligible(embedding, SERVER_TOOL.WEB_SEARCH)).toBe(false)
+    expect(isServerToolModelEligible(embedding, { id: 'anthropic' }, SERVER_TOOL.WEB_SEARCH)).toBe(false)
   })
 
   // Gateways serve namespaced ids (`google/gemini-3-pro-preview`). VENDOR_PATTERNS are anchored, so
@@ -61,6 +87,7 @@ describe('server-tool model eligibility', () => {
   // model whose vendor slug differs from its namespace — cherryin's Gemini and Claude lines both.
   it('narrows by vendor through a gateway namespace prefix', () => {
     const cherryin = {
+      id: 'cherryin',
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
     } as unknown as Provider
 
@@ -76,7 +103,7 @@ describe('server-tool model eligibility', () => {
   it('stays eligible when the wire id carries an Ark date snapshot', () => {
     const dated = model('doubao-seed-2-1-pro-260628', { providerId: 'doubao' })
 
-    expect(isBuiltinWebSearchAvailable(dated, provider('model-dependent'))).toBe(true)
+    expect(isBuiltinWebSearchAvailable(dated, provider('model-dependent', 'doubao'))).toBe(true)
   })
 
   // A gateway whose declaration narrows to `gemini` resolves the same google tool factory through the
@@ -127,6 +154,7 @@ describe('web-tool routing', () => {
     capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
   })
   const serverProvider = {
+    id: 'anthropic',
     serverTools: [
       { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' },
       { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
@@ -184,6 +212,7 @@ describe('web-tool routing', () => {
 
   it('honors the declaration vendors narrowing (Vertex url-context is Gemini-only)', () => {
     const vertexLike = {
+      id: 'vertexai',
       serverTools: [{ id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent', vendors: ['gemini'] }]
     } as Provider
     expect(isBuiltinWebFetchAvailable(model('gemini-2.5-pro'), vertexLike)).toBe(true)
@@ -195,6 +224,7 @@ describe('web-tool routing', () => {
   // server side and inject nothing while the client tools stay withheld).
   it('keeps unservable vendors off a gateway declaration', () => {
     const gatewayLike = {
+      id: 'cherryin',
       serverTools: [
         { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] }
       ]

@@ -4,6 +4,35 @@ import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
+const webSearchModelPrefixes = [
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash',
+  'qwen-turbo',
+  'qwq-plus',
+  'qwen-plus-character',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v3-2',
+  'deepseek-v3-1',
+  'deepseek-r1',
+  'deepseek-v3',
+  'kimi-k2',
+  'kimi-k3',
+  'kimi-latest',
+  'glm-4',
+  'glm-5'
+]
+
 /** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
 const wanxT2iSupports: ImageModeDef['supports'] = {
   addWatermark: { default: false, type: 'switch' },
@@ -288,7 +317,14 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: ['minimax-m2-1']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',

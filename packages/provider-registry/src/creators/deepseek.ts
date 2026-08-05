@@ -7,10 +7,6 @@ export default defineCreator({
   fetchModels: openaiCompatible('deepseek', 'DEEPSEEK_API_KEY'),
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
-  serverTools: {
-    // DeepSeek's Responses API currently exposes server-side web_search only on V4 Flash.
-    'web-search': ['deepseek-v4-flash']
-  },
   reasoningFamilies: [
     { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'high', 'max'] },
     // v3.x hybrid inference (thinking / non-thinking at one endpoint).
