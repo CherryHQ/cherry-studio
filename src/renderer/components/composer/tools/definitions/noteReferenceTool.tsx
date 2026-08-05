@@ -139,7 +139,8 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         symbol: ComposerPanelSymbol.Notes,
         parentPanel,
         queryAnchor,
-        triggerInfo: triggerInfo ?? { type: 'button' }
+        triggerInfo: triggerInfo ?? { type: 'button' },
+        trackInputQuery: true
       })
     },
     [notesPath, panelItems, t]

@@ -370,7 +370,8 @@ function openUnifiedPanelSubmenu(
     symbol: launcher.id,
     parentPanel: options.parentPanel,
     queryAnchor: options.queryAnchor,
-    triggerInfo: options.triggerInfo ?? { type: 'button' }
+    triggerInfo: options.triggerInfo ?? { type: 'button' },
+    trackInputQuery: true
   })
 }
 

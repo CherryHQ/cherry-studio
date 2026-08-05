@@ -22,6 +22,7 @@ import { QuickPanelContext } from './QuickPanelProvider'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelCloseAction,
+  type QuickPanelFilterFn,
   type QuickPanelInputAdapter,
   type QuickPanelKeyDownEvent,
   type QuickPanelListItem,
@@ -39,8 +40,8 @@ function isInputQueryAnchorAllowed(text: string, queryAnchor: number) {
   return /\s/.test(text.slice(queryAnchor - 1, queryAnchor))
 }
 
-function isInputQueryTerminated(searchText: string) {
-  return INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(1))
+function isInputQueryTerminated(searchText: string, skipLength: number) {
+  return INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(skipLength))
 }
 
 function isInputQueryRestarted(searchText: string, triggerSymbol?: string) {
@@ -50,6 +51,45 @@ function isInputQueryRestarted(searchText: string, triggerSymbol?: string) {
 function isInputQueryCursorAtEnd(text: string, cursorOffset: number) {
   const nextChar = text.slice(cursorOffset, cursorOffset + 1)
   return nextChar.length === 0 || /\s/.test(nextChar)
+}
+
+/**
+ * A searching panel with no ordinary matches collapses to "No results": the virtual list and the
+ * pinned footer rows are both dropped. Keyboard handling has to agree with the render, or keys would
+ * act on rows nobody can see — so both read this.
+ */
+function isQuickPanelCollapsed(options: {
+  manageListExternally?: boolean
+  hasSearchText: boolean
+  visibleNonPinnedCount: number
+}) {
+  return !options.manageListExternally && options.hasSearchText && options.visibleNonPinnedCount === 0
+}
+
+function countVisibleNonPinned(list: QuickPanelListItem[]) {
+  return list.filter((item) => !item.alwaysVisible && !item.fixedToBottom).length
+}
+
+function buildFuzzyRegex(searchText: string) {
+  const pattern = searchText
+    .toLowerCase()
+    .split('')
+    .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('.*')
+  return new RegExp(pattern, 'ig')
+}
+
+/** Ordinary matches for a query — the pinned and bottom-fixed rows never take part in filtering. */
+function selectMatchingItems(options: {
+  items: QuickPanelListItem[]
+  searchText: string
+  filterFn: QuickPanelFilterFn
+  pinyinCache: WeakMap<QuickPanelListItem, string>
+}) {
+  const fuzzyRegex = buildFuzzyRegex(options.searchText)
+  return options.items
+    .filter((item) => !item.alwaysVisible && !item.fixedToBottom)
+    .filter((item) => options.filterFn(item, options.searchText, fuzzyRegex, options.pinyinCache))
 }
 
 function getInputQueryText(searchText: string, triggerSymbol?: string) {
@@ -66,6 +106,80 @@ function getTrackedInputSearchText(options: {
     return options.initialSearchText
   }
   return options.inputSearchText
+}
+
+/**
+ * Single source of truth for "is this input query session still valid, and what is the query".
+ * Evaluated both when the panel opens (`source: 'initial'`) and on every input update
+ * (`source: 'input'`); `searchText` is null when the query cannot be derived at all.
+ *
+ * Trigger-symbol-dependent rules stay exclusive to input-triggered panels — button panels have
+ * no trigger symbol, so those rules are meaningless there. The remaining rules (whitespace ends
+ * the query, cursor left the query) describe "the user moved on to writing a message" and apply
+ * to button panels too.
+ */
+function evaluateInputQuerySession(params: {
+  text: string
+  cursorOffset: number
+  queryAnchor: number
+  triggerType?: QuickPanelTriggerInfo['type']
+  inputTriggerSymbol?: string
+  inputTriggerConsumed: boolean
+  source: 'initial' | 'input'
+}): { closeAction: QuickPanelCloseAction | null; searchText: string | null } {
+  const { text, cursorOffset, queryAnchor, triggerType, inputTriggerSymbol, inputTriggerConsumed, source } = params
+  const isInputTrigger = triggerType === 'input'
+  const requiresTriggerSymbol = isInputTrigger && inputTriggerSymbol !== undefined
+
+  if (source === 'input' && cursorOffset < queryAnchor) {
+    return { closeAction: 'input_session_invalid', searchText: null }
+  }
+
+  if (isInputTrigger && !isInputQueryAnchorAllowed(text, queryAnchor)) {
+    return { closeAction: 'input_prefix_invalid', searchText: null }
+  }
+
+  // Only meaningful once the user is typing: it catches them backspacing the trigger away. On open
+  // the symbol is legitimately already gone whenever a submenu inherits its parent's input trigger
+  // (the parent consumed it on the way in), and closing a panel the instant it opens is never right.
+  if (
+    source === 'input' &&
+    requiresTriggerSymbol &&
+    !inputTriggerConsumed &&
+    text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol
+  ) {
+    return { closeAction: 'input_trigger_removed', searchText: null }
+  }
+
+  const searchText = text.slice(queryAnchor, cursorOffset)
+
+  // Whitespace only means "the user moved on" once they are actually typing; a button panel is often
+  // summoned while the composer already holds a sentence, and closing on that pre-existing text would
+  // make the panel unopenable.
+  const enforcesUserMovedOn = isInputTrigger || source === 'input'
+
+  // Input-triggered queries still carrying their trigger symbol must not mistake it for query
+  // content. Once it has been consumed (a submenu was opened) the query starts at the caret like a
+  // button panel's does — skipping a character there would swallow the user's first real space.
+  const querySymbolPrefixLength = requiresTriggerSymbol && !inputTriggerConsumed ? inputTriggerSymbol.length : 0
+
+  if (enforcesUserMovedOn && isInputQueryTerminated(searchText, querySymbolPrefixLength)) {
+    return { closeAction: 'input_query_terminated', searchText }
+  }
+
+  if (isInputTrigger && isInputQueryRestarted(searchText, inputTriggerSymbol)) {
+    return { closeAction: 'input_trigger_restarted', searchText }
+  }
+
+  // Button panels are allowed to run mid-sentence: summoning one with the caret inside a word is a
+  // legitimate way to insert a reference there, so the caret rule stays exclusive to input triggers,
+  // where the query must remain the tail of the text it was typed into. Moving the caret back past
+  // the anchor still ends the session via the check at the top.
+  if (isInputTrigger && !isInputQueryCursorAtEnd(text, cursorOffset)) {
+    return { closeAction: 'input_cursor_invalid', searchText }
+  }
+
+  return { closeAction: null, searchText }
 }
 
 interface Props {
@@ -148,20 +262,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const _searchText = activeSearchQuery
-    const lowerSearchText = _searchText.toLowerCase()
-    const fuzzyPattern = lowerSearchText
-      .split('')
-      .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      .join('.*')
-    const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
-    // Split pinned items (not filtered) from regular items.
+    // Pinned items are not filtered.
     const pinnedItems = flowItems.filter((item) => item.alwaysVisible)
-    const normalItems = flowItems.filter((item) => !item.alwaysVisible)
-
-    // Filter normal items using injected filter function
-    const filteredNormalItems = normalItems.filter((item) => {
-      return filterFn(item, _searchText, fuzzyRegex, pinyinCacheRef.current)
+    const filteredNormalItems = selectMatchingItems({
+      items: flowItems,
+      searchText: _searchText,
+      filterFn,
+      pinyinCache: pinyinCacheRef.current
     })
 
     // Sort filtered items using injected sort function
@@ -292,13 +400,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
 
-    if (ctx.triggerInfo?.type === 'button') {
-      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
-      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
+    // A panel that knows its live query only ever deletes text that is still exactly that query: a
+    // multi-select panel keeps running after a pick, and by then the anchored range can hold the
+    // token that was just inserted rather than a search word.
+    if (isTrackedInputPanel || ctx.triggerInfo?.type === 'button') {
+      if (!activeSearchText || text.slice(queryAnchor, cursorOffset) !== activeSearchText) return
     }
 
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+  }, [activeSearchText, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter, isTrackedInputPanel])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return
@@ -355,7 +465,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQueryOnce()
+        // A panel that follows typing lets the user search again after a pick, so every pick has to
+        // clear the word that led to it — a once-only cleanup strands the second search word between
+        // two inserted tokens as message text. Panels that do not follow typing have no second
+        // search to clear, and clearing them twice would eat the token instead.
+        if (isTrackedInputPanel) {
+          consumeInputQuery()
+        } else {
+          consumeInputQueryOnce()
+        }
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
@@ -409,71 +527,56 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       consumeInputQuery,
       consumeInputQueryOnce,
       inputAdapter,
+      isTrackedInputPanel,
       handleClose
     ]
   )
 
-  const updateSearchFromInput = useCallback(() => {
-    if (!isPanelVisible || !inputAdapter || !isTrackedInputPanel) return
+  const updateSearchFromInput = useCallback(
+    (options?: { skipCloseChecks?: boolean }) => {
+      if (!isPanelVisible || !inputAdapter || !isTrackedInputPanel) return
 
-    const queryAnchor = queryAnchorRef.current
-    if (queryAnchor === undefined) return
+      const queryAnchor = queryAnchorRef.current
+      if (queryAnchor === undefined) return
 
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    const shouldRequireInputTrigger = ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined
+      const text = inputAdapter.getText()
+      const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
 
-    if (cursorOffset < queryAnchor) {
-      closePanel('input_session_invalid')
-      return
-    }
-
-    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
-      closePanel('input_prefix_invalid')
-      return
-    }
-
-    if (
-      shouldRequireInputTrigger &&
-      !inputTriggerConsumedRef.current &&
-      text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol
-    ) {
-      closePanel('input_trigger_removed')
-      return
-    }
-
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
-      closePanel('input_query_terminated')
-      return
-    }
-
-    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
-      closePanel('input_trigger_restarted')
-      return
-    }
-
-    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
-      closePanel('input_cursor_invalid')
-      return
-    }
-
-    setInputSearchText(
-      getTrackedInputSearchText({
+      const { closeAction, searchText } = evaluateInputQuerySession({
+        text,
+        cursorOffset,
+        queryAnchor,
         triggerType: ctx.triggerInfo?.type,
-        inputSearchText: nextSearchText,
-        initialSearchText: ctx.initialSearchText
+        inputTriggerSymbol,
+        inputTriggerConsumed: inputTriggerConsumedRef.current,
+        source: 'input'
       })
-    )
-  }, [
-    closePanel,
-    ctx.initialSearchText,
-    ctx.triggerInfo?.type,
-    inputAdapter,
-    inputTriggerSymbol,
-    isPanelVisible,
-    isTrackedInputPanel
-  ])
+
+      if (closeAction && !options?.skipCloseChecks) {
+        closePanel(closeAction)
+        return
+      }
+
+      if (searchText === null) return
+
+      setInputSearchText(
+        getTrackedInputSearchText({
+          triggerType: ctx.triggerInfo?.type,
+          inputSearchText: searchText,
+          initialSearchText: ctx.initialSearchText
+        })
+      )
+    },
+    [
+      closePanel,
+      ctx.initialSearchText,
+      ctx.triggerInfo?.type,
+      inputAdapter,
+      inputTriggerSymbol,
+      isPanelVisible,
+      isTrackedInputPanel
+    ]
+  )
 
   useEffect(() => {
     if (!ctx.isVisible) return
@@ -491,8 +594,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
     )
 
+    // A submenu inherits its parent's input triggerInfo, but the parent already deleted the trigger
+    // symbol on the way in. Re-deriving "was it consumed?" from the text is the only reading that
+    // survives that hand-off: a fresh "/" session still has its symbol at the anchor, a submenu does
+    // not. Blindly clearing the flag here would make every keystroke in a submenu look like the user
+    // had backspaced the trigger away, closing the panel on the first character they type.
     if (ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined) {
-      inputTriggerConsumedRef.current = false
+      inputTriggerConsumedRef.current =
+        text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol
     }
 
     queryAnchorRef.current = queryAnchor
@@ -502,44 +611,43 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
-      closePanel('input_prefix_invalid')
-      return
-    }
+    const { closeAction, searchText } = evaluateInputQuerySession({
+      text,
+      cursorOffset,
+      queryAnchor,
+      triggerType: ctx.triggerInfo?.type,
+      inputTriggerSymbol,
+      inputTriggerConsumed: inputTriggerConsumedRef.current,
+      source: 'initial'
+    })
 
-    if (inputTriggerSymbol && text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol) {
-      closePanel('input_trigger_removed')
-      return
-    }
-
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
-      closePanel('input_query_terminated')
-      return
-    }
-
-    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
-      closePanel('input_trigger_restarted')
-      return
-    }
-
-    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
-      closePanel('input_cursor_invalid')
+    if (closeAction) {
+      closePanel(closeAction)
       return
     }
 
     setInputSearchText(
       getTrackedInputSearchText({
         triggerType: ctx.triggerInfo?.type,
-        inputSearchText: nextSearchText,
+        inputSearchText: searchText ?? '',
         initialSearchText: ctx.initialSearchText
       })
     )
     inputAdapter.focus()
 
     return inputAdapter.subscribeInput?.((event) => {
-      if (event?.isComposing) return
-      updateSearchFromInput()
+      // Programmatic edits (token sync after a selection) are not the user moving on, and their text
+      // would pollute the query — but they do move the caret, and a multi-select re-anchors before the
+      // token lands. Re-anchor here or the inserted token's separator space would sit inside the next
+      // query and read as "user started writing a message", closing the panel on the very next keystroke.
+      if (event?.cause === 'state-sync') {
+        queryAnchorRef.current = inputAdapter.getCursorOffset?.() ?? queryAnchorRef.current
+        return
+      }
+      // While an IME composition is in flight the query must still track the text so the list
+      // filters along with the pinyin, but close checks are skipped: many IMEs commit with a
+      // space, which "whitespace ends the query" would otherwise read as the user moving on.
+      updateSearchFromInput({ skipCloseChecks: event?.isComposing })
     })
   }, [
     ctx.isVisible,
@@ -607,8 +715,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         // Read-only panels are non-interactive except for pinned footer actions (e.g. "Configure
         // MCP"), which stay keyboard-selectable: ▲▼ moves onto them and Enter/Tab activates the
         // highlighted one. Everything else is swallowed so the status list stays inert.
+        // With no matches the footer rows are not rendered, so they must not stay keyboard-reachable
+        // either — otherwise Enter would fire an action that is nowhere on screen.
+        const footerRowsRendered = !isQuickPanelCollapsed({
+          manageListExternally: ctx.manageListExternally,
+          hasSearchText: activeSearchQuery.length > 0,
+          visibleNonPinnedCount: countVisibleNonPinned(list)
+        })
         const footerNavItems = list.map((item) => ({
-          disabled: !(item.fixedToBottom && !!item.action && !item.disabled)
+          disabled: !(footerRowsRendered && item.fixedToBottom && !!item.action && !item.disabled)
         }))
         const hasFooterAction = footerNavItems.some((item) => !item.disabled)
         if (hasFooterAction && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
@@ -682,8 +797,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           setIsMouseOver(false)
 
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
-          const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
+          const isCollapsed = isQuickPanelCollapsed({
+            manageListExternally: ctx.manageListExternally,
+            hasSearchText: hasSearch,
+            visibleNonPinnedCount: countVisibleNonPinned(list)
+          })
           if (!isCollapsed && list?.[activeIndex]) {
             handleItemAction(list[activeIndex], 'enter')
           }
@@ -702,8 +820,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
           // Intercept while collapsed/soft-hidden so query input is not sent as a message.
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
-          const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
+          const isCollapsed = isQuickPanelCollapsed({
+            manageListExternally: ctx.manageListExternally,
+            hasSearchText: hasSearch,
+            visibleNonPinnedCount: countVisibleNonPinned(list)
+          })
           if (isCollapsed) {
             e.preventDefault()
             e.stopPropagation()
@@ -880,11 +1001,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
   // Collapse is based only on regular matches. Pinned-only results still count as no match.
-  const visibleNonPinnedCount = useMemo(
-    () => list.filter((item) => !item.alwaysVisible && !item.fixedToBottom).length,
-    [list]
-  )
-  const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
+  const visibleNonPinnedCount = useMemo(() => countVisibleNonPinned(list), [list])
+  const collapsed = isQuickPanelCollapsed({
+    manageListExternally: ctx.manageListExternally,
+    hasSearchText,
+    visibleNonPinnedCount
+  })
   // Read-only panels keep the original fixed height to avoid header offset changes.
   const fillEffective = fill && !ctx.readOnly
   const { panelMaxHeight, listHeight } = getQuickPanelHeights({
@@ -976,24 +1098,25 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             {t('settings.quickPanel.noResult', 'No results')}
           </div>
         ) : null}
-        {!collapsed || fixedBottomItems.length > 0 ? (
+        {/* With no matches the panel shows only "No results" — a pinned footer action would
+            otherwise linger below it, clickable by mouse yet inert to Enter (which is swallowed
+            while collapsed). */}
+        {!collapsed ? (
           <div
             className="relative shrink-0"
             data-testid="quick-panel-list-region"
-            style={{ height: (collapsed ? 0 : listHeight) + fixedBottomHeight }}>
-            {!collapsed ? (
-              <DynamicVirtualList
-                ref={listRef}
-                list={scrollableItems}
-                size={listHeight}
-                estimateSize={estimateSize}
-                overscan={5}
-                scrollerStyle={{
-                  pointerEvents: isMouseOver ? 'auto' : 'none'
-                }}>
-                {rowRenderer}
-              </DynamicVirtualList>
-            ) : null}
+            style={{ height: listHeight + fixedBottomHeight }}>
+            <DynamicVirtualList
+              ref={listRef}
+              list={scrollableItems}
+              size={listHeight}
+              estimateSize={estimateSize}
+              overscan={5}
+              scrollerStyle={{
+                pointerEvents: isMouseOver ? 'auto' : 'none'
+              }}>
+              {rowRenderer}
+            </DynamicVirtualList>
             {fixedBottomItems.length > 0 ? (
               <div className="absolute right-0 bottom-0 left-0 bg-transparent" data-testid="quick-panel-fixed-bottom">
                 {fixedBottomItems.map((item, index) => (

@@ -176,7 +176,7 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     ]
   })
 
-  it('keeps the multi-select panel open while selecting, then closes it when typing resumes', async () => {
+  it('keeps the multi-select panel open while selecting and searching, and closes it on a typed space', async () => {
     let quickPanel: QuickPanelContextType | undefined
     const input = createInputAdapter('/knowledge')
     const onSelect = vi.fn()
@@ -225,10 +225,98 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
 
+    // A space means the user moved on to writing the message.
     input.adapter.insertText(' ')
 
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })
+  })
+
+  it('clears the search word after every pick, not just the first', async () => {
+    mocks.knowledgeBases = [
+      createKnowledgeBase({ id: 'kb-1', name: 'Alpha', itemCount: 2 }),
+      createKnowledgeBase({ id: 'kb-2', name: 'Beta', itemCount: 5 })
+    ]
+    let quickPanel: QuickPanelContextType | undefined
+    const input = createInputAdapter('')
+    let registeredLauncher: Parameters<ToolLauncherApi['registerLaunchers']>[0][number] | undefined
+    const launcher: ToolLauncherApi = {
+      registerLaunchers: vi.fn((entries) => {
+        registeredLauncher = entries[0]
+        return vi.fn()
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <ControlledKnowledgeBaseRuntime launcher={launcher} onSelect={vi.fn()} />
+        <QuickPanelBridge inputAdapter={input.adapter} onContext={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => expect(registeredLauncher).toBeDefined())
+    await waitFor(() => expect(quickPanel).toBeDefined())
+
+    registeredLauncher?.action?.({
+      inputAdapter: input.adapter,
+      quickPanel: quickPanel!,
+      source: 'popover',
+      triggerInfo: { type: 'button', position: 0 }
+    })
+
+    await screen.findByText('Alpha')
+
+    // Search, pick, search again, pick again — the second search word must not survive as message text.
+    input.adapter.insertText('Alpha')
+    await waitFor(() => expect(screen.queryByText('Beta')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByText('Alpha'))
+    await waitFor(() => expect(input.adapter.getText()).toBe(''))
+
+    input.syncManagedTokenText('[kb-1] ')
+
+    input.adapter.insertText('Beta')
+    await waitFor(() => expect(screen.queryByText('Alpha')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByText('Beta'))
+
+    await waitFor(() => expect(input.adapter.getText()).toBe('[kb-1] '))
+  })
+
+  it('filters the knowledge base list as the user types', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+    const input = createInputAdapter('')
+    let registeredLauncher: Parameters<ToolLauncherApi['registerLaunchers']>[0][number] | undefined
+    const launcher: ToolLauncherApi = {
+      registerLaunchers: vi.fn((entries) => {
+        registeredLauncher = entries[0]
+        return vi.fn()
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <ControlledKnowledgeBaseRuntime launcher={launcher} onSelect={vi.fn()} />
+        <QuickPanelBridge inputAdapter={input.adapter} onContext={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => expect(registeredLauncher).toBeDefined())
+    await waitFor(() => expect(quickPanel).toBeDefined())
+
+    registeredLauncher?.action?.({
+      inputAdapter: input.adapter,
+      quickPanel: quickPanel!,
+      queryAnchor: 0,
+      source: 'popover',
+      triggerInfo: { type: 'button', position: 0 }
+    })
+
+    await screen.findByText('Knowledge One')
+
+    input.adapter.insertText('Two')
+
+    await waitFor(() => expect(screen.queryByText('Knowledge One')).not.toBeInTheDocument())
+    expect(screen.getByText('Knowledge Two')).toBeInTheDocument()
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
   })
 })

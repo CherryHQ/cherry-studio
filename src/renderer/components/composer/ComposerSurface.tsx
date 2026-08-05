@@ -520,6 +520,12 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
   }
 }
 
+/**
+ * Outlasts ProseMirror's own 20ms `scheduleComposeEnd` delay so the committed text is readable.
+ * If that delay changes upstream, this has to follow it.
+ */
+const COMPOSITION_END_SETTLE_MS = 40
+const COMPOSITION_END_NOTIFY_TIMER_KEY = 'composerCompositionEndNotify'
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -1436,6 +1442,28 @@ export default function ComposerSurface({
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
+  // IME commits reach the document while ProseMirror still flags the view as composing, so every
+  // notification subscribers see during composition is marked `isComposing`. ProseMirror then clears
+  // the flag on `compositionend` and runs `endComposition` on a timer, which dispatches nothing when
+  // the flush finds no pending changes — so subscribers never get a final, non-composing notification.
+  // Without this re-notification a Chinese query never reaches the quick panel and the list never filters.
+  const scheduleCompositionEndInputNotify = useCallback(() => {
+    setTimeoutTimer(
+      COMPOSITION_END_NOTIFY_TIMER_KEY,
+      () => {
+        const editor = editorRef.current
+        if (!editor || editor.isDestroyed) return
+        // Typing fast enough starts the next composition before this fires; announcing "not composing"
+        // then would run the close checks against a half-typed pinyin.
+        if (editor.view.composing) return
+        inputListenersRef.current.forEach((listener) =>
+          listener({ isComposing: false, cause: isSyncingTokensRef.current ? 'state-sync' : 'user-input' })
+        )
+      },
+      COMPOSITION_END_SETTLE_MS
+    )
+  }, [setTimeoutTimer])
+
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
@@ -1620,6 +1648,7 @@ export default function ComposerSurface({
           return true
         },
         compositionend: (_view, event) => {
+          scheduleCompositionEndInputNotify()
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
@@ -1650,6 +1679,7 @@ export default function ComposerSurface({
       editorElementStyle,
       focusEditor,
       hasCustomHeight,
+      scheduleCompositionEndInputNotify,
       shouldRestoreEditorFocus,
       showBlockedSendReason
     ]

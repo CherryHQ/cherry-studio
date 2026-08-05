@@ -8,6 +8,9 @@ export const QUICK_PANEL_SAFE_MARGIN = 8
 const READONLY_CHROME_HEIGHT = 50
 const DEFAULT_CHROME_HEIGHT = 98
 
+/** The "No results" block: its own padding plus one line of text. */
+const NO_RESULTS_HEIGHT = 53
+
 /** Reads the rendered body padding and border instead of assuming a device-pixel rounding mode. */
 export function getQuickPanelBodyVerticalSpace(style: CSSStyleDeclaration): number {
   return [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth].reduce(
@@ -63,7 +66,15 @@ export function getQuickPanelHeights({
   const scrollablePageSize = Math.max(0, pageSize - fixedItemCount)
 
   if (!isVisible) return { panelMaxHeight: 0, listHeight: 0 }
-  if (collapsed) return { panelMaxHeight: defaultChromeHeight + fixedItemsHeight, listHeight: 0 }
+  // Collapsed panels render "No results" alone — fixed bottom rows are hidden, so they claim no
+  // height. The default chrome constant is loose enough to already cover the block, but the
+  // read-only one is measured tight around its header and would clip the text away entirely.
+  if (collapsed) {
+    return {
+      panelMaxHeight: readOnly ? READONLY_CHROME_HEIGHT + NO_RESULTS_HEIGHT : defaultChromeHeight,
+      listHeight: 0
+    }
+  }
 
   const listContentHeight = Math.min(scrollablePageSize, itemCount) * QUICK_PANEL_ITEM_HEIGHT
   const contentHeight = effectiveChromeHeight + listContentHeight
