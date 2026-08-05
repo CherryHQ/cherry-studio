@@ -18,6 +18,10 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
         }
       },
       "id": "cherryin",
@@ -2055,5 +2059,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "8bb73fffd9a00400"
+  "version": "6678de0f4e852d27"
 }

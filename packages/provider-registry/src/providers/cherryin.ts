@@ -39,6 +39,10 @@ export default defineProvider({
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net'
     },
+    'openai-responses': {
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net'
+    },
     'openai-chat-completions': {
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net',
