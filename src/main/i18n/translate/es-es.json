@@ -87,6 +87,10 @@
       "message": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
       "title": "Restablecer datos de la aplicación"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Archivos HTML",
     "open_file": "Abrir archivo",
     "pdf_files": "Archivos PDF",
