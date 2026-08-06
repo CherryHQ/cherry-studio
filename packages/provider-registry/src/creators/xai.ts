@@ -18,8 +18,6 @@ export default defineCreator({
     { pattern: 'grok-build' }
   ],
   idPrefixes: ['grok'],
-  // Agent Tools web_search: Responses API, grok-4 generation onward (docs.x.ai/developers/tools/web-search).
-  serverTools: { 'web-search': ['grok-4'] },
   models: [
     {
       id: 'grok-4',
