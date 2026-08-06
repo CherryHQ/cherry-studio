@@ -43,6 +43,7 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
   read: readFileMock
 }))
 
+vi.mock('../files/AnydocReader', () => ({ AnydocReader: class MockAnydocReader {} }))
 vi.mock('../files/DraftsExportReader', () => ({ DraftsExportReader: class MockDraftsExportReader {} }))
 vi.mock('../files/EpubReader', () => ({ EpubReader: class MockEpubReader {} }))
 

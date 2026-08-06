@@ -7270,7 +7270,9 @@
       "expand_all": "全部展开",
       "filter": {
         "clear": "清除模型筛选",
-        "label": "筛选模型"
+        "label": "筛选模型",
+        "scroll_left": "向左滚动模型类型",
+        "scroll_right": "向右滚动模型类型"
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",

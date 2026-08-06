@@ -193,7 +193,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`
+    model: `${providerId}:${modelId}`,
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 

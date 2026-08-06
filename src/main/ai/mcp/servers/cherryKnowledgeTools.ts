@@ -3,9 +3,10 @@
  * in-process `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
  *
  * This provider owns the whole knowledge-base domain on the agent path: it exposes the
- * kb_* tools only when the agent's *effective* knowledge scope is non-empty, re-derives
- * that scope on every tool listing and call, rejects an unscoped call (fail-closed), and
- * scopes every `knowledgeLookup` core call to it. The effective scope is
+ * kb_* tools only when the agent's *effective* knowledge scope is non-empty (unless the
+ * built-in Assistant has unrestricted access), re-derives that scope on every tool listing
+ * and call, rejects an unscoped call (fail-closed), and scopes every `knowledgeLookup` core
+ * call to it. The effective scope is
  * `resolveKnowledgeBaseScope(binding, composerSelection)`, so an agent with no static
  * binding still gets the tools when the composer picked bases for the turn. Only the
  * binding half is live — the composer selection is frozen when the connection is built, so
@@ -17,9 +18,8 @@
  *
  * Scope is modelled as an explicit {@link KnowledgeScope} rather than a bare id array so
  * the "empty scope" case can never be silently reinterpreted as "all bases": the shared
- * `knowledgeLookup` core treats an empty `allowedIds` as unrestricted (its assistant path
- * relies on that), so this provider turns `none` into a rejection and only ever passes a
- * non-empty `baseIds` down.
+ * `knowledgeLookup` core treats an empty `allowedIds` as unrestricted, so only the explicit
+ * `unrestricted` variant may pass an empty list down.
  */
 
 import { loggerService } from '@logger'
@@ -59,12 +59,16 @@ const logger = loggerService.withContext('McpServer:CherryKnowledgeTools')
  * i.e. neither a static binding nor a frozen composer selection (kb_* tools hidden, calls
  * rejected); `restricted` = the bases a lookup may reach, typed as a non-empty tuple.
  * Modelling this as a type — instead of the bare id array the shared `knowledgeLookup` core
- * takes, where `[]` means "all bases" — makes an empty scope unrepresentable, so it can
- * never be read as unrestricted on the agent path.
+ * takes, where `[]` means "all bases" — keeps a missing grant distinct from the built-in
+ * Assistant's explicit unrestricted grant.
  */
-type KnowledgeScope = { kind: 'none' } | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
+type KnowledgeScope =
+  | { kind: 'none' }
+  | { kind: 'unrestricted' }
+  | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
 
-function resolveKnowledgeScope(boundBaseIds: readonly string[]): KnowledgeScope {
+function resolveKnowledgeScope(boundBaseIds: readonly string[], canAccessAllKnowledgeBases: boolean): KnowledgeScope {
+  if (canAccessAllKnowledgeBases) return { kind: 'unrestricted' }
   // The tuple cast is sound only right here, guarded by the length check: everything downstream
   // then sees a provably non-empty `baseIds`, so no path can hand the core an empty allow-list.
   if (boundBaseIds.length === 0) return { kind: 'none' }
@@ -138,9 +142,11 @@ function toTextResult(output: KnowledgeToolOutput): CallToolResult {
 
 export class CherryKnowledgeTools {
   private getKnowledgeBaseIds: () => string[]
+  private canAccessAllKnowledgeBases: () => boolean
 
   constructor(context: CherryAgentContext) {
     this.getKnowledgeBaseIds = context.getKnowledgeBaseIds
+    this.canAccessAllKnowledgeBases = context.canAccessAllKnowledgeBases ?? (() => false)
   }
 
   /**
@@ -175,7 +181,7 @@ export class CherryKnowledgeTools {
       }
     }
     try {
-      return toTextResult(await tool.run(args ?? {}, scope.baseIds))
+      return toTextResult(await tool.run(args ?? {}, scope.kind === 'unrestricted' ? [] : scope.baseIds))
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
       logger.error('cherry-tools knowledge call failed', normalizedError, { tool: toolName })
@@ -184,6 +190,6 @@ export class CherryKnowledgeTools {
   }
 
   private scope(): KnowledgeScope {
-    return resolveKnowledgeScope(this.getKnowledgeBaseIds())
+    return resolveKnowledgeScope(this.getKnowledgeBaseIds(), this.canAccessAllKnowledgeBases())
   }
 }
