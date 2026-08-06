@@ -790,6 +790,17 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   sessionDataMocks.useSessions.mockReturnValue(source)
 }
 
+/**
+ * An entity group header (agent / assistant) switches away when clicked, so its fold control is a
+ * separate button beside the label and `aria-expanded` lives there. Bucket headers (workdir, time
+ * ranges, pinned) still toggle as one row and keep the attribute on the header button itself.
+ */
+function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
+
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
@@ -1179,8 +1190,8 @@ describe('Sessions', () => {
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
     const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
     expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
-    expect(alphaGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(betaGroup)).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(alphaGroup)).toHaveAttribute('aria-expanded', 'false')
     expect(betaGroup).toHaveTextContent('B')
     expect(alphaGroup).toHaveTextContent('A')
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
@@ -1195,7 +1206,7 @@ describe('Sessions', () => {
     )
     // Selecting the first item does not toggle the still-collapsed group.
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
-    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(betaGroup)).toHaveAttribute('aria-expanded', 'false')
 
     cacheMocks.state.activeSessionId = 'session-b'
     view.rerender(<SessionsForTest key="selected-session-b" />)
@@ -1244,8 +1255,8 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha agent' }))).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta agent' }))).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
@@ -1381,9 +1392,9 @@ describe('Sessions', () => {
     const view = render(<SessionsForTest />)
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
     // The collapse chevron rides along with the hover actions instead of being dropped for headers that have them.
-    expect(betaGroupButton.querySelector('.lucide-chevron-right')).not.toBeNull()
+    expect(groupChevron(betaGroupButton).querySelector('.lucide-chevron-right')).not.toBeNull()
     // "New task" is one action with one icon everywhere — the composer's, not a stray pencil.
     const createButton = screen.getAllByRole('button', { name: 'New task' })[0]
     expect(createButton.querySelector('.new-conversation-icon')).not.toBeNull()
@@ -1395,7 +1406,7 @@ describe('Sessions', () => {
       'session-b',
       expect.objectContaining({ id: 'session-b' })
     )
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
 
     cacheMocks.state.activeSessionId = 'session-b'
@@ -1414,7 +1425,7 @@ describe('Sessions', () => {
 
     view.rerender(<SessionsForTest key="collapsed-session-b" />)
     const collapsedBetaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
-    expect(collapsedBetaGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(collapsedBetaGroupButton)).toHaveAttribute('aria-expanded', 'false')
     // Collapsed, the header stands in for the hidden session row: same fill AND same weight a
     // selected row gets anywhere else in the list.
     expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-sidebar-accent')
@@ -3166,7 +3177,10 @@ describe('Sessions', () => {
     view.rerender(<SessionsForTest key="collapsed-agent-groups" />)
 
     await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
+      expect(groupChevron(screen.getByRole('button', { name: 'Alpha agent' }))).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
     )
     await vi.waitFor(() => expect(screen.queryByText('Agent session 1')).not.toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
@@ -3215,7 +3229,7 @@ describe('Sessions', () => {
     fireEvent.click(contextPinItem as HTMLElement)
 
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
-    expect(agentGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(agentGroupButton)).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('disables agent group pin action while agent pins are mutating', async () => {

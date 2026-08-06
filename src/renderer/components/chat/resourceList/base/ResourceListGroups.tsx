@@ -4,6 +4,7 @@ import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   type ResourceListGroup,
@@ -27,6 +28,14 @@ import {
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
+
+/**
+ * The chevron slot: an action button's 24px footprint so the chevron lands on the hover actions'
+ * rhythm when the title is long, with a pulled-in left margin that keeps it the same 6px from a
+ * short title as the section-header chevron.
+ */
+const GROUP_HEADER_CHEVRON_SLOT_CLASS =
+  '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex'
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
@@ -139,6 +148,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
 }
 
 export function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
+  const { t } = useTranslation()
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const view = useResourceListView()
@@ -190,6 +200,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
 
     actions.toggleGroup(group.id)
   }, [actions, clickBehavior, group, groupItems, isCollapsible, meta, selected])
+  // Peeking at a group must not cost you the conversation you are in: on a header that would
+  // otherwise switch away (`select-first-then-toggle`), the chevron is its own button that only
+  // folds the group open or shut. Headers whose whole row already means "toggle" keep one button.
+  const chevronIsOwnButton = clickBehavior === 'select-first-then-toggle'
+  const handleChevronClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      actions.toggleGroup(group.id)
+    },
+    [actions, group.id]
+  )
 
   // Lazy: ContextMenuContent stays empty until right-click — stopPropagated bubbles must not reveal items.
   const headerContextMenuItems =
@@ -209,12 +230,20 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     // in for one, so it has to read identically.
     showsSelectedSurface && 'font-medium'
   )
-  // The chevron trails the label inside this button and carries the same 24px footprint as an action
-  // button, so reserving exactly the two action buttons parks it as a third icon in that rhythm —
-  // equal spacing between the chevron, the more menu and the create action.
+  // The chevron trails the label and carries the same 24px footprint as an action button, so
+  // reserving exactly the two action buttons parks it as a third icon in that rhythm — equal
+  // spacing between the chevron, the more menu and the create action. The reserve sits on
+  // whichever box holds the label, so the label shrinks and the chevron slides left with it.
   const groupHeaderActionYieldClassName = groupHeaderAction
     ? 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-12 group-has-[:focus-visible]/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
     : undefined
+  const chevron = (
+    <ChevronRight
+      size={14}
+      className="transition-transform duration-150"
+      style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+    />
+  )
   const headerContent = (
     <div
       className={cn(
@@ -224,6 +253,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
         isBucketHeader && 'text-muted-foreground',
         showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
+        isCollapsible && chevronIsOwnButton && groupHeaderActionYieldClassName,
         groupHeaderClassName
       )}>
       {groupHeaderLeadingAction && (
@@ -236,7 +266,41 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           {groupHeaderLeadingAction}
         </div>
       )}
-      {isCollapsible ? (
+      {isCollapsible && chevronIsOwnButton ? (
+        <>
+          <button
+            type="button"
+            aria-current={showsSelectedSurface ? 'true' : undefined}
+            className="flex h-full min-w-0 items-center gap-1.5 text-left text-inherit outline-none"
+            onClick={handleClick}>
+            {groupHeaderIcon && (
+              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+                {groupHeaderIcon}
+              </ResourceListLeadingSlot>
+            )}
+            <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
+              {group.label}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? t('common.expand') : t('common.collapse')}
+            className={cn(GROUP_HEADER_CHEVRON_SLOT_CLASS, 'outline-none')}
+            onClick={handleChevronClick}>
+            {chevron}
+          </button>
+          {/* The rest of the row keeps the label button's reach — the same click, minus a second
+              stop in the tab order and a duplicate name for screen readers. */}
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="h-full flex-1 cursor-default"
+            onClick={handleClick}
+          />
+        </>
+      ) : isCollapsible ? (
         <button
           type="button"
           aria-expanded={!collapsed}
@@ -254,17 +318,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
             {group.label}
           </span>
-          {/* The slot carries an action button's 24px footprint so the chevron lands on their rhythm
-              when the title is long; the pulled-in left margin keeps it the same 6px from a short
-              title as the section-header chevron. */}
-          <span
-            aria-hidden="true"
-            className="-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex">
-            <ChevronRight
-              size={14}
-              className="transition-transform duration-150"
-              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-            />
+          <span aria-hidden="true" className={GROUP_HEADER_CHEVRON_SLOT_CLASS}>
+            {chevron}
           </span>
         </button>
       ) : (
@@ -354,7 +409,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       <button
         type="button"
         className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-foreground focus-visible:outline-none',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-foreground focus-visible:outline-none',
           RESOURCE_LIST_LABEL_CLASS
         )}
         onClick={() => {

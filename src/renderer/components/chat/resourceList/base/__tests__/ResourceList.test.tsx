@@ -165,6 +165,16 @@ const ITEMS: TestItem[] = [
   { id: 'gamma', name: 'Gamma', kind: 'topic', pinned: true, updatedAt: 2 }
 ]
 
+/**
+ * On a header that switches away when clicked, the fold control is its own button beside the label,
+ * so `aria-expanded` lives there rather than on the header button carrying the group name.
+ */
+function chevronFor(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
+
 function Inspector() {
   const { state, view } = useResourceList<TestItem>()
   return (
@@ -1590,16 +1600,17 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionChevron = chevronFor(sessionGroupButton)
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
     // One type voice for the whole list; a bucket header is set apart by colour, not size or weight.
     expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
     // The row itself is on screen and announces the selection — the header must not announce a second one.
     expect(sessionGroupButton).not.toHaveAttribute('aria-current')
@@ -1613,11 +1624,59 @@ describe('ResourceList', () => {
 
     fireEvent.click(sessionGroupButton)
 
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: ['session'],
       selectedId: 'alpha'
+    })
+  })
+
+  it('folds a group open from its chevron without selecting anything in it', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionChevron = chevronFor(screen.getByRole('button', { name: 'session' }))
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(sessionChevron)
+
+    // Peeking at the group leaves the current selection — and the conversation you are in — alone.
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['session'],
+      selectedId: null
+    })
+
+    fireEvent.click(sessionChevron)
+
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      selectedId: null
     })
   })
 
@@ -1647,13 +1706,13 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
     // Collapsed: the selected row isn't rendered, so the header takes over announcing it.
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
   })
