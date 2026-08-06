@@ -27,6 +27,7 @@ class FakeListener implements StreamListener {
   alive = true
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
+  onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
   constructor(id: string) {
     this.id = id
@@ -47,8 +48,9 @@ class FakeListener implements StreamListener {
     return this.onPausedImpl?.(result)
   }
 
-  onError(result: StreamErrorResult): void {
+  onError(result: StreamErrorResult): void | Promise<void> {
     this.errorResults.push(result)
+    return this.onErrorImpl?.(result)
   }
 
   isAlive(): boolean {
@@ -1890,6 +1892,133 @@ describe('AiStreamManager', () => {
       sharedCacheStore.clear()
       fakeCacheService.setShared.mockClear()
       fakeCacheService.getShared.mockClear()
+    })
+
+    it.each(['done', 'paused', 'error'] as const)(
+      'keeps a replacement stream authoritative after a stale %s callback resumes',
+      async (terminalKind) => {
+        const topicId = `stale-${terminalKind}`
+        const modelId = 'p::m'
+        const staleListener = new FakeListener(`wc:stale-${terminalKind}`)
+        let releaseTerminal!: () => void
+        const terminalBlocked = new Promise<void>((resolve) => {
+          releaseTerminal = resolve
+        })
+        const blockTerminal = () => terminalBlocked
+
+        if (terminalKind === 'done') staleListener.onDoneImpl = blockTerminal
+        else if (terminalKind === 'paused') staleListener.onPausedImpl = blockTerminal
+        else staleListener.onErrorImpl = blockTerminal
+
+        // Keep the real execution loop parked so the paused case is driven exactly once by the
+        // explicit abort + onExecutionPaused pair below.
+        if (terminalKind === 'paused') {
+          mockStreamText.mockImplementationOnce(() => new Promise<ReadableStream<UIMessageChunk>>(() => {}))
+        }
+
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [staleListener]
+        })
+        const staleTurnId = statusWritesFor(topicId).at(-1)?.turnId
+
+        let staleTerminalPromise: Promise<void>
+        if (terminalKind === 'done') {
+          staleTerminalPromise = mgr.onExecutionDone(topicId, modelId)
+        } else if (terminalKind === 'paused') {
+          mgr.abort(topicId, 'user-stop')
+          staleTerminalPromise = mgr.onExecutionPaused(topicId, modelId)
+        } else {
+          staleTerminalPromise = mgr.onExecutionError(topicId, modelId, error('stale failure'))
+        }
+
+        const staleTerminalResults =
+          terminalKind === 'done'
+            ? staleListener.doneResults
+            : terminalKind === 'paused'
+              ? staleListener.pausedResults
+              : staleListener.errorResults
+        expect(staleTerminalResults).toHaveLength(1)
+
+        const replacementListener = new FakeListener(`wc:replacement-${terminalKind}`)
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [replacementListener]
+        })
+        const replacementPending = statusWritesFor(topicId).at(-1)!
+        const replacementTurnId = replacementPending.turnId
+        expect(replacementPending.status).toBe('pending')
+        expect(replacementTurnId).toMatch(/^\d+:\d+$/)
+        expect(replacementTurnId).not.toBe(staleTurnId)
+
+        mgr.enqueuePendingSteer(topicId, `steer-${terminalKind}`)
+        const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+        releaseTerminal()
+        await staleTerminalPromise
+
+        expect(statusWritesFor(topicId).at(-1)).toMatchObject({
+          status: 'pending',
+          turnId: replacementTurnId
+        })
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+        expect(mgr.hasPendingSteer(topicId)).toBe(true)
+
+        vi.advanceTimersByTime(31_000)
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+
+        await mgr.onExecutionDone(topicId, modelId)
+        for (let i = 0; i < 6; i++) await Promise.resolve()
+        expect(dispatchSpy).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            trigger: 'steer-continuation',
+            topicId,
+            userMessageId: `steer-${terminalKind}`
+          })
+        )
+      }
+    )
+
+    it('runs the terminal lifecycle when the stream remains current after listener dispatch', async () => {
+      const topicId = 'current-terminal'
+      const listener = new FakeListener('wc:current-terminal')
+      let releaseTerminal!: () => void
+      const terminalBlocked = new Promise<void>((resolve) => {
+        releaseTerminal = resolve
+      })
+      listener.onDoneImpl = () => terminalBlocked
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'p::m',
+        request: req(topicId),
+        listeners: [listener]
+      })
+      const turnId = statusWritesFor(topicId).at(-1)?.turnId
+      const terminalPromise = mgr.onExecutionDone(topicId, 'p::m')
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'pending', turnId })
+
+      releaseTerminal()
+      await terminalPromise
+
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'done', turnId })
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      vi.advanceTimersByTime(31_000)
+      expect(mgr.inspect(topicId)).toBeUndefined()
     })
 
     it('records pending on send, streaming on first chunk, done on terminal; grace-period cleanup is silent', async () => {
