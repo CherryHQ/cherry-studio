@@ -3,7 +3,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
-import { ChevronDown, Gauge, Zap } from 'lucide-react'
+import { ChevronDown, Zap } from 'lucide-react'
 import { useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,12 +100,12 @@ function ComposerEffortSlider({ ariaLabel, efforts, value, valueText, onChange }
         getThumbAriaLabel={() => ariaLabel}
         getThumbAriaValueText={() => valueText}
         className={cn(
-          'h-8',
+          'h-8 cursor-grab active:cursor-grabbing',
           '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
           '[&_[data-slot=slider-range]]:bg-primary',
           '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
-          '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
-          '[&_[data-slot=slider-thumb]:hover]:ring-0'
+          '[&_[data-slot=slider-thumb]]:cursor-grab [&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
+          '[&_[data-slot=slider-thumb]:active]:cursor-grabbing [&_[data-slot=slider-thumb]:hover]:ring-0'
         )}
         onValueChange={([nextIndex]) => {
           const nextEffort = efforts[nextIndex]
@@ -126,6 +126,40 @@ function ComposerEffortSlider({ ariaLabel, efforts, value, valueText, onChange }
         )}
       </div>
     </div>
+  )
+}
+
+// Lucide Gauge geometry: dial centered at (12,14), arc ends ±120° from top, needle drawn at 45°.
+const GAUGE_NEEDLE_BASE_ANGLE = 45
+const GAUGE_MIN_ANGLE = -120
+const GAUGE_MAX_ANGLE = 120
+
+/** Lucide's Gauge icon with the needle aimed at `angle` (degrees clockwise from top). */
+function EffortGaugeIcon({ angle }: { angle: number }) {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+      aria-hidden="true">
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+      <path
+        d="m12 14 4-4"
+        data-slot="composer-effort-gauge-needle"
+        className="transition-transform duration-300 ease-out motion-reduce:transition-none"
+        style={{
+          transform: `rotate(${angle - GAUGE_NEEDLE_BASE_ANGLE}deg)`,
+          transformOrigin: '12px 14px',
+          transformBox: 'view-box'
+        }}
+      />
+    </svg>
   )
 }
 
@@ -181,6 +215,12 @@ export function ComposerSpeedControl({
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+  const gaugeEfforts = showEffortSlider ? sliderEfforts : reasoningOptions
+  const gaugeIndex = showEffortSlider ? currentIndex : displayedEffort ? gaugeEfforts.indexOf(displayedEffort) : -1
+  const gaugeFraction = gaugeEfforts.length > 1 && gaugeIndex > 0 ? gaugeIndex / (gaugeEfforts.length - 1) : 0
+  const gaugeAngle = supportsReasoning
+    ? GAUGE_MIN_ANGLE + (GAUGE_MAX_ANGLE - GAUGE_MIN_ANGLE) * gaugeFraction
+    : GAUGE_NEEDLE_BASE_ANGLE
 
   return (
     <Popover>
@@ -191,7 +231,7 @@ export function ComposerSpeedControl({
           size="sm"
           className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
-          <Gauge size={14} className="shrink-0" />
+          <EffortGaugeIcon angle={gaugeAngle} />
           <span>{supportsReasoning ? effortLabel : triggerLabel}</span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
@@ -250,8 +290,14 @@ export function ComposerSpeedControl({
         {supportsReasoning && showEffortSlider ? (
           <div className="mx-2.5 mt-1 mb-2">
             <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
-              <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
-              <span className="text-primary">{t('agent.speed.smarter')}</span>
+              <span
+                className={cn('transition-colors', gaugeFraction < 0.5 ? 'text-foreground' : 'text-muted-foreground')}>
+                {t('agent.speed.faster')}
+              </span>
+              <span
+                className={cn('transition-colors', gaugeFraction > 0.5 ? 'text-foreground' : 'text-muted-foreground')}>
+                {t('agent.speed.smarter')}
+              </span>
             </div>
             <ComposerEffortSlider
               ariaLabel={effortControlLabel}
