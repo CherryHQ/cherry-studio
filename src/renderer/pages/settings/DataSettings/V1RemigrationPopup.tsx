@@ -1,14 +1,4 @@
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@cherrystudio/ui'
+import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -25,21 +15,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
   const [step, setStep] = useState<WizardStep>(0)
   const [acknowledged, setAcknowledged] = useState(false)
+  const [deletionAcknowledged, setDeletionAcknowledged] = useState(false)
+  const [retainedDataAcknowledged, setRetainedDataAcknowledged] = useState(false)
   const [backupPopupOpen, setBackupPopupOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-
-  const steps = [
-    t('settings.data.v1_remigration.steps.risk'),
-    t('settings.data.v1_remigration.steps.backup'),
-    t('settings.data.v1_remigration.steps.confirm')
-  ]
+  const allRisksAcknowledged = acknowledged && deletionAcknowledged && retainedDataAcknowledged
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && !submitting) resolve()
   }
 
   const handleConfirm = async () => {
-    if (step !== 2 || !acknowledged || submitting) return
+    if (step !== 2 || !allRisksAcknowledged || submitting) return
 
     setSubmitting(true)
     try {
@@ -62,7 +49,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }
 
   const handleNext = () => {
-    if (step === 0 && acknowledged) setStep(1)
+    if (step === 0 && allRisksAcknowledged) setStep(1)
     if (step === 1) setStep(2)
   }
 
@@ -80,21 +67,38 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         aria-busy={submitting || undefined}>
         <DialogHeader>
           <DialogTitle>{t('settings.data.v1_remigration.dialog_title')}</DialogTitle>
-          <DialogDescription>
-            {t('settings.data.v1_remigration.step_label', {
-              current: step + 1,
-              total: steps.length,
-              name: steps[step]
-            })}
-          </DialogDescription>
         </DialogHeader>
 
         <div>
           {step === 0 && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                {t('settings.data.v1_remigration.risk_message')}
-              </p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="v1-remigration-deletion-acknowledgement"
+                  size="sm"
+                  checked={deletionAcknowledged}
+                  onCheckedChange={(checked) => setDeletionAcknowledged(checked === true)}
+                />
+                <label
+                  htmlFor="v1-remigration-deletion-acknowledgement"
+                  className="cursor-pointer text-foreground text-sm leading-relaxed">
+                  {t('settings.data.v1_remigration.final_message')}
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="v1-remigration-retained-data-acknowledgement"
+                  size="sm"
+                  checked={retainedDataAcknowledged}
+                  onCheckedChange={(checked) => setRetainedDataAcknowledged(checked === true)}
+                />
+                <label
+                  htmlFor="v1-remigration-retained-data-acknowledgement"
+                  className="cursor-pointer text-foreground text-sm leading-relaxed">
+                  {t('settings.data.v1_remigration.final_retained')}
+                </label>
+              </div>
 
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -130,15 +134,9 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           )}
 
           {step === 2 && (
-            <div className="space-y-3">
-              <Alert type="error" showIcon>
-                <span className="text-sm leading-relaxed">{t('settings.data.v1_remigration.final_message')}</span>
-              </Alert>
-
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                {t('settings.data.v1_remigration.final_retained')}
-              </p>
-            </div>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              {t('settings.data.v1_remigration.final_confirmation')}
+            </p>
           )}
         </div>
 
@@ -152,11 +150,15 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             </Button>
           )}
           {step < 2 ? (
-            <Button variant="emphasis" disabled={step === 0 && !acknowledged} onClick={handleNext}>
+            <Button variant="emphasis" disabled={step === 0 && !allRisksAcknowledged} onClick={handleNext}>
               {t('settings.data.v1_remigration.next')}
             </Button>
           ) : (
-            <Button variant="destructive" disabled={submitting} loading={submitting} onClick={handleConfirm}>
+            <Button
+              variant="destructive"
+              disabled={submitting || !allRisksAcknowledged}
+              loading={submitting}
+              onClick={handleConfirm}>
               {t('settings.data.v1_remigration.confirm')}
             </Button>
           )}

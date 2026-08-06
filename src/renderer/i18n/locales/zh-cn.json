@@ -6373,16 +6373,10 @@
         "confirm": "确认删除并重新迁移",
         "dialog_title": "重新迁移 v1 数据",
         "error": "重新迁移 v1 数据启动失败",
-        "final_message": "确认后，当前 v2 数据将被永久删除，Cherry Studio 会立即重启。此操作无法撤销。",
+        "final_confirmation": "确认删除当前 v2 数据并重新迁移 v1 数据？",
+        "final_message": "当前 v2 数据将被永久删除，此操作无法撤销。",
         "final_retained": "原始 v1 数据会保留，并在重启后重新导入。",
         "next": "下一步",
-        "risk_message": "当前 v2 中的会话、助手、设置等数据将被永久删除；原始 v1 数据会保留并重新导入。此操作无法撤销。",
-        "step_label": "第 {{current}}/{{total}} 步 · {{name}}",
-        "steps": {
-          "backup": "备份数据",
-          "confirm": "最终确认",
-          "risk": "风险确认"
-        },
         "title": "重新迁移 v1 数据"
       },
       "webdav": {

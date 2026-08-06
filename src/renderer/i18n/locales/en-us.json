@@ -6373,16 +6373,10 @@
         "confirm": "Confirm Delete and Rerun",
         "dialog_title": "Rerun v1 Data Migration",
         "error": "Failed to start v1 data migration again",
-        "final_message": "After you confirm, your current v2 data will be permanently deleted and Cherry Studio will restart immediately. This cannot be undone.",
+        "final_confirmation": "Confirm that you want to delete the current v2 data and rerun the v1 data migration.",
+        "final_message": "Your current v2 data will be permanently deleted. This action cannot be undone.",
         "final_retained": "Your original v1 data will be kept and imported again after restart.",
         "next": "Next",
-        "risk_message": "Your current v2 conversations, assistants, settings, and other data will be permanently deleted. Your original v1 data will be kept and imported again. This cannot be undone.",
-        "step_label": "Step {{current}} of {{total}} · {{name}}",
-        "steps": {
-          "backup": "Back Up Data",
-          "confirm": "Final Confirmation",
-          "risk": "Review Risk"
-        },
         "title": "Rerun v1 Data Migration"
       },
       "webdav": {

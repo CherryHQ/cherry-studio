@@ -51,11 +51,16 @@ describe('V1RemigrationPopup', () => {
       void V1RemigrationPopup.show()
     })
 
-    expect(await screen.findByText('settings.data.v1_remigration.risk_message')).toBeInTheDocument()
+    expect(await screen.findByLabelText('settings.data.v1_remigration.final_message')).toBeInTheDocument()
+    expect(screen.queryByText('settings.data.v1_remigration.step_label')).not.toBeInTheDocument()
     const next = screen.getByRole('button', { name: 'settings.data.v1_remigration.next' })
     expect(next).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'settings.data.v1_remigration.confirm' })).not.toBeInTheDocument()
 
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.final_message'))
+    expect(next).toBeDisabled()
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.final_retained'))
+    expect(next).toBeDisabled()
     await user.click(screen.getByLabelText('settings.data.v1_remigration.acknowledgement'))
     expect(next).toBeEnabled()
     await user.click(next)
@@ -67,8 +72,10 @@ describe('V1RemigrationPopup', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
 
-    expect(screen.getByText('settings.data.v1_remigration.final_message')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.v1_remigration.final_confirmation')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     const confirm = screen.getByRole('button', { name: 'settings.data.v1_remigration.confirm' })
+    expect(confirm).toBeEnabled()
     await user.click(confirm)
     await waitFor(() => expect(mocks.request).toHaveBeenCalledExactlyOnceWith('app.migration_v2.rerun'))
     expect(confirm).toBeDisabled()
@@ -82,7 +89,9 @@ describe('V1RemigrationPopup', () => {
       void V1RemigrationPopup.show()
     })
 
-    await user.click(await screen.findByLabelText('settings.data.v1_remigration.acknowledgement'))
+    await user.click(await screen.findByLabelText('settings.data.v1_remigration.final_message'))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.final_retained'))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.acknowledgement'))
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
 
@@ -95,6 +104,6 @@ describe('V1RemigrationPopup', () => {
       expect(confirm).toBeEnabled()
     })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.v1_remigration.final_message')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.v1_remigration.final_confirmation')).toBeInTheDocument()
   })
 })
