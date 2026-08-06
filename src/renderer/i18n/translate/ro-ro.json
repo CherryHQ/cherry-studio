@@ -451,7 +451,6 @@
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
         "conversation": "Conversații",
-        "drag_hint": "Trage pentru a reordona. Trage sarcinile pentru a ajusta grupurile afișate și ascunse.",
         "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
@@ -4425,7 +4424,8 @@
     "invalid_model": "Model invalid",
     "json_parse_error": "Format JSON invalid",
     "multi_select": {
-      "label": "Multi-model paralel (mutu exclusiv cu multi-asistent)"
+      "label": "Selecție multiplă",
+      "tooltip": "Multi-model paralel"
     },
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",

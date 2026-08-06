@@ -451,7 +451,6 @@
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
         "conversation": "對話",
-        "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
         "earlier": "更早",
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
@@ -4425,7 +4424,8 @@
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
-      "label": "多模型同時回答"
+      "label": "多重選擇",
+      "tooltip": "多模型同時回答"
     },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
