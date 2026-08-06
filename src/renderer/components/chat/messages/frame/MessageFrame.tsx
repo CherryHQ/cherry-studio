@@ -12,6 +12,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
+import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -80,6 +81,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const messageStyle = renderConfig.messageStyle
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
+  const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const messageParts = useMessageParts(message.id)
   const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
   const editingMessageId = useMessageListEditingId()
@@ -119,8 +121,11 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
-      if (messageContainerRef.current) {
-        scrollIntoView(messageContainerRef.current, { behavior: 'smooth', block: 'center', container: 'nearest' })
+      const messageContainer = messageContainerRef.current
+      if (messageContainer) {
+        if (!navigateWithScrollRuntime(messageContainer, 'center')) {
+          scrollIntoView(messageContainer, { behavior: 'smooth', block: 'center', container: 'nearest' })
+        }
         if (highlight) {
           setTimeoutTimer(
             'messageHighlightHandler',
@@ -140,7 +145,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         }
       }
     },
-    [setTimeoutTimer]
+    [navigateWithScrollRuntime, setTimeoutTimer]
   )
 
   useEffect(() => {

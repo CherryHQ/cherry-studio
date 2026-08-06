@@ -213,6 +213,19 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## Internal Agent continuation normalization
+
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic
+Messages format and its converted UIMessage list ends with a text-only assistant
+attachment, the gateway appends an ephemeral user continuation after conversion.
+The Agent request itself proves that Claude Code's standard loop intends another
+sample, so this normalization is independent of the target provider, endpoint,
+and model. The original assistant attachment is preserved and the caller's params
+are not mutated. The continuation is never written to the database, the SDK
+transcript's user-visible history, or the renderer. Direct Anthropic requests do
+not enter the gateway, and external gateway requests remain unchanged so their
+callers can intentionally use assistant prefill.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

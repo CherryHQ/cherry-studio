@@ -279,6 +279,16 @@
         "description": "O arquivo excede o limite de pré-visualização de {{limit}}.",
         "title": "Arquivo muito grande para pré-visualizar"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "O painel de arquivos requer um caminho local absoluto válido. Por favor, selecione o diretório de trabalho novamente.",
+          "title": "Caminho do espaço de trabalho inválido"
+        },
+        "load_error": {
+          "description": "Certifique-se de que o diretório de trabalho ainda existe e está acessível, depois tente novamente.",
+          "title": "Não foi possível carregar os arquivos do espaço de trabalho"
+        }
+      },
       "unavailable": {
         "description": "Este arquivo não pôde ser aberto — pode ter sido movido ou excluído.",
         "title": "Arquivo indisponível"
@@ -758,6 +768,13 @@
         "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
       },
       "resume": "Retomar",
+      "reuseSession": {
+        "bound": "Ver sessão",
+        "description": "Continue cada execução na mesma sessão em vez de iniciar uma nova.",
+        "label": "Reutilizar sessão",
+        "pending": "Esperando a primeira execução",
+        "warning": "Uma sessão reutilizada continua acumulando contexto, o que aumenta o custo de tokens ao longo do tempo e pode transbordar a janela de contexto do modelo. Para vincular uma sessão limpa, desative e salve, depois ative e salve."
+      },
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
@@ -1350,6 +1367,9 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "error": {
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+    },
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -1416,6 +1436,11 @@
         "placeholder": "Pesquisar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens economizados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Novo Chat"
     },
@@ -1481,6 +1506,13 @@
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
+      "note_reference": {
+        "description": "Anexe uma nota do Notes",
+        "empty": "Nenhuma nota encontrada",
+        "load_failed": "Falha ao carregar notas",
+        "loading": "Carregando notas...",
+        "title": "Nota de Referência"
+      },
       "paste_text_file": "Cole na entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
@@ -1595,7 +1627,6 @@
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
-      "url_context": "Contexto da Página da Web",
       "web_search": {
         "builtin": {
           "disabled_content": "Este modelo não suporta busca na web",
@@ -1612,13 +1643,16 @@
           "description": "Não ativar a função de busca na web",
           "label": "Sem busca na web"
         },
+        "route": {
+          "builtin": "Pesquisas com a ferramenta integrada do modelo",
+          "client": "Pesquisas com {{provider}}"
+        },
         "settings": "Configurações de Pesquisa na Web"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
+        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções."
       }
     },
     "message": {
@@ -1695,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Ir para a jogada {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -2482,6 +2519,7 @@
       "content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
       "context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
       "deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
+      "free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
       "go_to_settings": "Ir para definições",
       "knowledge": "Falha na vetorização da base de conhecimento",
       "mcp": "Falha na ligação ao servidor MCP, verifique se o serviço está em execução",
@@ -3164,6 +3202,7 @@
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
       "processor": "Processador de Provedor",
+      "processor_not_configured": "Não configurado",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3414,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-comprimir",
+        "context_compress_model": "Modelo de compressão",
+        "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_management": "Gestão de contexto",
+        "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
         "custom_params_add": "Adicionar parâmetro",
@@ -3426,8 +3470,17 @@
           "avatar": {
             "hint": "Usado para identificar o assistente na biblioteca e nos chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automaticamente as conversas anteriores ao aproximar-se da janela de contexto"
+          },
           "context_count": {
             "hint": "Número de mensagens recentes mantidas como contexto"
+          },
+          "context_management": {
+            "hint": "Substituir as configurações globais de gerenciamento de contexto para este assistente; desativado herda as configurações globais"
+          },
+          "context_truncate_threshold": {
+            "hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas"
           },
           "custom_params": {
             "hint": "Parâmetros extras do provedor enviados com as solicitações"
@@ -3842,6 +3895,7 @@
       "pasted_text": "Arquivo da área de transferência"
     },
     "backup": {
+      "cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
       "failed": "Backup falhou",
       "start": {
         "success": "Início do backup"
@@ -4271,6 +4325,7 @@
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
       "fetch_empty": "Nenhum resultado de pesquisa encontrado",
+      "fetch_opaque": "Pesquisado pelo modelo",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -5143,6 +5198,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Salvar Como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -5727,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Novo Assistente",
+      "create_tag": "Novo",
       "empty_text": "Nenhum assistente ainda",
       "filter": "Assistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5781,7 +5838,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Converse com o Assistente Cherry para compartilhar comentários.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Escolha como compartilhar feedback e ajude-nos a melhorar o Cherry Studio.",
+          "title": "Escolha um canal de feedback"
+        },
+        "github": {
+          "description": "Criar um relatório de bug ou solicitação de recurso no GitHub.",
+          "title": "Issue do GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Compartilhe feedback através da nossa pesquisa Feishu.",
+          "title": "Pesquisa de feedback"
+        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -6138,6 +6213,7 @@
         },
         "pathSelector": {
           "currentPath": "Caminho atual",
+          "fetchError": "Falha ao carregar a lista de pastas do Nutstore",
           "return": "Voltar",
           "title": "Caminho de armazenamento do Nutstore"
         },
@@ -7330,6 +7406,7 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
+        "model": "Modelo de Nomenclatura",
         "prompt": "Prompt de nomenclatura de tópicos"
       },
       "translate_model": "Modelo de tradução",
@@ -8092,6 +8169,10 @@
         "check": "Verificar",
         "check_failed": "Falha na verificação",
         "check_success": "Verificação bem-sucedida",
+        "client_tools_preferred": {
+          "description": "Use os serviços de pesquisa e busca de URL configurados acima mesmo quando o modelo possui pesquisa integrada. Quando desativado, o modelo lida com isso.",
+          "label": "Serviços de pesquisa configurados preferidos"
+        },
         "compression": {
           "cutoff": {
             "limit": {

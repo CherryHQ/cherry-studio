@@ -11,7 +11,6 @@
 import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
-import os from 'node:os'
 import path from 'node:path'
 
 import type {
@@ -28,17 +27,17 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
-  isProvisioned,
+  getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
   provisionBuiltinAgent
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
@@ -47,7 +46,10 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
+  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
@@ -61,9 +63,8 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
-import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import {
   CONFIG_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -84,17 +85,40 @@ import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@shared/types/mcp'
 import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
-import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import {
+  type Environment,
+  hasStaleCherryProxyMarkers,
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
+} from './agentProxyEnvironment'
+import {
+  detectDestructiveAssistantCommand,
+  isLarkFormSubmissionCommand,
+  isPermanentDeletionToolName
+} from './assistantCommandSafety'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
+const MIN_AUTO_COMPACT_WINDOW = 100_000
+const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
-  'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
+  'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 const require_ = createRequire(import.meta.url)
+
+function resolveAutoCompactWindow(contextWindow: number | undefined): number | undefined {
+  if (
+    typeof contextWindow !== 'number' ||
+    !Number.isInteger(contextWindow) ||
+    contextWindow < MIN_AUTO_COMPACT_WINDOW
+  ) {
+    return undefined
+  }
+  return Math.min(contextWindow, MAX_AUTO_COMPACT_WINDOW)
+}
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 const HEADLESS_INTERACTIVE_TOOLS = [
@@ -116,6 +140,18 @@ const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'remove_channel',
   'reconnect_channel'
 ])
+const CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES =
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+
+function approvalRequiredRuntimeNames(assistantMcpEnabled: boolean): readonly string[] {
+  return assistantMcpEnabled
+    ? [
+        ...CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES,
+        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ]
+    : CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES
+}
 const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -290,36 +326,12 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
   )
 }
 
-/**
- * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
- * Injected into system prompt so the agent knows the user's setup immediately.
- */
-function buildAssistantContext(): string {
-  const appVersion = app.getVersion()
-  const platform = `${os.platform()} ${os.release()}`
-  const language = getAppLanguage()
-  const theme = application.get('PreferenceService').get('ui.theme_mode')
-  const proxy = application.get('PreferenceService').get('app.proxy.url')
-  const providers = providerService.list({})
-  // MCP summary
-  const mcpServers = mcpServerService.list({}).items
-  const activeMcp = mcpServerService.list({ isActive: true }).items
-
-  return [
-    '## Current Environment',
-    `- App: Cherry Studio v${appVersion}`,
-    `- OS: ${platform}`,
-    `- Language: ${language}, Theme: ${theme}`,
-    proxy ? `- Proxy: ${redactUrlToOrigin(proxy)}` : '- Proxy: none',
-    `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
-    `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`
-  ].join('\n')
-}
-
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
+  contextWindow?: number
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -360,7 +372,9 @@ export async function buildClaudeCodeSessionSettings(
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
   const agentConfig = agent.configuration
-  const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const builtinRole = agentConfig?.builtin_role as string | undefined
+  const isAssistant = builtinRole === 'assistant'
+  const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
@@ -379,13 +393,19 @@ export async function buildClaudeCodeSessionSettings(
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
-  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
-  const plugins = needsPrivateSkillPlugin
-    ? [
-        ...(workspacePlugins ?? []),
-        { type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }
-      ]
-    : workspacePlugins
+  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
+  const plugins =
+    needsPrivateSkillPlugin || builtinPluginDirectory
+      ? [
+          ...(workspacePlugins ?? []),
+          ...(needsPrivateSkillPlugin
+            ? [{ type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }]
+            : []),
+          ...(builtinPluginDirectory
+            ? [{ type: 'local' as const, path: builtinPluginDirectory, skipMcpDiscovery: true }]
+            : [])
+        ]
+      : workspacePlugins
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -458,23 +478,32 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled)
+  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent.id, cwd)
+  const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
+  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
+  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  }
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    settingSources: getSettingSources(agent, provider),
+    settingSources: getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
+      // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
+      // Disable Claude Code's separate auto-memory store so the preset does not introduce a
+      // second, conflicting memory contract.
+      autoMemoryEnabled: false,
+      ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
       fastMode: options?.fastMode === true
     },
     includePartialMessages: true,
@@ -634,8 +663,19 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
+export async function getClaudeCodeLoginShellEnvironment(
+  currentProxyEnvironment: Environment
+): Promise<Record<string, string | undefined>> {
+  let loginShellEnv = await getShellEnv()
+  if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
+    loginShellEnv = await refreshShellEnv()
+  }
+  return stripInheritedCherryProxyMarkers(loginShellEnv)
+}
+
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getShellEnv()
+  const proxyEnvironment = getProxyEnvironment(process.env)
+  const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -667,7 +707,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
-    ...getProxyEnvironment(process.env),
+    ...proxyEnvironment,
     CLAUDE_CODE_USE_BEDROCK: '0',
     CLAUDE_CODE_USE_VERTEX: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
@@ -681,6 +721,9 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+    // The stream adapter's background-work release waits for `session_state_changed: idle`
+    // (streamAdapter.ts), which the CLI only emits when this flag is set.
+    CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
@@ -748,7 +791,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     }
   }
 
-  return env
+  return mergeAgentLoopbackProxyBypass(env)
 }
 
 /**
@@ -770,14 +813,15 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
  * Read-only: the filesystem mirror is maintained at install / uninstall /
  * startup reconcile, never here — so concurrent session builds never race.
  */
-export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+export async function buildSkillWhitelist(agentId: string, cwd: string, builtinRole?: string): Promise<string[]> {
   const [installedSkills, workspaceNames] = await Promise.all([
     skillService.list({ agentId }),
     skillService.listLocalFolderNames(cwd)
   ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+  const builtinNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
 
-  return Array.from(new Set([...enabledNames, ...workspaceNames]))
+  return Array.from(new Set([...enabledNames, ...workspaceNames, ...builtinNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
@@ -819,6 +863,7 @@ async function buildToolPermissions(
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
+  const approvalRequiredTools = approvalRequiredRuntimeNames(assistantMcpEnabled)
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
@@ -832,12 +877,14 @@ async function buildToolPermissions(
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: [
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      // Assistant MCP: navigate only. diagnose reads local logs/source/config and must go through
-      // per-call approval — see ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES for the threat model.
-      ...(assistantMcpEnabled ? ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES : [])
+      // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
+      // through per-call approval.
+      ...(assistantMcpEnabled
+        ? [...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES]
+        : [])
     ],
-    // Mutating cherry-tools (kb_manage) must still prompt for approval.
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    // Side-effecting and local-data-reading built-in tools must still prompt for approval.
+    autoAllowRuntimeNameExceptions: approvalRequiredTools,
     conditionContext
   })
 
@@ -847,14 +894,13 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
-    // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
-    // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
+    // no-responder denial at fire time for interactive and approval-required tools. PreToolUse
+    // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    if (
-      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
-      interactionState.userResponse === 'unavailable'
-    ) {
+    const requiresInteractiveResponder =
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      approvalRequiredTools.includes(toolName)
+    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
@@ -1064,6 +1110,92 @@ async function buildToolPermissions(
     }
   }
 
+  // Cherry Assistant may edit automatically, but it must never turn that convenience into
+  // irreversible deletion. Block permanent deletion tools and common destructive Bash operations
+  // under every permission mode; confirmed workspace deletion goes through the dedicated
+  // move-to-trash tool, which independently protects critical paths.
+  const assistantDestructiveOperationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    let reason: string | undefined
+
+    if (toolName === 'Bash') {
+      const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command === 'string') reason = detectDestructiveAssistantCommand(command)
+    } else if (isPermanentDeletionToolName(toolName)) {
+      reason = 'permanent deletion tool'
+    }
+
+    if (!reason) return {}
+    logger.info('Blocked destructive Cherry Assistant operation', { sessionId: session.id, toolName, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          `Cherry Assistant blocked ${reason}. It must never permanently delete data or bypass this safeguard. ` +
+          'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+      }
+    }
+  }
+
+  // The feedback skill submits through Bash, so the MCP-only approval list cannot protect it when
+  // bypassPermissions skips canUseTool. Keep the submission itself behind a live per-call approval;
+  // headless turns may still prepare the local feedback draft and inspect the form schema.
+  const assistantFeedbackSubmissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command !== 'string' || !isLarkFormSubmissionCommand(command)) return {}
+
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep the local feedback draft for an interactive user to review and submit.'
+        }
+      }
+    }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: 'Submitting Cherry Studio feedback to Feishu requires live per-call user approval.'
+      }
+    }
+  }
+
+  // `canUseTool` is skipped by the SDK under bypassPermissions and other auto-approved paths.
+  // Mirror the explicit per-call approval list into PreToolUse so those tools can never inherit the
+  // session's blanket permission mode.
+  const approvalRequiredToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!approvalRequiredTools.includes(toolName)) return {}
+    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        }
+      }
+    }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: `The ${toolName} tool requires per-call user approval.`
+      }
+    }
+  }
+
   // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
   // path from reaching a built-in file tool. Force any workspace escape back through the approval
   // path, including under acceptEdits / bypassPermissions where `canUseTool` may be skipped. This is
@@ -1160,6 +1292,9 @@ async function buildToolPermissions(
             headlessConfigMutationHook,
             headlessSkillInstallHook,
             disabledToolHook,
+            assistantDestructiveOperationHook,
+            assistantFeedbackSubmissionHook,
+            approvalRequiredToolHook,
             workspacePathHook,
             dependencyIsolationHook,
             rtkRewriteHook,
@@ -1170,14 +1305,7 @@ async function buildToolPermissions(
       PostToolUse: [{ hooks: [postToolTimingHook] }],
       PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
     },
-    // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
-    // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).
-    disallowedTools: [
-      ...new Set([
-        ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...(isAssistant ? HEADLESS_INTERACTIVE_TOOLS : [])
-      ])
-    ],
+    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
     toolPolicySnapshot
   }
 }
@@ -1242,9 +1370,10 @@ export async function buildSystemPrompt(
     }
   }
 
-  // Provision builtin agent workspace resources independently from prompt resolution.
-  if (builtinRole && cwd && !isProvisioned(cwd)) {
-    await provisionBuiltinAgent(cwd, builtinRole)
+  // Persona and memory templates belong in the app-owned agent data directory. Bundled
+  // skills are injected from the read-only app plugin and never copied into user projects.
+  if (builtinRole) {
+    await provisionBuiltinAgent(agentDataPath, builtinRole)
   }
 
   // Channel security (still scoped per session — channels link to a session)
@@ -1254,45 +1383,40 @@ export async function buildSystemPrompt(
   const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
     web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
-    kb: knowledgeBaseIds.length > 0 && (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
+    kb:
+      (isAssistant || knowledgeBaseIds.length > 0) &&
+      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
   })
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
-  const workspaceBlock = [
-    '## Current Workspace',
-    `Current working directory: ${JSON.stringify(cwd)}`,
-    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
-  ].join('\n')
-  const workspaceContextBlock = `\n\n${workspaceBlock}`
-
-  // Assistant mode
-  if (isAssistant) {
-    try {
-      const context = buildAssistantContext()
-      return instructions
-        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
-        : `${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
-    } catch (error) {
-      // Don't silently degrade to generic behavior: a context read failure drops the entire
-      // assistant context, so surface it before falling back to the base instructions.
-      logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}`
-    }
-  }
-
   // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
-  // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  const soulPrompt = await promptBuilder.buildSystemPrompt(
+  const promptParts = await promptBuilder.buildPromptParts(
     cwd,
     agentConfig,
     Boolean(instructions?.trim()),
     agentDataPath
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  // The Claude Code preset owns its dynamic cwd/git context. A custom base replaces that
+  // preset only, so Cherry restores the workspace contract in its always-appended context.
+  const workspaceContextBlock =
+    promptParts.base.kind === 'custom'
+      ? `\n\n${[
+          '## Current Workspace',
+          `Current working directory: ${JSON.stringify(cwd)}`,
+          'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+        ].join('\n')}`
+      : ''
+  const cherryContext = `${promptParts.context}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+
+  // The workspace chooses only the base. Cherry-owned context survives either path.
+  if (promptParts.base.kind === 'claude_code') {
+    return { type: 'preset', preset: 'claude_code', append: cherryContext }
+  }
+  return promptParts.base.content ? `${promptParts.base.content}\n\n${cherryContext}` : cherryContext
 }
 
 export function buildMcpServers(
@@ -1350,7 +1474,7 @@ export function buildMcpServers(
       workspaceSource,
       workspacePath: session.workspace.path,
       sourceChannelId,
-      canManageCli: agent.configuration?.builtin_role !== 'assistant',
+      canAccessAllKnowledgeBases: () => agentService.getAgent(agent.id)?.configuration?.builtin_role === 'assistant',
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
@@ -1376,8 +1500,17 @@ export function buildMcpServers(
 
   // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
   if (assistantMcpEnabled) {
-    const assistantServer = new AssistantServer()
+    const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+    const fileToolsServer = new AssistantFileToolsServer({
+      sessionId: session.id,
+      workspacePath: session.workspace.path
+    })
+    mcpList['assistant-files'] = {
+      type: 'sdk',
+      name: 'assistant-files',
+      instance: fileToolsServer.mcpServer
+    }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
       agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
@@ -1500,20 +1633,30 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
  * sensitive tools (mutating kb_manage, local-data-reading diagnose) are excluded from the SDK
  * pre-approval and routed through per-call approval via canUseTool.
  */
-export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
+function isToolDisallowed(toolName: string, disallowedTools: readonly string[]): boolean {
+  if (disallowedTools.includes(toolName)) return true
+  if (!toolName.startsWith('mcp__')) return false
+
+  const serverSeparator = toolName.indexOf('__', 'mcp__'.length)
+  if (serverSeparator === -1) return false
+
+  const serverRule = toolName.slice(0, serverSeparator)
+  return disallowedTools.some((rule) => rule === 'mcp__*' || rule === serverRule || rule === `${serverRule}__*`)
+}
+
+export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean, disallowedTools: readonly string[]): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  result.push('mcp__agent-memory__*')
+  result.push('mcp__agent-memory__memory')
   // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
   // (clones + installs third-party code), so it deliberately stays on per-call approval.
   result.push('mcp__skills__search_skills')
-  if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
-  return result
+  if (assistantMcpEnabled) {
+    result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
+  }
+  return result.filter((toolName) => !isToolDisallowed(toolName, disallowedTools))
 }
 
-function getSettingSources(agent: AgentEntity, provider: Provider): Array<'user' | 'project' | 'local'> {
-  const builtinRole = agent.configuration?.builtin_role
-  if (builtinRole) return []
-
+function getSettingSources(provider: Provider): Array<'user' | 'project' | 'local'> {
   // Managed skills are mirrored under Cherry's isolated CLAUDE_CONFIG_DIR/skills, which Claude Code loads from the
   // user source. Login providers point CLAUDE_CONFIG_DIR at the user's real CLI config, so keep that source isolated.
   return isExternalCliProvider(provider) ? ['project', 'local'] : ['user', 'project', 'local']

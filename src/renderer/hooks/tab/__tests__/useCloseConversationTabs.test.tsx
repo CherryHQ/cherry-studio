@@ -53,9 +53,8 @@ describe('useCloseConversationTabs', () => {
         {
           id: 'topic-a-tab',
           type: 'route',
-          url: '/app/chat',
-          title: 'Topic A',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
+          url: '/app/chat?topicId=topic-a',
+          title: 'Topic A'
         },
         {
           id: 'topic-b-url-tab',
@@ -72,9 +71,8 @@ describe('useCloseConversationTabs', () => {
         {
           id: 'session-tab',
           type: 'route',
-          url: '/app/agents',
-          title: 'Session',
-          metadata: { instanceAppId: 'agents', instanceKey: 'topic-a' }
+          url: '/app/agents?sessionId=topic-a',
+          title: 'Session'
         }
       ],
       closeTabs,
@@ -97,9 +95,8 @@ describe('useCloseConversationTabs', () => {
         {
           id: 'session-a-tab',
           type: 'route',
-          url: '/app/agents',
-          title: 'Session A',
-          metadata: { instanceAppId: 'agents', instanceKey: 'session-a' }
+          url: '/app/agents?sessionId=session-a',
+          title: 'Session A'
         },
         {
           id: 'session-b-url-tab',
@@ -110,9 +107,8 @@ describe('useCloseConversationTabs', () => {
         {
           id: 'topic-tab',
           type: 'route',
-          url: '/app/chat',
-          title: 'Topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'session-a' }
+          url: '/app/chat?topicId=session-a',
+          title: 'Topic'
         }
       ],
       closeTabs,
@@ -132,9 +128,8 @@ describe('useCloseConversationTabs', () => {
     const activeTab: Tab = {
       id: `active-${key}-tab`,
       type: 'route',
-      url: baseUrl,
-      title: 'Active',
-      metadata: { instanceAppId: appId, instanceKey: key }
+      url: `${baseUrl}?${queryKey}=${key}`,
+      title: 'Active'
     }
     const backgroundTab: Tab = {
       id: `background-${key}-tab`,
@@ -161,9 +156,8 @@ describe('useCloseConversationTabs', () => {
         {
           id: 'active-topic-tab',
           type: 'route',
-          url: '/app/chat',
-          title: 'Active Topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
+          url: '/app/chat?topicId=topic-a',
+          title: 'Active Topic'
         }
       ],
       closeTabs,

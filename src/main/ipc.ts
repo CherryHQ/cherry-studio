@@ -16,7 +16,7 @@ import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
+import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getHostname } from './utils/system'
@@ -24,9 +24,9 @@ import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const backupManager = new LegacyBackupManager()
-
 export async function registerIpc() {
+  void backupManager.cleanupStaleTempArtifacts()
+
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerService = application.get('PowerService')
   // powerService.registerShutdownHandler(() => {
@@ -102,17 +102,26 @@ export async function registerIpc() {
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
+    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))

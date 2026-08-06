@@ -17,6 +17,7 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -37,10 +38,20 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import type { AgentSessionUsageCapture } from '../types'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass
+} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
+import {
+  buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
+  getClaudeCodeLoginShellEnvironment,
+  type McpServerSnapshotMap
+} from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
@@ -83,11 +94,24 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   internalRequestToken?: string
 }
 
+/** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
+function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl'>): string | undefined {
+  if (route.branch !== 'gateway' || !route.baseUrl) return undefined
+
+  try {
+    return new URL(route.baseUrl).hostname
+  } catch {
+    return undefined
+  }
+}
+
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
   linkedChannelId: string | null
+  contextWindow: number | null
+  proxyEnvironmentFingerprint: string
 }
 
 /**
@@ -186,10 +210,10 @@ function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
 }
 
 /**
- * Normalized tool-policy facts — the immediately enforceable side of {@link ConnectionConfig}.
- * Permission mode and newly disabled tools can be applied to a running connection; `disabledTools`
- * is also part of the rebuild signature because removing a disabled tool must restore it to the
- * subprocess model context, which the SDK cannot do live.
+ * Normalized tool-policy facts — the boundary-reconcilable side of {@link ConnectionConfig}.
+ * Permission mode can be applied to an idle running connection and newly disabled tools can be
+ * applied mid-turn; `disabledTools` is also part of the rebuild signature because removing a
+ * disabled tool must restore it to the subprocess model context, which the SDK cannot do live.
  */
 export interface ToolPolicyFacts {
   permissionMode: string | null
@@ -284,6 +308,21 @@ export async function deriveConnectionConfig(
   }
 }
 
+async function deriveAgentProxyEnvironmentFingerprint(
+  agent: AgentEntity,
+  route: ClaudeCodeRouteFacts
+): Promise<string> {
+  const proxyEnvironment = getProxyEnvironment(process.env)
+  return createAgentProxyEnvironmentFingerprint(
+    {
+      ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)),
+      ...proxyEnvironment,
+      ...agent.configuration?.env_vars
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
+}
+
 async function deriveConnectionConfigFromSnapshot(
   session: AgentSessionEntity,
   agent: AgentEntity,
@@ -298,6 +337,7 @@ async function deriveConnectionConfigFromSnapshot(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -313,12 +353,16 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
   }
-  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd))
+  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd, builtinRole))
   const linkedChannelId = materialized
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const proxyEnvironmentFingerprint =
+    materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
     modelId: uniqueModelId,
+    contextWindow,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -329,7 +373,10 @@ async function deriveConnectionConfigFromSnapshot(
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
-    envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    envVars: Object.entries(agent.configuration?.env_vars ?? {})
+      .filter(([key]) => !isAgentProxyEnvironmentKey(key))
+      .sort(([a], [b]) => a.localeCompare(b)),
+    proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
@@ -410,6 +457,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
+  // settings, and skill materialization can otherwise make the baseline describe a different
+  // compaction window from the one actually passed to Claude Code.
+  const contextWindow = model.contextWindow
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -445,6 +496,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
+        contextWindow,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -471,7 +523,11 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null
+      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      contextWindow: contextWindow ?? null,
+      proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
+        additionalBypassRule: gatewayBypassRule(route)
+      })
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -813,9 +869,8 @@ function mergeRuntimeSettings(
     route.customHeaders,
     fastModeHeaders
   )
-  return {
-    ...settings,
-    env: {
+  const env = mergeAgentLoopbackProxyBypass(
+    {
       ...settings.env,
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
@@ -824,7 +879,12 @@ function mergeRuntimeSettings(
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
       ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
       ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
-    }
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
+  return {
+    ...settings,
+    env
   }
 }
 

@@ -94,6 +94,7 @@ export interface ModelSelectorModelItem {
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
+  enabled?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string

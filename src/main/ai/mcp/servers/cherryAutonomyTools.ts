@@ -31,8 +31,8 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   sourceChannelId?: string
-  /** Built-in Assistant sessions have no shell and therefore omit CLI management. */
-  canManageCli?: boolean
+  /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
+  canAccessAllKnowledgeBases?: () => boolean
   /**
    * Read this agent's effective knowledge scope — `resolveKnowledgeBaseScope(binding,
    * composerSelection)`, not the raw binding. The binding half is re-read live; the composer

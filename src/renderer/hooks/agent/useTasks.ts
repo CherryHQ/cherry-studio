@@ -1,4 +1,4 @@
-import { useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -35,12 +35,13 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
 }
 
 export const useTasks = (agentId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agents/:agentId/tasks', {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
     params: { agentId: agentId! },
     query: { limit: 200 },
     enabled: !!agentId,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/agents/:agentId/tasks', () => refetch())
   return {
     tasks: data?.items ?? [],
     total: data?.total ?? 0,
@@ -58,6 +59,7 @@ export const useAllTasks = () => {
       swrOptions: { keepPreviousData: false }
     }
   )
+  useDataChange('/agent-tasks', () => refresh())
   return {
     tasks: items,
     total,
@@ -74,10 +76,15 @@ export const useAllTasks = () => {
 }
 
 export const useTask = (taskId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agent-tasks/:taskId', {
+  const { data, error, isLoading, refetch } = useQuery('/agent-tasks/:taskId', {
     params: { taskId: taskId! },
     enabled: !!taskId,
     swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/agent-tasks/:taskId', (effects) => {
+    if (effects.some((effect) => !effect.entityIds || (taskId !== null && effect.entityIds.includes(taskId)))) {
+      void refetch()
+    }
   })
   return {
     task: data,

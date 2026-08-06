@@ -1422,7 +1422,7 @@
         {
           "originalKey": "messageNavigation",
           "type": "PreferenceTypes.ChatMessageNavigationMode",
-          "defaultValue": "none",
+          "defaultValue": "anchor",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.navigation_mode"
@@ -1957,7 +1957,7 @@
         {
           "originalKey": "exportMenuOptions",
           "type": "unknown",
-          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
+          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -2041,14 +2041,6 @@
               "status": "classified",
               "targetKey": "data.export.menus.plain_text",
               "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "notes",
-              "status": "classified",
-              "targetKey": "data.export.menus.notes",
-              "type": "boolean"
             }
           ]
         },
@@ -2131,14 +2123,6 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.export.menus.plain_text"
-        },
-        {
-          "originalKey": "notes",
-          "type": "boolean",
-          "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.export.menus.notes"
         },
         {
           "originalKey": "openAI",

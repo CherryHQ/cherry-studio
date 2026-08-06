@@ -269,7 +269,6 @@
     {
       "apiModelId": "doubao-seed-1-8-251215",
       "modelId": "doubao-seed-1-8",
-      "name": "doubao-seed-1-8-251215",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -1661,504 +1660,6 @@
       "inputModalities": ["text", "image"],
       "modelId": "qwen-image-edit",
       "providerId": "aihubmix"
-    },
-    {
-      "modelId": "claude-haiku-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4-1",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-sonnet-4",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-sonnet-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
     },
     {
       "apiModelId": "global.anthropic.claude-fable-5",
@@ -4164,25 +3665,6 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-2.5-pro",
-      "modelId": "gemini-2-5-pro",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
       "apiModelId": "gemini-3.1-pro-preview",
       "modelId": "gemini-3-1-pro-preview",
       "pricing": {
@@ -4221,20 +3703,20 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gemini-3-flash-preview",
-      "modelId": "gemini-3-flash-preview",
+      "apiModelId": "gemini-3.6-flash",
+      "modelId": "gemini-3-6-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 1.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 7.5
         }
       },
       "providerId": "copilot"
@@ -4397,19 +3879,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
+          "perMillionTokens": 0.02
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "copilot"
@@ -4443,19 +3921,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.125
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 12
         }
       },
       "providerId": "copilot"
@@ -4475,6 +3949,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "grok-4.5",
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
         }
       },
       "providerId": "copilot"
@@ -4519,39 +4012,24 @@
       "providerId": "copilot"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-r1",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3",
       "providerId": "dashscope"
     },
     {
       "apiModelId": "deepseek-v3.1",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3-1",
       "providerId": "dashscope"
     },
     {
       "apiModelId": "deepseek-v3.2",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v3-2",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v4-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4594,9 +4072,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "deepseek-v4-pro",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4681,6 +4156,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.1",
       "modelId": "glm-5-1",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4723,6 +4199,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4766,9 +4243,6 @@
     },
     {
       "apiModelId": "Moonshot-Kimi-K2-Instruct",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "kimi-k2",
       "providerId": "dashscope"
     },
@@ -4817,9 +4291,6 @@
     },
     {
       "apiModelId": "MiniMax-M2.1",
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "minimax-m2-1",
       "providerId": "dashscope"
     },
@@ -4875,9 +4346,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-flash",
       "providerId": "dashscope",
@@ -5098,9 +4566,6 @@
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus",
       "providerId": "dashscope",
@@ -5216,17 +4681,11 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus-character",
       "providerId": "dashscope"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "qwen-turbo",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5683,6 +5142,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-122b-a10b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-122b-a10b",
       "providerId": "dashscope",
@@ -5798,6 +5258,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-27b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-27b",
       "providerId": "dashscope",
@@ -5913,6 +5374,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-35b-a3b",
       "providerId": "dashscope",
@@ -6028,6 +5490,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-397b-a17b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-397b-a17b",
       "providerId": "dashscope",
@@ -6143,6 +5606,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.5-9b",
       "modelId": "qwen3-5-9b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6257,9 +5721,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.5-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-flash",
       "providerId": "dashscope",
@@ -6375,9 +5837,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.5-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-plus",
       "providerId": "dashscope",
@@ -6493,6 +5953,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6607,6 +6068,7 @@
       }
     },
     {
+      "apiModelId": "qwen3.6-35b-a3b",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-35b-a3b",
       "providerId": "dashscope",
@@ -6722,9 +6184,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-flash",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-flash",
       "providerId": "dashscope",
@@ -6840,9 +6300,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-max-preview",
       "modelId": "qwen3-6-max-preview",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6957,9 +6415,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.6-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-plus",
       "providerId": "dashscope",
@@ -7075,9 +6531,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.7-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-max",
       "providerId": "dashscope",
@@ -7193,9 +6647,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.7-plus",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-plus",
       "providerId": "dashscope",
@@ -7311,13 +6763,10 @@
       }
     },
     {
-      "apiModelId": "qwen3.8-max-preview",
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.8-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "qwen3-8-max-preview",
-      "name": "Qwen3.8 Max Preview",
+      "modelId": "qwen3-8-max",
+      "name": "Qwen3.8 Max",
       "providerId": "dashscope",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -7416,9 +6865,86 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "qwen3.8-max-preview",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "qwen3-8-max-preview",
+      "name": "Qwen3.8 Max Preview",
+      "providerId": "dashscope",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-max",
       "providerId": "dashscope",
@@ -8218,9 +7744,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "modelId": "qwq-plus",
       "providerId": "dashscope"
     },
@@ -8728,7 +8251,7 @@
       "providerId": "deepseek"
     },
     {
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -8845,7 +8368,7 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -9512,11 +9035,13 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v3-2-251201",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3-2",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "deepseek-v4-flash-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "providerId": "doubao",
@@ -9562,6 +9087,7 @@
       }
     },
     {
+      "apiModelId": "deepseek-v4-pro-260425",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-pro",
       "providerId": "doubao",
@@ -9607,21 +9133,25 @@
       }
     },
     {
+      "apiModelId": "doubao-1-5-lite-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-lite-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-256k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-256k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-pro-32k",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-thinking-pro-250415",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-thinking-pro",
       "providerId": "doubao"
@@ -9637,29 +9167,31 @@
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-ui-tars-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-ui-tars",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-lite-250315",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-lite",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1.5-vision-pro-250328",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-1-5-vision-pro-32k-250115",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-1-5-vision-pro-32k",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-1-6-251015",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-1-6",
       "providerId": "doubao",
@@ -9743,21 +9275,21 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-1-6-flash-250828",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-flash",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "doubao-seed-1-6-vision-250815",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-1-6-vision",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-1-8-251228",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "doubao-seed-2-0-code",
+      "modelId": "doubao-seed-1-8",
       "providerId": "doubao",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -9839,9 +9371,91 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-code-preview-260215",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "doubao-seed-2-0-code-preview",
+      "providerId": "doubao",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "minimal"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "doubao-seed-2-0-lite-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-lite",
       "providerId": "doubao",
@@ -9925,9 +9539,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-mini-260428",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-mini",
       "providerId": "doubao",
@@ -10011,9 +9623,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-0-pro-260215",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-pro",
       "providerId": "doubao",
@@ -10097,9 +9707,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-1-pro-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-pro",
       "providerId": "doubao",
@@ -10189,9 +9797,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-2-1-turbo-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-turbo",
       "providerId": "doubao",
@@ -10281,9 +9887,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "apiModelId": "doubao-seed-character-260628",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-character",
       "providerId": "doubao",
@@ -10367,14 +9971,12 @@
       }
     },
     {
+      "apiModelId": "doubao-seed-code-preview-251028",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "doubao-seed-code-preview",
       "providerId": "doubao"
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-evolving",
       "providerId": "doubao",
@@ -10464,11 +10066,13 @@
       }
     },
     {
+      "apiModelId": "glm-4-7-251222",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-4-7",
       "providerId": "doubao"
     },
     {
+      "apiModelId": "glm-5-2-260617",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "glm-5-2",
       "providerId": "doubao",
@@ -10555,92 +10159,6 @@
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-14b",
       "providerId": "doubao"
-    },
-    {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
-      "modelId": "seed-1-8",
-      "providerId": "doubao",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        },
-        "openai-responses": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "minimal"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
     },
     {
       "apiModelId": "accounts/fireworks/models/deepseek-v4-flash",
@@ -11603,29 +11121,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.1",
-      "modelId": "claude-opus-4-1",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 18.75
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 75
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.5",
       "modelId": "claude-opus-4-5",
       "pricing": {
@@ -12001,15 +11496,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.04
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "gateway"
@@ -12020,15 +11515,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 1.74
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 3.48
         }
       },
       "providerId": "gateway"
@@ -15052,6 +14547,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "alibaba/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "alibaba/qwen3-coder",
       "modelId": "qwen3-coder",
       "pricing": {
@@ -15337,627 +14855,6 @@
         }
       },
       "providerId": "gateway"
-    },
-    {
-      "modelId": "gemini-2-5-flash",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-flash-image",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-flash-image-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-flash-lite",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-pro",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-pro-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-2-5-pro-preview-05-06",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-3-1-flash-lite-image",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-omni-flash-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
     },
     {
       "apiModelId": "mistral-ai/codestral-2501",
@@ -16952,6 +15849,7 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "grok-composer-2.5-fast",
       "capabilities": {
         "force": ["function-call", "image-recognition"]
       },
@@ -16963,7 +15861,7 @@
         "contextWindow": 200000,
         "maxOutputTokens": 30000
       },
-      "modelId": "grok-composer-2.5-fast",
+      "modelId": "grok-composer-2-5-fast",
       "name": "Composer 2.5 Fast",
       "outputModalities": ["text"],
       "ownedBy": "xai",
@@ -16982,6 +15880,22 @@
         }
       },
       "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "allam-2-7b",
+      "modelId": "allam-2-7b",
+      "name": "ALLaM-2-7b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "groq"
     },
     {
       "apiModelId": "openai/gpt-oss-120b",
@@ -17069,22 +15983,6 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "meta-llama/llama-4-scout-17b-16e-instruct",
-      "modelId": "llama-4-scout-17b-16e-instruct",
-      "name": "Llama 4 Scout 17B 16E",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.11
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.34
-        }
-      },
-      "providerId": "groq"
-    },
-    {
       "apiModelId": "meta-llama/llama-prompt-guard-2-22m",
       "modelId": "llama-prompt-guard-2-22m",
       "name": "Llama Prompt Guard 2 22M",
@@ -17117,16 +16015,20 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "qwen/qwen3-32b",
-      "modelId": "qwen3-32b",
+      "apiModelId": "qwen/qwen3.6-27b",
+      "modelId": "qwen3-6-27b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.29
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.59
+          "perMillionTokens": 3
         }
       },
       "providerId": "groq"
@@ -17162,7 +16064,7 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash",
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "input": {
@@ -17428,6 +16330,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.05
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "thinkingmachines/Inkling-Small",
+      "modelId": "inkling-small",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "huggingface"
@@ -18738,6 +17655,7 @@
       "providerId": "modelscope"
     },
     {
+      "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
       "providerId": "moonshot",
       "reasoningContracts": {
@@ -21975,6 +20893,29 @@
       }
     },
     {
+      "apiModelId": "qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "opencode"
+    },
+    {
       "apiModelId": "aion-labs/aion-2.0",
       "modelId": "aion-2-0",
       "name": "Aion-2.0",
@@ -23143,6 +22084,20 @@
     {
       "apiModelId": "~deepseek/deepseek-v4-flash-latest",
       "modelId": "deepseek-v4-flash-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0027
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.083
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.167
+        }
+      },
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -24947,15 +23902,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1794
+          "perMillionTokens": 0.1768
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.966
+          "perMillionTokens": 0.952
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.036
+          "perMillionTokens": 2.992
         }
       },
       "providerId": "openrouter",
@@ -24978,15 +23933,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.208
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 0.76
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.52
+          "perMillionTokens": 2.42
         }
       },
       "providerId": "openrouter",
@@ -26677,13 +25632,17 @@
       "apiModelId": "openai/gpt-oss-20b",
       "modelId": "gpt-oss-20b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.03
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.13
         }
       },
       "providerId": "openrouter",
@@ -27245,15 +26204,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.116
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.58
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.44
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "openrouter",
@@ -27439,7 +26398,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.73
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
@@ -27912,11 +26871,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.32
         }
       },
       "providerId": "openrouter"
@@ -28307,7 +27266,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
@@ -28329,15 +27288,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.054
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 1.08
         }
       },
       "providerId": "openrouter",
@@ -28642,11 +27601,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09375
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.25
         }
       },
       "providerId": "openrouter"
@@ -28735,17 +27694,52 @@
       }
     },
     {
+      "apiModelId": "meta/muse-spark-1.2",
+      "modelId": "muse-spark-1-2",
+      "name": "Muse Spark 1.2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "gryphe/mythomax-l2-13b",
       "modelId": "mythomax-l2-13b",
       "name": "MythoMax 13B",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.08
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.11
         }
       },
       "providerId": "openrouter"
@@ -29376,6 +28370,178 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "qwen/qwen-image-3",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-3",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-3-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-3-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "qwen/qwen-plus-2025-07-28:thinking",
       "modelId": "qwen-plus",
       "pricing": {
@@ -29405,17 +28571,13 @@
       "apiModelId": "qwen/qwen2.5-vl-72b-instruct",
       "modelId": "qwen2-5-vl-72b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.8
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.75
         }
       },
       "providerId": "openrouter"
@@ -29707,17 +28869,13 @@
       "apiModelId": "qwen/qwen3.6-27b",
       "modelId": "qwen3-6-27b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.289
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -29945,6 +29103,44 @@
       }
     },
     {
+      "apiModelId": "qwen/qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen/qwen3-8b",
       "modelId": "qwen3-8b",
       "pricing": {
@@ -30133,13 +29329,9 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
@@ -30217,11 +29409,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       },
       "providerId": "openrouter"
@@ -37035,6 +36227,7 @@
       "providerId": "zhipu"
     },
     {
+      "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37084,6 +36277,7 @@
       }
     },
     {
+      "apiModelId": "glm-5.2-fast",
       "modelId": "glm-5-2-fast",
       "providerId": "zhipu",
       "reasoningContracts": {
@@ -37170,5 +36364,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "4908e2f1a5633f0d"
+  "version": "09ed01831a87fb9e"
 }

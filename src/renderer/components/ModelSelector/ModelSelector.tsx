@@ -174,7 +174,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
-  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
+  const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
@@ -287,6 +287,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
+  const [hasActivatedLazyData, setHasActivatedLazyData] = useState(openProp === true && mountStrategy === 'lazy-keep')
   // 用 startTransition 包裹：滚动时虚拟列表内部可能已进入 layout lifecycle（flushSync），
   // 此时 onMouseEnter 同步 setState 会与之冲突，转为 transition 避免竞争。
   const setFocusedItemKey = useCallback((key: string) => {
@@ -323,8 +324,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [])
 
   const open = openProp ?? internalOpen
+  const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const multiSelectModeRef = useRef(multiSelectMode)
+  const wasDataEnabledRef = useRef(false)
   multiSelectModeRef.current = multiSelectMode
 
   const setOpen = useCallback(
@@ -386,6 +389,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     toggleTag,
     visibleSelectedModelIdSet
   } = useModelSelectorData({
+    enabled: dataEnabled,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -627,7 +631,18 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open])
 
   useEffect(() => {
-    if (!open) {
+    if (open && mountStrategy === 'lazy-keep') {
+      setHasActivatedLazyData(true)
+    }
+  }, [mountStrategy, open])
+
+  useEffect(() => {
+    const wasDataEnabled = wasDataEnabledRef.current
+    wasDataEnabledRef.current = dataEnabled
+
+    // Enabling a deferred query already triggers SWR's initial fetch. Only
+    // refresh when lazy-kept data stayed active between two openings.
+    if (!open || !wasDataEnabled) {
       return
     }
 
@@ -637,7 +652,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (showPinnedModels) {
       void refetchPinnedModels()
     }
-  }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
+  }, [dataEnabled, open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
 
   useEffect(() => {
     if (!open) {

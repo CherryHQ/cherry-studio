@@ -1,3 +1,5 @@
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -35,6 +37,8 @@ const taskDataMock = vi.hoisted(() => {
     trigger: { kind: 'interval' as const, ms: 60_000 },
     timeoutMinutes: 10,
     workspace: { type: 'system' as const },
+    reuseSession: false,
+    reuseSessionId: null,
     channelIds: [] as string[],
     nextRun: null,
     lastRun: null,
@@ -781,6 +785,13 @@ describe('scheduled task frequency conversion', () => {
       timeoutMinutes
     })
     expect(formStateToTrigger(form)).toEqual(trigger)
+  })
+})
+
+describe('task session reuse copy', () => {
+  it('requires two saved updates to reset a reused session', () => {
+    expect(enUS.agent.tasks.reuseSession.warning).toContain('disable and save, then enable and save')
+    expect(zhCN.agent.tasks.reuseSession.warning).toContain('先关闭并保存，再开启并保存')
   })
 })
 

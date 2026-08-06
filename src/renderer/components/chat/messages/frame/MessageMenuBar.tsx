@@ -105,6 +105,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isSelectedForContext,
       isEditable,
       translateLanguages,
+      translationLanguagesStatus: messageUi.translationLanguagesStatus,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
       startEditingMessage: onStartEditing,
       onSelectContext,
@@ -127,6 +128,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       message,
       messageContainerRef,
       messageUi.getTranslationLanguageLabel,
+      messageUi.translationLanguagesStatus,
       messageForExport,
       messageParts,
       onStartEditing,
@@ -152,6 +154,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   return (
     <>
       <div
+        data-ui="part:message-actions"
         className={classNames(
           'menubar flex flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',

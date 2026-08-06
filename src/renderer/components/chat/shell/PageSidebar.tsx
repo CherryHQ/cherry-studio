@@ -55,6 +55,7 @@ export function PageSidebar({
           animate={{ width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+          data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(

@@ -8,7 +8,6 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  agentTools,
   createGroupMock,
   fetchGenerateMock,
   installedSkillsState,
@@ -23,33 +22,6 @@ const {
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
-  agentTools: [
-    { id: 'Bash', name: 'Bash', description: 'Run shell commands', origin: 'builtin', approval: 'prompt' },
-    { id: 'Edit', name: 'Edit', description: 'Edit files', origin: 'builtin', approval: 'prompt' },
-    { id: 'Glob', name: 'Glob', description: 'Find files', origin: 'builtin', approval: 'auto' },
-    { id: 'Grep', name: 'Grep', description: 'Search files', origin: 'builtin', approval: 'auto' },
-    { id: 'MultiEdit', name: 'MultiEdit', description: 'Edit multiple ranges', origin: 'builtin', approval: 'prompt' },
-    {
-      id: 'NotebookEdit',
-      name: 'NotebookEdit',
-      description: 'Edit notebooks',
-      origin: 'builtin',
-      approval: 'prompt'
-    },
-    {
-      id: 'NotebookRead',
-      name: 'NotebookRead',
-      description: 'Read notebooks',
-      origin: 'builtin',
-      approval: 'auto'
-    },
-    { id: 'Read', name: 'Read', description: 'Read files', origin: 'builtin', approval: 'auto' },
-    { id: 'Task', name: 'Task', description: 'Run sub-agents', origin: 'builtin', approval: 'auto' },
-    { id: 'TodoWrite', name: 'TodoWrite', description: 'Manage todos', origin: 'builtin', approval: 'auto' },
-    { id: 'WebFetch', name: 'WebFetch', description: 'Fetch websites', origin: 'builtin', approval: 'prompt' },
-    { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
-    { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
-  ],
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   installedSkillsState: {
@@ -247,14 +219,6 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
-  useAgentTools: () => ({
-    tools: agentTools,
-    isLoading: false,
-    error: undefined
-  })
-}))
-
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatusMap: () => mcpStatusState.current
 }))
@@ -264,6 +228,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: vi.fn(),
   useInstalledSkills: () => ({
     ...installedSkillsState.current,
     refresh: vi.fn()
@@ -795,7 +760,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
-    await expectVariablesHelpOnOpen()
+    expect(screen.queryByRole('button', { name: 'System variables' })).not.toBeInTheDocument()
     expect(screen.getByText('Instructions')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
