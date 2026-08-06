@@ -372,5 +372,23 @@ export type BackupEventSchemas = {
   'backup.progress': {
     operation: 'export' | 'prepare-restore' | 'arm-restore' | 'rollback-restore'
     stage: BackupProgressStage
+    /**
+     * Present only while a stage walks a known set of resource units.
+     *
+     * Reported as each unit is ENTERED, so `done` reads "unit N of total" and
+     * `kind`/`livePath` name the unit being worked on. Entry is the one point
+     * every unit passes through exactly once — a unit can leave the loop
+     * staged, skipped, degraded, or over a ceiling, and counting exits would
+     * silently under-report the day a new outcome is added.
+     *
+     * `livePath` is userData-relative and safe to display: an external user
+     * path is never a resource unit (§3.1).
+     */
+    resources?: {
+      done: number
+      total: number
+      kind: string
+      livePath: string
+    }
   }
 }
