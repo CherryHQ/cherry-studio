@@ -67,6 +67,14 @@ const startApp = async () => {
   // migration gate returns and before lifecycle bootstrap.
   electronApp.setAppUserModelId('com.kangfenmao.CherryStudio')
 
+  // WebUI desktop bridge — Windows / macOS / Linux.
+  {
+    const { WebUiService, isWebUiHostSupported } = await import('./webService')
+    if (isWebUiHostSupported()) {
+      serviceList.push(WebUiService)
+    }
+  }
+
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap()

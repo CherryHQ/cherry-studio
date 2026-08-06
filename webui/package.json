@@ -1,0 +1,31 @@
+{
+  "name": "@cherrystudio/webui",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "type": "module",
+  "description": "Cherry Studio desktop bridge WebUI static frontend.",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.2",
+    "docx-preview": "0.3.7",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "sass": "^1.95.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.3.0",
+    "vue-tsc": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
