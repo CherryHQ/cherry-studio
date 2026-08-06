@@ -877,25 +877,29 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
 }
 
 /**
- * Per-type same-name detection key, aligned with {@link getKnowledgeItemDisplayTitle}.
- * file/directory key off `relativePath` (the deduped name under `raw/`, e.g.
- * `test_2.md`) when present, else the source basename. An add-input has no
- * relativePath yet, so it keys off the source basename and detection still fires;
- * an existing item keys off its deduped relativePath, so `replace` targets only
- * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
- * {@link getKnowledgeNoteName} the display title uses, normalized through
- * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
- * already-indexed note is stored under. url stays separate from its display title: it keys off the
- * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
- * absent at add-time — keying off that would miss real duplicate urls.
+ * Per-type same-name detection key. Unlike {@link getKnowledgeItemDisplayTitle}
+ * (which prefers the deduped `raw/` name so kept copies stay distinguishable),
+ * detection keys off the *original path*, not the basename: two files that share a
+ * basename but live in different folders (`/a/report.docx` vs `/b/report.docx`)
+ * are distinct sources and must not be flagged as duplicates (product spec:
+ * "Same-path conflicts"). So file/directory key off the full `data.source` — the
+ * original path, carried identically on an existing item and on an add-input —
+ * making the two sides directly comparable: the same path still collides, a
+ * different path never does. note keys off the same {@link getKnowledgeNoteName} the display
+ * title uses, normalized through {@link deriveNoteSnapshotSlug} while it is still a raw title, so
+ * an add-input matches the slug an already-indexed note is stored under. url stays separate from
+ * its display title: it keys off the raw `data.url` (exact, no normalization) because its deduped
+ * name is a post-index snapshot name absent at add-time — keying off that would miss real
+ * duplicate urls.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
   switch (item.type) {
     case 'file':
     case 'directory':
-      return getKnowledgePathBasename(data.relativePath || data.source || '')
+      // Trailing separators only — do not reduce to a basename, or different-folder
+      // same-name sources would alias into a phantom conflict (the bug this fixes).
+      return (data.source || '').trim().replace(/[/\\]+$/, '')
     case 'note': {
       const name = getKnowledgeNoteName(data)
       // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
