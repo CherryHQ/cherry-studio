@@ -34,10 +34,14 @@ export const translateRequestSchemas = {
       }),
       modelId: UniqueModelIdSchema
     }),
+    /**
+     * `outputPath` is the translated PDF's managed location — the run records itself in
+     * translate history and hands the artifact to FileManager, so there is no temp file
+     * for the renderer to clean up (hence no `translate.pdf.cleanup` companion route).
+     */
     output: z.strictObject({ outputPath: AbsoluteFilePathSchema, fileName: z.string().min(1) })
   }),
-  'translate.pdf.cancel': defineRoute({ input: pdfJobInputSchema, output: z.void() }),
-  'translate.pdf.cleanup': defineRoute({ input: pdfJobInputSchema, output: z.void() })
+  'translate.pdf.cancel': defineRoute({ input: pdfJobInputSchema, output: z.void() })
 }
 
 export type PdfTranslationProgressStage =

@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as TranslationFilesModule from '../../translationFiles'
 import TranslateHistory from '../TranslateHistory'
 import { chinese, english } from './testUtils'
 
@@ -18,6 +19,20 @@ const translateHistoryMock = vi.hoisted(() => ({
 }))
 
 const writeTextMock = vi.hoisted(() => vi.fn())
+const fileMocks = vi.hoisted(() => ({
+  ipcRequest: vi.fn(),
+  loadTranslationFiles: vi.fn(),
+  saveTranslationFileAs: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: fileMocks.ipcRequest } }))
+vi.mock('../../translationFiles', async (importOriginal) => ({
+  // `isPdfTranslation` is a pure predicate on the row — keep the real one so the
+  // preview button's gating is exercised, not mocked away.
+  ...(await importOriginal<typeof TranslationFilesModule>()),
+  loadTranslationFiles: fileMocks.loadTranslationFiles,
+  saveTranslationFileAs: fileMocks.saveTranslationFileAs
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-us' } })
@@ -91,6 +106,7 @@ const languages = [english, chinese]
 const histories: TranslateHistoryItem[] = [
   {
     id: '1',
+    kind: 'text',
     sourceText: 'hello',
     targetText: '你好',
     sourceLanguage: english.langCode,
@@ -101,6 +117,7 @@ const histories: TranslateHistoryItem[] = [
   },
   {
     id: '2',
+    kind: 'text',
     sourceText: 'bye',
     targetText: '再见',
     sourceLanguage: english.langCode,
@@ -110,6 +127,22 @@ const histories: TranslateHistoryItem[] = [
     updatedAt: '2026-01-02T00:00:00.000Z'
   }
 ]
+
+const pdfHistory: TranslateHistoryItem = {
+  id: '3',
+  kind: 'file',
+  sourceText: 'paper.pdf',
+  targetText: 'paper.zh-CN.pdf',
+  sourceLanguage: english.langCode,
+  targetLanguage: chinese.langCode,
+  star: false,
+  createdAt: '2026-01-03T00:00:00.000Z',
+  updatedAt: '2026-01-03T00:00:00.000Z'
+}
+const TRANSLATION_FILES = {
+  source: { entryId: 'entry-source', path: '/tmp/paper.pdf' },
+  target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+}
 
 describe('TranslateHistory', () => {
   const clearMock = vi.fn()
@@ -142,6 +175,12 @@ describe('TranslateHistory', () => {
     onHistoryItemClick.mockReset()
     writeTextMock.mockReset()
     writeTextMock.mockResolvedValue(undefined)
+    fileMocks.ipcRequest.mockReset()
+    fileMocks.ipcRequest.mockResolvedValue(undefined)
+    fileMocks.saveTranslationFileAs.mockReset()
+    fileMocks.saveTranslationFileAs.mockResolvedValue(undefined)
+    fileMocks.loadTranslationFiles.mockReset()
+    fileMocks.loadTranslationFiles.mockResolvedValue(TRANSLATION_FILES)
 
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -181,6 +220,80 @@ describe('TranslateHistory', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.reuse' }))
     expect(onHistoryItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: '1', sourceText: 'hello' }))
+  })
+
+  describe('PDF entries', () => {
+    const openPdfDetail = async () => {
+      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [pdfHistory], total: 1 }))
+      renderHistory(onHistoryItemClick)
+      fireEvent.click(screen.getByText('paper.pdf'))
+      await waitFor(() => expect(fileMocks.loadTranslationFiles).toHaveBeenCalledWith('3'))
+    }
+
+    it('marks a PDF row in the list', () => {
+      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [pdfHistory], total: 1 }))
+      renderHistory()
+
+      expect(screen.getByLabelText('translate.history.file.badge')).toBeInTheDocument()
+      expect(screen.getByText('paper.zh-CN.pdf')).toBeInTheDocument()
+    })
+
+    it('shows both file names instead of the text panes', async () => {
+      await openPdfDetail()
+
+      expect(screen.getByText('translate.history.file.source')).toBeInTheDocument()
+      expect(screen.getByText('translate.history.file.target')).toBeInTheDocument()
+      // The text-row affordances make no sense for a pair of PDFs.
+      expect(screen.queryByRole('button', { name: 'translate.history.copy_target' })).not.toBeInTheDocument()
+    })
+
+    it('opens, reveals and exports the translated PDF', async () => {
+      await openPdfDetail()
+
+      fireEvent.click(screen.getByRole('button', { name: 'translate.history.file.open' }))
+      await waitFor(() =>
+        expect(fileMocks.ipcRequest).toHaveBeenCalledWith('file.open', { kind: 'entry', entryId: 'entry-target' })
+      )
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'translate.history.file.reveal' })[0])
+      await waitFor(() =>
+        expect(fileMocks.ipcRequest).toHaveBeenCalledWith('file.show_in_folder', {
+          kind: 'entry',
+          entryId: 'entry-source'
+        })
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'translate.history.file.export' }))
+      await waitFor(() =>
+        expect(fileMocks.saveTranslationFileAs).toHaveBeenCalledWith('/tmp/files/entry-target.pdf', 'paper.zh-CN.pdf')
+      )
+    })
+
+    it('hands the row back to the page so it can restore the side-by-side preview', async () => {
+      await openPdfDetail()
+
+      fireEvent.click(screen.getByRole('button', { name: 'translate.history.file.preview' }))
+
+      expect(onHistoryItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: '3', kind: 'file' }))
+    })
+
+    // `kind` says "this row is a pair of files", not "this row is a pair of PDFs".
+    // Everything but the side-by-side preview must keep working for other formats.
+    it('keeps the file actions but drops the preview for a non-PDF pair', async () => {
+      translateHistoryMock.useTranslateHistories.mockReturnValue(
+        historyState({
+          items: [{ ...pdfHistory, sourceText: 'report.docx', targetText: 'report.zh-CN.docx' }],
+          total: 1
+        })
+      )
+      renderHistory(onHistoryItemClick)
+      fireEvent.click(screen.getByText('report.docx'))
+      await waitFor(() => expect(fileMocks.loadTranslationFiles).toHaveBeenCalledWith('3'))
+
+      expect(screen.getByRole('button', { name: 'translate.history.file.open' })).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'translate.history.file.reveal' })).not.toHaveLength(0)
+      expect(screen.queryByRole('button', { name: 'translate.history.file.preview' })).not.toBeInTheDocument()
+    })
   })
 
   it('invokes update mutation when clicking row star action', async () => {

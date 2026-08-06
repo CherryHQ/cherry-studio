@@ -9,6 +9,8 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as TranslationFilesModule from '../translationFiles'
+
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
   readText: vi.fn(),
@@ -63,6 +65,7 @@ const translateInputPaneMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
+const loadTranslationFilesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -253,6 +256,8 @@ vi.mock('../components/TranslateHistory', () => ({
   }: {
     isOpen: boolean
     onHistoryItemClick: (history: {
+      id?: string
+      kind: 'text' | 'file'
       sourceText: string
       targetText: string
       sourceLanguage: string | null
@@ -266,6 +271,7 @@ vi.mock('../components/TranslateHistory', () => ({
           aria-label="reuse-null-target-history"
           onClick={() =>
             onHistoryItemClick({
+              kind: 'text',
               sourceText: 'hello',
               targetText: '你好',
               sourceLanguage: null,
@@ -273,8 +279,28 @@ vi.mock('../components/TranslateHistory', () => ({
             })
           }
         />
+        <button
+          type="button"
+          aria-label="reuse-pdf-history"
+          onClick={() =>
+            onHistoryItemClick({
+              id: 'history-pdf',
+              kind: 'file',
+              sourceText: 'paper.pdf',
+              targetText: 'paper.zh-CN.pdf',
+              sourceLanguage: null,
+              targetLanguage: null
+            })
+          }
+        />
       </div>
     ) : null
+}))
+
+vi.mock('../translationFiles', async (importOriginal) => ({
+  ...(await importOriginal<typeof TranslationFilesModule>()),
+  loadTranslationFiles: loadTranslationFilesMock,
+  saveTranslationFileAs: vi.fn()
 }))
 
 vi.mock('../components/TranslateInputPane', () => ({
@@ -361,6 +387,7 @@ vi.mock('../pdf/PdfTranslationView', () => {
     babelDocAvailability: 'checking' | 'available' | 'missing'
     babelDocInstalling: boolean
     textFallback?: { content: React.ReactNode; ocrRequired: boolean }
+    restoredOutput?: { outputPath: string; fileName: string } | null
     onClose: () => void
     onHandleChange: (handle: typeof pdfHandleMock | null) => void
     onStatusChange: (status: { phase: 'idle'; running: false }) => void
@@ -375,7 +402,11 @@ vi.mock('../pdf/PdfTranslationView', () => {
       return () => onHandleChange(null)
     }, [onHandleChange, onStatusChange])
     return (
-      <div data-testid="pdf-translation-view" data-file-path={props.file.path} data-state-file-path={stateFilePath}>
+      <div
+        data-testid="pdf-translation-view"
+        data-file-path={props.file.path}
+        data-state-file-path={stateFilePath}
+        data-restored-output={props.restoredOutput?.outputPath}>
         <span data-testid="babeldoc-availability">{props.babelDocAvailability}</span>
         {props.babelDocAvailability === 'missing' && !props.textFallback && (
           <button type="button" aria-label="translate.pdf.action.install_babeldoc" onClick={props.onInstallBabelDoc} />
@@ -1540,6 +1571,36 @@ describe('TranslatePage', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
     })
+  })
+
+  it('restores the side-by-side preview when reusing a PDF history entry', async () => {
+    loadTranslationFilesMock.mockResolvedValueOnce({
+      source: { entryId: 'entry-source', path: '/tmp/paper.pdf' },
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+    })
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    const view = await screen.findByTestId('pdf-translation-view')
+    expect(view).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
+    expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-target.pdf')
+    // A PDF row's texts are file names — they must not land in the text panes.
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).not.toBe('paper.pdf')
+  })
+
+  it('reports a PDF history entry whose files are gone instead of opening an empty preview', async () => {
+    loadTranslationFilesMock.mockResolvedValueOnce({ source: null, target: null })
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
+    expect(screen.queryByTestId('pdf-translation-view')).toBeNull()
   })
 
   it('keeps history and settings drawers mutually exclusive and exposes open state through aria-pressed', () => {

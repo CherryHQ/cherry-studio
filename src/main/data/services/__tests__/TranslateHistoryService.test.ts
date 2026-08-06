@@ -1,3 +1,5 @@
+import { fileEntryTable } from '@data/db/schemas/file'
+import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
@@ -19,6 +21,48 @@ describe('TranslateHistoryService', () => {
     }
     await dbh.db.insert(translateHistoryTable).values(values)
     return values
+  }
+
+  const TRANSLATED_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
+  const SOURCE_ENTRY_ID = '019606a0-0000-7000-8000-000000000002'
+
+  async function seedFileEntries() {
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values([
+      {
+        id: TRANSLATED_ENTRY_ID,
+        origin: 'internal',
+        name: 'paper.zh-CN',
+        ext: 'pdf',
+        size: 2048,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: SOURCE_ENTRY_ID,
+        origin: 'external',
+        name: 'paper',
+        ext: 'pdf',
+        externalPath: '/tmp/paper.pdf',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      }
+    ])
+  }
+
+  function createFileHistory() {
+    return translateHistoryService.createFileTx(dbh.db, {
+      sourceText: 'paper.pdf',
+      targetText: 'paper.zh-CN.pdf',
+      sourceLanguage: null,
+      targetLanguage: null,
+      files: [
+        { fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' },
+        { fileEntryId: SOURCE_ENTRY_ID, role: 'source' }
+      ]
+    })
   }
 
   describe('list', () => {
@@ -115,6 +159,44 @@ describe('TranslateHistoryService', () => {
 
       const rows = await dbh.db.select().from(translateHistoryTable)
       expect(rows).toHaveLength(1)
+      expect(rows[0].kind).toBe('text')
+    })
+  })
+
+  describe('createFileTx', () => {
+    it('should write the history row and both file refs', async () => {
+      await seedFileEntries()
+
+      const created = createFileHistory()
+
+      expect(created.kind).toBe('file')
+      const refs = await dbh.db.select().from(translateHistoryFileRefTable)
+      expect(refs.map((ref) => [ref.role, ref.fileEntryId, ref.sourceId])).toEqual([
+        ['target', TRANSLATED_ENTRY_ID, created.id],
+        ['source', SOURCE_ENTRY_ID, created.id]
+      ])
+    })
+
+    it('should cascade its refs away when the history row is deleted', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      translateHistoryService.delete(created.id)
+
+      // The cascade is what releases the translated PDF to the cleanup anti-join.
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toHaveLength(0)
+      // Deleting refs must not touch the entries themselves — reclaiming them is the
+      // cleanup pass's call, and the source entry only ever referenced the user's file.
+      expect(await dbh.db.select().from(fileEntryTable)).toHaveLength(2)
+    })
+
+    it('should cascade its refs away when history is cleared', async () => {
+      await seedFileEntries()
+      createFileHistory()
+
+      translateHistoryService.clearAll()
+
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toHaveLength(0)
     })
   })
 

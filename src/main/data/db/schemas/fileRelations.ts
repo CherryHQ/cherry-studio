@@ -9,7 +9,9 @@ import {
   miniAppLogoRef,
   paintingRoles,
   paintingSourceType,
-  providerLogoRef
+  providerLogoRef,
+  translateHistoryRoles,
+  translateHistorySourceType
 } from '@shared/data/types/file'
 import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
@@ -21,6 +23,7 @@ import { jobTable } from './job'
 import { messageTable } from './message'
 import { miniAppTable } from './miniApp'
 import { paintingTable } from './painting'
+import { translateHistoryTable } from './translateHistory'
 import { userProviderTable } from './userProvider'
 
 function sqlStringList(values: readonly string[]) {
@@ -142,6 +145,44 @@ export const jobFileRefTable = sqliteTable(
 )
 
 /**
+ * Translate history file references.
+ *
+ * Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. Each
+ * file translation writes two rows: `role='source'` for the user's original (an
+ * external entry — the path is referenced, never copied or deleted) and
+ * `role='target'` for the generated file (an internal
+ * `delete_when_unreferenced` entry). Deleting the history row — individually or
+ * via "clear all" — cascades both refs, which is what makes the generated file
+ * reclaimable by the cleanup pass.
+ *
+ * The unique index stays on the `(fileEntryId, sourceId, role)` triple like the
+ * other collection ref tables rather than tightening to `(sourceId, role)`:
+ * BabelDOC — today's only producer — can emit a dual-layout PDF alongside the
+ * mono one (this feature just passes `--no-dual`), and a per-role slot
+ * constraint would make adding that a table rebuild.
+ */
+export const translateHistoryFileRefTable = sqliteTable(
+  'translate_history_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => translateHistoryTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof translateHistoryRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('thfr_entry_id_idx').on(t.fileEntryId),
+    index('thfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('thfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    check('thfr_role_check', roleCheck(t.role, translateHistoryRoles))
+  ]
+)
+
+/**
  * Single-file entity-image refs (provider logo, mini-app logo).
  *
  * These model a single-file slot and are the **single source of truth** for an
@@ -216,6 +257,7 @@ export const persistentFileRefTablesBySourceType = {
   [agentSessionMessageSourceType]: agentSessionMessageFileRefTable,
   [paintingSourceType]: paintingFileRefTable,
   [jobSourceType]: jobFileRefTable,
+  [translateHistorySourceType]: translateHistoryFileRefTable,
   ...singleFileRefTablesBySourceType
 } as const satisfies Record<
   PersistentFileRefSourceType,
@@ -223,6 +265,7 @@ export const persistentFileRefTablesBySourceType = {
   | typeof agentSessionMessageFileRefTable
   | typeof paintingFileRefTable
   | typeof jobFileRefTable
+  | typeof translateHistoryFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
 >
@@ -246,6 +289,8 @@ export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
 export type JobFileRefRow = typeof jobFileRefTable.$inferSelect
 export type InsertJobFileRefRow = typeof jobFileRefTable.$inferInsert
+export type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
+export type InsertTranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferInsert
 export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
