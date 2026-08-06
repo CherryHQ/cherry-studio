@@ -8,7 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const translateMock = vi.hoisted(() => (key: string) => key)
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
+  useIpcOn: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -429,7 +434,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.developer_mode.enabled') return [true, vi.fn()]
-    return [key === 'chat.narrow_mode' || key === 'feature.conversation_greeting.enabled' ? false : 'none', vi.fn()]
+    return [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
   }
 }))
 
@@ -536,7 +541,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: translateMock })
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
@@ -627,17 +632,31 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat artifact pane', () => {
-  const activeSessionProps = () => ({
-    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
-    activeSessionLoading: activeSessionMocks.result.isLoading,
-    activeSessionSource:
-      activeSessionMocks.result.sessionSource ?? (activeSessionMocks.result.session ? 'query' : 'none')
+  const createConversationBootstrap = (
+    session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
+      .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
+    sessionLoading = activeSessionMocks.result.isLoading,
+    sessionSource: ComponentProps<typeof AgentChat>['conversationBootstrap']['sessionSource'] = activeSessionMocks
+      .result.sessionSource ?? (session ? 'query' : 'none')
+  ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
+    session,
+    sessionLoading,
+    sessionSource,
+    resources: {
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agentLoading: false,
+      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      modelLoading: false
+    }
   })
-  const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
+  const activeSessionProps = (): Pick<ComponentProps<typeof AgentChat>, 'conversationBootstrap'> => ({
+    conversationBootstrap: createConversationBootstrap()
+  })
+  const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
     render(<AgentChat {...activeSessionProps()} {...props} />)
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
-    props: ComponentProps<typeof AgentChat> = {}
+    props: Partial<ComponentProps<typeof AgentChat>> = {}
   ) => rerender(<AgentChat {...activeSessionProps()} {...props} />)
   const openFilesPane = () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
@@ -649,6 +668,19 @@ describe('AgentChat artifact pane', () => {
   }
 
   beforeEach(() => {
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'file.get_metadata'
+        ? Promise.resolve({
+            kind: 'file',
+            type: 'text',
+            size: 1024,
+            createdAt: 1,
+            modifiedAt: 1,
+            mime: 'text/plain'
+          })
+        : Promise.resolve(undefined)
+    )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
       isLoading: false,
@@ -679,10 +711,7 @@ describe('AgentChat artifact pane', () => {
           }
         },
         file: {
-          openPath: vi.fn(),
-          isDirectory: vi.fn().mockResolvedValue(false),
-          isTextFile: vi.fn().mockResolvedValue(true),
-          getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
+          openPath: vi.fn()
         }
       }
     })
@@ -896,7 +925,7 @@ describe('AgentChat artifact pane', () => {
       setActiveSessionId: vi.fn()
     }
 
-    renderAgentChat({ activeSession: null })
+    renderAgentChat()
 
     expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
@@ -942,7 +971,7 @@ describe('AgentChat artifact pane', () => {
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null, false, 'none'),
       missingAgentSelection: true
     })
 
@@ -969,7 +998,7 @@ describe('AgentChat artifact pane', () => {
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null, false, 'none'),
       missingAgentSelection: true
     })
 
@@ -995,8 +1024,6 @@ describe('AgentChat artifact pane', () => {
     }
 
     const { rerender } = renderAgentChat({
-      activeSession: undefined,
-      activeSessionLoading: true,
       sessionPaneOpen: true
     })
 
@@ -1083,8 +1110,6 @@ describe('AgentChat artifact pane', () => {
   })
 
   it('opens Excel file paths in the files tab overlay without text sniffing', async () => {
-    const isTextFile = vi.mocked(window.api.file.isTextFile)
-
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
@@ -1098,7 +1123,6 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'report.xlsx')
-    expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
   it('opens absolute file paths outside the workspace in the files tab overlay', async () => {

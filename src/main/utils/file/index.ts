@@ -10,9 +10,8 @@
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).
  * - `./metadata` — content-derived classification (`getFileType(path)`,
- *   `isTextFile`, `mimeToExt`).
- * - `./path` — path predicates (`isPathInside`, `isUnderInternalStorage`,
- *   `canWrite`, …).
+ *   `isTextByContent`, `mimeToExt`).
+ * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
@@ -48,17 +47,21 @@
  * here.
  */
 
+export { createContentHasher, hashContent, parseContentHash } from './contentHash'
 export {
+  assertPathVersionUnchanged,
   atomicWriteFile,
   atomicWriteIfUnchanged,
   type AtomicWriteStream,
   compressImage,
   copy,
   createAtomicWriteStream,
+  createPreparedAtomicWriteStream,
   download,
   ensureDir,
   exists,
   hash,
+  hashWithSize,
   isSameFile,
   lstat,
   mkdir,
@@ -66,6 +69,11 @@ export {
   type PathReadability,
   PathStaleVersionError,
   type PathVersion,
+  prepareAtomicCopy,
+  prepareAtomicDownload,
+  prepareAtomicWrite,
+  type PreparedAtomicWrite,
+  type PreparedAtomicWriteState,
   probeReadable,
   read,
   readChunk,
@@ -76,7 +84,7 @@ export {
   stat,
   write
 } from './fs'
-export { decodeTextBufferIfText, getFileType, isTextFile, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
+export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
+export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

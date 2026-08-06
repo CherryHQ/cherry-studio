@@ -139,11 +139,16 @@
         "description": "[to be translated]:Receive and respond to messages via WeChat using the iLink Bot API.",
         "disconnected": "[to be translated]:Not logged in",
         "loginHint": "[to be translated]:First login requires scanning a QR code. A QR code will appear automatically when the channel connects.",
+        "qrExpired": "[to be translated]:QR code expired. Please retry by toggling the channel.",
         "qrHint": "[to be translated]:Open WeChat on your phone, scan the QR code to log in.",
         "qrTitle": "[to be translated]:WeChat QR Login",
         "title": "[to be translated]:WeChat",
         "whoamiTip": "[to be translated]:Tip: Send /whoami in WeChat to get a user's ID."
       }
+    },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
     },
     "delete": {
       "content": "حذف الوكيل سيوقف جميع الجلسات المرتبطة. متأكد؟",
@@ -230,6 +235,7 @@
           "discard_and_continue": "[to be translated]:Discard and continue",
           "title": "[to be translated]:Discard unsaved changes?"
         },
+        "metadata_pending": "[to be translated]:The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "[to be translated]:Unable to reload the latest file content.",
         "save_failed": "[to be translated]:Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "[to be translated]:Unsaved",
@@ -272,6 +278,16 @@
       "too_large": {
         "description": "الملف يتجاوز حد المعاينة {{limit}}.",
         "title": "الملف كبير جدًا للمعاينة"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "[to be translated]:The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "[to be translated]:Invalid workspace path"
+        },
+        "load_error": {
+          "description": "[to be translated]:Make sure the work directory still exists and is accessible, then try again.",
+          "title": "[to be translated]:Couldn't load workspace files"
+        }
       },
       "unavailable": {
         "description": "لا يمكن فتح هذا الملف — قد يكون تم نقله أو حذفه.",
@@ -320,16 +336,25 @@
         "more": "+{{count}} أكثر",
         "no_artifacts": "لا مخرجات معلنة",
         "no_subagents": "لا وكلاء فرعيون",
-        "subagents": "الوكلاء الفرعيون"
+        "shell_tasks": "[to be translated]:Background commands",
+        "subagents": "الوكلاء الفرعيون",
+        "workflows": "[to be translated]:Workflows"
       },
       "status": {
         "activity": "نشاط",
         "agent": "وكيل",
         "context": "السياق",
         "no_tasks": "لا مهام نشطة",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "الأداة المختارة",
+        "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} مكتمل",
         "tasks": "مهام",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_other": "[to be translated]:{{count}} tool calls",
         "tools_active": "نشط",
         "tools_done": "مكتمل",
         "tools_failed": "فشل",
@@ -617,6 +642,11 @@
             "description": "يقرأ ويحرر الملفات بحرية. يطلب الإذن قبل تشغيل الأوامر.",
             "title": "وضع التحرير التلقائي"
           },
+          "auto": {
+            "description": "[to be translated]:Runs without routine prompts. A safety check blocks risky actions.",
+            "title": "[to be translated]:Approve for Me",
+            "warning": "[to be translated]:Needs a model that supports it; others may ignore it or keep asking."
+          },
           "bypassPermissions": {
             "description": "ينفذ كل شيء دون طلب إذن. استخدمه بحذر.",
             "title": "الوضع التلقائي الكامل",
@@ -670,6 +700,14 @@
       }
     },
     "sidebar_title": "وكلاء",
+    "speed": {
+      "effort": "[to be translated]:Effort",
+      "fast": "[to be translated]:Fast",
+      "faster": "[to be translated]:Faster",
+      "label": "[to be translated]:Speed",
+      "smarter": "[to be translated]:Smarter",
+      "title": "[to be translated]:Response settings"
+    },
     "tasks": {
       "add": "[to be translated]:Add Task",
       "cancel": "[to be translated]:Cancel",
@@ -730,6 +768,13 @@
         "placeholder": "[to be translated]:What should the agent do when this task runs?"
       },
       "resume": "[to be translated]:Resume",
+      "reuseSession": {
+        "bound": "[to be translated]:View session",
+        "description": "[to be translated]:Continue every run in the same session instead of starting a new one.",
+        "label": "[to be translated]:Reuse session",
+        "pending": "[to be translated]:Waiting for the first run",
+        "warning": "[to be translated]:A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. To rebind a clean session, disable and save, then enable and save."
+      },
       "run": "[to be translated]:Run",
       "runTriggered": "[to be translated]:Task triggered",
       "save": "[to be translated]:Save",
@@ -1241,10 +1286,6 @@
           "tip": "سيستخدم المساعد قدرة التعرف على النية في النموذج الكبير لتحديد ما إذا كان سيستخدم قاعدة المعرفة للإجابة. تعتمد هذه الميزة على قدرات النموذج."
         }
       },
-      "max_tool_calls": {
-        "label": "أقصى عدد لطلبات الأدوات",
-        "tip": "أقصى عدد لطلبات الأدوات المسموح بها في محادثة واحدة. تسمح القيم الأعلى بعمليات معقدة متعددة الخطوات ولكنها قد تزيد من استهلاك الرموز ووقت الاستجابة."
-      },
       "mcp": {
         "description": "خوادم MCP المفعلة افتراضيًا",
         "enableFirst": "فعل هذا الخادم في إعدادات MCP أولاً",
@@ -1326,6 +1367,9 @@
       "label": "هل أنت متأكد من إجراء نسخ احتياطي للبيانات؟"
     },
     "content": "نسخ احتياطي لكافة البيانات، بما في ذلك سجل الدردشة والإعدادات وقاعدة المعرفة. العلم أن العملية قد تستغرق وقتًا، شكرًا لصبرك.",
+    "error": {
+      "active_data_writers": "[to be translated]:A conversation or agent is still running. Wait for it to finish, then try again."
+    },
     "progress": {
       "completed": "اكتمل النسخ الاحتياطي",
       "compressing": "جاري ضغط الملفات...",
@@ -1392,6 +1436,11 @@
         "placeholder": "بحث"
       }
     },
+    "compaction": {
+      "compacted": "[to be translated]:Context compacted, ~{{count}} tokens saved",
+      "compacted_plain": "[to be translated]:Context compacted",
+      "compacting": "[to be translated]:Compacting context…"
+    },
     "conversation": {
       "new": "دردشة جديدة"
     },
@@ -1452,12 +1501,18 @@
       "knowledge_base_disabled_by_files": "إزالة الملفات المرفقة لاستخدام قاعدة المعرفة",
       "knowledge_base_unavailable": "اختر نموذجًا يدعم الأدوات أو فعّل استخدام أدوات المطالبة",
       "locate_editing_message": "تحديد الرسالة الأصلية",
-      "mcp_unavailable": "اختر نموذجًا يدعم الأدوات أو فعّل استخدام أدوات التوجيه",
       "new": {
         "context": "مسح السياق {{Command}}"
       },
       "new_session": "جلسة جديدة {{Command}}",
       "new_topic": "موضوع جديد {{Command}}",
+      "note_reference": {
+        "description": "[to be translated]:Attach a note from Notes",
+        "empty": "[to be translated]:No notes found",
+        "load_failed": "[to be translated]:Failed to load notes",
+        "loading": "[to be translated]:Loading notes...",
+        "title": "[to be translated]:Reference Note"
+      },
       "paste_text_file": "لصق في الإدخال",
       "pasted_text_file_name": "نص ملصق.txt",
       "pause": "إيقاف مؤقت",
@@ -1558,6 +1613,7 @@
         },
         "open_file": "فتح الملف",
         "open_file_error": "فشل فتح الملف: {{path}}",
+        "open_with": "[to be translated]:Open with",
         "reveal_in_finder": "إظهار في Finder"
       },
       "topics": "مواضيع",
@@ -1571,7 +1627,6 @@
         "image_or_document": "رفع صورة أو ملف مستند",
         "upload_from_local": "رفع ملف محلي..."
       },
-      "url_context": "سياق الرابط",
       "web_search": {
         "builtin": {
           "disabled_content": "النموذج الحالي لا يدعم البحث في الويب",
@@ -1588,18 +1643,16 @@
           "description": "لا تفعل البحث في الويب",
           "label": "تعطيل البحث في الويب"
         },
+        "route": {
+          "builtin": "[to be translated]:Searches with the model's built-in tool",
+          "client": "[to be translated]:Searches with {{provider}}"
+        },
         "settings": "إعدادات البحث في الويب"
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "تعذر التحويل إلى تنسيق صالح لاستدعاء الأداة: {{toolCall}}"
-      },
       "warning": {
-        "gemini_web_search": "لا يدعم Gemini استخدام أدوات البحث في الويب الأصلية واستدعاء الدوال في آن واحد",
-        "multiple_tools": "توجد عدة أدوات MCP متطابقة، تم اختيار {{tool}}",
-        "no_tool": "لم يتم العثور على أداة MCP متطابقة لـ {{tool}}",
-        "url_context": "لا يدعم Gemini استخدام سياق الروابط واستدعاء الدوال في آن واحد"
+        "gemini_web_search": "لا يدعم Gemini استخدام أدوات البحث في الويب الأصلية واستدعاء الدوال في آن واحد"
       }
     },
     "message": {
@@ -1676,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "[to be translated]:Jump to turn {{number}}"
+      },
       "bottom": "الرجوع للأسفل",
       "close": "إغلاق",
       "first": "أنت بالفعل عند الرسالة الأولى",
@@ -2301,6 +2357,12 @@
     "generate_random_seed": "ولد بذرة عشوائية",
     "get_embedding_dimension": "احصل على أبعاد التضمين",
     "go_to_settings": "اذهب إلى الإعدادات",
+    "group": {
+      "create": "[to be translated]:New Group",
+      "create_failed": "[to be translated]:Failed to create group",
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required"
+    },
     "help": "[to be translated]:Help",
     "html_preview": "معاينة HTML",
     "i_know": "حسناً",
@@ -2457,6 +2519,7 @@
       "content": "حظر نظام الأمان المحتوى، التعديل وإعادة المحاولة",
       "context_length": "المحادثة طويلة جداً، مسح السجل أو بدء دردشة جديدة",
       "deprecated": "تم إيقاف هذا النموذج، التبديل إلى نموذج آخر",
+      "free_model_unavailable": "[to be translated]:AI diagnosis is temporarily unavailable",
       "go_to_settings": "اذهب إلى الإعدادات",
       "knowledge": "فشلت عملية توجيه قاعدة المعرفة",
       "mcp": "فشل الاتصال بخادم MCP، تحقق من تشغيل الخدمة",
@@ -2561,6 +2624,10 @@
     "user": "المستخدم"
   },
   "file_preview": {
+    "directory": {
+      "description": "[to be translated]:Select a file in this folder to preview it.",
+      "title": "[to be translated]:This is a folder"
+    },
     "html": {
       "empty": {
         "description": "[to be translated]:This HTML file has no content.",
@@ -2626,6 +2693,10 @@
         "description": "[to be translated]:Text files larger than {{limit}} MiB cannot be previewed.",
         "title": "[to be translated]:File is too large"
       }
+    },
+    "unavailable": {
+      "description": "[to be translated]:The file may have been moved, deleted, or cannot be accessed.",
+      "title": "[to be translated]:File unavailable"
     },
     "unsupported": {
       "action": "[to be translated]:Open with default app",
@@ -2887,6 +2958,10 @@
     "code": "كود",
     "empty_preview": "لا يوجد محتوى للعرض",
     "generating": "جاري التوليد",
+    "interactive_preview": {
+      "action": "[to be translated]:View webpage",
+      "description": "[to be translated]:This webpage contains scripts or external resources. Opening it may run code and connect to the internet."
+    },
     "preview": "عاين",
     "split": "قسّم",
     "view_mode": "وضع العرض"
@@ -3029,6 +3104,7 @@
       "reindex_failed": "فشل إعادة فهرسة مصدر البيانات",
       "status": {
         "chunking": "جاري التقسيم",
+        "copying": "[to be translated]:Copying {{percent}}%",
         "embedding": "جاري التضمين",
         "error": "خطأ",
         "pending": "في الانتظار",
@@ -3126,6 +3202,7 @@
         "threshold": "عتبة التشابه لتصفية الأجزاء منخفضة الصلة. القيم الأعلى تجعل الاسترجاع أكثر صرامة."
       },
       "processor": "مزود المعالجة",
+      "processor_not_configured": "[to be translated]:Not configured",
       "rerank_disabled": "معطل",
       "rerank_model": "نموذج إعادة الترتيب",
       "reset_action": "استعادة الافتراضيات",
@@ -3376,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "[to be translated]:Auto-compress",
+        "context_compress_model": "[to be translated]:Compression model",
+        "context_compress_model_follow": "[to be translated]:Default",
         "context_count": "عدد السياقات",
+        "context_management": "[to be translated]:Context management",
+        "context_truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
         "creative": "إبداعي",
         "custom_params": "معلمات مخصصة",
         "custom_params_add": "إضافة معلمة",
@@ -3388,8 +3470,17 @@
           "avatar": {
             "hint": "يُستخدم للتعرف على المساعد في المكتبة والمحادثات"
           },
+          "context_compress_enabled": {
+            "hint": "[to be translated]:Summarize older turns automatically when nearing the context window"
+          },
           "context_count": {
             "hint": "عدد الرسائل الحديثة المحفوظة كسياق"
+          },
+          "context_management": {
+            "hint": "[to be translated]:Override global context-management settings for this assistant; off inherits the global settings"
+          },
+          "context_truncate_threshold": {
+            "hint": "[to be translated]:Tool outputs beyond this many characters are offloaded and truncated"
           },
           "custom_params": {
             "hint": "معلمات مزود إضافية تُرسل مع الطلبات"
@@ -3430,6 +3521,7 @@
         "json_invalid": "تنسيق JSON غير صالح",
         "max_tokens": "أقصى عدد للرموز",
         "max_tool_calls": "أقصى عدد لاستدعاءات الأدوات",
+        "max_tool_calls_default": "[to be translated]:Default ({{count}} rounds)",
         "mcp_mode": "وضع MCP",
         "model": "النموذج الافتراضي",
         "model_clear": "مسح",
@@ -3445,8 +3537,7 @@
         "tags": "أوسمة",
         "temperature": "درجة الحرارة",
         "title": "إعدادات أساسية",
-        "top_p": "Top-P",
-        "unlimited": "غير محدود"
+        "top_p": "Top-P"
       },
       "breadcrumb": "المكتبة",
       "dialogs": {
@@ -3804,6 +3895,7 @@
       "pasted_text": "نص ملصق"
     },
     "backup": {
+      "cleanup_failed": "[to be translated]:Backup completed, but old backups could not be cleaned up.",
       "failed": "فشل النسخ الاحتياطي",
       "start": {
         "success": "بدأ النسخ الاحتياطي"
@@ -3819,7 +3911,9 @@
       }
     },
     "citation": "{{count}} استشهادات",
+    "citation_source": "[to be translated]:Citation source {{number}}",
     "citations": "مراجع",
+    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
     "copied": "تم النسخ!",
     "copy": {
       "failed": "فشل النسخ",
@@ -4101,6 +4195,7 @@
         "write": "حفظ",
         "writing": "جاري الحفظ"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "تطلب الأداة \"{{tool}}\" موافقة",
       "autoApproveEnabled": "تم تفعيل الموافقة التلقائية لهذه الأداة",
       "cancelled": "ملغى",
@@ -4132,6 +4227,7 @@
         "tool": "أداة",
         "webFetch": "جلب الويب",
         "webSearch": "بحث الويب",
+        "workflow": "[to be translated]:Workflow",
         "write": "اكتب"
       },
       "noData": "لا توجد بيانات متاحة لهذه الأداة",
@@ -4189,6 +4285,15 @@
         "plan_other": "{{count}} خطط",
         "result_one": "{{count}} نتيجة",
         "result_other": "{{count}} نتائج"
+      },
+      "workflow": {
+        "orchestrating": "[to be translated]:Orchestrating workflow",
+        "run_id": "[to be translated]:Run ID",
+        "script": "[to be translated]:Workflow script",
+        "script_path": "[to be translated]:Script path",
+        "started": "[to be translated]:Started workflow",
+        "summary": "[to be translated]:Summary",
+        "workflow": "[to be translated]:workflow"
       }
     },
     "topic": {
@@ -4220,6 +4325,7 @@
       "cutoff": "جارٍ تقليص محتوى البحث...",
       "fetch_complete": "{{count}} نتيجة (نتائج) بحث",
       "fetch_empty": "لم يتم العثور على نتائج بحث",
+      "fetch_opaque": "[to be translated]:Searched by the model",
       "partial_failure": "{{count}} نتيجة بحث، فشل بعضها"
     }
   },
@@ -4453,7 +4559,8 @@
     "save_blocked_load_failed": "تم منع الحفظ لأن الملاحظة فشلت في التحميل",
     "save_failed": "فشل حفظ الملاحظة",
     "save_failure": {
-      "description": "[to be translated]:This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+      "description": "[to be translated]:This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
+      "metadata_pending": "[to be translated]:The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "الاسم+المحتوى",
@@ -5091,6 +5198,7 @@
     "reset": "إعادة ضبط",
     "rotate_left": "تدوير لليسار",
     "rotate_right": "تدوير لليمين",
+    "save_as": "[to be translated]:Save As",
     "source": "عرض كود المصدر",
     "zoom_in": "تكبير",
     "zoom_out": "تصغير"
@@ -5175,6 +5283,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "[to be translated]:AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5674,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "مساعد جديد",
+      "create_tag": "[to be translated]:New",
       "empty_text": "لا يوجد مساعدين بعد",
       "filter": "تصفية المساعدين",
       "group_filter": "[to be translated]:Filter by group",
@@ -5728,7 +5838,25 @@
         "title": "مؤسسة"
       },
       "feedback": {
+        "agent": {
+          "description": "[to be translated]:Chat with Cherry Assistant to share feedback.",
+          "title": "[to be translated]:Use Agent"
+        },
+        "agent_error": "[to be translated]:Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "ملاحظات",
+        "dialog": {
+          "description": "[to be translated]:Choose how to share feedback and help us make Cherry Studio better.",
+          "title": "[to be translated]:Choose a feedback channel"
+        },
+        "github": {
+          "description": "[to be translated]:Create a bug report or feature request on GitHub.",
+          "title": "[to be translated]:GitHub Issue"
+        },
+        "recommended": "[to be translated]:Recommended",
+        "survey": {
+          "description": "[to be translated]:Share feedback through our Feishu survey.",
+          "title": "[to be translated]:Feedback survey"
+        },
         "title": "ملاحظات"
       },
       "label": "حول والملاحظات",
@@ -5736,6 +5864,7 @@
         "button": "الإصدارات",
         "title": "ملاحظات الإصدار"
       },
+      "repository": "[to be translated]:GitHub Repository",
       "social": {
         "title": "حسابات التواصل"
       },
@@ -5842,12 +5971,16 @@
         "third_party": "اتصالات خارجية"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "تصدير كـ Word",
         "image": "تصدير كصورة",
         "joplin": "تصدير إلى Joplin",
         "markdown": "تصدير كـ Markdown",
         "markdown_reason": "تصدير كـ Markdown (مع التفكير)",
-        "notes": "تصدير إلى الملاحظات",
         "notion": "تصدير إلى Notion",
         "obsidian": "تصدير إلى Obsidian",
         "plain_text": "نسخ كـ نص مجرد",
@@ -6060,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "المسار الحالي",
+          "fetchError": "[to be translated]:Failed to load the Nutstore folder list",
           "return": "عودة",
           "title": "مسار تخزين Nutstore"
         },
@@ -6595,7 +6729,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "يتطلب تعطيل تسريع الأجهزة إعادة تشغيل التطبيق ليتم التفعيل. هل ترغب في إعادة التشغيل الآن؟",
+        "content_disable": "[to be translated]:Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "content_enable": "[to be translated]:Enabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
         "title": "مطلوب إعادة التشغيل"
       },
       "title": "تعطيل تسريع الأجهزة"
@@ -6723,6 +6858,7 @@
         "allStatuses": "[to be translated]:All statuses",
         "allTypes": "[to be translated]:All types",
         "builtinOnly": "[to be translated]:Built-in only",
+        "label": "[to be translated]:Filter",
         "status": "[to be translated]:Filter by status",
         "type": "[to be translated]:Filter by type"
       },
@@ -6790,6 +6926,9 @@
         "noPromptsAvailable": "لا توجد توجيهات متاحة",
         "requiredField": "حقل مطلوب"
       },
+      "protocolInstall": {
+        "title": "[to be translated]:Install MCP"
+      },
       "protocolInstallWarning": {
         "command": "أمر التشغيل",
         "message": "تم تثبيت خادم MCP هذا من مصدر خارجي عبر بروتوكول. تشغيل أدوات غير معروفة قد يضر بجهاز الكمبيوتر الخاص بك.",
@@ -6803,6 +6942,15 @@
       "providers": "المزودون",
       "registry": "سجل الحزم",
       "registryDefault": "افتراضي",
+      "registryOptions": {
+        "custom": "[to be translated]:Custom",
+        "npmTaobao": "[to be translated]:Taobao NPM Mirror",
+        "pipAliyun": "[to be translated]:Aliyun",
+        "pipHuawei": "[to be translated]:Huawei Cloud",
+        "pipTencent": "[to be translated]:Tencent Cloud",
+        "pipTsinghua": "[to be translated]:Tsinghua",
+        "pipUstc": "[to be translated]:USTC"
+      },
       "registryTooltip": "اختر سجلاً لتثبيت الحزمة لحل مشكلات الشبكة مع السجل الافتراضي.",
       "requiresConfig": "يتطلب تكويناً",
       "resources": {
@@ -6978,6 +7126,7 @@
         "display": "إدارة العرض",
         "preferences": "التفضيلات"
       },
+      "hide_app": "[to be translated]:Hide {{name}}",
       "open_link_external": {
         "description": "يفتح الروابط ذات النافذة الجديدة في متصفحك الافتراضي",
         "title": "فتح روابط النافذة الجديدة في المتصفح"
@@ -6990,6 +7139,7 @@
         "title": "تصفية البرامج المصغّرة"
       },
       "reset_tooltip": "إعادة تعيين إلى الافتراضي",
+      "show_app": "[to be translated]:Show {{name}}",
       "title": "إعدادات التطبيقات المصغّرة",
       "visible": "التطبيقات المصغّرة المرئية"
     },
@@ -7125,7 +7275,9 @@
       "expand_all": "وسّع الكل",
       "filter": {
         "clear": "امسح فلتر النماذج",
-        "label": "فلتر النماذج"
+        "label": "فلتر النماذج",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "عطّل هذه المجموعة",
       "group_enable": "فعّل هذه المجموعة",
@@ -7236,6 +7388,7 @@
       "topic_naming": {
         "auto": "تسمية تلقائية للموضوع",
         "label": "تسمية الموضوع",
+        "model": "[to be translated]:Naming Model",
         "prompt": "توجيه تسمية الموضوع"
       },
       "translate_model": "نموذج الترجمة",
@@ -7646,6 +7799,13 @@
         "usage_title": "الاستخدام",
         "usage_unit": "رموز"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "[to be translated]:Open Token Factory",
+          "description": "[to be translated]:Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
+          "title": "[to be translated]:$10 in free daily API credits"
+        }
+      },
       "remove_duplicate_keys": "أزل المفاتيح المكررة",
       "remove_invalid_keys": "أزل المفاتيح غير الصالحة",
       "reorder_failed": "فشل إعادة ترتيب المزودين",
@@ -7991,6 +8151,10 @@
         "check": "تحقق",
         "check_failed": "فشل التحقق",
         "check_success": "نجح التحقق",
+        "client_tools_preferred": {
+          "description": "[to be translated]:Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "[to be translated]:Prefer configured search services"
+        },
         "compression": {
           "cutoff": {
             "limit": {

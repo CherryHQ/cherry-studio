@@ -1,4 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
+import { DataApiDevtools } from '@data/utils/dataApiDevtools'
 import { syncDocumentLanguage } from '@renderer/i18n/languages'
 import i18n, { initI18n } from '@renderer/i18n/resolver'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
@@ -18,6 +19,11 @@ interface PrepareWindowOptions {
  * to defaults plus lazy per-key self-heal in `usePreference`.
  */
 export async function prepareWindow(options: PrepareWindowOptions): Promise<void> {
+  // Window-scoped dev bootstrap: expose the DataApi DevTools control surface
+  // before the first render (and thus the first DataApi request) so payload
+  // capture can be enabled before any event is recorded. No-op in production.
+  DataApiDevtools.exposeControlSurface()
+
   const preferencesWarm =
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 

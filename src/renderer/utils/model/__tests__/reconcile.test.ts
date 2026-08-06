@@ -1,8 +1,10 @@
 import { type Model, MODEL_CAPABILITY, type ModelCapability, type RuntimeReasoning } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import {
   canModelUseAssistantWebSearch,
+  hasModelBuiltinWebSearch,
   reconcileReasoningEffortForModel,
   reconcileWebSearchForModel,
   resolveReasoningEffortForModel
@@ -18,6 +20,8 @@ const createModel = (capabilities: ModelCapability[] = []): Model => ({
   isEnabled: true,
   isHidden: false
 })
+
+const providerWith = (serverTools: Provider['serverTools']): Provider => ({ id: 'anthropic', serverTools }) as Provider
 
 const reasoningModel = (reasoning: RuntimeReasoning): Model => ({
   ...createModel([MODEL_CAPABILITY.REASONING]),
@@ -45,14 +49,14 @@ const TOGGLE_ONLY: RuntimeReasoning = {
 
 describe('reconcile web search', () => {
   it('does not patch an already-disabled setting', () => {
-    expect(reconcileWebSearchForModel(createModel(), { enableWebSearch: false })).toBeNull()
+    expect(reconcileWebSearchForModel(createModel(), { enableWebSearch: false }, undefined)).toBeNull()
   })
 
   it('rejects enabled web search when the next model cannot consume it', () => {
     const nextModel = createModel()
 
-    expect(canModelUseAssistantWebSearch(nextModel)).toBe(false)
-    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true })).toEqual({
+    expect(canModelUseAssistantWebSearch(nextModel, undefined)).toBe(false)
+    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toEqual({
       enableWebSearch: false
     })
   })
@@ -60,8 +64,29 @@ describe('reconcile web search', () => {
   it('keeps enabled web search for function-calling models', () => {
     const nextModel = createModel([MODEL_CAPABILITY.FUNCTION_CALL])
 
-    expect(canModelUseAssistantWebSearch(nextModel)).toBe(true)
-    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true })).toBeNull()
+    expect(canModelUseAssistantWebSearch(nextModel, undefined)).toBe(true)
+    expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toBeNull()
+  })
+
+  it('treats an implicitly eligible web-search model as built-in only when the provider natively serves it', () => {
+    const nextModel: Model = {
+      ...createModel(),
+      id: 'provider::claude-sonnet-4-6',
+      apiModelId: 'claude-sonnet-4-6'
+    }
+
+    expect(hasModelBuiltinWebSearch(nextModel, providerWith([]))).toBe(false)
+    expect(
+      hasModelBuiltinWebSearch(nextModel, providerWith([{ id: 'web-search', modelScope: 'model-dependent' }]))
+    ).toBe(true)
+  })
+
+  it('treats provider-wide search as built-in for every chat model', () => {
+    const nextModel = createModel()
+
+    expect(
+      hasModelBuiltinWebSearch(nextModel, providerWith([{ id: 'web-search', modelScope: 'all-chat-models' }]))
+    ).toBe(true)
   })
 })
 

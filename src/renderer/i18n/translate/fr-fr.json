@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tâche de fond en cours d'exécution",
+      "background_running_other": "{{count}} tâches en arrière-plan en cours d'exécution"
     },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Jeter et continuer",
           "title": "Supprimer les modifications non enregistrées ?"
         },
+        "metadata_pending": "Le fichier a été enregistré, mais ses métadonnées sont toujours en cours de récupération. Ne réessayez pas cet enregistrement.",
         "refresh_failed": "Impossible de recharger le contenu du fichier le plus récent.",
         "save_failed": "Impossible d'enregistrer ce fichier. L'enregistrement automatique est suspendu jusqu'à ce que vous réessayiez ou abandonniez les modifications.",
         "unsaved": "Non enregistré",
@@ -277,6 +278,16 @@
       "too_large": {
         "description": "Le fichier dépasse la limite d’aperçu de {{limit}}.",
         "title": "Fichier trop volumineux pour être prévisualisé"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Le panneau de fichiers nécessite un chemin local absolu valide. Veuillez sélectionner à nouveau le répertoire de travail.",
+          "title": "Chemin d'espace de travail invalide"
+        },
+        "load_error": {
+          "description": "Assurez-vous que le répertoire de travail existe toujours et est accessible, puis réessayez.",
+          "title": "Impossible de charger les fichiers de l'espace de travail"
+        }
       },
       "unavailable": {
         "description": "Ce fichier n’a pas pu être ouvert — il a peut-être été déplacé ou supprimé.",
@@ -325,25 +336,25 @@
         "more": "+{{count}} de plus",
         "no_artifacts": "Aucun livrable déclaré",
         "no_subagents": "Aucun sous-agent",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Commandes en arrière-plan",
         "subagents": "Sous-agents",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Flux de travail"
       },
       "status": {
         "activity": "Activité",
         "agent": "Agent",
         "context": "Contexte",
         "no_tasks": "Aucune tâche active",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} en direct",
+        "run_task_live_other": "{{count}} en direct",
+        "run_tasks": "Sous-tâches",
         "selected_tool": "Outil sélectionnée",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Arrêter la tâche",
+        "stop_run_task_failed": "Impossible d'arrêter la tâche",
         "task_count": "{{completed}} / {{total}} terminé",
         "tasks": "Tâches",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} appel d'outil",
+        "tool_uses_other": "{{count}} appels d'outils",
         "tools_active": "Actif",
         "tools_done": "Fait",
         "tools_failed": "Échec",
@@ -757,6 +768,13 @@
         "placeholder": "Que doit faire l'agent lors de l'exécution de cette tâche ?"
       },
       "resume": "Reprendre",
+      "reuseSession": {
+        "bound": "Voir la session",
+        "description": "Continuez chaque exécution dans la même session au lieu d'en démarrer une nouvelle.",
+        "label": "Réutiliser la session",
+        "pending": "En attente de la première exécution",
+        "warning": "Une session réutilisée accumule continuellement du contexte, ce qui augmente le coût des tokens au fil du temps et peut déborder la fenêtre de contexte du modèle. Pour réinitialiser une session propre, désactivez et sauvegardez, puis activez et sauvegardez."
+      },
       "run": "Exécuter",
       "runTriggered": "Tâche déclenchée",
       "save": "Enregistrer",
@@ -1349,6 +1367,9 @@
       "label": "Êtes-vous sûr de vouloir effectuer une sauvegarde des données ?"
     },
     "content": "Sauvegarder toutes les données, y compris l'historique des conversations, les paramètres et la base de connaissances. Veuillez noter que le processus de sauvegarde peut prendre un certain temps, merci de votre patience.",
+    "error": {
+      "active_data_writers": "Une conversation ou un agent est toujours en cours d'exécution. Attendez qu'il se termine, puis réessayez."
+    },
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
@@ -1415,6 +1436,11 @@
         "placeholder": "Rechercher"
       }
     },
+    "compaction": {
+      "compacted": "Contexte compacté, ~{{count}} jetons économisés",
+      "compacted_plain": "Contexte compacté",
+      "compacting": "Compactage du contexte…"
+    },
     "conversation": {
       "new": "Nouveau chat"
     },
@@ -1480,6 +1506,13 @@
       },
       "new_session": "Nouvelle Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
+      "note_reference": {
+        "description": "Joindre une note de Notes",
+        "empty": "Aucune note trouvée",
+        "load_failed": "Impossible de charger les notes",
+        "loading": "Chargement des notes...",
+        "title": "Note de référence"
+      },
       "paste_text_file": "Coller dans l'entrée",
       "pasted_text_file_name": "Texte collé.txt",
       "pause": "Pause",
@@ -1594,7 +1627,6 @@
         "image_or_document": "Télécharger une image ou un document",
         "upload_from_local": "Télécharger un fichier local..."
       },
-      "url_context": "Contexte de la page web",
       "web_search": {
         "builtin": {
           "disabled_content": "Le modèle actuel ne prend pas en charge la recherche web",
@@ -1611,13 +1643,16 @@
           "description": "Ne pas activer la fonction de recherche web",
           "label": "Pas de recherche web"
         },
+        "route": {
+          "builtin": "Recherches avec l'outil intégré au modèle",
+          "client": "Recherches avec {{provider}}"
+        },
         "settings": "Paramètres de recherche en ligne"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
-        "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
+        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions"
       }
     },
     "message": {
@@ -1694,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Passer au tour {{number}}"
+      },
       "bottom": "Retour en bas",
       "close": "Fermer",
       "first": "Déjà premier message",
@@ -2481,6 +2519,7 @@
       "content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
       "context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
       "deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",
+      "free_model_unavailable": "Le diagnostic IA est temporairement indisponible",
       "go_to_settings": "Aller aux paramètres",
       "knowledge": "Échec de la vectorisation de la base de connaissances",
       "mcp": "Connexion au serveur MCP échouée, vérifiez si le service est en cours d'exécution",
@@ -2585,6 +2624,10 @@
     "user": "Utilisateur"
   },
   "file_preview": {
+    "directory": {
+      "description": "Sélectionnez un fichier dans ce dossier pour le prévisualiser.",
+      "title": "Ceci est un dossier"
+    },
     "html": {
       "empty": {
         "description": "Ce fichier HTML n'a pas de contenu.",
@@ -2650,6 +2693,10 @@
         "description": "Les fichiers texte de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
         "title": "Le fichier est trop volumineux"
       }
+    },
+    "unavailable": {
+      "description": "Le fichier peut avoir été déplacé, supprimé ou être inaccessible.",
+      "title": "Fichier indisponible"
     },
     "unsupported": {
       "action": "Ouvrir avec l'application par défaut",
@@ -3057,6 +3104,7 @@
       "reindex_failed": "Échec de la réindexation de la source de données",
       "status": {
         "chunking": "Fragmentation",
+        "copying": "Copie à {{percent}}%",
         "embedding": "Intégration",
         "error": "Erreur",
         "pending": "En attente",
@@ -3154,6 +3202,7 @@
         "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte."
       },
       "processor": "Fournisseur de traitement",
+      "processor_not_configured": "Non configuré",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
       "reset_action": "Restaurer les paramètres par défaut",
@@ -3353,7 +3402,7 @@
             "label": "Petit modèle (optionnel)"
           }
         },
-        "model_config": "Configuration du modèle",
+        "model_config": "Modèle",
         "section": {
           "advanced": {
             "desc": "Limites d'exécution et paramètres d'exécution",
@@ -3404,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-compress",
+        "context_compress_model": "Modèle de compression",
+        "context_compress_model_follow": "Par défaut",
         "context_count": "Nombre de contextes",
+        "context_management": "Gestion du contexte",
+        "context_truncate_threshold": "Seuil de troncation de la sortie de l'outil (caractères)",
         "creative": "Créatif",
         "custom_params": "Paramètres personnalisés",
         "custom_params_add": "Ajouter le paramètre",
@@ -3416,8 +3470,17 @@
           "avatar": {
             "hint": "Utilisé pour identifier l’assistant dans la bibliothèque et les discussions"
           },
+          "context_compress_enabled": {
+            "hint": "Résumer automatiquement les tours de conversation précédents lorsqu'on approche de la limite de la fenêtre de contexte"
+          },
           "context_count": {
             "hint": "Nombre de messages récents conservés comme contexte"
+          },
+          "context_management": {
+            "hint": "Remplacer les paramètres globaux de gestion du contexte pour cet assistant ; off hérite des paramètres globaux"
+          },
+          "context_truncate_threshold": {
+            "hint": "Les sorties de l'outil au-delà de ce nombre de caractères sont déchargées et tronquées"
           },
           "custom_params": {
             "hint": "Paramètres supplémentaires du fournisseur envoyés avec les requêtes"
@@ -3832,6 +3895,7 @@
       "pasted_text": "Fichier Presse-papiers"
     },
     "backup": {
+      "cleanup_failed": "La sauvegarde est terminée, mais les anciennes sauvegardes n'ont pas pu être nettoyées.",
       "failed": "La sauvegarde a échoué",
       "start": {
         "success": "La sauvegarde a commencé"
@@ -3847,8 +3911,9 @@
       }
     },
     "citation": "{{count}} éléments cités",
+    "citation_source": "Source de citation {{number}}",
     "citations": "Citations",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Historique de conversation précédent introuvable — poursuite dans une nouvelle conversation",
     "copied": "Copié",
     "copy": {
       "failed": "La copie a échoué",
@@ -4130,7 +4195,7 @@
         "write": "Enregistrer",
         "writing": "Épargne"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Exécution en arrière-plan",
       "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",
@@ -4162,7 +4227,7 @@
         "tool": "Outil",
         "webFetch": "Récupération Web",
         "webSearch": "Recherche Web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Flux de travail",
         "write": "Écrire"
       },
       "noData": "Aucune donnée disponible pour cet outil",
@@ -4222,13 +4287,13 @@
         "result_other": "{{count}} résultats"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orchestration du flux de travail",
+        "run_id": "ID d'exécution",
+        "script": "Script de workflow",
+        "script_path": "Chemin du script",
+        "started": "Démarré le flux de travail",
+        "summary": "Résumé",
+        "workflow": "flux de travail"
       }
     },
     "topic": {
@@ -4260,6 +4325,7 @@
       "cutoff": "Troncature du contenu de recherche en cours...",
       "fetch_complete": "{{count}} résultats de recherche",
       "fetch_empty": "Aucun résultat de recherche trouvé",
+      "fetch_opaque": "Recherché par le modèle",
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
@@ -4493,7 +4559,8 @@
     "save_blocked_load_failed": "Enregistrement bloqué car la note n’a pas pu se charger",
     "save_failed": "Échec de l'enregistrement de la note",
     "save_failure": {
-      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu."
+      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu.",
+      "metadata_pending": "La note a été enregistrée, mais ses métadonnées de fichier sont encore en cours de récupération. Ne réessayez pas cet enregistrement."
     },
     "search": {
       "both": "Nom + Contenu",
@@ -5131,6 +5198,7 @@
     "reset": "Réinitialiser",
     "rotate_left": "Rotation vers la gauche",
     "rotate_right": "Rotation vers la droite",
+    "save_as": "Enregistrer sous",
     "source": "Voir le code source",
     "zoom_in": "agrandir",
     "zoom_out": "réduire"
@@ -5187,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modèles locaux",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5283,7 @@
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Cloud GPU AMD",
     "silicon": "Silicium Fluide",
     "sophnet": "SophNet",
     "stepfun": "Échelon Étoile",
@@ -5714,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Nouvel Assistant",
+      "create_tag": "Nouveau",
       "empty_text": "Pas encore d'assistants",
       "filter": "Filtrer les assistants",
       "group_filter": "Filtrer par groupe",
@@ -5768,7 +5838,25 @@
         "title": "Entreprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Discutez avec Cherry Assistant pour partager vos commentaires.",
+          "title": "Utiliser Agent"
+        },
+        "agent_error": "Impossible d'ouvrir Cherry Assistant pour envoyer un commentaire. Veuillez réessayer.",
         "button": "Faire un retour",
+        "dialog": {
+          "description": "Choisissez comment partager votre retour d'expérience et aidez-nous à améliorer Cherry Studio.",
+          "title": "Choisir un canal de retour d'information"
+        },
+        "github": {
+          "description": "Créer un rapport de bug ou une demande de fonctionnalité sur GitHub.",
+          "title": "Problème GitHub"
+        },
+        "recommended": "Recommandé",
+        "survey": {
+          "description": "Partagez vos commentaires via notre enquête Feishu.",
+          "title": "Enquête de retour d'information"
+        },
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
@@ -5883,12 +5971,16 @@
         "third_party": "Connexion tierce"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Exporter au format Word",
         "image": "Exporter en tant qu'image",
         "joplin": "Exporter vers Joplin",
         "markdown": "Exporter au format Markdown",
         "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
-        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "plain_text": "Copier en texte brut",
@@ -6101,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
+          "fetchError": "Impossible de charger la liste des dossiers Nutstore",
           "return": "Назад",
           "title": "Chemin de stockage Nutstore"
         },
@@ -6765,6 +6858,7 @@
         "allStatuses": "Tous les statuts",
         "allTypes": "Tous les types",
         "builtinOnly": "Intégré uniquement",
+        "label": "Filtre",
         "status": "Filtrer par statut",
         "type": "Filtrer par type"
       },
@@ -6831,6 +6925,9 @@
         "loadError": "Échec de la récupération des invites",
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
+      },
+      "protocolInstall": {
+        "title": "Installer MCP"
       },
       "protocolInstallWarning": {
         "command": "Commande de démarrage",
@@ -7178,7 +7275,9 @@
       "expand_all": "Tout développer",
       "filter": {
         "clear": "Effacer le filtre des modèles",
-        "label": "Filtrer les modèles"
+        "label": "Filtrer les modèles",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",
@@ -7289,6 +7388,7 @@
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
         "label": "Nom de sujet",
+        "model": "Modèle de dénomination",
         "prompt": "Mot-clé de renommage des sujets"
       },
       "translate_model": "Modèle de traduction",
@@ -7351,10 +7451,6 @@
       "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Lorsque cette option est activée, Cherry Studio contacte IPInfo pour détecter approximativement le pays ou la région, puis envoie ce résultat avec votre nom, la langue de l’application, la date et l’heure locales et le fuseau horaire au modèle CherryAI intégré afin de générer des messages d’accueil. Désactivée par défaut.",
-        "title": "Messages d’accueil contextuels générés par l’IA"
-      },
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
     },
@@ -7703,6 +7799,13 @@
         "usage_title": "Utilisation",
         "usage_unit": "jetons"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
+        }
+      },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",
       "reorder_failed": "Échec de la réorganisation des fournisseurs",
@@ -7746,13 +7849,6 @@
           "toggle_client_email_visibility": "Basculer la visibilité de l'e-mail du client",
           "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
           "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Ouvrir Token Factory",
-          "description": "Équivalent à 10 USD de crédits API par jour : environ 10M–111M tokens d'entrée/sortie aux tarifs actuels, selon le modèle et le type de token. Les crédits sont réinitialisés quotidiennement ; les recharges ne sont pas encore prises en charge.",
-          "title": "10 USD de crédits API gratuits par jour"
         }
       }
     },
@@ -8055,6 +8151,10 @@
         "check": "Vérifier",
         "check_failed": "Échec de la vérification",
         "check_success": "Vérification réussie",
+        "client_tools_preferred": {
+          "description": "Utilisez les services de recherche et de récupération d'URL configurés ci-dessus même lorsque le modèle dispose d'une recherche intégrée. Lorsqu'ils sont désactivés, le modèle gère cela.",
+          "label": "Services de recherche configurés préférés"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8081,7 +8181,7 @@
           "save_failed": "Échec de l'enregistrement",
           "zhipu_sync_failed": "Échec de la synchronisation de la clé API Zhipu avec la Recherche Web. Veuillez ré-enregistrer la clé ou vérifier les paramètres de la Recherche Web."
         },
-        "fetch_urls_provider": "Fournisseur de récupération d'URL par défaut",
+        "fetch_urls_provider": "Fournisseur de récupération d'URL",
         "free": "Gratuit",
         "is_default": "Défaut",
         "local_provider": {

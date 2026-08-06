@@ -1033,44 +1033,6 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('relays first-turn greeting context to the runtime connection', async () => {
-    const connection = {
-      events: createAsyncQueue<any>().iterable,
-      send: vi.fn(),
-      close: vi.fn()
-    }
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({
-      ...baseTurnInput,
-      userMessage: userMessage('user-1'),
-      greetingContext: '我可以帮你完成什么任务？'
-    })
-    const reader = service
-      .openTurnStream({
-        sessionId: 'session-1',
-        turnId: handle.turnId,
-        signal: new AbortController().signal
-      })
-      .getReader()
-
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({
-        message: userMessage('user-1'),
-        greetingContext: '我可以帮你完成什么任务？',
-        systemReminder: false
-      })
-    )
-    await reader.cancel().catch(() => undefined)
-  })
-
   it('aborts the current turn controller before the stream starts', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -1765,8 +1727,9 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    // Live patches were already applied inside reconcile (live-first); the spawn-frozen part waits
-    // for the next fresh turn's pull instead of dropping the in-flight stream.
+    // Safe live patches were already applied inside reconcile; the spawn-frozen part and any
+    // deferred permission-mode update wait for the next fresh turn's pull instead of dropping the
+    // in-flight stream.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
   })
@@ -2041,14 +2004,54 @@ describe('AgentSessionRuntimeService', () => {
         )
       })
       expect(mocks.cacheSetShared).toHaveBeenCalledWith(
-        'agent.session.flow_parts.session-1',
-        expect.objectContaining({
-          'assistant-1': expect.arrayContaining([
-            expect.objectContaining({ type: 'text', text: 'Found the regression' })
-          ])
-        }),
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Found the regression' })]),
         60_000
       )
+    })
+
+    it('publishes detached flow overlays under independent message keys', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const firstParts = [{ type: 'text', text: 'First flow' }]
+      const secondParts = [{ type: 'text', text: 'Second flow' }]
+
+      ;(service as any).publishBackgroundFlowParts(entry, {
+        messageId: 'assistant-1',
+        latest: { parts: firstParts }
+      })
+      ;(service as any).publishBackgroundFlowParts(entry, {
+        messageId: 'assistant-2',
+        latest: { parts: secondParts }
+      })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', firstParts)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-2', secondParts)
+    })
+
+    it('retains each latest flow overlay during session close handoff', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Latest flow' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      service.closeSession('session-1')
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts, 60_000)
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
     })
 
     it('persists an out-of-turn interaction as an independent assistant message', () => {

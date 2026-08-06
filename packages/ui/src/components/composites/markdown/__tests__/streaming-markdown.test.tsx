@@ -71,6 +71,17 @@ describe('StreamingMarkdown', () => {
     expect(container.querySelectorAll('[data-sd-animate]').length).toBe(0)
   })
 
+  it('preserves GitHub alert markup while streaming', () => {
+    const { container } = render(
+      <StreamingMarkdown id="alert-stream">{'> [!NOTE]\n> Streaming alert'}</StreamingMarkdown>
+    )
+
+    const alert = container.querySelector('.markdown-alert-note')
+    expect(alert).not.toBeNull()
+    expect(alert?.querySelector('.markdown-alert-title')?.textContent).toContain('NOTE')
+    expect(alert?.textContent).toContain('Streaming alert')
+  })
+
   it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
     // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
     // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK

@@ -9,6 +9,9 @@ const { i18nState, initI18nMock } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/i18n/resolver', () => ({ default: i18nState, initI18n: initI18nMock }))
 
+const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
+vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -48,6 +51,13 @@ describe('prepareWindow', () => {
     // The locale id is the `<html lang>` tag verbatim; stylesheets reach it via :lang(ar).
     expect(document.documentElement).toHaveAttribute('lang', 'ar-YE')
     expect(document.documentElement).toHaveAttribute('dir', 'rtl')
+  })
+
+  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
+    const pending = prepareWindow({ preference: 'all' })
+
+    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
+    return pending
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {

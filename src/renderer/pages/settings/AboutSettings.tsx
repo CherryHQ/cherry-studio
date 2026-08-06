@@ -1,8 +1,18 @@
-import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  CircularProgress,
+  Divider,
+  Scrollbar,
+  SegmentedControl,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
+import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import {
   SettingGroup,
   SettingRow,
@@ -17,13 +27,15 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
+
+import { FeedbackDialog } from './FeedbackDialog'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -32,6 +44,7 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { openSmartMiniApp } = useMiniAppPopup()
@@ -171,6 +184,11 @@ const AboutSettings: FC = () => {
   }
 
   const testChannels = getAvailableTestChannels()
+  const isUpdateReady = appUpdateState.available && appUpdateState.downloaded && !appUpdateState.downloading
+  const releaseNotesText =
+    typeof appUpdateState.info?.releaseNotes === 'string'
+      ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
+      : (appUpdateState.info?.releaseNotes?.map((note) => note.note).join('\n') ?? '')
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -195,7 +213,7 @@ const AboutSettings: FC = () => {
               aria-label="Cherry Studio"
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
               className="relative cursor-pointer">
-              {appUpdateState.downloadProgress > 0 && (
+              {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
                 <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
                   <CircularProgress
                     value={appUpdateState.downloadProgress}
@@ -229,11 +247,15 @@ const AboutSettings: FC = () => {
             <div className="flex shrink-0 items-center justify-end">
               <Button
                 size="sm"
-                variant="outline"
+                variant={isUpdateReady ? 'default' : 'outline'}
                 loading={appUpdateState.checking}
                 onClick={onCheckUpdate}
                 disabled={appUpdateState.downloading}
-                className="w-fit! min-w-0! shrink-0">
+                className={cn(
+                  'w-fit! min-w-0! shrink-0',
+                  isUpdateReady &&
+                    'bg-success text-primary-foreground hover:bg-success/90 dark:bg-success dark:text-primary-foreground dark:hover:bg-success/90'
+                )}>
                 {appUpdateState.downloading
                   ? t('settings.about.downloading')
                   : appUpdateState.available
@@ -253,18 +275,10 @@ const AboutSettings: FC = () => {
             </SettingRow>
 
             <Divider className="my-3" />
-            <SettingRow className="gap-3">
-              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip content={t('settings.general.test_plan.tooltip')}>
-                <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
-              </Tooltip>
-            </SettingRow>
-
-            {testPlan && (
-              <>
-                <Divider className="my-1.5" />
-                <SettingRow className="items-center gap-3">
-                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+            <SettingRow className="flex-nowrap gap-6">
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-6">
+                <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+                {testPlan && (
                   <SegmentedControl<UpgradeChannel>
                     value={getTestChannel()}
                     onValueChange={handleTestChannelChange}
@@ -278,9 +292,14 @@ const AboutSettings: FC = () => {
                     }))}
                     size="sm"
                   />
-                </SettingRow>
-              </>
-            )}
+                )}
+              </div>
+              <Tooltip
+                content={t('settings.general.test_plan.tooltip')}
+                classNames={{ placeholder: 'inline-flex items-center' }}>
+                <Switch className="shrink-0" checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
+              </Tooltip>
+            </SettingRow>
           </>
         )}
       </SettingGroup>
@@ -293,13 +312,10 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="var(--success)" />
             </SettingRowTitle>
           </SettingRow>
-          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-muted-foreground text-sm [&_p]:m-0">
-            <Streamdown dir="auto" mode="static">
-              {typeof appUpdateState.info.releaseNotes === 'string'
-                ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
-                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Streamdown>
-          </div>
+          <Divider className="my-3" />
+          <Scrollbar className="max-h-96 overflow-x-hidden pe-2">
+            <ReleaseNotes content={releaseNotesText} />
+          </Scrollbar>
         </SettingGroup>
       )}
 
@@ -326,10 +342,10 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
-          icon={<Github className="size-4.5" />}
+          icon={<MessageSquareText className="size-4.5" />}
           title={t('settings.about.feedback.title')}
           actionLabel={t('settings.about.feedback.button')}
-          onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
+          onAction={() => setFeedbackOpen(true)}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -360,6 +376,7 @@ const AboutSettings: FC = () => {
           onAction={debug}
         />
       </SettingGroup>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )
 }

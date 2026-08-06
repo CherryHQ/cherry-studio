@@ -262,7 +262,7 @@ export type SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
-  'agent.session.flow_parts.${sessionId}': CacheValueTypes.CacheAgentSessionFlowParts
+  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -311,7 +311,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
-  'agent.session.flow_parts.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -365,6 +365,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -395,6 +396,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
+  'settings.provider.filter_mode': 'all',
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []

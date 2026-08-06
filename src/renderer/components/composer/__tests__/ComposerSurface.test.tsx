@@ -508,6 +508,13 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
+  it('uses the card color with a subtle shadow', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(document.getElementById('inputbar')).toHaveClass('bg-card', 'shadow-sm')
+    expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
+  })
+
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []

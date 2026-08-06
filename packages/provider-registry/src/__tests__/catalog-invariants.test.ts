@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest'
 
 import { canonOf, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
+import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
+import { SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
@@ -64,6 +66,17 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
+  // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
+  // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
+  // `glm-5.2`) goes out and 404s. Generation derives both from the authored id; this catches a row
+  // that reached the catalog without passing through that split.
+  it('every override either is keyed canonically or carries a wire id', () => {
+    const leaking = overrides
+      .filter((override) => !override.apiModelId && canonOf(override.modelId) !== override.modelId)
+      .map((override) => `${override.providerId}/${override.modelId}`)
+    expect(leaking).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -111,25 +124,33 @@ describe('catalog invariants (data/*.json)', () => {
     expect(broken).toEqual([])
   })
 
-  // Image-generation models must not advertise web-search — it leaks a text capability onto image rows.
+  it('does not encode provider-native web search as a generic model capability', () => {
+    expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
+  })
+
+  // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
   // The sole exception is gemini-3 image (Nano Banana Pro), which genuinely grounds on Google Search;
   // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
   // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
-  it('no image-generation model carries web-search except allowlisted gemini-3 image models', () => {
+  it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
     const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
     const offenders = models
-      .filter((m) => m.capabilities?.includes('image-generation') && m.capabilities?.includes('web-search'))
-      .map((m) => m.id)
+      .filter((model) => model.capabilities?.includes('image-generation'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
+      .map((model) => model.id)
       .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
     expect(offenders).toEqual([])
   })
 
-  // web-search is a text-chat capability: a model that doesn't converse in text on both sides (TTS is
-  // text→audio, transcription is audio→text, embedders output vector) must never carry it. The generator
-  // gates prefix-inherited web-search by modality; this catches any row slipping back in.
-  it('no non-text-chat model carries web-search (tts / transcription / embedding)', () => {
+  // Web search is a text-chat server tool: a model that doesn't converse in text on both sides (TTS is
+  // text→audio, transcription is audio→text, embedders output vector) must never be eligible.
+  it('no non-text-chat model is web-search eligible (tts / transcription / embedding)', () => {
     const offenders = models
-      .filter((m) => m.capabilities?.includes('web-search'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
       .filter(
         (m) => !(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text')
       )

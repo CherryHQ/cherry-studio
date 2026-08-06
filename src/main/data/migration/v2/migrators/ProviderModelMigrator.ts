@@ -42,7 +42,12 @@ import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  buildProviderApiKeys,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
 import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
@@ -344,7 +349,9 @@ export class ProviderModelMigrator extends BaseMigrator {
     if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
 
     const hasExplicitCapabilitySelection =
-      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
     if (!presetProvider) {
       return {
         ...row,
@@ -547,7 +554,14 @@ export class ProviderModelMigrator extends BaseMigrator {
         // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
-          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          ? await prepareBase64ImageFileEntry(
+              ctx.paths.filesDataDir,
+              providerLogoSlot(provider.id),
+              logo,
+              // Ref-backed slot (`provider_logo`), same as the live `bindLogoImage`
+              // path: reclaim when the provider is deleted or its logo replaced.
+              'delete_when_unreferenced'
+            )
           : null
         if (logoFile) {
           providerLogoFiles.push(logoFile)
@@ -709,6 +723,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {
+          if (buildProviderApiKeys(sourceProvider, this.settings).length === 0) {
+            logger.warn('Legacy provider API key contained no migratable entries; continuing without API keys', {
+              providerId: provider.providerId
+            })
+            continue
+          }
           errors.push({
             key: `missing_api_key_${provider.providerId}`,
             message: `Provider ${provider.providerId} should include migrated API keys`

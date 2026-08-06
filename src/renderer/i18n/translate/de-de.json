@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} Hintergrundaufgabe läuft",
+      "background_running_other": "{{count}} Hintergrundaufgaben laufen"
     },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Verwerfen und fortfahren",
           "title": "Ungespeicherte Änderungen verwerfen?"
         },
+        "metadata_pending": "Die Datei wurde gespeichert, aber ihre Metadaten werden noch wiederhergestellt. Wiederholen Sie diesen Speichervorgang nicht.",
         "refresh_failed": "Die neuesten Dateiinhalte konnten nicht neu geladen werden.",
         "save_failed": "Die Datei konnte nicht gespeichert werden. Die automatische Speicherung ist angehalten, bis Sie es erneut versuchen oder die Änderungen verwerfen.",
         "unsaved": "Nicht gespeichert",
@@ -277,6 +278,16 @@
       "too_large": {
         "description": "Datei überschreitet das {{limit}}-Vorschau-Limit.",
         "title": "Datei zu groß zur Vorschau"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Das Dateipanel erfordert einen gültigen absoluten lokalen Pfad. Bitte wählen Sie das Arbeitsverzeichnis erneut aus.",
+          "title": "Ungültiger Arbeitsbereich-Pfad"
+        },
+        "load_error": {
+          "description": "Stellen Sie sicher, dass das Arbeitsverzeichnis noch existiert und zugänglich ist, und versuchen Sie es dann erneut.",
+          "title": "Arbeitsbereichdateien konnten nicht geladen werden"
+        }
       },
       "unavailable": {
         "description": "Diese Datei konnte nicht geöffnet werden – sie wurde möglicherweise verschoben oder gelöscht.",
@@ -325,25 +336,25 @@
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
         "no_subagents": "Keine Unteragenten",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Hintergrundbefehle",
         "subagents": "Unteragenten",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Aktivität",
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Unteraufgaben",
         "selected_tool": "Ausgewähltes Werkzeug",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Aufgabe beenden",
+        "stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
         "tasks": "Aufgaben",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} Tool-Aufruf",
+        "tool_uses_other": "{{count}} Tool-Aufrufe",
         "tools_active": "Aktiv",
         "tools_done": "Fertig",
         "tools_failed": "Fehlgeschlagen",
@@ -757,6 +768,13 @@
         "placeholder": "Was soll der Agent tun, wenn diese Aufgabe ausgeführt wird?"
       },
       "resume": "Fortsetzen",
+      "reuseSession": {
+        "bound": "Sitzung anzeigen",
+        "description": "Führen Sie jede Ausführung in derselben Sitzung fort, anstatt eine neue zu starten.",
+        "label": "Sitzung wiederverwenden",
+        "pending": "Warten auf den ersten Lauf",
+        "warning": "Eine wiederverwendete Sitzung sammelt kontinuierlich Kontext an, was die Token-Kosten im Laufe der Zeit erhöht und das Kontextfenster des Modells überlaufen lassen kann. Um eine saubere Sitzung neu zu binden, deaktivieren und speichern Sie, dann aktivieren und speichern Sie erneut."
+      },
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
@@ -1349,6 +1367,9 @@
       "label": "Möchten Sie wirklich eine Datensicherung durchführen?"
     },
     "content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
+    "error": {
+      "active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut."
+    },
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
@@ -1415,6 +1436,11 @@
         "placeholder": "Suchen"
       }
     },
+    "compaction": {
+      "compacted": "Kontext komprimiert, ~{{count}} Token gespart",
+      "compacted_plain": "Kontext komprimiert",
+      "compacting": "Kontext wird komprimiert…"
+    },
     "conversation": {
       "new": "Neuer Chat"
     },
@@ -1480,6 +1506,13 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
+      "note_reference": {
+        "description": "Eine Notiz aus Notizen anhängen",
+        "empty": "Keine Notizen gefunden",
+        "load_failed": "Notizen konnten nicht geladen werden",
+        "loading": "Notizen werden geladen...",
+        "title": "Referenzhinweis"
+      },
       "paste_text_file": "In die Eingabe einfügen",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1594,7 +1627,6 @@
         "image_or_document": "Bild oder Dokument hochladen",
         "upload_from_local": "Lokale Datei hochladen..."
       },
-      "url_context": "Webseiten-Kontext",
       "web_search": {
         "builtin": {
           "disabled_content": "Aktuelles Modell unterstützt keine Websuche",
@@ -1611,13 +1643,16 @@
           "description": "Websuchfunktion nicht aktivieren",
           "label": "Keine Websuche"
         },
+        "route": {
+          "builtin": "Suchen mit dem integrierten Tool des Modells",
+          "client": "Suchen mit {{provider}}"
+        },
         "settings": "Websuch-Einstellungen"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
-        "url_context": "Gemini unterstützt nicht die gleichzeitige Verwendung von Webseiten-Kontext und Funktionsaufrufen"
+        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen"
       }
     },
     "message": {
@@ -1694,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Springe zu Zug {{number}}"
+      },
       "bottom": "Zum Boden scrollen",
       "close": "Schließen",
       "first": "Bereits die erste Nachricht",
@@ -2481,6 +2519,7 @@
       "content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
       "context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
       "deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
+      "free_model_unavailable": "Die KI-Diagnose ist vorübergehend nicht verfügbar.",
       "go_to_settings": "Zu Einstellungen",
       "knowledge": "Vektorisierung der Wissensdatenbank fehlgeschlagen",
       "mcp": "Verbindung zum MCP-Server fehlgeschlagen, prüfen Sie ob der Dienst läuft",
@@ -2585,6 +2624,10 @@
     "user": "Benutzer"
   },
   "file_preview": {
+    "directory": {
+      "description": "Wählen Sie eine Datei in diesem Ordner aus, um sie in der Vorschau anzuzeigen.",
+      "title": "Das ist ein Ordner"
+    },
     "html": {
       "empty": {
         "description": "Diese HTML-Datei hat keinen Inhalt.",
@@ -2650,6 +2693,10 @@
         "description": "Textdateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
         "title": "Datei ist zu groß"
       }
+    },
+    "unavailable": {
+      "description": "Die Datei wurde möglicherweise verschoben, gelöscht oder ist nicht zugänglich.",
+      "title": "Datei nicht verfügbar"
     },
     "unsupported": {
       "action": "Mit Standard-App öffnen",
@@ -3057,6 +3104,7 @@
       "reindex_failed": "Fehler beim Neuerstellen des Datenquellen-Index",
       "status": {
         "chunking": "Chunking",
+        "copying": "Kopieren {{percent}}%",
         "embedding": "Einbettung",
         "error": "Fehler",
         "pending": "Warten",
@@ -3154,6 +3202,7 @@
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
       "processor": "Verarbeitungsanbieter",
+      "processor_not_configured": "Nicht konfiguriert",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -3353,7 +3402,7 @@
             "label": "Kleines Modell (optional)"
           }
         },
-        "model_config": "Modellkonfiguration",
+        "model_config": "Modell",
         "section": {
           "advanced": {
             "desc": "Ausführungslimits und Laufzeitparameter",
@@ -3404,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Automatische Komprimierung",
+        "context_compress_model": "Komprimierungsmodell",
+        "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_management": "Kontextverwaltung",
+        "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
         "custom_params": "Benutzerdefinierte Parameter",
         "custom_params_add": "Parameter hinzufügen",
@@ -3416,8 +3470,17 @@
           "avatar": {
             "hint": "Wird verwendet, um den Assistenten in der Bibliothek und in Chats zu identifizieren"
           },
+          "context_compress_enabled": {
+            "hint": "Ältere Gesprächswendungen automatisch zusammenfassen, wenn sich das Kontextfenster füllt"
+          },
           "context_count": {
             "hint": "Anzahl der kürzlichen Nachrichten, die als Kontext beibehalten werden"
+          },
+          "context_management": {
+            "hint": "Globale Kontextverwaltungseinstellungen für diesen Assistenten überschreiben; aus übernimmt die globalen Einstellungen"
+          },
+          "context_truncate_threshold": {
+            "hint": "Tool-Ausgaben, die diese Zeichenanzahl überschreiten, werden ausgelagert und abgeschnitten"
           },
           "custom_params": {
             "hint": "Zusätzliche Provider-Parameter, die mit Anfragen gesendet werden"
@@ -3832,6 +3895,7 @@
       "pasted_text": "Datei aus Zwischenablage"
     },
     "backup": {
+      "cleanup_failed": "Die Sicherung wurde abgeschlossen, aber alte Sicherungen konnten nicht bereinigt werden.",
       "failed": "Backup fehlgeschlagen",
       "start": {
         "success": "Backup gestartet"
@@ -3847,8 +3911,9 @@
       }
     },
     "citation": "{{count}} Zitate",
+    "citation_source": "Zitierquelle {{number}}",
     "citations": "Zitate",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Vorherige Gesprächshistorie konnte nicht gefunden werden — es wird in einem neuen Gespräch fortgefahren",
     "copied": "Kopiert",
     "copy": {
       "failed": "Kopieren fehlgeschlagen",
@@ -4130,7 +4195,7 @@
         "write": "Speichern",
         "writing": "Speichern"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Im Hintergrund ausführen",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
@@ -4162,7 +4227,7 @@
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
         "webSearch": "Websuche",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Workflow",
         "write": "Schreiben"
       },
       "noData": "Keine Daten für dieses Tool verfügbar",
@@ -4222,13 +4287,13 @@
         "result_other": "{{count}} Ergebnisse"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orchestrierung von Workflows",
+        "run_id": "Lauf-ID",
+        "script": "Workflow-Skript",
+        "script_path": "Skriptpfad",
+        "started": "Workflow gestartet",
+        "summary": "Zusammenfassung",
+        "workflow": "workflow"
       }
     },
     "topic": {
@@ -4260,6 +4325,7 @@
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
       "fetch_empty": "Keine Suchergebnisse gefunden",
+      "fetch_opaque": "Vom Modell durchsucht",
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
@@ -4493,7 +4559,8 @@
     "save_blocked_load_failed": "Speichern blockiert, da die Notiz nicht geladen werden konnte",
     "save_failed": "Fehler beim Speichern der Notiz",
     "save_failure": {
-      "description": "Diese Notiz konnte nicht gespeichert werden. Ihre Bearbeitungen bleiben im Editor erhalten und die automatische Speicherung ist pausiert."
+      "description": "Diese Notiz konnte nicht gespeichert werden. Ihre Bearbeitungen bleiben im Editor erhalten und die automatische Speicherung ist pausiert.",
+      "metadata_pending": "Die Notiz wurde gespeichert, aber ihre Dateimetadaten werden noch wiederhergestellt. Wiederholen Sie diesen Speichervorgang nicht."
     },
     "search": {
       "both": "Name + Inhalt",
@@ -5131,6 +5198,7 @@
     "reset": "Zurücksetzen",
     "rotate_left": "Nach links drehen",
     "rotate_right": "Nach rechts drehen",
+    "save_as": "Speichern unter",
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
@@ -5187,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Lokale Modelle",
     "longcat": "Meißner Riesenhamster",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5283,7 @@
     "ppio": "PPIO Cloud",
     "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5714,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Neuer Assistent",
+      "create_tag": "Neu",
       "empty_text": "Noch keine Assistenten",
       "filter": "Filter-Assistenten",
       "group_filter": "Nach Gruppe filtern",
@@ -5768,7 +5838,25 @@
         "title": "Unternehmen"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatte mit dem Cherry Assistant, um Feedback zu teilen.",
+          "title": "Verwenden Sie Agent"
+        },
+        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
+          "title": "Wählen Sie einen Feedback-Kanal"
+        },
+        "github": {
+          "description": "Erstelle einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Empfohlen",
+        "survey": {
+          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
+          "title": "Feedback-Umfrage"
+        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -5883,12 +5971,16 @@
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Als Word exportieren",
         "image": "Als Bild exportieren",
         "joplin": "Nach Joplin exportieren",
         "markdown": "Als Markdown exportieren",
         "markdown_reason": "Als Markdown exportieren (mit Denken)",
-        "notes": "In Notizen exportieren",
         "notion": "Nach Notion exportieren",
         "obsidian": "Nach Obsidian exportieren",
         "plain_text": "Als reinen Text kopieren",
@@ -6101,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Aktueller Pfad",
+          "fetchError": "Fehler beim Laden der Nutstore-Ordnerliste",
           "return": "Zurück",
           "title": "Nutstore-Speicherpfad"
         },
@@ -6765,6 +6858,7 @@
         "allStatuses": "Alle Status",
         "allTypes": "Alle Typen",
         "builtinOnly": "Nur integriert",
+        "label": "Filter",
         "status": "Nach Status filtern",
         "type": "Nach Typ filtern"
       },
@@ -6831,6 +6925,9 @@
         "loadError": "Prompt-Fehler abrufen",
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
+      },
+      "protocolInstall": {
+        "title": "MCP installieren"
       },
       "protocolInstallWarning": {
         "command": "Startbefehl",
@@ -7178,7 +7275,9 @@
       "expand_all": "Alle ausklappen",
       "filter": {
         "clear": "Modellfilter löschen",
-        "label": "Modelle filtern"
+        "label": "Modelle filtern",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Diese Gruppe deaktivieren",
       "group_enable": "Diese Gruppe aktivieren",
@@ -7289,6 +7388,7 @@
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
         "label": "Thema-Benennung",
+        "model": "Namensmodell",
         "prompt": "Thema-Benennung-Prompt"
       },
       "translate_model": "Übersetzungsmodell",
@@ -7351,10 +7451,6 @@
       "prevent_sleep_when_busy": "Halten Sie das System wach, während Aufgaben ausgeführt werden"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Wenn aktiviert, kontaktiert Cherry Studio IPInfo, um ein ungefähres Land oder eine Region zu ermitteln, und sendet dieses Ergebnis zusammen mit Ihrem Namen, der App-Sprache, dem lokalen Datum und der Uhrzeit sowie der Zeitzone an das integrierte CherryAI-Modell, um Begrüßungen zu erstellen. Standardmäßig deaktiviert.",
-        "title": "KI-generierte kontextbezogene Begrüßungen"
-      },
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
     },
@@ -7703,6 +7799,13 @@
         "usage_title": "Verwendung",
         "usage_unit": "Tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory öffnen",
+          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
+          "title": "Täglich 10 USD kostenloses API-Guthaben"
+        }
+      },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "reorder_failed": "Fehler beim Neuanordnen der Anbieter",
@@ -7746,13 +7849,6 @@
           "toggle_client_email_visibility": "Sichtbarkeit der Kunden-E-Mail umschalten",
           "toggle_private_key_visibility": "Sichtbarkeit des privaten Schlüssels umschalten",
           "toggle_project_id_visibility": "Projekt-ID-Sichtbarkeit umschalten"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Token Factory öffnen",
-          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
-          "title": "Täglich 10 USD kostenloses API-Guthaben"
         }
       }
     },
@@ -8055,6 +8151,10 @@
         "check": "Erkennen",
         "check_failed": "Erkennung fehlgeschlagen",
         "check_success": "Erkennung erfolgreich",
+        "client_tools_preferred": {
+          "description": "Verwenden Sie die oben konfigurierten Such- und URL-Abrufdienste auch dann, wenn das Modell eine integrierte Suche hat. Wenn ausgeschaltet, übernimmt das Modell die Verarbeitung.",
+          "label": "Konfigurierte Suchdienste bevorzugen"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8081,7 +8181,7 @@
           "save_failed": "Speichern fehlgeschlagen",
           "zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche."
         },
-        "fetch_urls_provider": "Standard-URL-Abrufanbieter",
+        "fetch_urls_provider": "URL-Abrufanbieter",
         "free": "Kostenlos",
         "is_default": "Standard",
         "local_provider": {

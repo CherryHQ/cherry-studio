@@ -142,6 +142,7 @@ describe('RightPaneHost', () => {
     const host = container.querySelector('[data-right-pane]')
 
     expect(host).toHaveClass('h-full', 'min-h-0', 'shrink-0', 'overflow-hidden')
+    expect(host?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-navigation')
   })
 
   it('disables pointer events on the pane content while resizing', () => {
@@ -153,7 +154,7 @@ describe('RightPaneHost', () => {
     // as soon as the cursor crosses into an iframe. The content wrapper must carry
     // the pointer-events-none toggle (driven by the data-resizing group state) so
     // pointer events keep reaching the document-level listeners for the whole drag.
-    render(
+    const { container } = render(
       <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
       </PersistentRightPaneHost>
@@ -162,6 +163,9 @@ describe('RightPaneHost', () => {
     const contentWrapper = screen.getByText('artifact pane').parentElement
 
     expect(contentWrapper).toHaveClass('group-data-[resizing=true]/right-pane:pointer-events-none')
+    expect(container.querySelector('[data-right-pane]')?.getAttribute('data-ui')?.split(/\s+/)).toContain(
+      'part:conversation-inspector'
+    )
   })
 
   it('does not render a resize handle by default', () => {

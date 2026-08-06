@@ -73,7 +73,7 @@ function isServerInWhitelist(server: McpServer): boolean {
  * @param server - The MCP server to extract command from
  * @returns Formatted command string with arguments
  */
-export const getCommandPreview = (server: McpServer): string => {
+export const getCommandPreview = (server: Pick<McpServer, 'command' | 'args'>): string => {
   return [server.command, ...(server.args ?? [])]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')

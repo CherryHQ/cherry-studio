@@ -425,7 +425,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'summary':
     case 'explanation':
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
@@ -467,7 +467,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     case 'translate':
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           <Suspense fallback={<LazyBranchFallback />}>
             <TranslateWindow text={requestText} />
           </Suspense>
@@ -478,7 +478,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     default:
       return (
-        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
           {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}

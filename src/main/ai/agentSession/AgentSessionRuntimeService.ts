@@ -25,7 +25,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY, type AgentSessionFlowParts } from '@shared/ai/agentSessionFlowParts'
+import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -111,8 +111,6 @@ export interface BeginAgentSessionTurnInput {
   fastMode?: boolean
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
-  /** First-turn-only untrusted greeting context supplied without storing it as a session message. */
-  greetingContext?: string
   headless?: boolean
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
@@ -158,7 +156,6 @@ type AgentSessionTurn = {
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
   reasoningEffort: ReasoningEffortOption
-  greetingContext?: string
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
@@ -240,8 +237,6 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
-  /** Main-owned live overlay published to every renderer window. */
-  backgroundFlowParts?: AgentSessionFlowParts
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -408,7 +403,6 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: input.modelId,
       messageSnapshot,
       reasoningEffort: input.reasoningEffort ?? 'default',
-      greetingContext: input.greetingContext,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
       abortController: new AbortController(),
@@ -592,10 +586,11 @@ export class AgentSessionRuntimeService extends BaseService {
    * Push side of connection reconcile — a latency optimization over the pull that every fresh turn
    * runs in {@link ensureConnection}: agent edits apply to live/idle connections without waiting for
    * the next message. The connection's `reconcile` re-derives the desired config itself, so no
-   * per-field knowledge lives here: live facts (permission mode, tool policy) hot-apply — even
-   * mid-turn — and spawn-frozen changes (model, workspace, skills, sub-models, MCP definitions, …)
-   * report 'rebuild'. Inputs that change WITHOUT an agent-updated event (in-session skill toggles,
-   * MCP definition edits, workspace switches) have no push at all and are covered by the pull.
+   * per-field knowledge lives here: safe tool-policy changes hot-apply, permission-mode changes
+   * defer to the next turn boundary, and spawn-frozen changes (model, workspace, skills, sub-models,
+   * MCP definitions, …) report 'rebuild'. Inputs that change WITHOUT an agent-updated event
+   * (in-session skill toggles, MCP definition edits, workspace switches) have no push at all and are
+   * covered by the pull.
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
@@ -637,9 +632,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'patched':
         return
       case 'rebuild': {
-        // Live patches are already applied (live-first). Rebuild eagerly only when nothing is
-        // streaming — a roll or non-terminal turn keeps its connection, and the next fresh turn's
-        // pull picks the rebuild up.
+        // Safe live patches are already applied. Rebuild eagerly only when nothing is streaming —
+        // a roll or non-terminal turn keeps its connection, and the next fresh turn's pull picks up
+        // the rebuild plus any permission-mode change deferred at the turn boundary.
         const hasLiveTurn =
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
@@ -1863,13 +1858,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
     if (!parts || !this.isCurrentEntry(entry)) return
     accumulator.lastPublishedAt = Date.now()
-    entry.backgroundFlowParts = {
-      ...entry.backgroundFlowParts,
-      [accumulator.messageId]: parts
-    }
     application
       .get('CacheService')
-      .setShared(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId), entry.backgroundFlowParts)
+      .setShared(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId), parts)
   }
 
   private finishBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<void> {
@@ -1890,25 +1881,28 @@ export class AgentSessionRuntimeService extends BaseService {
     const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
       .then(() => {
         const completedMessageIds = new Set<string>()
+        const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
         entry.backgroundFlowAccumulators?.clear()
         for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
           if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
         }
-        if (entry.backgroundFlowParts && this.isCurrentEntry(entry)) {
-          application
-            .get('CacheService')
-            .setShared(
-              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId),
-              entry.backgroundFlowParts,
+        if (this.isCurrentEntry(entry)) {
+          const cacheService = application.get('CacheService')
+          for (const { messageId, parts } of completedFlows) {
+            cacheService.setShared(
+              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
+              parts,
               BACKGROUND_FLOW_HANDOFF_TTL_MS
             )
+          }
         }
       })
       .catch((error) => {
@@ -2108,7 +2102,6 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.refreshTurnTraceContext(entry, turn)
     await this.currentConnection(entry)?.send({
       message: turn.userMessage,
-      ...(turn.greetingContext ? { greetingContext: turn.greetingContext } : {}),
       systemReminder: turn.systemReminder === true
     })
   }
@@ -2791,12 +2784,14 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeEntry(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
-    if (entry.backgroundFlowParts) {
+    for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
+      const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+      if (!parts) continue
       application
         .get('CacheService')
         .setShared(
-          AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId),
-          entry.backgroundFlowParts,
+          AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
+          parts,
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }

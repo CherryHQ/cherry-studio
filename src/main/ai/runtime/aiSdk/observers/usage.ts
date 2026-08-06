@@ -10,9 +10,9 @@
  *   inputTokenDetails{noCache,cacheRead,cacheWrite}Tokens   → same
  *   outputTokenDetails{text,reasoning}Tokens                → same
  *
- * This metadata is a stream/UI view only. Persistent usage and cost are
+ * This metadata is primarily a stream/UI view. Persistent usage and cost are
  * materialized from per-invocation `ai_usage_record` rows; message persistence
- * deliberately ignores these cumulative token fields.
+ * keeps only the message-owned `contextTokens` compaction anchor.
  *
  * A FULL cumulative snapshot is emitted every step: the AI SDK deep-merges
  * `message-metadata` into the accumulating message (`updateMessageMetadata`
@@ -78,7 +78,7 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
 }
 
 /** Project cumulative AI SDK usage into the live `MessageStats` UI shape. */
-function usageToStats(total: LanguageModelUsage): MessageStats {
+function usageToStats(total: LanguageModelUsage, contextTokens: number | undefined): MessageStats {
   const inputTokenDetails = compact({
     noCacheTokens: total.inputTokenDetails?.noCacheTokens,
     cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,
@@ -92,6 +92,7 @@ function usageToStats(total: LanguageModelUsage): MessageStats {
     ...(total.inputTokens !== undefined ? { inputTokens: total.inputTokens } : {}),
     ...(total.outputTokens !== undefined ? { outputTokens: total.outputTokens } : {}),
     ...(total.totalTokens !== undefined ? { totalTokens: total.totalTokens } : {}),
+    contextTokens,
     ...(inputTokenDetails ? { inputTokenDetails } : {}),
     ...(outputTokenDetails ? { outputTokenDetails } : {})
   }
@@ -99,18 +100,25 @@ function usageToStats(total: LanguageModelUsage): MessageStats {
 
 export function attachUsageObserver(agent: Agent): void {
   let total: LanguageModelUsage = ZERO_USAGE
+  let lastStepTotalTokens: number | undefined
 
   agent.on('onStart', () => {
     total = ZERO_USAGE
+    lastStepTotalTokens = undefined
   })
 
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
+    // contextTokens is the real end-of-turn context size; trust it only when the
+    // provider reported inputTokens. Otherwise totalTokens collapses to output-only
+    // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
+    // durable compaction — so leave it undefined and let estimateContext fall back to tokenx.
+    lastStepTotalTokens = typeof step.usage.inputTokens === 'number' ? step.usage.totalTokens : undefined
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        stats: usageToStats(total)
+        stats: usageToStats(total, lastStepTotalTokens)
       }
     })
   })

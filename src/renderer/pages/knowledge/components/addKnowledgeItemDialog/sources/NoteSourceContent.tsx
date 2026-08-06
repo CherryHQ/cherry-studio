@@ -2,7 +2,7 @@ import { Checkbox } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { projectNotesTree } from '@renderer/services/NotesService'
-import type { NotesTreeNode } from '@renderer/types/note'
+import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { NotebookPen } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,19 +15,6 @@ interface NoteSourceContentProps {
   onSelectionChange: (notes: NoteItem[]) => void
 }
 
-/** Flatten the notes tree to its markdown files; folders only carry structure here. */
-function collectNoteFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
-  const files: NotesTreeNode[] = []
-  for (const node of nodes) {
-    if (node.type === 'file') {
-      files.push(node)
-    } else if (node.children) {
-      files.push(...collectNoteFiles(node.children))
-    }
-  }
-  return files
-}
-
 const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteSourceContentProps) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
@@ -37,7 +24,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteS
     if (!root || !notesPath) {
       return []
     }
-    return collectNoteFiles(projectNotesTree(root, notesPath))
+    return flattenTreeToFiles(projectNotesTree(root, notesPath))
   }, [root, notesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])

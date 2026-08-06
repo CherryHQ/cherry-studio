@@ -85,6 +85,15 @@ describe('useAllTasks', () => {
     expect(result.current.pageCount).toBe(2)
     expect(result.current.hasPrev).toBe(true)
   })
+
+  it('refetches task projections published by a background sticky-session bind', () => {
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [taskEntity])
+    const { result } = renderHook(() => useAllTasks())
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: ['t-1'] }])
+
+    expect(result.current.refetch).toHaveBeenCalled()
+  })
 })
 
 describe('useTask', () => {
@@ -95,6 +104,16 @@ describe('useTask', () => {
 
     expect(result.current.task).toEqual(taskEntity)
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('refetches the matching task detail after a sticky-session pointer change', () => {
+    const refetch = vi.fn()
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: taskEntity as any, refetch })
+    renderHook(() => useTask('t-1'))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks/:taskId', entityIds: ['t-1'] }])
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
 

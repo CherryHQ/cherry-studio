@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} фоновая задача выполняется",
+      "background_running_other": "{{count}} фоновых задач выполняется"
     },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Отменить и продолжить",
           "title": "Отменить несохранённые изменения?"
         },
+        "metadata_pending": "Файл был сохранен, но его метаданные все еще восстанавливаются. Не повторяйте эту попытку сохранения.",
         "refresh_failed": "Не удалось перезагрузить последнее содержимое файла.",
         "save_failed": "Не удалось сохранить этот файл. Автоматическое сохранение приостановлено до тех пор, пока вы не повторите попытку или не отмените изменения.",
         "unsaved": "Несохранённый",
@@ -277,6 +278,16 @@
       "too_large": {
         "description": "Файл превышает лимит предпросмотра {{limit}}.",
         "title": "Файл слишком большой для предпросмотра"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Файловая панель требует действительный абсолютный локальный путь. Пожалуйста, выберите рабочую директорию снова.",
+          "title": "Недопустимый путь рабочей области"
+        },
+        "load_error": {
+          "description": "Убедитесь, что рабочий каталог всё ещё существует и доступен, затем попробуйте снова.",
+          "title": "Не удалось загрузить файлы рабочего пространства"
+        }
       },
       "unavailable": {
         "description": "Не удалось открыть этот файл — возможно, он был перемещён или удалён.",
@@ -325,25 +336,25 @@
         "more": "+{{count}} ещё",
         "no_artifacts": "Нет заявленных результатов",
         "no_subagents": "Без субагентов",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Фоновые команды",
         "subagents": "Субагенты",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Рабочие процессы"
       },
       "status": {
         "activity": "Деятельность",
         "agent": "Агент",
         "context": "Контекст",
         "no_tasks": "Нет активных задач",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} в прямом эфире",
+        "run_task_live_other": "{{count}} в прямом эфире",
+        "run_tasks": "Подзадачи",
         "selected_tool": "Выбранный инструмент",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Остановить задачу",
+        "stop_run_task_failed": "Не удалось остановить задачу",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} вызов инструмента",
+        "tool_uses_other": "{{count}} вызовов инструментов",
         "tools_active": "Активный",
         "tools_done": "Готово",
         "tools_failed": "Не удалось",
@@ -757,6 +768,13 @@
         "placeholder": "Что должен делать агент при выполнении этой задачи?"
       },
       "resume": "Возобновить",
+      "reuseSession": {
+        "bound": "Просмотр сеанса",
+        "description": "Продолжайте каждый запуск в той же сессии, а не начиная новую.",
+        "label": "Повторно использовать сеанс",
+        "pending": "Ожидание первого запуска",
+        "warning": "Повторно используемая сессия продолжает накапливать контекст, что со временем увеличивает стоимость токенов и может привести к переполнению контекстного окна модели. Чтобы привязать чистую сессию, отключите и сохраните, затем включите и сохраните."
+      },
       "run": "Запустить",
       "runTriggered": "Задача запущена",
       "save": "Сохранить",
@@ -1349,6 +1367,9 @@
       "label": "Вы уверены, что хотите создать резервную копию?"
     },
     "content": "Резервная копия будет содержать все данные приложения, включая чаты, настройки и базу знаний. Это может занять некоторое время.",
+    "error": {
+      "active_data_writers": "Идёт выполнение разговора или агента. Дождитесь его завершения и попробуйте снова."
+    },
     "progress": {
       "completed": "Резервная копия создана",
       "compressing": "Сжатие файлов...",
@@ -1415,6 +1436,11 @@
         "placeholder": "Поиск"
       }
     },
+    "compaction": {
+      "compacted": "Контекст сжат, сохранено ~{{count}} токенов",
+      "compacted_plain": "Контекст сжат",
+      "compacting": "Уплотнение контекста…"
+    },
     "conversation": {
       "new": "Новый чат"
     },
@@ -1480,6 +1506,13 @@
       },
       "new_session": "Новая сессия {{Команда}}",
       "new_topic": "Новый топик {{Command}}",
+      "note_reference": {
+        "description": "Прикрепить заметку из Notes",
+        "empty": "Заметок не найдено",
+        "load_failed": "Не удалось загрузить заметки",
+        "loading": "Загрузка заметок...",
+        "title": "Справочная записка"
+      },
       "paste_text_file": "Вставьте во входные данные",
       "pasted_text_file_name": "I’m ready—please paste the text you’d like me to translate into Russian.",
       "pause": "Остановить",
@@ -1594,7 +1627,6 @@
         "image_or_document": "Загрузить изображение или документ",
         "upload_from_local": "Загрузить локальный файл..."
       },
-      "url_context": "Контекст страницы",
       "web_search": {
         "builtin": {
           "disabled_content": "Текущая модель не поддерживает веб-поиск",
@@ -1611,13 +1643,16 @@
           "description": "Отключить веб-поиск",
           "label": "Отключить веб-поиск"
         },
+        "route": {
+          "builtin": "Поиск с помощью встроенного инструмента модели",
+          "client": "Поиск с {{provider}}"
+        },
         "settings": "Настройки веб-поиска"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini не поддерживает одновременное использование встроенного инструмента поиска в сети и вызова функций",
-        "url_context": "Gemini не поддерживает одновременное использование контекста веб-страницы и вызова функций"
+        "gemini_web_search": "Gemini не поддерживает одновременное использование встроенного инструмента поиска в сети и вызова функций"
       }
     },
     "message": {
@@ -1694,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Перейти к ходу {{number}}"
+      },
       "bottom": "Вернуться вниз",
       "close": "Закрыть",
       "first": "Уже первое сообщение",
@@ -2481,6 +2519,7 @@
       "content": "Содержимое заблокировано системой безопасности, измените и повторите",
       "context_length": "Слишком длинный разговор, пожалуйста, очистите историю или начните новый чат",
       "deprecated": "Эта модель была снята с производства, пожалуйста, переключитесь на другую модель",
+      "free_model_unavailable": "AI-диагностика временно недоступна",
       "go_to_settings": "Перейти к настройкам",
       "knowledge": "Ошибка векторизации базы знаний",
       "mcp": "Ошибка подключения к серверу MCP, проверьте работу сервиса",
@@ -2585,6 +2624,10 @@
     "user": "Пользователь"
   },
   "file_preview": {
+    "directory": {
+      "description": "Выберите файл в этой папке для предварительного просмотра.",
+      "title": "Это папка"
+    },
     "html": {
       "empty": {
         "description": "Этот HTML-файл не содержит контента.",
@@ -2650,6 +2693,10 @@
         "description": "Файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
         "title": "Файл слишком большой"
       }
+    },
+    "unavailable": {
+      "description": "Файл мог быть перемещён, удалён или к нему нет доступа.",
+      "title": "Файл недоступен"
     },
     "unsupported": {
       "action": "Открыть с помощью приложения по умолчанию",
@@ -3057,6 +3104,7 @@
       "reindex_failed": "Не удалось переиндексировать источник данных",
       "status": {
         "chunking": "Сегментация",
+        "copying": "Копирование {{percent}}%",
         "embedding": "Встраивание",
         "error": "Ошибка",
         "pending": "Ожидание",
@@ -3154,6 +3202,7 @@
         "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже."
       },
       "processor": "Поставщик обработки",
+      "processor_not_configured": "Не настроено",
       "rerank_disabled": "Отключено",
       "rerank_model": "Переупорядочивающая модель",
       "reset_action": "Восстановить значения по умолчанию",
@@ -3353,7 +3402,7 @@
             "label": "Маленькая модель (необязательно)"
           }
         },
-        "model_config": "Конфигурация модели",
+        "model_config": "Модель",
         "section": {
           "advanced": {
             "desc": "Ограничения на выполнение и параметры времени выполнения",
@@ -3404,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Автосжатие",
+        "context_compress_model": "Модель сжатия",
+        "context_compress_model_follow": "По умолчанию",
         "context_count": "Количество контекста",
+        "context_management": "Управление контекстом",
+        "context_truncate_threshold": "Порог усечения вывода инструмента (символы)",
         "creative": "Креативный",
         "custom_params": "Пользовательские параметры",
         "custom_params_add": "Добавить параметр",
@@ -3416,8 +3470,17 @@
           "avatar": {
             "hint": "Используется для идентификации ассистента в библиотеке и чатах"
           },
+          "context_compress_enabled": {
+            "hint": "Автоматически суммировать старые сообщения при приближении к лимиту контекстного окна"
+          },
           "context_count": {
             "hint": "Количество последних сообщений, сохраняемых в качестве контекста"
+          },
+          "context_management": {
+            "hint": "Переопределить глобальные настройки управления контекстом для этого ассистента; off наследует глобальные настройки"
+          },
+          "context_truncate_threshold": {
+            "hint": "Выводы инструмента, превышающие это количество символов, выгружаются и обрезаются"
           },
           "custom_params": {
             "hint": "Дополнительные параметры провайдера, отправляемые с запросами"
@@ -3832,6 +3895,7 @@
       "pasted_text": "Вырезанный текст"
     },
     "backup": {
+      "cleanup_failed": "Резервное копирование завершено, но удалить старые резервные копии не удалось.",
       "failed": "Создание резервной копии не удалось",
       "start": {
         "success": "Создание резервной копии начато"
@@ -3847,8 +3911,9 @@
       }
     },
     "citation": "{{count}} цитат",
+    "citation_source": "Источник цитирования {{number}}",
     "citations": "Содержание цитат",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "История предыдущего разговора не найдена — продолжаем новый разговор",
     "copied": "Скопировано!",
     "copy": {
       "failed": "Не удалось скопировать",
@@ -4130,7 +4195,7 @@
         "write": "Сохранить",
         "writing": "Сохранение"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Работает в фоновом режиме",
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
@@ -4162,7 +4227,7 @@
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
         "webSearch": "Поиск в интернете",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Рабочий процесс",
         "write": "Написать"
       },
       "noData": "Нет доступных данных для этого инструмента",
@@ -4222,13 +4287,13 @@
         "result_other": "{{count}} результатов"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Оркестрация рабочего процесса",
+        "run_id": "Идентификатор запуска",
+        "script": "Скрипт рабочего процесса",
+        "script_path": "Путь к скрипту",
+        "started": "Запущен рабочий процесс",
+        "summary": "Сводка",
+        "workflow": "рабочий процесс"
       }
     },
     "topic": {
@@ -4260,6 +4325,7 @@
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
       "fetch_empty": "Результатов поиска не найдено",
+      "fetch_opaque": "Найдено моделью",
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
@@ -4493,7 +4559,8 @@
     "save_blocked_load_failed": "Сохранение заблокировано, так как не удалось загрузить заметку",
     "save_failed": "Не удалось сохранить заметку",
     "save_failure": {
-      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено."
+      "description": "Эта заметка не может быть сохранена. Ваши изменения остаются в редакторе, а автоматическое сохранение приостановлено.",
+      "metadata_pending": "Заметка была сохранена, но метаданные файла всё ещё восстанавливаются. Не повторяйте это сохранение."
     },
     "search": {
       "both": "Название+содержание",
@@ -5131,6 +5198,7 @@
     "reset": "Сбросить",
     "rotate_left": "Повернуть влево",
     "rotate_right": "Повернуть вправо",
+    "save_as": "Сохранить как",
     "source": "Смотреть исходный код",
     "zoom_in": "Увеличить",
     "zoom_out": "Уменьшить"
@@ -5187,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Локальные модели",
     "longcat": "Тоторо",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5283,7 @@
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Облако GPU AMD",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -5714,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Новый ассистент",
+      "create_tag": "Новый",
       "empty_text": "Пока нет ассистентов",
       "filter": "Фильтровать помощников",
       "group_filter": "Фильтр по группе",
@@ -5768,7 +5838,25 @@
         "title": "Предприятие"
       },
       "feedback": {
+        "agent": {
+          "description": "Общайтесь с помощником Cherry, чтобы поделиться отзывом.",
+          "title": "Использовать агента"
+        },
+        "agent_error": "Не удалось открыть Cherry Assistant для обратной связи. Пожалуйста, попробуйте снова.",
         "button": "Обратная связь",
+        "dialog": {
+          "description": "Выберите способ поделиться отзывом и помочь нам улучшить Cherry Studio.",
+          "title": "Выберите канал обратной связи"
+        },
+        "github": {
+          "description": "Создайте отчёт об ошибке или запрос функции на GitHub.",
+          "title": "Запрос на GitHub"
+        },
+        "recommended": "Рекомендуется",
+        "survey": {
+          "description": "Поделитесь отзывом через наш опрос в Feishu.",
+          "title": "Опрос обратной связи"
+        },
         "title": "Обратная связь"
       },
       "label": "О программе и обратная связь",
@@ -5883,12 +5971,16 @@
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Экспорт в Word",
         "image": "Экспорт как изображение",
         "joplin": "Экспорт в Joplin",
         "markdown": "Экспорт в Markdown",
         "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
-        "notes": "экспорт в заметки",
         "notion": "Экспорт в Notion",
         "obsidian": "Экспорт в Obsidian",
         "plain_text": "Копировать как чистый текст",
@@ -6101,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
+          "fetchError": "Не удалось загрузить список папок Nutstore",
           "return": "Назад",
           "title": "Путь хранения Nutstore"
         },
@@ -6765,6 +6858,7 @@
         "allStatuses": "Все статусы",
         "allTypes": "Все типы",
         "builtinOnly": "Только встроенный",
+        "label": "Фильтр",
         "status": "Фильтр по статусу",
         "type": "Фильтр по типу"
       },
@@ -6831,6 +6925,9 @@
         "loadError": "Ошибка получения подсказок",
         "noPromptsAvailable": "Нет доступных подсказок",
         "requiredField": "Обязательное поле"
+      },
+      "protocolInstall": {
+        "title": "Установить MCP"
       },
       "protocolInstallWarning": {
         "command": "Команда запуска",
@@ -7178,7 +7275,9 @@
       "expand_all": "Развернуть все",
       "filter": {
         "clear": "Очистить фильтр моделей",
-        "label": "Фильтровать модели"
+        "label": "Фильтровать модели",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",
@@ -7289,6 +7388,7 @@
       "topic_naming": {
         "auto": "Автоматическое переименование топика",
         "label": "Название темы",
+        "model": "Модель именования",
         "prompt": "Подсказка для именования топика"
       },
       "translate_model": "Модель перевода",
@@ -7351,10 +7451,6 @@
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "После включения Cherry Studio обращается к IPInfo, чтобы приблизительно определить страну или регион, а затем отправляет этот результат вместе с вашим именем, языком приложения, местными датой и временем и часовым поясом встроенной модели CherryAI для создания приветствий. По умолчанию отключено.",
-        "title": "Контекстные приветствия, созданные ИИ"
-      },
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"
     },
@@ -7703,6 +7799,13 @@
         "usage_title": "Использование",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Открыть Token Factory",
+          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
+          "title": "10 USD бесплатных API-кредитов ежедневно"
+        }
+      },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
       "reorder_failed": "Не удалось изменить порядок поставщиков",
@@ -7746,13 +7849,6 @@
           "toggle_client_email_visibility": "Переключить видимость электронной почты клиента",
           "toggle_private_key_visibility": "Переключить видимость приватного ключа",
           "toggle_project_id_visibility": "Переключить видимость идентификатора проекта"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Открыть Token Factory",
-          "description": "Эквивалент 10 USD в API-кредитах ежедневно: по текущим тарифам это около 10–111 млн входных/выходных токенов в зависимости от модели и типа токенов. Кредиты сбрасываются ежедневно; пополнение пока не поддерживается.",
-          "title": "10 USD бесплатных API-кредитов ежедневно"
         }
       }
     },
@@ -8055,6 +8151,10 @@
         "check": "проверка",
         "check_failed": "Проверка не прошла",
         "check_success": "Проверка успешна",
+        "client_tools_preferred": {
+          "description": "Используйте настроенные выше службы поиска и получения URL даже когда у модели есть встроенный поиск. Когда выключено, модель обрабатывает это сама.",
+          "label": "Предпочитать настроенные поисковые службы"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8081,7 +8181,7 @@
           "save_failed": "Ошибка сохранения",
           "zhipu_sync_failed": "Не удалось синхронизировать ключ API Zhipu с веб-поиском. Повторно сохраните ключ или проверьте настройки веб-поиска."
         },
-        "fetch_urls_provider": "Поставщик загрузки URL по умолчанию",
+        "fetch_urls_provider": "Поставщик загрузки URL",
         "free": "Бесплатно",
         "is_default": "По умолчанию",
         "local_provider": {

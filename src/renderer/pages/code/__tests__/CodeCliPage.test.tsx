@@ -334,14 +334,19 @@ vi.mock('../components/VersionStatusCard', () => ({
     canLaunch,
     onRemove,
     installError,
-    onShowError
+    onShowError,
+    launchDisabledHint
   }: {
     canLaunch?: boolean
     onRemove?: () => void
     installError?: string
     onShowError?: () => void
+    launchDisabledHint?: string
   }) => (
-    <div data-can-launch={String(canLaunch)} data-testid="version-status-card">
+    <div
+      data-can-launch={String(canLaunch)}
+      data-launch-disabled-hint={launchDisabledHint}
+      data-testid="version-status-card">
       {onRemove && (
         <button type="button" onClick={onRemove}>
           remove tool
@@ -561,11 +566,13 @@ describe('CodeCliPage', () => {
     expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
-  it('shows a provider selection hint when launch needs a current provider', () => {
+  it('puts the provider selection hint on the disabled launch action', () => {
     render(<CodeCliPage />)
 
-    expect(screen.getByText('code.select_provider_before_launch')).toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'false')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(versionCard).toHaveAttribute('data-can-launch', 'false')
+    expect(versionCard).toHaveAttribute('data-launch-disabled-hint', 'code.select_provider_before_launch')
   })
 
   it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
@@ -601,7 +608,7 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
   })
 
-  it('hides the provider selection hint once a current provider is selected', () => {
+  it('removes the launch hint once a current provider is selected', () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: { modelId: 'anthropic::claude-new', config: {} }
@@ -611,20 +618,22 @@ describe('CodeCliPage', () => {
 
     render(<CodeCliPage />)
 
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
-  it('does not show the provider selection hint for provider-less tools', () => {
+  it('does not add a provider selection hint for provider-less tools', () => {
     mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
 
     render(<CodeCliPage />)
 
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
@@ -635,9 +644,9 @@ describe('CodeCliPage', () => {
 
     // Login-capable tools always surface the virtual own-login row, so there is no empty state and
     // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
     expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
     expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {

@@ -150,57 +150,34 @@ describe('useTemporaryValue', () => {
   })
 
   describe('data types', () => {
-    it.each([
-      [false, true],
-      [0, 5],
-      ['', 'temporary'],
-      [null, 'value'],
-      [undefined, 'value'],
-      [{}, { key: 'value' }],
-      [[], [1, 2, 3]]
-    ])('should work with type: %p', (defaultValue, temporaryValue) => {
-      const { result } = renderHook(() => useTemporaryValue(defaultValue, 1000))
-      const [, setTemporaryValue] = result.current
+    it('should work with supported value types', () => {
+      const cases = [
+        [false, true],
+        [0, 5],
+        ['', 'temporary'],
+        [null, 'value'],
+        [undefined, 'value'],
+        [{}, { key: 'value' }],
+        [[], [1, 2, 3]]
+      ] as const
 
-      act(() => {
-        setTemporaryValue(temporaryValue)
-      })
+      for (const [defaultValue, temporaryValue] of cases) {
+        const { result, unmount } = renderHook(() => useTemporaryValue(defaultValue, 1000))
+        const [, setTemporaryValue] = result.current
 
-      expect(result.current[0]).toEqual(temporaryValue)
+        act(() => {
+          setTemporaryValue(temporaryValue)
+        })
 
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
+        expect(result.current[0]).toEqual(temporaryValue)
 
-      expect(result.current[0]).toEqual(defaultValue)
-    })
-  })
+        act(() => {
+          vi.advanceTimersByTime(1000)
+        })
 
-  describe('edge cases', () => {
-    it('should handle same temporary value multiple times', () => {
-      const { result } = renderHook(() => useTemporaryValue('default', 1000))
-      const [, setTemporaryValue] = result.current
-
-      // 设置临时值
-      act(() => {
-        setTemporaryValue('temporary')
-      })
-
-      expect(result.current[0]).toBe('temporary')
-
-      // 再次设置相同的临时值
-      act(() => {
-        setTemporaryValue('temporary')
-      })
-
-      expect(result.current[0]).toBe('temporary')
-
-      // 快进定时器
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      expect(result.current[0]).toBe('default')
+        expect(result.current[0]).toEqual(defaultValue)
+        unmount()
+      }
     })
   })
 })

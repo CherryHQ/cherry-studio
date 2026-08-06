@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} tarefa em segundo plano em execução",
+      "background_running_other": "{{count}} tarefas em segundo plano em execução"
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Descartar e continuar",
           "title": "Descartar alterações não salvas?"
         },
+        "metadata_pending": "O arquivo foi salvo, mas seus metadados ainda estão sendo recuperados. Não tente salvar novamente.",
         "refresh_failed": "Não foi possível recarregar o conteúdo mais recente do arquivo.",
         "save_failed": "Não foi possível salvar este arquivo. O salvamento automático está pausado até que você tente novamente ou descarte as alterações.",
         "unsaved": "Não salvo",
@@ -277,6 +278,16 @@
       "too_large": {
         "description": "O arquivo excede o limite de pré-visualização de {{limit}}.",
         "title": "Arquivo muito grande para pré-visualizar"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "O painel de arquivos requer um caminho local absoluto válido. Por favor, selecione o diretório de trabalho novamente.",
+          "title": "Caminho do espaço de trabalho inválido"
+        },
+        "load_error": {
+          "description": "Certifique-se de que o diretório de trabalho ainda existe e está acessível, depois tente novamente.",
+          "title": "Não foi possível carregar os arquivos do espaço de trabalho"
+        }
       },
       "unavailable": {
         "description": "Este arquivo não pôde ser aberto — pode ter sido movido ou excluído.",
@@ -325,25 +336,25 @@
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
         "no_subagents": "Sem subagentes",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Comandos em segundo plano",
         "subagents": "Subagentes",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Fluxos de trabalho"
       },
       "status": {
         "activity": "Atividade",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} ao vivo",
+        "run_task_live_other": "{{count}} ao vivo",
+        "run_tasks": "Subtarefas",
         "selected_tool": "Ferramenta selecionada",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Parar tarefa",
+        "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} chamada de ferramenta",
+        "tool_uses_other": "{{count}} chamadas de ferramenta",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
@@ -757,6 +768,13 @@
         "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
       },
       "resume": "Retomar",
+      "reuseSession": {
+        "bound": "Ver sessão",
+        "description": "Continue cada execução na mesma sessão em vez de iniciar uma nova.",
+        "label": "Reutilizar sessão",
+        "pending": "Esperando a primeira execução",
+        "warning": "Uma sessão reutilizada continua acumulando contexto, o que aumenta o custo de tokens ao longo do tempo e pode transbordar a janela de contexto do modelo. Para vincular uma sessão limpa, desative e salve, depois ative e salve."
+      },
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
@@ -1349,6 +1367,9 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "error": {
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+    },
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -1415,6 +1436,11 @@
         "placeholder": "Pesquisar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens economizados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Novo Chat"
     },
@@ -1480,6 +1506,13 @@
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
+      "note_reference": {
+        "description": "Anexe uma nota do Notes",
+        "empty": "Nenhuma nota encontrada",
+        "load_failed": "Falha ao carregar notas",
+        "loading": "Carregando notas...",
+        "title": "Nota de Referência"
+      },
       "paste_text_file": "Cole na entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
@@ -1594,7 +1627,6 @@
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
-      "url_context": "Contexto da Página da Web",
       "web_search": {
         "builtin": {
           "disabled_content": "Este modelo não suporta busca na web",
@@ -1611,13 +1643,16 @@
           "description": "Não ativar a função de busca na web",
           "label": "Sem busca na web"
         },
+        "route": {
+          "builtin": "Pesquisas com a ferramenta integrada do modelo",
+          "client": "Pesquisas com {{provider}}"
+        },
         "settings": "Configurações de Pesquisa na Web"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
+        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções."
       }
     },
     "message": {
@@ -1694,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Ir para a jogada {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -2481,6 +2519,7 @@
       "content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
       "context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
       "deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
+      "free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
       "go_to_settings": "Ir para definições",
       "knowledge": "Falha na vetorização da base de conhecimento",
       "mcp": "Falha na ligação ao servidor MCP, verifique se o serviço está em execução",
@@ -2585,6 +2624,10 @@
     "user": "Usuário"
   },
   "file_preview": {
+    "directory": {
+      "description": "Selecione um arquivo nesta pasta para visualizá-lo.",
+      "title": "Esta é uma pasta"
+    },
     "html": {
       "empty": {
         "description": "Este arquivo HTML não tem conteúdo.",
@@ -2650,6 +2693,10 @@
         "description": "Arquivos de texto maiores que {{limit}} MiB não podem ser visualizados.",
         "title": "O arquivo é muito grande"
       }
+    },
+    "unavailable": {
+      "description": "O arquivo pode ter sido movido, excluído ou não pode ser acessado.",
+      "title": "Arquivo indisponível"
     },
     "unsupported": {
       "action": "Abrir com aplicação padrão",
@@ -3057,6 +3104,7 @@
       "reindex_failed": "Falha ao reindexar a fonte de dados",
       "status": {
         "chunking": "Fragmentação",
+        "copying": "Copiando {{percent}}%",
         "embedding": "Incorporação",
         "error": "Erro",
         "pending": "Aguardando",
@@ -3154,6 +3202,7 @@
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
       "processor": "Processador de Provedor",
+      "processor_not_configured": "Não configurado",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3353,7 +3402,7 @@
             "label": "Modelo pequeno (opcional)"
           }
         },
-        "model_config": "Configuração do modelo",
+        "model_config": "Modelo",
         "section": {
           "advanced": {
             "desc": "Limites de execução e parâmetros de tempo de execução",
@@ -3404,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-comprimir",
+        "context_compress_model": "Modelo de compressão",
+        "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_management": "Gestão de contexto",
+        "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
         "custom_params_add": "Adicionar parâmetro",
@@ -3416,8 +3470,17 @@
           "avatar": {
             "hint": "Usado para identificar o assistente na biblioteca e nos chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automaticamente as conversas anteriores ao aproximar-se da janela de contexto"
+          },
           "context_count": {
             "hint": "Número de mensagens recentes mantidas como contexto"
+          },
+          "context_management": {
+            "hint": "Substituir as configurações globais de gerenciamento de contexto para este assistente; desativado herda as configurações globais"
+          },
+          "context_truncate_threshold": {
+            "hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas"
           },
           "custom_params": {
             "hint": "Parâmetros extras do provedor enviados com as solicitações"
@@ -3832,6 +3895,7 @@
       "pasted_text": "Arquivo da área de transferência"
     },
     "backup": {
+      "cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
       "failed": "Backup falhou",
       "start": {
         "success": "Início do backup"
@@ -3847,8 +3911,9 @@
       }
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
+    "citation_source": "Fonte de citação {{number}}",
     "citations": "Citações",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Histórico de conversa anterior não foi encontrado — continuando em uma nova conversa",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -4130,7 +4195,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Executando em segundo plano",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4162,7 +4227,7 @@
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
         "webSearch": "Pesquisa na Web",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Fluxo de trabalho",
         "write": "Escreva"
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
@@ -4222,13 +4287,13 @@
         "result_other": "{{count}} resultados"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Orquestrando fluxo de trabalho",
+        "run_id": "ID da Execução",
+        "script": "Script de fluxo de trabalho",
+        "script_path": "Caminho do script",
+        "started": "Iniciou fluxo de trabalho",
+        "summary": "Resumo",
+        "workflow": "fluxo de trabalho"
       }
     },
     "topic": {
@@ -4260,6 +4325,7 @@
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
       "fetch_empty": "Nenhum resultado de pesquisa encontrado",
+      "fetch_opaque": "Pesquisado pelo modelo",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -4493,7 +4559,8 @@
     "save_blocked_load_failed": "Salvamento bloqueado porque a nota falhou ao carregar",
     "save_failed": "Falha ao salvar nota",
     "save_failure": {
-      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado."
+      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado.",
+      "metadata_pending": "A nota foi salva, mas seus metadados de arquivo ainda estão sendo recuperados. Não tente salvar novamente."
     },
     "search": {
       "both": "Nome + Conteúdo",
@@ -5131,6 +5198,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Salvar Como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -5187,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modelos locais",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5283,7 @@
     "ppio": "PPIO Nuvem Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Nuvem de GPU AMD",
     "silicon": "Silício em Fluxo",
     "sophnet": "SophNet",
     "stepfun": "Função de Passo Estelar",
@@ -5714,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Novo Assistente",
+      "create_tag": "Novo",
       "empty_text": "Nenhum assistente ainda",
       "filter": "Assistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5768,7 +5838,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Converse com o Assistente Cherry para compartilhar comentários.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Escolha como compartilhar feedback e ajude-nos a melhorar o Cherry Studio.",
+          "title": "Escolha um canal de feedback"
+        },
+        "github": {
+          "description": "Criar um relatório de bug ou solicitação de recurso no GitHub.",
+          "title": "Issue do GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Compartilhe feedback através da nossa pesquisa Feishu.",
+          "title": "Pesquisa de feedback"
+        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -5883,12 +5971,16 @@
         "third_party": "Conexões de Terceiros"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Exportar como Word",
         "image": "Exportar como Imagem",
         "joplin": "Exportar para Joplin",
         "markdown": "Exportar como Markdown",
         "markdown_reason": "Exportar como Markdown (incluindo pensamentos)",
-        "notes": "Exportar para notas",
         "notion": "Exportar para Notion",
         "obsidian": "Exportar para Obsidian",
         "plain_text": "Copiar como texto simples",
@@ -6101,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Caminho atual",
+          "fetchError": "Falha ao carregar a lista de pastas do Nutstore",
           "return": "Voltar",
           "title": "Caminho de armazenamento do Nutstore"
         },
@@ -6765,6 +6858,7 @@
         "allStatuses": "Todos os status",
         "allTypes": "Todos os tipos",
         "builtinOnly": "Apenas integrado",
+        "label": "Filtro",
         "status": "Filtrar por status",
         "type": "Filtrar por tipo"
       },
@@ -6831,6 +6925,9 @@
         "loadError": "Falha ao carregar dicas",
         "noPromptsAvailable": "Nenhuma dica disponível",
         "requiredField": "Campo obrigatório"
+      },
+      "protocolInstall": {
+        "title": "Instalar MCP"
       },
       "protocolInstallWarning": {
         "command": "Comando de inicialização",
@@ -7178,7 +7275,9 @@
       "expand_all": "Expandir tudo",
       "filter": {
         "clear": "Limpar filtro de modelos",
-        "label": "Filtrar modelos"
+        "label": "Filtrar modelos",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Desativar este grupo",
       "group_enable": "Ativar este grupo",
@@ -7289,6 +7388,7 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
+        "model": "Modelo de Nomenclatura",
         "prompt": "Prompt de nomenclatura de tópicos"
       },
       "translate_model": "Modelo de tradução",
@@ -7351,10 +7451,6 @@
       "prevent_sleep_when_busy": "Mantenha o sistema ativo enquanto as tarefas estão sendo executadas"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Quando ativado, o Cherry Studio contacta o IPInfo para detetar aproximadamente o país ou a região e envia esse resultado, juntamente com o seu nome, o idioma da aplicação, a data e hora locais e o fuso horário, para o modelo CherryAI integrado gerar saudações. Desativado por predefinição.",
-        "title": "Saudações contextuais geradas por IA"
-      },
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
       "title": "Configurações de Privacidade"
     },
@@ -7703,6 +7799,13 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir o Token Factory",
+          "description": "Equivale a 10 USD diários em créditos de API: cerca de 10M–111M tokens de entrada/saída às tarifas atuais, consoante o modelo e o tipo de token. Os créditos são repostos diariamente; atualmente, os carregamentos não são suportados.",
+          "title": "10 USD diários em créditos de API gratuitos"
+        }
+      },
       "remove_duplicate_keys": "Remover chaves duplicadas",
       "remove_invalid_keys": "Remover chaves inválidas",
       "reorder_failed": "Falha ao reordenar provedores",
@@ -7746,13 +7849,6 @@
           "toggle_client_email_visibility": "Alternar visibilidade do e-mail do cliente",
           "toggle_private_key_visibility": "Alternar visibilidade da chave privada",
           "toggle_project_id_visibility": "Alternar visibilidade do ID do projeto"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Abrir o Token Factory",
-          "description": "Equivale a 10 USD diários em créditos de API: cerca de 10M–111M tokens de entrada/saída às tarifas atuais, consoante o modelo e o tipo de token. Os créditos são repostos diariamente; atualmente, os carregamentos não são suportados.",
-          "title": "10 USD diários em créditos de API gratuitos"
         }
       }
     },
@@ -8055,6 +8151,10 @@
         "check": "Verificar",
         "check_failed": "Falha na verificação",
         "check_success": "Verificação bem-sucedida",
+        "client_tools_preferred": {
+          "description": "Use os serviços de pesquisa e busca de URL configurados acima mesmo quando o modelo possui pesquisa integrada. Quando desativado, o modelo lida com isso.",
+          "label": "Serviços de pesquisa configurados preferidos"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8081,7 +8181,7 @@
           "save_failed": "Falha ao salvar",
           "zhipu_sync_failed": "Falha ao sincronizar a chave de API Zhipu com a Pesquisa na Web. Por favor, salve novamente a chave ou verifique as configurações da Pesquisa na Web."
         },
-        "fetch_urls_provider": "Provedor padrão de busca de URL",
+        "fetch_urls_provider": "Provedor de busca de URL",
         "free": "Grátis",
         "is_default": "Padrão",
         "local_provider": {
