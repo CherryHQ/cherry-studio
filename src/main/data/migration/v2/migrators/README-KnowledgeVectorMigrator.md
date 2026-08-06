@@ -151,14 +151,19 @@ the projection and vectors in ≤500-rowid batches — a 501-chunk item must arr
 
 ## IMPORTANT: Current Limitations
 
-- A single base's execution failure is **non-fatal**, not a whole-migration abort. When one base's
-  vector store cannot be rebuilt, that base is skipped, marked a restorable
+- A single base's failure is **non-fatal**, not a whole-migration abort. When one base's vector
+  store cannot be rebuilt — whether `prepare()` could not read/map its legacy source at all, or
+  `execute()` failed mid-rebuild or mid-publish — that base is skipped, marked a restorable
   `failed`/`missing_vector_store` row (so the UI surfaces a re-index entry), and the failure is
   surfaced as a warning — `execute()` still returns `success: true` and the remaining bases migrate.
   This keeps a per-base migration error from blocking the user out of the app: the failed base is
   recovered in-UI rather than by re-running the whole migration. The migration only fails as a whole
   on a structural/integrity error (a migrator throwing, or `validate()`'s reconciliation failing),
-  never on per-base data that could not be migrated.
+  never on per-base data that could not be migrated. **One exception:** if the base's own
+  `failed`/`missing_vector_store` mark cannot be written to the application DB, the migrator throws
+  and the whole migration fails. That mark is the only thing keeping the base out of the runtime's
+  open path, so a migration recorded as `completed` without it would leave the base permanently
+  unsearchable with no way back; failing instead lets the next launch re-run from scratch.
 - After a successful migration the v1 legacy vector DBs (and the copied legacy
   upload files) remain on disk as orphans; disk space is not reclaimed. Reclaiming
   it is intentionally left to a separate future cleanup step gated on the user
@@ -180,11 +185,24 @@ Per successful base, the rebuilt store's row counts must match what was prepared
 - Bases missing from migrated `knowledge_base`
 - Bases marked `failed` or with `embeddingModelId = null`
 - Bases with invalid `dimensions`
-- Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
+- Bases whose legacy DB file is missing, resolves to a directory, does not contain a `vectors` table, or becomes unreadable mid-scan
+- Bases whose migrated id cannot be mapped back to a legacy knowledge base id
+- Bases whose remapped legacy id is absent from the legacy Redux state
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows mapped to non-indexable container item types such as `directory`, **only in the fallback path** (unreadable legacy sources, or an embedded file with no migratable vectors); the normal path re-attributes them to per-file children instead
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
 - Vector rows whose `vector` length disagrees with the base's recorded `dimensions`
 
-If every legacy vector row under one base is skipped, the rebuilt V2 store for that base is expected to be empty (schema + `meta` row only). This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.
+A skipped **base** produces no store at all, which is not the same as an empty one. Every base-level
+skip above is therefore marked restorable `failed`/`missing_vector_store` in `execute()`'s flush
+rather than left `completed`, with two exceptions: a base with no migrated `knowledge_base` row at
+all (`prepare()` iterates the migrated rows, so there is nothing to mark), and a base that is
+already `failed` (it carries its own error — e.g. `missing_embedding_model` — which must not be
+overwritten). The reason for marking is that nothing reconciles a `knowledge_base` row against the
+filesystem: a `completed` base with no store gets a blank `index.sqlite` created and cached on its
+first runtime open and returns empty search results forever, with no failed badge and no restore
+entry. Recovery is the in-UI restore flow (which re-adds the items into a fresh base and re-embeds
+them), not a migration re-run — the migration itself still completes.
+
+If every legacy vector **row** under one base is skipped, the base is still planned and its rebuilt V2 store is expected to be empty (schema + `meta` row only). This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.

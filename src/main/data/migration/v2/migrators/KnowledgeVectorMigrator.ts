@@ -274,11 +274,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
   // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
   private directoryItemsToDegrade = new Set<string>()
-  // Bases that never finished publishing at their runtime index.sqlite — either the rebuild threw
-  // partway, or it completed and the snapshot-pin transaction threw. flushBaseFailures() marks each
-  // `failed`/missing_vector_store after the loop so the UI surfaces a restore entry instead of
-  // leaving a `completed` base with a missing/partial store (forever-empty search) or with unpinned
-  // url/note rows (no `relativePath`, which deriveConceptId treats as an invariant violation).
+  // Bases that never finished publishing at their runtime index.sqlite — prepare() skipped one
+  // without producing a plan (markBaseUnmigrated), the rebuild threw partway, or it completed and
+  // the snapshot-pin transaction threw. flushBaseFailures() marks each `failed`/missing_vector_store
+  // after execute()'s loop so the UI surfaces a restore entry instead of leaving a `completed` base
+  // with a missing/partial store (forever-empty search) or with unpinned url/note rows (no
+  // `relativePath`, which deriveConceptId treats as an invariant violation).
   private basesToMarkFailed = new Set<string>()
   // Migrated item rows by base, computed once in prepare() and reused by execute() to resolve each
   // planned rowid list back to its material item without re-querying ctx.db. Metadata only (ids,
@@ -348,6 +349,27 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         this.directoryItemsToDegrade.add(childId)
       }
     }
+  }
+
+  /**
+   * Skip a base that reached prepare()'s per-base body still `completed` (KnowledgeMigrator's probe
+   * at order 1.8 passed) but produced no plan here, so no store is ever built for it. Leaving such a
+   * base `completed` is the SAME broken state execute()'s publish failures leave behind: nothing
+   * reconciles the row against the filesystem, so the runtime's first open silently creates a blank
+   * index.sqlite and caches it, search and the chunk list return nothing forever, and no auto-reindex
+   * exists to notice (KnowledgeVectorStoreService only logs the empty-store state). Queue the same
+   * restorable `failed`/missing_vector_store mark execute() uses — flushed by flushBaseFailures() —
+   * so the base is kept out of the runtime's open path and the UI offers the restore flow, and orphan
+   * its directory-expanded items, which will never receive their vectors either.
+   *
+   * This is reachable without any external writer: order 1.8 only probes `count(*)` plus one
+   * `length(vector)`, while prepare() here reads `pageContent`/`uniqueLoaderId`/`vector` across every
+   * row and re-resolves the legacy id remap — so a corrupt page, a transient lock, or a broken remap
+   * fails only at order 3.5.
+   */
+  private markBaseUnmigrated(baseId: string, directoryGroups: Map<string, Set<string>>): void {
+    this.basesToMarkFailed.add(baseId)
+    this.markDirectoryGroupsFullyOrphaned(directoryGroups)
   }
 
   /**
@@ -693,6 +715,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
               `Skipped knowledge vector base ${base.id}: already marked failed (${reason})`
             )
           }
+          // Deliberately NOT markBaseUnmigrated: unlike the skips below, neither case leaves a
+          // `completed` base behind. The `failed` half already carries its own error (overwriting it
+          // with missing_vector_store would misdirect the restore dialog), and the model-less half
+          // is only reachable as `failed` too — KnowledgeMigrator pairs `embeddingModelId = null`
+          // with `failed`/missing_embedding_model in the same row write. If that pairing ever
+          // changes (e.g. migrating a model-less v1 base as a BM25-only `completed` base), this
+          // branch has to decide what such a base's index should be, so revisit it there.
           this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
@@ -702,7 +731,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: invalid dimensions`
           this.recordSkippedWarning('invalid_dimensions', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
 
@@ -710,7 +739,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBaseId) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: migrated base id cannot be mapped to legacy knowledge base id`
           this.recordSkippedWarning('unmapped_base', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
 
@@ -718,7 +747,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
 
@@ -747,10 +776,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // counting per row — never materializing the base's rows or vectors (the whole-base load
         // this replaces OOM'd on a single large base); url/note items then get one bounded
         // point-read each to derive their snapshot path. A read/decode failure mid-scan (locked /
-        // corrupt DB) is a recoverable per-base skip, mirroring KnowledgeMigrator: the base keeps
-        // its failed tombstones and re-running migration once the DB is readable recovers it
-        // without re-embedding. Everything below accumulates locally and is recorded on `this`
-        // only after the reads complete, so a mid-scan failure leaves no partial counts behind.
+        // corrupt DB) is a recoverable per-base skip: markBaseUnmigrated leaves the base a
+        // restorable `failed`/missing_vector_store row instead of a `completed` one with no store.
+        // Recovery is the in-UI restore flow, NOT a later migration run — the migration itself still
+        // completes, so order 3.5 never runs again. Everything below accumulates locally and is
+        // recorded on `this` only after the reads complete, so a mid-scan failure leaves no partial
+        // counts behind.
         const rowidsByItemId = new Map<string, number[]>()
         const materialItemById = new Map<string, MaterialFieldSource>()
         const snapshotRelativePathByItemId = new Map<string, string>()
@@ -790,7 +821,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
                 )
                 break
             }
-            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+            this.markBaseUnmigrated(base.id, directoryGroups)
             continue
           }
           reader = openResult.reader
@@ -870,7 +901,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             'read_error',
             `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
           )
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         } finally {
           reader?.close()
@@ -931,8 +962,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
    * Persist the directory degrade set (collected in prepare() for skipped/empty bases and in
    * execute()'s per-base catch for bases that failed mid-rebuild): orphaned directory-expanded
    * items become `failed`/directory_not_migrated so the UI prompts a re-add (their virtual-path
-   * source cannot reindex). A failure here is non-fatal — the worst case is a stale `completed`
-   * row that the next migration run re-degrades — so it is recorded as a warning, never thrown.
+   * source cannot reindex). A failure here is recorded as a warning, never thrown — deliberately
+   * the opposite of flushBaseFailures. Not because it is repairable (it is not: the migration still
+   * completes, so nothing re-degrades these rows later), but because the blast radius differs. A
+   * lost degrade leaves some empty documents inside a base that otherwise works; a lost base mark
+   * leaves the WHOLE base silently unsearchable with no restore entry. Aborting an otherwise
+   * successful migration over the former is the worse trade; over the latter it is not.
    * Chunked under SQLite's bound-variable cap so a large degrade set cannot overflow the UPDATE.
    */
   private async flushDirectoryDegradations(ctx: MigrationContext): Promise<void> {
@@ -963,15 +998,19 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Mark every base that never finished publishing (collected in execute()'s per-base catch — the
-   * rebuild threw partway, or it completed and the snapshot-pin transaction threw) as a restorable
-   * `failed` row, after wiping the index it left behind. Without this the base stays `completed`
-   * and is broken with no way back: a missing/partial store makes search and the chunk list return
-   * nothing forever with nothing reindexing on its own (KnowledgeVectorStoreService only logs the
-   * empty-store state), and unpinned url/note rows keep a `completed` status that makes
+   * Mark every base that never finished publishing (collected in prepare()'s skip branches via
+   * markBaseUnmigrated — no plan, so no store is ever built — and in execute()'s per-base catch,
+   * where the rebuild threw partway or it completed and the snapshot-pin transaction threw) as a
+   * restorable `failed` row. The execute-phase entries have already had the partial index they left
+   * behind wiped by the per-base catch; the prepare-phase ones never built one. Without this the
+   * base stays
+   * `completed` and is broken with no way back: a missing/partial store makes search and the chunk
+   * list return nothing forever with nothing reindexing on its own (KnowledgeVectorStoreService only
+   * logs the empty-store state), and unpinned url/note rows keep a `completed` status that makes
    * index-documents skip them, so their snapshots are never captured either. `missing_vector_store`
-   * is the same restorable error prepare()'s unreadable-store branch sets, so the UI offers the
-   * restore flow. Chunked like flushDirectoryDegradations, and every batch is attempted before any
+   * is the same restorable error KnowledgeMigrator sets when its own order-1.8 probe finds the
+   * legacy store unreadable, so the UI offers the restore flow either way.
+   * Chunked like flushDirectoryDegradations, and every batch is attempted before any
    * failure surfaces — but a batch that could not be persisted is FATAL, not best-effort: the
    * `failed` mark is the only thing standing between the user and a `completed` base with a wiped
    * store and unpinned rows, so if it cannot be written the migration must not be recorded as
@@ -999,13 +1038,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         lastError = error
       }
     }
-    logger.info('Marked knowledge bases failed after vector store promotion failed', {
+    logger.info('Marked knowledge bases failed after their vector store could not be built', {
       failedCount: ids.length - unpersistedBaseIds.length,
       totalCount: ids.length
     })
     if (unpersistedBaseIds.length > 0) {
       throw new Error(
-        `Failed to persist the failed status of ${unpersistedBaseIds.length} knowledge base(s) [${unpersistedBaseIds.join(', ')}] after their vector store could not be published: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+        `Failed to persist the failed status of ${unpersistedBaseIds.length} knowledge base(s) [${unpersistedBaseIds.join(', ')}] after their vector store could not be built: ${lastError instanceof Error ? lastError.message : String(lastError)}`
       )
     }
   }
@@ -1016,8 +1055,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     // re-returning prepare's would double-count them).
     const prepareWarningCount = this.warnings.length
     if (this.preparedBasePlans.length === 0) {
-      // No vector plan survived prepare(); still degrade items orphaned there (a base whose only
-      // content was a directory expansion) before returning.
+      // No vector plan survived prepare(). Two things still have to be persisted: the failed mark
+      // for every base prepare() skipped, and the degrade for items orphaned there (a base whose
+      // only content was a directory expansion). Reached either because every base was skipped —
+      // the case that most needs the base flush — or because there was no knowledge data at all, in
+      // which case both sets are empty and both calls no-op. Base failures go FIRST: it is the
+      // integrity-critical write (it throws when the mark cannot be persisted, failing the migrator
+      // rather than recording a completed migration over a broken base), so it must not be able to
+      // be skipped by the best-effort degrade pass throwing ahead of it.
+      await this.flushBaseFailures(ctx)
       await this.flushDirectoryDegradations(ctx)
       return {
         success: true,
@@ -1275,15 +1321,16 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       }
     }
 
-    // Persist all directory degradations now: both those collected in prepare() and those added in
+    // Both flushes run after the loop, so a per-base failure does not abort the surviving bases.
+    // Mark every base that never reached publication as a restorable `failed` row. This goes first:
+    // it is the integrity-critical write (it throws when the mark cannot be persisted), so it must
+    // not be able to be skipped by the best-effort degrade pass throwing ahead of it.
+    await this.flushBaseFailures(ctx)
+    // Then persist all directory degradations: both those collected in prepare() and those added in
     // the per-base catch above for bases that failed mid-rebuild. Running it after the loop (rather
     // than before) is what lets a failed base's directory items reach `failed` once the per-base
     // skip keeps the overall migration alive.
     await this.flushDirectoryDegradations(ctx)
-    // Mark every base whose store could not be promoted as a restorable `failed` row (same deferral
-    // rationale as the degrade pass: after the loop, so a per-base promote failure does not abort
-    // the surviving bases).
-    await this.flushBaseFailures(ctx)
 
     logger.info('KnowledgeVectorMigrator.execute completed', {
       processedCount,

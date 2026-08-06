@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
 
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { stripOkfFrontmatter } from '@main/features/knowledge/pipeline/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/pipeline/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/pipeline/vectorstore/indexStore/KnowledgeIndexStore'
@@ -177,12 +178,15 @@ function createDbMock({
       from: vi.fn().mockResolvedValue(migratedItems)
     })
 
-  // Captures the url-snapshot row write-backs: one entry per updated item.
-  const updateCalls: Array<{ values: Record<string, unknown> }> = []
-  const update = vi.fn(() => ({
+  // Captures the url-snapshot row write-backs: one entry per updated item. The TARGET TABLE is
+  // recorded alongside the values because both flushes now write `status: 'failed'` — asserting the
+  // payload alone cannot tell a `knowledge_base` mark apart from a `knowledge_item` degrade, so a
+  // flush aimed at the wrong table would pass unnoticed.
+  const updateCalls: Array<{ table: unknown; values: Record<string, unknown> }> = []
+  const update = vi.fn((table: unknown) => ({
     set: vi.fn((values: Record<string, unknown>) => ({
       where: vi.fn(async () => {
-        updateCalls.push({ values })
+        updateCalls.push({ table, values })
       })
     }))
   }))
@@ -191,13 +195,13 @@ function createDbMock({
   // tx writes only land in updateCalls if the whole callback returns — a throw rolls them back,
   // so tests can pin the all-or-nothing snapshot-pin contract.
   const transaction = vi.fn((callback: (tx: unknown) => unknown) => {
-    const txCalls: Array<{ values: Record<string, unknown> }> = []
+    const txCalls: Array<{ table: unknown; values: Record<string, unknown> }> = []
     const tx = {
-      update: vi.fn(() => ({
+      update: vi.fn((table: unknown) => ({
         set: vi.fn((values: Record<string, unknown>) => ({
           where: vi.fn(() => ({
             run: vi.fn(() => {
-              txCalls.push({ values })
+              txCalls.push({ table, values })
             })
           }))
         }))
@@ -291,6 +295,52 @@ function createMigratedBase(overrides: Partial<MigratedKnowledgeBaseRow> = {}): 
 /** A migrated item id mapped to its prepared materials (test-only reach into private state). */
 function materialItemIds(migrator: any): string[] {
   return [...migrator.preparedBasePlans[0].rowidsByItemId.keys()]
+}
+
+/**
+ * A ctx for a file-only base whose legacy vector DB throws PARTWAY THROUGH the row scan — the shape
+ * KnowledgeMigrator's order-1.8 probe cannot catch, since it reads only `count(*)` plus one
+ * `length(vector)` and never touches `pageContent`/`uniqueLoaderId`. The base therefore arrives here
+ * `completed`. No directory expansion, so the degrade pass writes nothing and the base UPDATE is the
+ * only observable signal.
+ */
+function createMidScanReadFailureCtx() {
+  const close = vi.fn()
+  const openBase = vi.fn(() => ({
+    status: 'ok' as const,
+    dbPath: 'stub',
+    reader: {
+      *iterateRows() {
+        yield {
+          rowid: 1,
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          vector: { status: 'decoded', value: Float32Array.from([1, 2]) }
+        }
+        throw new Error('database disk image is malformed')
+      },
+      loadTextRowsByRowids: vi.fn(),
+      loadRowsByRowids: vi.fn(),
+      close
+    }
+  }))
+  const migrationCtx = createMigrationCtx({
+    migratedBases: [createMigratedBase()],
+    migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+    knowledgeVectorSource: { openBase } as any,
+    reduxData: {
+      knowledge: {
+        bases: [
+          {
+            id: LEGACY_KNOWLEDGE_BASE_ID,
+            name: 'Base 1',
+            items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+          }
+        ]
+      }
+    }
+  })
+  return { migrationCtx, openBase, close }
 }
 
 /** A KnowledgeVectorSourceReader stub whose openBase() streams the given pre-decoded rows. */
@@ -552,6 +602,42 @@ describe('KnowledgeVectorMigrator', () => {
             warning.includes(MIGRATED_KNOWLEDGE_BASE_ID)
         )
       ).toBe(true)
+      // No plan means no store will ever be built for this base, so it must not stay `completed`.
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+    })
+
+    it('marks a base failed when its remapped legacy id is absent from the legacy state', async () => {
+      // The remap resolves, but the legacy Redux base it points at is gone (an upstream migrator
+      // dropped it, or the state was partially written). Distinct from the unmapped_base branch:
+      // there the remap lookup itself misses. Either way no plan is produced, so the base would be
+      // left `completed` with no store — it has to reach the same restorable failed mark.
+      const openBase = vi.fn()
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: { openBase } as any,
+        // The remap points at 'kb-1', but the legacy state only knows 'kb-other'.
+        reduxData: {
+          knowledge: {
+            bases: [{ id: 'kb-other', name: 'Some Other Base', items: [] }]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(openBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect(
+        result.warnings?.some(
+          (warning: string) =>
+            warning.includes('Skipped knowledge vector records (legacy_base_missing): count=1') &&
+            warning.includes(LEGACY_KNOWLEDGE_BASE_ID)
+        )
+      ).toBe(true)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
     })
 
     it('migrates legacy sitemap vectors when their item migrated as url', async () => {
@@ -799,6 +885,10 @@ describe('KnowledgeVectorMigrator', () => {
           warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL})`)
         )
       ).toBe(false)
+      // And never re-marked: it arrived `failed` carrying its own error, so queueing it for the
+      // missing_vector_store flush would clobber that error and misdirect the restore dialog. This
+      // is the same misattribution C5 guards, one layer down at the persisted row.
+      expect([...migrator.basesToMarkFailed]).toEqual([])
     })
 
     it('skips a base with invalid dimensions and degrades its directory items (P0-3 gate)', async () => {
@@ -851,6 +941,43 @@ describe('KnowledgeVectorMigrator', () => {
           warning.includes('Skipped knowledge vector records (invalid_dimensions): count=1')
         )
       ).toBe(true)
+      // No plan means no store will ever be built for this base, so it must not stay `completed`.
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+    })
+
+    it('marks a base failed when its legacy vector DB is gone by the time prepare opens it', async () => {
+      // The openBase() status branches (invalid_path / missing / directory / not_embedjs) are the
+      // non-throwing half of the same defect: KnowledgeMigrator saw a readable store at order 1.8,
+      // the file went away before order 3.5, and the base arrives `completed`. It gets no plan here,
+      // so it must be marked restorable-`failed` exactly like the mid-scan read failure.
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      // The real KnowledgeVectorSourceReader over an empty root: the legacy DB file simply is not there.
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect(
+        result.warnings?.some((warning: string) =>
+          warning.includes('Skipped knowledge vector records (missing): count=1')
+        )
+      ).toBe(true)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
     })
 
     it('keeps an unreadable legacy vector DB as a recoverable per-base skip', async () => {
@@ -882,7 +1009,7 @@ describe('KnowledgeVectorMigrator', () => {
         }
       })
 
-      const migrator = new KnowledgeVectorMigrator()
+      const migrator = new KnowledgeVectorMigrator() as any
       const result = await migrator.prepare(migrationCtx as any)
 
       // An unreadable legacy DB is a per-base skip (mirrors KnowledgeMigrator's failed tombstone),
@@ -903,6 +1030,154 @@ describe('KnowledgeVectorMigrator', () => {
             warning.includes('openBase failed')
         )
       ).toBe(true)
+      // Only the base that arrived `completed` needs the restorable mark: the model-less base is
+      // already `failed` with its own missing_embedding_model error, which must not be overwritten.
+      expect([...migrator.basesToMarkFailed]).toEqual(['33333333-3333-4333-8333-333333333333'])
+    })
+
+    it('persists a file-only base as failed/missing_vector_store when prepare cannot read its legacy store', async () => {
+      // KnowledgeMigrator's order-1.8 gate probes only `count(*)` plus one `length(vector)`, so a
+      // base whose rows fail to read/decode at order 3.5 still arrives here `completed`. Skipping it
+      // with just a warning left the worst possible end state: a `completed` base with no
+      // index.sqlite, which nothing reconciles against the filesystem — the runtime creates a blank
+      // store on first open and caches it, search returns empty forever, and the UI shows no failed
+      // badge and no restore entry. The base must land in the same restorable
+      // failed/missing_vector_store state an execute-phase publish failure produces. Note this base
+      // has only `file` items (no directory expansion), so the directory-degrade pass writes
+      // nothing — the base UPDATE is the ONLY thing that can surface the failure.
+      const { migrationCtx, close } = createMidScanReadFailureCtx()
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const prepareResult = await migrator.prepare(migrationCtx as any)
+
+      // A per-base read failure stays a recoverable skip, not a whole-migration abort...
+      expect(prepareResult.success).toBe(true)
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect(close).toHaveBeenCalled()
+      // ...and the partial scan leaves no counts behind, so the engine's reconciliation is unaffected.
+      expect(migrator.sourceCount).toBe(0)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+
+      // Zero plans survived, so execute() takes its early-return branch — which must still flush the
+      // base failures, or the mark computed above is never written and the base stays `completed`.
+      // The table is asserted too: `knowledge_item` carries an identical `status: 'failed'` payload,
+      // so a flush aimed at the wrong table would otherwise satisfy this.
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      expect(migrationCtx.db.updateCalls).toEqual([
+        { table: knowledgeBaseTable, values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }
+      ])
+    })
+
+    it('fails the migration when a prepare-phase base failure cannot be persisted', async () => {
+      // Same prepare-phase read failure as above, but the UPDATE that records it also faults. The
+      // `failed` mark is the only thing standing between the user and a permanently empty
+      // `completed` base, so this must fail the migrator (the engine then records the migration
+      // failed and the next launch re-runs from scratch) rather than return success over a base that
+      // is still `completed`. Driving it through prepare() rather than seeding basesToMarkFailed by
+      // hand is what ties the fatal flush to a mark this PR actually produces.
+      const { migrationCtx } = createMidScanReadFailureCtx()
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+
+      migrationCtx.db.update = vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => {
+            throw new Error('database is locked')
+          })
+        }))
+      })) as any
+
+      await expect(migrator.execute(migrationCtx as any)).rejects.toThrow(
+        new RegExp(`Failed to persist the failed status of 1 knowledge base\\(s\\) \\[${MIGRATED_KNOWLEDGE_BASE_ID}\\]`)
+      )
+    })
+
+    it('marks the skipped base failed while a healthy base in the same run still migrates', async () => {
+      // The realistic production shape: one corrupt base among several healthy ones. Unlike the
+      // zero-plan cases above, a plan survives here, so the flush runs on execute()'s NORMAL
+      // post-loop path with a mark that originated in prepare() — the combination no other test
+      // covers. The healthy base must be unaffected: real store on disk, validate() reconciling.
+      const HEALTHY_BASE_ID = '44444444-4444-4444-8444-444444444444'
+      const HEALTHY_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
+      const LEGACY_HEALTHY_BASE_ID = 'kb-healthy'
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_HEALTHY_BASE_ID), [
+        {
+          id: 'legacy-healthy-0',
+          pageContent: 'healthy chunk',
+          uniqueLoaderId: 'loader-healthy',
+          source: '/docs/healthy.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const realSource = new KnowledgeVectorSourceReader(currentKnowledgeBaseRoot)
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase(), createMigratedBase({ id: HEALTHY_BASE_ID })],
+        migratedItems: [
+          createMigratedItem(MIGRATED_FILE_ITEM_ID),
+          createMigratedItem(HEALTHY_ITEM_ID, { baseId: HEALTHY_BASE_ID })
+        ],
+        knowledgeBaseIdRemap: new Map([
+          [LEGACY_KNOWLEDGE_BASE_ID, MIGRATED_KNOWLEDGE_BASE_ID],
+          [LEGACY_HEALTHY_BASE_ID, HEALTHY_BASE_ID]
+        ]),
+        knowledgeItemIdRemap: new Map([
+          ['item-file', MIGRATED_FILE_ITEM_ID],
+          ['item-healthy', HEALTHY_ITEM_ID]
+        ]),
+        // Only the first base's store is unreadable; the second resolves through the real reader.
+        knowledgeVectorSource: {
+          openBase: vi.fn((legacyBaseId: string) =>
+            legacyBaseId === LEGACY_KNOWLEDGE_BASE_ID
+              ? (() => {
+                  throw new Error('database is locked')
+                })()
+              : realSource.openBase(legacyBaseId)
+          )
+        } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Broken Base',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              },
+              {
+                id: LEGACY_HEALTHY_BASE_ID,
+                name: 'Healthy Base',
+                items: [{ id: 'item-healthy', type: 'file', uniqueId: 'loader-healthy' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      // Exactly one plan: the healthy base. The broken one is queued for the restorable mark.
+      expect(migrator.preparedBasePlans.map((plan: any) => plan.baseId)).toEqual([HEALTHY_BASE_ID])
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(true)
+      // The healthy base published normally...
+      expect(migrator.successfulBaseIds.has(HEALTHY_BASE_ID)).toBe(true)
+      expect(fs.existsSync(runtimeVectorStorePath(HEALTHY_BASE_ID))).toBe(true)
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(false)
+      // ...and the broken base got its mark on the normal post-loop flush path.
+      expect(
+        migrationCtx.db.updateCalls.filter((call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE)
+      ).toEqual([
+        { table: knowledgeBaseTable, values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }
+      ])
+      // The skipped base contributed nothing to sourceCount, so validate() still reconciles.
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 1 })
     })
 
     it('degrades a directory child orphaned by a cross-directory shared loader-id collision (F3)', async () => {
@@ -1306,19 +1581,29 @@ describe('KnowledgeVectorMigrator', () => {
       expect(prepareResult.success).toBe(true)
       // No vector plan survived — the only base was skipped on the unreadable store.
       expect(migrator.preparedBasePlans).toHaveLength(0)
-      // Container + both children are queued for degrade.
+      // Container + both children are queued for degrade, and the base itself — which keeps its
+      // `completed` row and gets no store — is queued for the restorable failed mark.
       expect([...migrator.directoryItemsToDegrade].sort()).toEqual(
         [CHILD_A, CHILD_B, MIGRATED_DIRECTORY_ITEM_ID].sort()
       )
+      expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
 
-      // The flush runs even with zero plans because it precedes execute()'s empty-plan early-return.
+      // Both flushes run even with zero plans because they precede execute()'s empty-plan early-return.
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-      const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
+      const degradeWrites = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      )
       expect(degradeWrites).toHaveLength(1)
-      expect(degradeWrites[0].values).toEqual({
-        status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      expect(degradeWrites[0]).toEqual({
+        table: knowledgeItemTable,
+        values: { status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED }
       })
+      const baseFailures = migrationCtx.db.updateCalls.filter(
+        (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
+      )
+      expect(baseFailures).toEqual([
+        { table: knowledgeBaseTable, values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }
+      ])
     })
 
     it('surfaces an execute-phase degrade-flush failure in the execute result warnings', async () => {
@@ -1385,11 +1670,16 @@ describe('KnowledgeVectorMigrator', () => {
       // below is meaningful.
       expect(prepareResult.warnings?.length ?? 0).toBeGreaterThan(0)
 
-      // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
+      // Make only the degrade UPDATE fail at execute time so flushDirectoryDegradations records a
+      // warning. The base-failed UPDATE on the same path must still succeed: the two flushes are
+      // deliberately asymmetric — a lost degrade is best-effort (the next run re-degrades), while a
+      // lost `failed` mark is fatal, so failing both would abort execute() before this assertion.
       migrationCtx.db.update = vi.fn(() => ({
-        set: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => ({
           where: vi.fn(async () => {
-            throw new Error('disk I/O error')
+            if (values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED) {
+              throw new Error('disk I/O error')
+            }
           })
         }))
       })) as any
@@ -1476,9 +1766,9 @@ describe('KnowledgeVectorMigrator', () => {
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
       const degradeWrites = migrationCtx.db.updateCalls.filter((call) => call.values.status === 'failed')
       expect(degradeWrites).toHaveLength(1)
-      expect(degradeWrites[0].values).toEqual({
-        status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      expect(degradeWrites[0]).toEqual({
+        table: knowledgeItemTable,
+        values: { status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED }
       })
     })
 
@@ -1550,16 +1840,18 @@ describe('KnowledgeVectorMigrator', () => {
         (call) => call.values.error === KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
       )
       expect(degradeWrites).toHaveLength(1)
-      expect(degradeWrites[0].values).toEqual({
-        status: 'failed',
-        error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+      expect(degradeWrites[0]).toEqual({
+        table: knowledgeItemTable,
+        values: { status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED }
       })
       // The store never landed, so the base is also marked failed/missing_vector_store (restorable).
       expect([...migrator.basesToMarkFailed]).toEqual([MIGRATED_KNOWLEDGE_BASE_ID])
       const baseFailures = migrationCtx.db.updateCalls.filter(
         (call) => call.values.error === KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
       )
-      expect(baseFailures).toEqual([{ values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }])
+      expect(baseFailures).toEqual([
+        { table: knowledgeBaseTable, values: { status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE } }
+      ])
       // C1: the failed base's expected unit is credited so the engine reconciliation balances.
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
@@ -2430,10 +2722,10 @@ describe('KnowledgeVectorMigrator', () => {
       // updateCalls if the whole callback returns, so a migrator that pinned rows one
       // transaction each would leak the first pin into updateCalls and fail the assertion below.
       migrationCtx.db.transaction = vi.fn((callback: (tx: unknown) => unknown) => {
-        const txCalls: Array<{ values: Record<string, unknown> }> = []
+        const txCalls: Array<{ table: unknown; values: Record<string, unknown> }> = []
         let runs = 0
         const tx = {
-          update: () => ({
+          update: (table: unknown) => ({
             set: (values: Record<string, unknown>) => ({
               where: () => ({
                 run: () => {
@@ -2441,7 +2733,7 @@ describe('KnowledgeVectorMigrator', () => {
                   if (runs === 2) {
                     throw new Error('pin update failed')
                   }
-                  txCalls.push({ values })
+                  txCalls.push({ table, values })
                 }
               })
             })
