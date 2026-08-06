@@ -69,6 +69,7 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const invalidateCache = useInvalidateCache()
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
@@ -291,6 +292,7 @@ const Chat: FC<Props> = (props) => {
                   selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
                   useMentionedModelSelector
                   shouldAutoSelectCreatedAssistant={false}
+                  assistantTriggerAction={topicDisplayMode === 'assistant' ? 'edit' : 'select'}
                   onDialogCloseAutoFocus={handleRestoreComposerFocus}
                   onAssistantChange={handleAssistantChange}
                   onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
