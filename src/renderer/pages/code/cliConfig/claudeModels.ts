@@ -80,7 +80,7 @@ export function getClaudeContextModelId(
   const env = getEnv(config)
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
     const modelId = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
-    // env values are user-typed; a value createUniqueModelId rejects yields no context model.
+    // Env values are user-typed; invalid direct ids and unknown gateway addresses yield no context model.
     if (modelId) {
       return gatewayModels
         ? gatewayModelIdFromAddress(modelId, gatewayModels)

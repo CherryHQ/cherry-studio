@@ -169,7 +169,8 @@ describe('useConfigDraftController (cherry gateway)', () => {
   ]
 
   function renderGatewayController(
-    providerConfig: { modelId: UniqueModelId | null } = { modelId: 'deepseek::deepseek-chat' }
+    providerConfig: { modelId: UniqueModelId | null } = { modelId: 'deepseek::deepseek-chat' },
+    handlers: { onSubmit?: ReturnType<typeof vi.fn>; onClose?: ReturnType<typeof vi.fn> } = {}
   ) {
     return renderHook(() =>
       useConfigDraftController({
@@ -180,8 +181,8 @@ describe('useConfigDraftController (cherry gateway)', () => {
         apiKeys: [{ id: 'gateway', key: 'cs-sk-gateway', isEnabled: true }],
         gateway,
         models: gatewayModels,
-        onSubmit: vi.fn(),
-        onClose: vi.fn()
+        onSubmit: handlers.onSubmit ?? vi.fn(),
+        onClose: handlers.onClose ?? vi.fn()
       })
     )
   }
@@ -258,6 +259,39 @@ describe('useConfigDraftController (cherry gateway)', () => {
 
     expect(result.current.draft.mode).toBe('foreign')
     expect(result.current.draft.files).toEqual(gatewayRawFiles)
+  })
+
+  it('submits a detailed gateway model as its real UniqueModelId without a primary model', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderGatewayController(undefined, { onSubmit })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    act(() => result.current.onClaudeModelModeChange('detailed'))
+    act(() =>
+      result.current.onConfigChange({
+        env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek:deepseek-chat' }
+      })
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      result.current.onSubmit()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cliConfigModelId: 'deepseek::deepseek-chat',
+        writePrimaryModel: false
+      })
+    )
   })
 })
 

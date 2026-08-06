@@ -138,6 +138,9 @@ export function useConfigPanelController({
       )
       const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
       const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
+      if (isApiGatewayProviderId(editingProvider.id) && writePrimaryModel === false && !cliConfigModelId) {
+        throw new Error('Cannot resolve the detailed gateway model')
+      }
       const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
       const previousProviderConfig = providerConfigs[editingProvider.id]
       let providerConfigPersisted = false

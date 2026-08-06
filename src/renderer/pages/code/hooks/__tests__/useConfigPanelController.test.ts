@@ -495,6 +495,33 @@ describe('useConfigPanelController', () => {
       )
     })
 
+    it('rejects an unresolved detailed gateway model before persisting the preference', async () => {
+      const options = {
+        ...baseOptions(),
+        currentProviderId: CLI_API_GATEWAY_PROVIDER_ID,
+        providerConfigs: {
+          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: null, config: { permissionMode: 'default' } }
+        } as any
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+      })
+
+      await expect(
+        result.current.configPanelProps!.onSubmit({
+          modelId: undefined,
+          cliConfigModelId: undefined,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'removed:model' } },
+          writePrimaryModel: false
+        })
+      ).rejects.toThrow('Cannot resolve the detailed gateway model')
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
     it('propagates a gateway ensureReady failure on panel save to the submitting dialog', async () => {
       const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
       const options = {

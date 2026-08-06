@@ -120,12 +120,13 @@ export function useLaunchDialogController({
       return
     }
 
+    const isGatewayProvider = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
     const cliConfigContext = enabledProvider
       ? resolveCliConfigApplyContext(
           selectedCliTool,
           enabledProvider.id,
           currentProviderConfig ?? undefined,
-          isApiGatewayProviderId(enabledProvider.id) ? gatewayModelsById : undefined
+          isGatewayProvider ? gatewayModelsById : undefined
         )
       : null
     if (!cliConfigContext) {
@@ -134,10 +135,14 @@ export function useLaunchDialogController({
         toolId: selectedCliTool,
         providerId: enabledProvider?.id
       })
-      if (enabledProvider) {
-        await upsertProviderConfig(enabledProvider.id, { modelId: null })
+      // Gateway resolution depends on the live model query, so a miss may be transient. Preserve
+      // the saved gateway selection and let the user retry instead of treating it as corrupt data.
+      if (!isGatewayProvider) {
+        if (enabledProvider) {
+          await upsertProviderConfig(enabledProvider.id, { modelId: null })
+        }
+        await setCurrentProvider(null)
       }
-      await setCurrentProvider(null)
       toast.error(t('code.launch.validation_error'))
       return
     }
@@ -147,7 +152,7 @@ export function useLaunchDialogController({
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
       // config; re-verify it's serving and rewrite the config with the fresh context so the
       // CLI never launches against a dead endpoint or a stale key.
-      if (enabledProvider && isApiGatewayProviderId(enabledProvider.id) && apiGatewayProvider) {
+      if (isGatewayProvider && apiGatewayProvider) {
         const apiKey = await apiGatewayProvider.ensureReady()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
@@ -194,7 +199,7 @@ export function useLaunchDialogController({
         cliTool: selectedCliTool,
         model: cliConfigContext.rawModelId,
         providerId: cliConfigContext.providerId,
-        gateway: !!enabledProvider && isApiGatewayProviderId(enabledProvider.id),
+        gateway: isGatewayProvider,
         directory,
         terminal: effectiveTerminal
       })

@@ -37,7 +37,7 @@ interface ConfigDraftControllerOptions
   onClose: () => void
   /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */
   gateway?: CliConfigGatewayContext
-  /** Enabled models by unique id, used to resolve the gateway model's `apiModelId` for matching. */
+  /** Gateway-routable models by unique id, used for matching and gateway address resolution. */
   models?: Map<UniqueModelId, Model>
 }
 
