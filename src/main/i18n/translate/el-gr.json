@@ -87,6 +87,10 @@
       "message": "Θα διαγραφούν οι συνομιλίες, οι βοηθοί, οι βάσεις γνώσεων, τα αρχεία και οι ρυθμίσεις και, στη συνέχεια, η εφαρμογή θα επανεκκινηθεί. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
       "title": "Επαναφορά δεδομένων εφαρμογής"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",
     "pdf_files": "Αρχεία PDF",

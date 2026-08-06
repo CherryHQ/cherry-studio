@@ -68,6 +68,16 @@ proven safe. If destination or source identity cannot be established, saving fai
 file. Metadata excludes failure stacks, paths, and run/process fields. Logs may be sensitive and must not be shared
 publicly or outside Cherry Studio support.
 
+## Renderer Export Memory
+
+The migration renderer writes selected Redux Persist slices and Dexie records through bounded IPC chunks. Redux
+is handed to main as a directory of category files, and localStorage export is restricted to keys actually owned
+by migration mappings. Do not restore whole-state parsing or include `persist:cherry-studio` in the generic
+localStorage export: either change retains duplicate copies of the same legacy state before migration begins.
+Main owns the exact export paths: `migration:prepare-export` clears the registered staging directories before each
+attempt and returns those paths to renderer. File-write, migration-start, and cleanup code must never accept an
+unvalidated renderer-selected path.
+
 ## Version Compatibility Gate
 
 Before the migration window is created, the gate validates the upgrade

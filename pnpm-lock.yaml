@@ -822,9 +822,6 @@ importers:
       file-type:
         specifier: 22.0.1
         version: 22.0.1
-      form-data:
-        specifier: 4.0.6
-        version: 4.0.6
       fractional-indexing:
         specifier: ^3.2.0
         version: 3.2.0
