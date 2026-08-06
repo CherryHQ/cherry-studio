@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
+import { type CreateFileTranslateHistoryInput, translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
@@ -13,8 +14,13 @@ import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
+import {
+  toPersistedLangCodeOrNull,
+  type TranslateLangCode,
+  type TranslateSourceLanguage
+} from '@shared/data/preference/preferenceTypes'
 import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import { type FileEntry, SafeNameSchema } from '@shared/data/types/file'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
@@ -101,6 +107,7 @@ interface PdfTranslationRequest {
 }
 
 interface PdfTranslationResult {
+  /** Managed path of the translated PDF (`{userData}/Data/Files/{id}.pdf`), not the sidecar's temp output. */
   outputPath: AbsoluteFilePath
   fileName: string
 }
@@ -158,15 +165,15 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
 
 @Injectable('PdfTranslationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiGatewayService'])
+@DependsOn(['ApiGatewayService', 'FileManager'])
 export class PdfTranslationService extends BaseService {
   private readonly activeJobs = new Map<string, ActivePdfTranslation>()
   private readonly activeRuns = new Set<Promise<PdfTranslationResult>>()
 
   protected async onInit(): Promise<void> {
-    // Success-path output dirs are cleaned only by the renderer effect, which never runs
-    // on window close / app quit. No jobs are active at init, so drop the whole feature
-    // temp root here to clear anything a prior session left behind.
+    // `runTranslation`'s `finally` removes each job's dir, so this only ever finds residue
+    // from a crash or a force-quit mid-run. No jobs are active at init, so drop the whole
+    // feature temp root.
     const tempRoot = application.getPath('feature.pdf_translation.temp')
     await fs.promises.rm(tempRoot, { force: true, recursive: true }).catch((error) => {
       logger.warn('Failed to sweep stale PDF translation temp dirs', { error: String(error) })
@@ -212,7 +219,6 @@ export class PdfTranslationService extends BaseService {
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
-    let completed = false
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
@@ -256,8 +262,9 @@ export class PdfTranslationService extends BaseService {
       const outputPath = AbsoluteFilePathSchema.parse(path.join(outputDir, fileName))
       await fs.promises.access(outputPath, fs.constants.R_OK)
       this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
-      completed = true
-      return { outputPath, fileName }
+      // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
+      // out from under the copy into FileManager.
+      return await this.persistResult(request, outputPath)
     } catch (error) {
       // Surface the failure to the main-process log (the stderr tail rides along in the
       // reject message on the non-zero-exit path). Cancellation is expected; IpcErrors
@@ -270,11 +277,11 @@ export class PdfTranslationService extends BaseService {
       throw error
     } finally {
       this.activeJobs.delete(request.jobId)
-      if (!completed) {
-        await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
-          logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
-        })
-      }
+      // Unconditional: on success the artifact already lives in FileManager, on failure
+      // there is nothing worth keeping. Nobody outside this method reads the temp dir.
+      await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
+        logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
+      })
       if (gatewayLeaseAcquired) gateway.releaseLease()
     }
   }
@@ -286,12 +293,113 @@ export class PdfTranslationService extends BaseService {
     if (job.child) killProcessTree(job.child)
   }
 
-  public async cleanup(jobId: string): Promise<void> {
-    if (this.activeJobs.has(jobId)) return
-    await fs.promises.rm(application.getPath('feature.pdf_translation.temp', jobId), {
-      force: true,
-      recursive: true
-    })
+  /**
+   * Hand the finished translation to FileManager and record it in translate history.
+   *
+   * The artifact is copied into Cherry storage as a `delete_when_unreferenced` internal
+   * entry, so the history row's `translate_history_file_ref` is what keeps it alive:
+   * deleting the row (or clearing history) releases the PDF to the cleanup pass. The
+   * user's original is only *referenced* (external entry) — never copied, never deleted.
+   *
+   * If the history write throws, the just-created entry would linger as an unreferenced
+   * file the user sees in the file manager until the cleanup grace window elapses, so it
+   * is compensated away — the same shape as `withCreatedImageEntry`.
+   */
+  private async persistResult(request: PdfTranslationRequest, outputPath: AbsoluteFilePath) {
+    const fileManager = application.get('FileManager')
+    let translated: FileEntry | null = null
+
+    try {
+      const created = await fileManager.createInternalEntry({
+        source: 'path',
+        path: outputPath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      translated = created
+      const entry = await this.renameToDisplayName(created, request)
+      const fileName = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
+
+      const files: CreateFileTranslateHistoryInput['files'] = [{ fileEntryId: entry.id, role: 'target' }]
+      const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
+      if (source) files.push({ fileEntryId: source.id, role: 'source' })
+
+      application.get('DbService').withWriteTx((tx) =>
+        translateHistoryService.createFileTx(tx, {
+          sourceText: path.basename(request.sourcePath),
+          targetText: fileName,
+          sourceLanguage: toPersistedLangCodeOrNull(request.sourceLangCode),
+          targetLanguage: toPersistedLangCodeOrNull(request.targetLangCode),
+          files
+        })
+      )
+
+      return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
+    } catch (error) {
+      logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+      if (translated) {
+        const translatedId = translated.id
+        await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
+          logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
+        })
+      }
+      throw new IpcError(
+        translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+        'The PDF was translated, but its result could not be saved'
+      )
+    }
+  }
+
+  /**
+   * Trade BabelDOC's artifact name — `<stem>.no_watermark.<lang>.mono.pdf`, which the
+   * entry inherits from the copied file's basename — for the name a user expects in the
+   * file manager and in "save as". Internal entries are stored at `{id}.{ext}`, so this
+   * only rewrites the DB's display name.
+   *
+   * A source stem that cannot form a safe name (over-long, `.`/`..`) keeps the derived
+   * name instead: cosmetics must not sink a translation the user already paid for.
+   */
+  private async renameToDisplayName(entry: FileEntry, request: PdfTranslationRequest): Promise<FileEntry> {
+    const displayName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}`
+    if (!SafeNameSchema.safeParse(displayName).success) {
+      logger.warn('Kept the BabelDOC-derived name; the display name is not a safe file name', {
+        jobId: request.jobId
+      })
+      return entry
+    }
+    try {
+      return await application.get('FileManager').rename(entry.id, displayName)
+    } catch (error) {
+      logger.warn('Failed to apply the translated PDF display name; keeping the BabelDOC-derived name', {
+        entryId: entry.id,
+        error: String(error),
+        jobId: request.jobId
+      })
+      return entry
+    }
+  }
+
+  /**
+   * Reference the user's source PDF so history can offer the side-by-side view again.
+   *
+   * Best-effort: `ensureExternalEntry` rejects paths it cannot canonicalize (UNC) and
+   * case-collisions `fs.realpath` proves are distinct files. Neither says anything about
+   * the translation, which is already on disk — so a failure costs the "source" ref, not
+   * the history row.
+   */
+  private async registerSourceEntry(sourcePath: AbsoluteFilePath, jobId: string): Promise<FileEntry | null> {
+    try {
+      return await application.get('FileManager').ensureExternalEntry({
+        externalPath: sourcePath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    } catch (error) {
+      logger.warn('Failed to reference the source PDF; recording the translation without it', {
+        error: String(error),
+        jobId,
+        sourcePath
+      })
+      return null
+    }
   }
 
   private async resolveSidecar(): Promise<string> {

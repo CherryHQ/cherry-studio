@@ -1,4 +1,5 @@
 import { Button, CircularProgress, EmptyState, Tooltip } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { LoadingState } from '@renderer/components/chat/primitives'
 import { FilePreview } from '@renderer/components/FilePreview'
@@ -17,6 +18,8 @@ import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { saveTranslationFileAs } from '../translationFiles'
 
 const logger = loggerService.withContext('PdfTranslationView')
 
@@ -52,6 +55,12 @@ interface PdfTranslationViewProps {
   babelDocAvailability: BabelDocAvailability
   babelDocInstalling: boolean
   textFallback?: PdfTextFallback
+  /**
+   * Seed the view with an already-finished translation (a history entry the user
+   * reopened) so it mounts straight into the side-by-side result instead of `idle`.
+   * Read once, at mount — the parent must remount on change via `key`.
+   */
+  restoredOutput?: PdfTranslationOutput | null
   onClose: () => void
   onHandleChange: (handle: PdfTranslationHandle | null) => void
   onStatusChange: (status: PdfTranslationStatus) => void
@@ -59,8 +68,8 @@ interface PdfTranslationViewProps {
   onBabelDocUnavailable: () => void
 }
 
-interface PdfTranslationOutput {
-  jobId: string
+/** A finished translation: where the managed PDF lives and what to call it in "save as". */
+export interface PdfTranslationOutput {
   outputPath: AbsoluteFilePath
   fileName: string
 }
@@ -76,6 +85,7 @@ type PdfTranslationResultState =
   | { type: 'progress'; progress: PdfTranslationUiProgress }
   | { type: 'preparing' }
   | { type: 'ocr_required' }
+  | { type: 'persist_failed' }
   | { type: 'text_fallback'; content: ReactNode }
   | { type: 'checking_dependency' }
   | { type: 'installing_dependency' }
@@ -128,12 +138,6 @@ const requestCancel = (jobId: string, warningMessage: string) => {
   })
 }
 
-const requestCleanup = (jobId: string, warningMessage: string) => {
-  void ipcApi.request('translate.pdf.cleanup', { jobId }).catch((error) => {
-    logger.warn(warningMessage, error as Error)
-  })
-}
-
 const getResultState = ({
   output,
   phase,
@@ -168,6 +172,9 @@ const getResultState = ({
   if (error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED) {
     return { type: 'ocr_required' }
   }
+  if (error instanceof IpcError && error.code === translateErrorCodes.PDF_RESULT_PERSIST_FAILED) {
+    return { type: 'persist_failed' }
+  }
   // Raw sidecar diagnostics stay in the main-process log; the renderer uses a generic error.
   if (error) return { type: 'error' }
   return { type: 'ready' }
@@ -180,6 +187,7 @@ const PdfTranslationView = ({
   babelDocAvailability,
   babelDocInstalling,
   textFallback,
+  restoredOutput,
   onClose,
   onHandleChange,
   onStatusChange,
@@ -187,21 +195,12 @@ const PdfTranslationView = ({
   onBabelDocUnavailable
 }: PdfTranslationViewProps) => {
   const { t } = useTranslation()
-  const [phase, setPhase] = useState<PdfTranslationPhase>('idle')
-  const [output, setOutput] = useState<PdfTranslationOutput | null>(null)
+  const invalidate = useInvalidateCache()
+  const [phase, setPhase] = useState<PdfTranslationPhase>(() => (restoredOutput ? 'success' : 'idle'))
+  const [output, setOutput] = useState<PdfTranslationOutput | null>(() => restoredOutput ?? null)
   const [error, setError] = useState<Error | null>(null)
   const [progress, setProgress] = useState<PdfTranslationUiProgress | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
-  const outputRef = useRef(output)
-  outputRef.current = output
-
-  const cleanupOutput = useCallback((warningMessage: string) => {
-    const completedJob = outputRef.current
-    if (!completedJob) return
-    requestCleanup(completedJob.jobId, warningMessage)
-    outputRef.current = null
-    setOutput(null)
-  }, [])
 
   const cancel = useCallback(() => {
     const jobId = activeJobIdRef.current
@@ -216,10 +215,12 @@ const PdfTranslationView = ({
     (targetLangCode: TranslateLangCode) => {
       if (!modelId || activeJobIdRef.current) return
 
-      cleanupOutput('Failed to clean up previous PDF translation output')
-
       const jobId = uuid()
       activeJobIdRef.current = jobId
+      // Drop the previous result: it outranks the running phase in `getResultState`,
+      // so leaving it would pin the pane to the stale PDF for the whole new run. The
+      // artifact itself stays — it is a history entry now, not scratch output.
+      setOutput(null)
       setError(null)
       setProgress(null)
       setPhase('preparing')
@@ -233,12 +234,16 @@ const PdfTranslationView = ({
           targetLangCode
         })
         .then((result) => {
-          if (activeJobIdRef.current !== jobId) {
-            requestCleanup(jobId, 'Failed to clean up superseded PDF translation output')
-            return
-          }
+          // The run recorded itself in translate history whether or not this view still
+          // cares about it, so refresh the list either way.
+          void invalidate('/translate/histories').catch((cause) => {
+            logger.warn('Failed to refresh translate history after PDF translation', cause as Error)
+          })
+          // Superseded by a newer run (or by a cancel): its result is a legitimate history
+          // entry, it just is not what this pane should show.
+          if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
-          setOutput({ jobId, ...result })
+          setOutput(result)
           setProgress(null)
           setPhase('success')
           toast.success(t('translate.pdf.success'))
@@ -255,7 +260,7 @@ const PdfTranslationView = ({
           setPhase('error')
         })
     },
-    [cleanupOutput, file.path, modelId, onBabelDocUnavailable, sourceLangCode, t]
+    [file.path, invalidate, modelId, onBabelDocUnavailable, sourceLangCode, t]
   )
 
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
@@ -296,27 +301,19 @@ const PdfTranslationView = ({
       if (activeJobId) {
         requestCancel(activeJobId, 'Failed to cancel PDF translation on unmount')
       }
-      const completedJob = outputRef.current
-      if (completedJob) {
-        requestCleanup(completedJob.jobId, 'Failed to clean up PDF translation output on unmount')
-      }
     },
     []
   )
 
   const close = useCallback(() => {
     cancel()
-    cleanupOutput('Failed to clean up PDF translation output')
     onClose()
-  }, [cancel, cleanupOutput, onClose])
+  }, [cancel, onClose])
 
   const exportOutput = useCallback(async () => {
     if (!output) return
     try {
-      const content = await window.api.fs.read(output.outputPath)
-      await window.api.file.save(output.fileName, content, {
-        filters: [{ name: 'PDF', extensions: ['pdf'] }]
-      })
+      await saveTranslationFileAs(output.outputPath, output.fileName)
     } catch (cause) {
       toast.error(formatErrorMessageWithPrefix(cause, t('translate.pdf.export_failed')))
     }
@@ -418,13 +415,18 @@ const PdfTranslationResult = ({
     case 'preparing':
       return <CenteredLoading label={getProgressLabel(t, 'preparing')} />
     case 'ocr_required':
+    case 'persist_failed':
     case 'error':
       return (
         <EmptyState
           icon={AlertCircle}
           title={t('translate.pdf.error.title')}
           description={
-            state.type === 'ocr_required' ? t('translate.pdf.error.ocr_required') : t('translate.pdf.error.generic')
+            state.type === 'ocr_required'
+              ? t('translate.pdf.error.ocr_required')
+              : state.type === 'persist_failed'
+                ? t('translate.pdf.error.persist_failed')
+                : t('translate.pdf.error.generic')
           }
         />
       )

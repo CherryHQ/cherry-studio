@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
+  createFileTx: vi.fn(),
   getBinaryPath: vi.fn(),
   modelGetByKey: vi.fn(),
   spawn: vi.fn()
@@ -29,6 +30,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGetByKey } }))
+vi.mock('@data/services/TranslateHistoryService', () => ({
+  translateHistoryService: { createFileTx: mocks.createFileTx }
+}))
 vi.mock('@main/utils/binaryResolver', () => ({ getBinaryPath: mocks.getBinaryPath }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: mocks.spawn,
@@ -51,6 +55,11 @@ vi.mock('@main/core/lifecycle', () => {
 const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
 const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf') as AbsoluteFilePath
 const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc-stream')
+const TRANSLATED_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
+const SOURCE_ENTRY_ID = '019606a0-0000-7000-8000-000000000002'
+const HISTORY_ID = '019606a0-0000-7000-8000-000000000003'
+/** Where `getPhysicalPath` puts an internal entry — `{userData}/Data/Files/{id}.{ext}` in production. */
+const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
@@ -59,6 +68,15 @@ const apiGateway = {
   getCurrentConfig: vi.fn(),
   releaseLease: vi.fn()
 }
+const fileManager = {
+  createInternalEntry: vi.fn(),
+  ensureExternalEntry: vi.fn(),
+  getPhysicalPath: vi.fn(),
+  permanentDelete: vi.fn(),
+  rename: vi.fn()
+}
+const tx = Symbol('tx')
+const dbService = { withWriteTx: vi.fn() }
 const streamEvent = (event: Record<string, unknown>) =>
   `${JSON.stringify({ schema: 'babeldoc-stream/v1', ...event })}\n`
 const finishEvent = () =>
@@ -87,8 +105,22 @@ describe('PdfTranslationService', () => {
     mocks.appGet.mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManager
       if (name === 'ApiGatewayService') return apiGateway
+      if (name === 'FileManager') return fileManager
+      if (name === 'DbService') return dbService
       throw new Error(`Unexpected service: ${name}`)
     })
+    // The entry inherits BabelDOC's noisy basename, then `rename` trades it for the display name.
+    fileManager.createInternalEntry.mockImplementation(({ path: artifact }: { path: string }) =>
+      Promise.resolve({ id: TRANSLATED_ENTRY_ID, name: path.parse(artifact).name, ext: 'pdf' })
+    )
+    fileManager.rename.mockImplementation((id: string, newName: string) =>
+      Promise.resolve({ id, name: newName, ext: 'pdf' })
+    )
+    fileManager.ensureExternalEntry.mockResolvedValue({ id: SOURCE_ENTRY_ID, name: 'research paper', ext: 'pdf' })
+    fileManager.getPhysicalPath.mockImplementation(managedPath)
+    fileManager.permanentDelete.mockResolvedValue(undefined)
+    dbService.withWriteTx.mockImplementation((fn: (handle: unknown) => unknown) => fn(tx))
+    mocks.createFileTx.mockReturnValue({ id: HISTORY_ID })
     mocks.getBinaryPath.mockResolvedValue(MANAGED_BINARY)
     mocks.modelGetByKey.mockReturnValue({
       id: 'openai::gpt-4.1-internal',
@@ -133,6 +165,7 @@ describe('PdfTranslationService', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
   })
 
@@ -188,8 +221,8 @@ describe('PdfTranslationService', () => {
     expect(args).not.toContain('cs-sk-test')
     expect(fs.existsSync(configPath)).toBe(false)
     expect(result).toEqual({
-      fileName: 'research paper.no_watermark.zh-CN.mono.pdf',
-      outputPath: expect.stringContaining(path.join('job-1', 'research paper.no_watermark.zh-CN.mono.pdf'))
+      fileName: 'research paper.zh-CN.pdf',
+      outputPath: managedPath(TRANSLATED_ENTRY_ID)
     })
   })
 
@@ -261,7 +294,185 @@ describe('PdfTranslationService', () => {
 
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).toEqual(expect.arrayContaining(['--lang-in', 'zh-CN', '--lang-out', 'zh-TW']))
-    expect(result.fileName).toBe('research paper.no_watermark.zh-TW.mono.pdf')
+    expect(result.fileName).toBe('research paper.zh-TW.pdf')
+  })
+
+  it('records the translation in history and hands both PDFs to FileManager', async () => {
+    const service = new PdfTranslationService()
+
+    await service.translate({
+      jobId: 'job-history',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    // The artifact is copied in and kept alive only by the history ref…
+    expect(fileManager.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: path.join(TEST_ROOT, 'job-history', 'research paper.no_watermark.zh-CN.mono.pdf'),
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(fileManager.rename).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID, 'research paper.zh-CN')
+    // …while the user's original is only referenced, never copied.
+    expect(fileManager.ensureExternalEntry).toHaveBeenCalledWith({
+      externalPath: SOURCE_PATH,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(mocks.createFileTx).toHaveBeenCalledWith(tx, {
+      sourceText: 'research paper.pdf',
+      targetText: 'research paper.zh-CN.pdf',
+      sourceLanguage: 'en-us',
+      targetLanguage: 'zh-cn',
+      files: [
+        { fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' },
+        { fileEntryId: SOURCE_ENTRY_ID, role: 'source' }
+      ]
+    })
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+    // The temp dir is gone even though the run succeeded — its content now lives in FileManager.
+    expect(fs.existsSync(path.join(TEST_ROOT, 'job-history'))).toBe(false)
+  })
+
+  it('records an auto-detected source language as null', async () => {
+    const service = new PdfTranslationService()
+
+    await service.translate({
+      jobId: 'job-auto-lang',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'auto',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(mocks.createFileTx).toHaveBeenCalledWith(tx, expect.objectContaining({ sourceLanguage: null }))
+  })
+
+  it('keeps the translation when the source PDF cannot be referenced', async () => {
+    fileManager.ensureExternalEntry.mockRejectedValueOnce(new Error('case-collision'))
+    const service = new PdfTranslationService()
+
+    const result = await service.translate({
+      jobId: 'job-source-unreferenceable',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(result.fileName).toBe('research paper.zh-CN.pdf')
+    expect(mocks.createFileTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ files: [{ fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' }] })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to reference the source PDF; recording the translation without it',
+      expect.objectContaining({ jobId: 'job-source-unreferenceable', sourcePath: SOURCE_PATH })
+    )
+  })
+
+  it('deletes the translated entry when the history write fails', async () => {
+    mocks.createFileTx.mockImplementationOnce(() => {
+      throw new Error('history write failed')
+    })
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-history-failure',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({
+      code: translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+      message: 'The PDF was translated, but its result could not be saved'
+    })
+    // Without the compensating delete the entry would sit in the file manager as an
+    // unexplained PDF until the cleanup grace window elapsed.
+    expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
+  })
+
+  it('reports a persistence failure when the translated entry cannot be created', async () => {
+    fileManager.createInternalEntry.mockRejectedValueOnce(new Error('copy failed'))
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-entry-failure',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({
+      code: translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+      message: 'The PDF was translated, but its result could not be saved'
+    })
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+    expect(mocks.createFileTx).not.toHaveBeenCalled()
+  })
+
+  it('keeps the BabelDOC-derived name when the display name is too long', async () => {
+    const stem = 'a'.repeat(250)
+    const sourcePath = path.join(TEST_ROOT, 'source', `${stem}.pdf`) as AbsoluteFilePath
+    fs.writeFileSync(sourcePath, '%PDF-test')
+    vi.spyOn(fs.promises, 'access').mockResolvedValue(undefined)
+    mocks.spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & {
+        stderr: PassThrough
+        stdout: PassThrough
+        kill: ReturnType<typeof vi.fn>
+      }
+      child.stderr = new PassThrough()
+      child.stdout = new PassThrough()
+      child.kill = vi.fn()
+      queueMicrotask(() => {
+        child.stdout.write(finishEvent())
+        child.stdout.end()
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const service = new PdfTranslationService()
+
+    const result = await service.translate({
+      jobId: 'job-unsafe-display-name',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(result.fileName).toContain('.no_watermark.zh-CN.mono.pdf')
+    expect(fileManager.rename).not.toHaveBeenCalled()
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+  })
+
+  it('keeps the BabelDOC-derived name when applying the display name fails', async () => {
+    fileManager.rename.mockRejectedValueOnce(new Error('rename failed'))
+    const service = new PdfTranslationService()
+
+    const result = await service.translate({
+      jobId: 'job-display-name-failed',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(result.fileName).toBe('research paper.no_watermark.zh-CN.mono.pdf')
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to apply the translated PDF display name; keeping the BabelDOC-derived name',
+      expect.objectContaining({
+        entryId: TRANSLATED_ENTRY_ID,
+        error: 'Error: rename failed',
+        jobId: 'job-display-name-failed'
+      })
+    )
   })
 
   it.each([
