@@ -39,6 +39,7 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
+import { agentService } from './services/agents/services'
 import { skillService } from './services/agents/skills/SkillService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
@@ -815,6 +816,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
+  ipcMain.handle(IpcChannel.Mcp_CleanupAgentReferences, async (_event, serverId: string) => {
+    return agentService.cleanupMcpReferences(serverId)
+  })
 
   // Channel logs & status
   ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {

@@ -393,6 +393,7 @@ const api = {
   },
   mcp: {
     removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
+    cleanupAgentReferences: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_CleanupAgentReferences, serverId),
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
     listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
