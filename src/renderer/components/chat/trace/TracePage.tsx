@@ -25,7 +25,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   const [pollError, setPollError] = useState<string | null>(null)
   const failureCountRef = useRef(0)
   const emptyCountRef = useRef(0)
-  const endedPollKeyRef = useRef<string | null>(null)
   const { t } = useTranslation()
 
   const mergeTraceNodes = useCallback((oldNodes: TraceNode[], newNodes: TraceNode[]): TraceNode[] => {
@@ -105,8 +104,8 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   const showList = !selectedNode
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
-  // an unchanged key, and clearing here would wipe the loaded trace (the poll
-  // effect below does not restart for a trace that already ended).
+  // an unchanged key, and clearing here would wipe the loaded trace before the
+  // refreshed poll result arrives.
   const resetKeyRef = useRef(`${topicId}:${traceId}`)
   useEffect(() => {
     const key = `${topicId}:${traceId}`
@@ -117,13 +116,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   }, [topicId, traceId])
 
   useEffect(() => {
-    // A poll loop that already ran to natural completion for this key must not
-    // be restarted by an <Activity> re-show — every switch back to a finished
-    // trace would otherwise re-poll for seconds until the stop detectors
-    // re-trip. A failure stop is not marked, so a re-show retries it.
-    const pollKey = `${topicId}:${traceId}:${String(reload)}`
-    if (endedPollKeyRef.current === pollKey) return
-
     // Interval is local to this effect run, never a shared ref: an effect re-run
     // during the first `await poll()` would otherwise let the new run's interval
     // be created after this run's cleanup, leaking it (and let one run's stop
@@ -156,7 +148,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         if (matchedSpans.length === 0) {
           emptyCountRef.current++
           if (emptyCountRef.current >= 30 && lastSpanCount === 0) {
-            endedPollKeyRef.current = pollKey
             stop()
             return
           }
@@ -169,10 +160,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
 
         const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
         consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
-        if (consecutiveEnded >= 20) {
-          endedPollKeyRef.current = pollKey
-          stop()
-        }
+        if (consecutiveEnded >= 20) stop()
       } catch (error) {
         if (cancelled) return
         failureCountRef.current++
