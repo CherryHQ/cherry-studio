@@ -87,6 +87,10 @@
       "message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
       "title": "Сброс данных приложения"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Файлы HTML",
     "open_file": "Открыть файл",
     "pdf_files": "Файлы PDF",

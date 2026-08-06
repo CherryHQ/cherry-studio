@@ -5832,6 +5832,76 @@
         "title": "デバッグ"
       },
       "description": "クリエイターのための強力なAIアシスタント",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "ダウンロード中...",
       "enterprise": {
         "title": "エンタープライズ"

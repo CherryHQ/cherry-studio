@@ -876,6 +876,13 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "opencode",
@@ -2067,5 +2074,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3f210ce4fbae8e68"
+  "version": "7e60b48af9eec108"
 }

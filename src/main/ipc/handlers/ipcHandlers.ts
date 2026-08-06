@@ -10,6 +10,7 @@ import { channelHandlers } from './channel'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { diagnosticsHandlers } from './diagnostics'
 import { exportHandlers } from './export'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
@@ -54,6 +55,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...cherryinHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...diagnosticsHandlers,
   ...exportHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,

@@ -925,7 +925,12 @@ export class AiStreamManager extends BaseService {
 
     // Per-execution ring buffer — a chatty model can't push a slower one's
     // replay out. Overflow drops oldest and bumps `droppedChunks`.
-    if (exec.buffer.length >= this.config.maxBufferChunks) {
+    // Eviction pauses while an approval is pending: evicted chunks are pure
+    // history, but a pending approval's tool-input chunks are still-operable
+    // state a reconnect must replay for the user to decide. Growth stays
+    // bounded because the approval blocks the round (almost no chunks stream
+    // during the wait) and `approvalIdleTimeoutMs` caps the window.
+    if (exec.buffer.length >= this.config.maxBufferChunks && !exec.pendingApprovalToolCallIds?.size) {
       exec.buffer.shift()
       exec.droppedChunks += 1
     }

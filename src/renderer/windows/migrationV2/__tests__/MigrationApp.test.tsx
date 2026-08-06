@@ -290,6 +290,13 @@ import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters
 import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
+const preparedExportPaths = {
+  reduxExportPath: '/tmp/userData/migration_temp/redux_export',
+  dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
+  localStorageExportDirectory: '/tmp/userData/migration_temp/localstorage_export',
+  localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
+}
+
 describe('MigrationApp', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -480,22 +487,36 @@ describe('MigrationApp', () => {
 
   it('runs the exporters and hands off to startMigration from the introduction Start button', async () => {
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: { a: 1 }, slicesFound: ['a'], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: ['a'],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () =>
         ({
-          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+          exportAll: vi.fn(
+            async (
+              onProgress?: (progress: { table: string; progress: number; total: number }) => void | Promise<void>
+            ) => {
+              await onProgress?.({ table: 'topics', progress: 0, total: 1 })
+              return '/tmp/userData/migration_temp/dexie_export'
+            }
+          )
         }) as unknown as DexieExporter
     )
     vi.mocked(LocalStorageExporter).mockImplementation(
       () =>
         ({
-          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          export: vi.fn().mockResolvedValue('/renderer/reported/localStorage.json'),
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     render(<MigrationApp />)
 
@@ -504,10 +525,17 @@ describe('MigrationApp', () => {
     })
 
     expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
-      reduxData: { a: 1 },
+      reduxExportPath: '/tmp/userData/migration_temp/redux_export',
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
     })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.PrepareExport)
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, { source: 'redux' })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, {
+      source: 'dexie',
+      table: 'topics'
+    })
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
   })
 
   // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
@@ -521,12 +549,19 @@ describe('MigrationApp', () => {
     }
     // Redux export succeeds, then the Dexie export rejects mid-flow.
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     render(<MigrationApp />)
 
@@ -553,7 +588,14 @@ describe('MigrationApp', () => {
       stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () =>
@@ -568,7 +610,7 @@ describe('MigrationApp', () => {
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
     migrationHookMock.actions.startMigration.mockRejectedValue(new Error('StartMigration failed'))
 
     render(<MigrationApp />)
@@ -588,12 +630,19 @@ describe('MigrationApp', () => {
       stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
-      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue({
+            exportPath: '/tmp/userData/migration_temp/redux_export',
+            slicesFound: [],
+            slicesMissing: []
+          })
+        }) as unknown as ReduxExporter
     )
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockResolvedValue(preparedExportPaths)
 
     const { rerender } = render(<MigrationApp />)
     fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
