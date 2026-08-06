@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isRuntimeDependency, RUNTIME_INTERPRETERS } from '../binaryTools'
+import { BABELDOC_TOOL_NAME, isRuntimeDependency, PRESETS_BINARY_TOOLS, RUNTIME_INTERPRETERS } from '../binaryTools'
 
 describe('isRuntimeDependency', () => {
   it('recognizes every registered interpreter, bare or with core:/@version', () => {
@@ -16,5 +16,16 @@ describe('isRuntimeDependency', () => {
     expect(isRuntimeDependency('pipx:something')).toBe(false)
     expect(isRuntimeDependency('gh')).toBe(false)
     expect(isRuntimeDependency('ruby')).toBe(false)
+  })
+})
+
+describe('BabelDOC Stream preset', () => {
+  it('uses the independently published executable and package recipe', () => {
+    expect(BABELDOC_TOOL_NAME).toBe('babeldoc-stream')
+    expect(PRESETS_BINARY_TOOLS.find(({ name }) => name === BABELDOC_TOOL_NAME)).toMatchObject({
+      displayName: 'BabelDOC Stream',
+      tool: 'pipx:babeldoc-stream',
+      repoUrl: 'https://github.com/eeee0717/BabelDOC'
+    })
   })
 })
