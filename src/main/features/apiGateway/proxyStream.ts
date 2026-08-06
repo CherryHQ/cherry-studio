@@ -29,6 +29,7 @@ import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, Output
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('ProxyStreamService')
@@ -146,6 +147,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
+  const isInternalAgentRequest =
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
@@ -154,18 +158,23 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
 
+  const provider: Provider = config.provider ?? resolvedProvider
+  const shouldNormalizeAgentContinuation = inputFormat === 'anthropic' && isInternalAgentRequest
+
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
     openRouterReasoningCache
   })
 
-  const messages = converter.toUIMessages(params)
+  const convertedMessages = converter.toUIMessages(params)
+  const messages = shouldNormalizeAgentContinuation
+    ? appendInternalAgentContinuation(convertedMessages)
+    : convertedMessages
   const tools = converter.toAiSdkTools?.(params)
   const streamOptions = converter.extractStreamOptions(params)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const provider: Provider = config.provider ?? resolvedProvider
   const extractedProviderOptions =
     converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens) ?? {}
   const providerOptions = applyFastModeToProviderOptions(
@@ -189,6 +198,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
+  if (messages !== convertedMessages) {
+    logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
+  }
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
@@ -322,6 +334,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
@@ -404,6 +417,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })

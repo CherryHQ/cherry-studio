@@ -135,10 +135,11 @@ describe('catalog invariants (data/*.json)', () => {
   it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
     const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
     const offenders = models
-      .filter(
-        (m) => m.capabilities?.includes('image-generation') && isServerToolModelEligible(m.id, SERVER_TOOL.WEB_SEARCH)
+      .filter((model) => model.capabilities?.includes('image-generation'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
       )
-      .map((m) => m.id)
+      .map((model) => model.id)
       .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
     expect(offenders).toEqual([])
   })
@@ -147,7 +148,9 @@ describe('catalog invariants (data/*.json)', () => {
   // text→audio, transcription is audio→text, embedders output vector) must never be eligible.
   it('no non-text-chat model is web-search eligible (tts / transcription / embedding)', () => {
     const offenders = models
-      .filter((m) => isServerToolModelEligible(m.id, SERVER_TOOL.WEB_SEARCH))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
       .filter(
         (m) => !(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text')
       )

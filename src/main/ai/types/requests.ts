@@ -28,6 +28,9 @@ export interface InProcessUsageContext {
   source: SourceSnapshot | null
 }
 
+/** Identifies which layer owns history shaping for an in-process AI request. */
+export type ContextOwner = 'cherry' | 'caller'
+
 /**
  * First-class per-request overrides for callers that have no assistant to derive
  * settings from (the API gateway). Merged at highest precedence inside
@@ -68,6 +71,12 @@ export interface AiBaseRequest {
    */
   knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions
+  /**
+   * Main-internal context ownership. Omitted means Cherry-managed; caller-owned
+   * requests bypass Cherry's history truncation, pruning, and compaction.
+   * This field is intentionally absent from renderer IPC schemas.
+   */
+  contextOwner?: ContextOwner
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
 }

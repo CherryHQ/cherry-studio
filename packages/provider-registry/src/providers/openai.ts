@@ -1,5 +1,7 @@
 import { defineProvider } from './types'
 
+const webSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
+
 export default defineProvider({
   id: 'openai',
   name: 'OpenAI',
@@ -10,7 +12,7 @@ export default defineProvider({
       baseUrl: 'https://api.openai.com'
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: webSearchModels }],
   apiFeatures: {
     serviceTier: true
   },

@@ -73,12 +73,39 @@ describe('deepseek endpoint matrix', () => {
     })
   })
 
-  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual(['openai-responses', 'openai-chat-completions'])
+  it('advertises the Responses API built-in web search tool', () => {
+    expect(provider('deepseek').serverTools).toEqual([
+      {
+        id: 'web-search',
+        modelScope: 'model-dependent',
+        modelIdPrefixes: ['deepseek-v4-flash'],
+        endpointTypes: ['openai-responses']
+      }
+    ])
   })
 
-  it.each(['deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])(
-    'pins %s to Chat Completions while DeepSeek Responses does not serve it',
+  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual([
+      'openai-responses',
+      'openai-chat-completions',
+      'anthropic-messages'
+    ])
+  })
+
+  /**
+   * The Anthropic-compatible endpoint (api-docs.deepseek.com/zh-cn/guides/anthropic_api,
+   * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
+   * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
+   * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
+   * different model than the one selected. It trails Chat Completions on both V4 SKUs because
+   * `endpointTypes[0]` is what routes in-app chat.
+   */
+  it('exposes the Anthropic-compatible endpoint on V4 Pro without displacing its Chat default', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-pro')).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  it.each(['deepseek-chat', 'deepseek-reasoner'])(
+    'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
     }
