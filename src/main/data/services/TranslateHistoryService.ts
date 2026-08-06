@@ -16,7 +16,7 @@ import type {
 } from '@shared/data/api/schemas/translate'
 import { parsePersistedLangCode, type PersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistoryFileRole } from '@shared/data/types/file'
-import type { TranslateHistory } from '@shared/data/types/translate'
+import { type TranslateHistory, TranslateHistoryKindSchema } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, eq, or, sql } from 'drizzle-orm'
 
@@ -28,7 +28,7 @@ const logger = loggerService.withContext('DataApi:TranslateHistoryService')
 function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): TranslateHistory {
   return {
     id: row.id,
-    kind: row.kind,
+    kind: TranslateHistoryKindSchema.parse(row.kind),
     sourceText: row.sourceText,
     targetText: row.targetText,
     sourceLanguage: row.sourceLanguage === null ? null : parsePersistedLangCode(row.sourceLanguage),
@@ -43,7 +43,7 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
 export interface CreateFileTranslateHistoryInput {
   /** Source file name, e.g. `paper.pdf`. */
   sourceText: string
-  /** Translated file name, e.g. `paper.zh-cn.pdf`. */
+  /** Translated file name, e.g. `paper.zh-CN.pdf`. */
   targetText: string
   sourceLanguage: PersistedLangCode | null
   targetLanguage: PersistedLangCode | null
@@ -202,6 +202,16 @@ export class TranslateHistoryService {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
       }
 
+      const currentHistory = rowToTranslateHistory(current)
+      const changesFileSnapshot =
+        dto.sourceText !== undefined ||
+        dto.targetText !== undefined ||
+        dto.sourceLanguage !== undefined ||
+        dto.targetLanguage !== undefined
+      if (currentHistory.kind === 'file' && changesFileSnapshot) {
+        throw DataApiErrorFactory.invalidOperation('update file translate history', 'only star can be changed')
+      }
+
       const updates: Partial<typeof translateHistoryTable.$inferInsert> = {}
       if (dto.sourceText !== undefined) updates.sourceText = dto.sourceText
       if (dto.targetText !== undefined) updates.targetText = dto.targetText
@@ -210,7 +220,7 @@ export class TranslateHistoryService {
       if (dto.star !== undefined) updates.star = dto.star
 
       if (Object.keys(updates).length === 0) {
-        return rowToTranslateHistory(current)
+        return currentHistory
       }
 
       const [row] = tx

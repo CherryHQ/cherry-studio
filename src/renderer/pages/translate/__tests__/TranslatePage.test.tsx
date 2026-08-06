@@ -497,6 +497,7 @@ describe('TranslatePage', () => {
     pdfViewMock.mockReset()
     pdfHandleMock.cancel.mockReset()
     pdfHandleMock.start.mockReset()
+    loadTranslationFilesMock.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -1601,6 +1602,29 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
     expect(screen.queryByTestId('pdf-translation-view')).toBeNull()
+  })
+
+  it('keeps the current PDF open when a history entry is only partially available', async () => {
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([
+      { name: 'current.pdf', path: '/tmp/current.pdf', size: 10, type: 'document' }
+    ])
+    loadTranslationFilesMock.mockResolvedValueOnce({
+      source: null,
+      target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' }
+    })
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/current.pdf')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
+    expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/current.pdf')
   })
 
   it('keeps history and settings drawers mutually exclusive and exposes open state through aria-pressed', () => {

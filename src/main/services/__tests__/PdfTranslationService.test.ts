@@ -165,6 +165,7 @@ describe('PdfTranslationService', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
   })
 
@@ -365,6 +366,10 @@ describe('PdfTranslationService', () => {
       tx,
       expect.objectContaining({ files: [{ fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' }] })
     )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to reference the source PDF; recording the translation without it',
+      expect.objectContaining({ jobId: 'job-source-unreferenceable', sourcePath: SOURCE_PATH })
+    )
   })
 
   it('deletes the translated entry when the history write fails', async () => {
@@ -381,10 +386,93 @@ describe('PdfTranslationService', () => {
       targetLangCode: 'zh-cn'
     })
 
-    await expect(translation).rejects.toThrow('history write failed')
+    await expect(translation).rejects.toMatchObject({
+      code: translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+      message: 'The PDF was translated, but its result could not be saved'
+    })
     // Without the compensating delete the entry would sit in the file manager as an
     // unexplained PDF until the cleanup grace window elapsed.
     expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
+  })
+
+  it('reports a persistence failure when the translated entry cannot be created', async () => {
+    fileManager.createInternalEntry.mockRejectedValueOnce(new Error('copy failed'))
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-entry-failure',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({
+      code: translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+      message: 'The PDF was translated, but its result could not be saved'
+    })
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+    expect(mocks.createFileTx).not.toHaveBeenCalled()
+  })
+
+  it('keeps the BabelDOC-derived name when the display name is too long', async () => {
+    const stem = 'a'.repeat(250)
+    const sourcePath = path.join(TEST_ROOT, 'source', `${stem}.pdf`) as AbsoluteFilePath
+    fs.writeFileSync(sourcePath, '%PDF-test')
+    vi.spyOn(fs.promises, 'access').mockResolvedValue(undefined)
+    mocks.spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & {
+        stderr: PassThrough
+        stdout: PassThrough
+        kill: ReturnType<typeof vi.fn>
+      }
+      child.stderr = new PassThrough()
+      child.stdout = new PassThrough()
+      child.kill = vi.fn()
+      queueMicrotask(() => {
+        child.stdout.write(finishEvent())
+        child.stdout.end()
+        child.emit('close', 0, null)
+      })
+      return child
+    })
+    const service = new PdfTranslationService()
+
+    const result = await service.translate({
+      jobId: 'job-unsafe-display-name',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(result.fileName).toContain('.no_watermark.zh-CN.mono.pdf')
+    expect(fileManager.rename).not.toHaveBeenCalled()
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+  })
+
+  it('keeps the BabelDOC-derived name when applying the display name fails', async () => {
+    fileManager.rename.mockRejectedValueOnce(new Error('rename failed'))
+    const service = new PdfTranslationService()
+
+    const result = await service.translate({
+      jobId: 'job-display-name-failed',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(result.fileName).toBe('research paper.no_watermark.zh-CN.mono.pdf')
+    expect(fileManager.permanentDelete).not.toHaveBeenCalled()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to apply the translated PDF display name; keeping the BabelDOC-derived name',
+      expect.objectContaining({
+        entryId: TRANSLATED_ENTRY_ID,
+        error: 'Error: rename failed',
+        jobId: 'job-display-name-failed'
+      })
+    )
   })
 
   it.each([

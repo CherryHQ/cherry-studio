@@ -26,7 +26,7 @@ export const TranslateHistoryKindSchema = z.enum(['text', 'file'])
  * the layout-preserving PDF flow; a docx/xlsx pipeline would write `'file'`
  * rows too, with no schema or enum change. The one genuinely PDF-specific
  * affordance (reopening the side-by-side preview) gates on the file names
- * instead — see `isPdfTranslation`.
+ * instead — see renderer `pages/translate/translationFiles.ts#isPdfTranslation`.
  *
  * A `'file'` row is written ONLY from main, in the same transaction as its
  * `translate_history_file_ref` rows — it is deliberately not reachable through
@@ -52,7 +52,7 @@ export const TranslateHistorySchema = z.strictObject({
   sourceText: z.string().min(1),
   /**
    * `kind='text'`: the translated text.
-   * `kind='file'`: the translated file's name (e.g. `paper.zh-cn.pdf`).
+   * `kind='file'`: the translated file's name (e.g. `paper.zh-CN.pdf`).
    *
    * Note for future maintainers: file rows are searchable by file name only —
    * `TranslateHistoryService.list` runs `LIKE` over these two columns. Do NOT

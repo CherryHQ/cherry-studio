@@ -20,4 +20,4 @@ Nothing — automatic. Use "Save as" first if a translated PDF should outlive it
 
 ## Notes for release manager
 
-Extends [2026-07-13-pdf-layout-translation.md](./2026-07-13-pdf-layout-translation.md) (#17007) — merge the two entries at release time. Reclaiming a translated PDF is not instantaneous: it goes through the normal unreferenced-file cleanup pass, so it can linger under Files for up to an hour after the history entry is deleted.
+Extends [2026-07-13-pdf-layout-translation.md](./2026-07-13-pdf-layout-translation.md) (#17007) — merge the two entries at release time. Reclaiming a translated PDF is not instantaneous: it goes through the normal unreferenced-file cleanup pass. An older entry may disappear almost immediately; a new one typically lingers for up to about 90 minutes, and active use can defer the idle-gated cleanup longer.
