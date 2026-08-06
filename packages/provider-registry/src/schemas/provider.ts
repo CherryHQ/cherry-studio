@@ -53,6 +53,8 @@ export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code']
 export const ServerToolConfigSchema = z.object({
   id: z.enum(objectValues(SERVER_TOOL)),
   modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT),
+  /** Endpoint protocols on which the host serves the tool. Absent ⇒ all configured endpoints. */
+  endpointTypes: z.array(EndpointTypeSchema).optional(),
   /**
    * Vendor families the host actually serves the tool for, when narrower than
    * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the

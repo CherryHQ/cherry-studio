@@ -138,7 +138,25 @@ export default defineProvider({
   // Ark serves built-in web search on the Responses endpoint only (docs/82379/1756990;
   // chat has no web-search parameter). `vendors` keeps Ark-hosted glm/deepseek models
   // out — their eligibility comes from other hosts' declarations.
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['doubao'] }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIds: [
+        'doubao-seed-1-8',
+        'doubao-seed-2-1-pro',
+        'doubao-seed-2-1-turbo',
+        'doubao-seed-evolving',
+        'doubao-seed-2-0-pro',
+        'doubao-seed-2-0-lite',
+        'doubao-seed-2-0-mini',
+        'doubao-seed-2-0-code-preview',
+        'doubao-seed-1-6',
+        'doubao-seed-character'
+      ],
+      vendors: ['doubao']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://www.volcengine.com/experience/ark',
