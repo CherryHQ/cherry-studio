@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
+  refreshShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -150,6 +151,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
+  CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
@@ -191,7 +194,8 @@ vi.mock('@main/utils/rtk', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: mocks.getShellEnv
+  getShellEnv: mocks.getShellEnv,
+  refreshShellEnv: mocks.refreshShellEnv
 }))
 
 vi.mock('../ToolApprovalRegistry', () => ({
@@ -273,6 +277,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
+    mocks.refreshShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
@@ -553,6 +558,133 @@ describe('buildClaudeCodeSessionSettings', () => {
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
     })
+  })
+
+  it('adds loopback bypass rules to the final Agent proxy environment', async () => {
+    const proxyUrl = 'http://remote-proxy.example:7890'
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { no_proxy: 'service.internal; LOCALHOST' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      no_proxy: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]',
+      NO_PROXY: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]'
+    })
+  })
+
+  it('refreshes a cached Cherry proxy after the current proxy is disabled', async () => {
+    const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: staleProxyUrl,
+      HTTPS_PROXY: staleProxyUrl,
+      http_proxy: staleProxyUrl,
+      https_proxy: staleProxyUrl,
+      ALL_PROXY: staleProxyUrl,
+      all_proxy: staleProxyUrl,
+      grpc_proxy: staleProxyUrl,
+      NO_PROXY: 'stale.internal',
+      no_proxy: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(settings.env).not.toHaveProperty('HTTP_PROXY')
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('NO_PROXY')
+    expect(settings.env).not.toHaveProperty('no_proxy')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('preserves an equal user-owned proxy value produced by the refreshed login shell', async () => {
+    const proxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.refreshShellEnv.mockResolvedValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1,[::1]',
+      no_proxy: 'stale.internal,localhost,127.0.0.1,::1,[::1]'
+    })
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('does not refresh when cached Cherry markers match the current proxy', async () => {
+    const proxyUrl = 'http://current-cherry-proxy.example:7890'
+    const currentProxyEnvironment = {
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: '',
+      HTTP_PROXY: proxyUrl
+    }
+    mocks.getShellEnv.mockResolvedValue(currentProxyEnvironment)
+    mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
+
+    await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.refreshShellEnv).not.toHaveBeenCalled()
   })
 
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {

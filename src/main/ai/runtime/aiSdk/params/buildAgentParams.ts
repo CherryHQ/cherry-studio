@@ -137,6 +137,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
+    endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
@@ -400,7 +401,11 @@ async function resolveRequestWebToolRoutes(
   model: Model,
   provider: Provider,
   assistant: Assistant | undefined,
-  requestContext: { hasFunctionToolSignals: boolean; reasoningEffort: string | undefined }
+  requestContext: {
+    endpointType: EndpointType | undefined
+    hasFunctionToolSignals: boolean
+    reasoningEffort: string | undefined
+  }
 ): Promise<WebToolRoutes> {
   if (!assistant) return NO_WEB_TOOL_ROUTES
 
@@ -419,6 +424,7 @@ async function resolveRequestWebToolRoutes(
     clientSearchAvailable,
     clientFetchAvailable,
     clientToolsPreferred,
+    endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort
   })
