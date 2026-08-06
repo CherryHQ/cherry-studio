@@ -14,6 +14,7 @@ const ICON_DISPLAY_CONFIG: Readonly<Record<IconDisplayContext, Readonly<Record<s
     abacus: miniAppContainedIcon,
     zeroone: miniAppContainedIcon,
     minimax: miniAppContainedIcon,
+    'radeon-cloud': miniAppContainedIcon,
     groq: miniAppContainedIcon,
     anthropic: miniAppContainedIcon,
     claude: miniAppContainedIcon,
