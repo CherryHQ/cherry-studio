@@ -1,6 +1,6 @@
 import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
@@ -318,8 +318,8 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
   const maxTokens = model?.contextWindow
   if (!usage || !model || typeof maxTokens !== 'number' || maxTokens <= 0) return null
 
-  const percentage = Math.round(Math.min(100, Math.max(0, (usage.contextTokens / maxTokens) * 100)) * 100) / 100
-  const ringColor = getAgentContextUsageColor(percentage)
+  const percentage = (usage.contextTokens / maxTokens) * 100
+  const label = t('agent.right_pane.info.context_usage')
 
   return (
     <NormalTooltip
@@ -331,37 +331,13 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
           'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
       }}
       content={
-        <section className="space-y-2 text-xs">
-          <h3 className="font-medium text-foreground">{t('agent.right_pane.info.context_usage')}</h3>
-          <div className="space-y-2">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
-              <div className="h-full rounded-full" style={{ width: `${percentage}%`, background: ringColor }} />
-            </div>
-            <div className="flex items-center justify-between gap-3 text-muted-foreground">
-              <span className="shrink-0">
-                {usage.contextTokens.toLocaleString()} / {maxTokens.toLocaleString()} ({percentage}%)
-              </span>
-              <span className="min-w-0 truncate">{model.name}</span>
-            </div>
-          </div>
-        </section>
+        <ContextUsageSummary
+          title={label}
+          emptyLabel={t('common.none')}
+          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name }}
+        />
       }>
-      <span
-        role="meter"
-        tabIndex={0}
-        aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percentage}
-        className="relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]"
-        style={
-          {
-            '--context-usage-color': ringColor,
-            '--context-usage-progress': `${percentage}%`
-          } as React.CSSProperties
-        }>
-        <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
-      </span>
+      <ContextUsageMeter label={label} percentage={percentage} />
     </NormalTooltip>
   )
 }
