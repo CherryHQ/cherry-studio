@@ -397,6 +397,68 @@ describe('useDirectoryTree', () => {
     expect(mocks.activate).toHaveBeenCalledWith('t-handoff', 4)
   })
 
+  it('forwards a mutation replayed during activation to the side-consumer callback', async () => {
+    // A side consumer cannot subscribe on its own before `treeId` is published,
+    // which happens only after `activate` has flushed the buffered mutations — so
+    // an external edit in that window would otherwise never reach it.
+    const onMutation = vi.fn()
+    const updatedEvent: TreeMutationEvent = {
+      type: 'updated',
+      path: '/notes/watched.md',
+      stats: { mtime: 42, birthtime: 1 }
+    }
+    mocks.create.mockResolvedValue({
+      treeId: 't-side',
+      revision: 7,
+      snapshot: makeSnapshot('/notes', ['watched.md'])
+    })
+    let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      pushListener = cb
+      return () => {
+        pushListener = null
+      }
+    })
+    mocks.activate.mockImplementation(async () => {
+      pushListener?.({ treeId: 't-side', revision: 8, event: updatedEvent })
+      return true
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes', undefined, onMutation))
+
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-side')
+    })
+    expect(onMutation).toHaveBeenCalledWith(updatedEvent)
+  })
+
+  it('does not forward another tree’s mutations to the side-consumer callback', async () => {
+    const onMutation = vi.fn()
+    mocks.create.mockResolvedValue({ treeId: 't-own', revision: 0, snapshot: makeSnapshot('/notes', []) })
+    let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      pushListener = cb
+      return () => {
+        pushListener = null
+      }
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes', undefined, onMutation))
+    await waitFor(() => {
+      expect(result.current.root).not.toBeNull()
+    })
+
+    act(() => {
+      pushListener?.({
+        treeId: 'other-tree',
+        revision: 1,
+        event: { type: 'updated', path: '/notes/stray.md', stats: { mtime: 1, birthtime: 1 } }
+      })
+    })
+
+    expect(onMutation).not.toHaveBeenCalled()
+  })
+
   it('reports a forward revision gap instead of applying a stale stream', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.create.mockResolvedValue({ treeId: 't-gap', revision: 2, snapshot: makeSnapshot('/notes', []) })

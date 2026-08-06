@@ -24,9 +24,10 @@ export interface UseDirectoryTreeResult {
   /** Monotonic counter that ticks whenever the mirror mutates. */
   readonly version: number
   /**
-   * Identifier of the live tree on the main side. Consumers that subscribe to
-   * the shared `file.tree.mutation` event directly should filter incoming
-   * payloads by this id. `null` until the create/activate handoff completes.
+   * Identifier of the live tree on the main side, for routes that address it
+   * (`file.tree.rename`). `null` until the create/activate handoff completes —
+   * which is why side consumers must observe mutations through `onMutation`
+   * rather than subscribing on this id, see the parameter's docs.
    */
   readonly treeId: string | null
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
@@ -105,7 +106,18 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
   return true
 }
 
-export function useDirectoryTree(rootPath: string | undefined, options?: DirectoryTreeOptions): UseDirectoryTreeResult {
+/**
+ * @param onMutation Side consumers that need *every* mutation must go through this
+ *   callback rather than their own `ipcApi.on`: `activate` flushes the buffered
+ *   mutations before it resolves, so a subscriber keyed on the published `treeId`
+ *   misses that replay. Invoked after the mirror is updated, already filtered to
+ *   this tree. Read from a ref, so its identity may change freely between renders.
+ */
+export function useDirectoryTree(
+  rootPath: string | undefined,
+  options?: DirectoryTreeOptions,
+  onMutation?: (event: TreeMutationEvent) => void
+): UseDirectoryTreeResult {
   const normalizedRootPath = rootPath?.replace(/\\/g, '/')
   const [root, setRoot] = useState<TreeDirRoot | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -120,6 +132,8 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
   // therefore intentional, not a bug.
   const optionsRef = useRef<DirectoryTreeOptions | undefined>(options)
   optionsRef.current = options
+  const onMutationRef = useRef(onMutation)
+  onMutationRef.current = onMutation
 
   useEffect(() => {
     if (!rootPath) {
@@ -181,6 +195,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
           }
           const changed = applyMutation(mirror, payload.event)
           mirror.revision = payload.revision
+          onMutationRef.current?.(payload.event)
           if (changed) setVersion((v) => v + 1)
         })
 

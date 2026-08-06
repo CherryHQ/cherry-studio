@@ -188,7 +188,12 @@ ipcApi.request('file.tree.rename', { treeId, oldPath, newPath }) → Promise<boo
 ipcApi.on('file.tree.mutation', callback)                        → () => void  // unsubscribe
 ```
 
-Every `file.tree.mutation` subscriber receives all pushes delivered to its window regardless of which tree they belong to; consumers **must** filter by `payload.treeId`. The `useDirectoryTree` hook does this internally and exposes its `treeId` so downstream side-subscribers can do the same.
+Every `file.tree.mutation` subscriber receives all pushes delivered to its window regardless of which tree they belong to; consumers **must** filter by `payload.treeId`.
+
+Two rules bind every caller of `file.tree.create`, not just `useDirectoryTree`:
+
+- **A created tree must be activated.** A consumer starts `pending`; mutations queue main-side until `activate` and are never delivered otherwise. Skipping it leaves the caller's view frozen at its snapshot while the queue grows for the tree's lifetime. If activation fails, unsubscribe and `dispose` — the subscription and the main-side tree are both already attached by then.
+- **Side consumers of a tree owned by `useDirectoryTree` must use its `onMutation` callback**, not their own `ipcApi.on`. `activate` flushes the buffered mutations before it resolves, so a subscription keyed on the hook's published `treeId` is installed strictly after that replay and would miss it. The hook's own listener is installed before `activate` and forwards every accepted mutation, already filtered to its tree.
 
 `create` and `activate` form a two-phase snapshot-to-stream handoff. Main subscribes the new consumer to the shared builder before taking its snapshot, then buffers every later mutation for that consumer. `create` returns the snapshot together with its baseline `revision`; the renderer builds its mirror and installs `onMutation` before calling `activate`. Main then flushes buffered events in revision order and switches the consumer to live forwarding. There is therefore no interval in which a mutation can fall between the snapshot and the renderer listener, and no compensating filesystem scan is required.
 

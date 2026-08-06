@@ -1188,6 +1188,52 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
+  it('activates a lazy directory watcher so buffered mutations are released', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    // Queued after the workspace tree, so this is the lazy watcher's create.
+    mocks.treeCreate.mockResolvedValueOnce({
+      treeId: 'lazy-tree',
+      revision: 4,
+      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+    })
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() =>
+      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace/src', expect.objectContaining({ maxDepth: 1 }))
+    )
+
+    // A created consumer is pending main-side; without activate every mutation for
+    // this subtree queues forever and the expanded folder never refreshes.
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-tree', 4))
+  })
+
+  it('drops a lazy directory watcher whose activation fails', async () => {
+    const unsubscribe = vi.fn()
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.treeCreate.mockResolvedValueOnce({
+      treeId: 'lazy-tree',
+      revision: 0,
+      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+    })
+    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    mocks.treeOnMutation.mockImplementation(() => unsubscribe)
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    // Both the subscription and the main-side tree are already attached at this
+    // point, so a failed activation must release them rather than leak a watcher.
+    await waitFor(() => expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-tree'))
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
   it('ignores older lazy directory requests when a newer reload wins', async () => {
     let pushMutation:
       | ((payload: {

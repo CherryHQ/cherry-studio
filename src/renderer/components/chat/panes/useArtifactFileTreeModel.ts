@@ -456,20 +456,33 @@ function useLazyArtifactFileTree({
             return
           }
 
+          // Assign both before awaiting `activate`, so a concurrent
+          // `disposeLazyDirectoryWatcher` tears this watcher down completely.
           watcher.treeId = result.treeId
           watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
             if (payload.treeId !== result.treeId) return
             loadDirectoryChildren(dirId, { force: true })
           })
+
+          // A created consumer stays pending: mutations queue main-side until it is
+          // activated. Without this the subtree would freeze at its snapshot and the
+          // queue would grow for as long as the directory stays expanded.
+          const activated = await ipcApi.request('file.tree.activate', {
+            treeId: result.treeId,
+            revision: result.revision
+          })
+          if (!activated) throw new Error(`Failed to activate lazy directory watcher: ${result.treeId}`)
         } catch (err) {
           if (watcher.disposed || lazyDirectoryWatchersRef.current.get(dirId) !== watcher) return
-          lazyDirectoryWatchersRef.current.delete(dirId)
+          // Drops the subscription and the main-side tree too — both may already be
+          // attached if the failure came from `activate` rather than `create`.
+          disposeLazyDirectoryWatcher(dirId)
           const normalized = err instanceof Error ? err : new Error(String(err))
           logger.warn(`Failed to watch lazy directory: ${dirPath}`, normalized)
         }
       })()
     },
-    [loadDirectoryChildren, workspacePath]
+    [disposeLazyDirectoryWatcher, loadDirectoryChildren, workspacePath]
   )
 
   const displayTree = useMemo(() => {

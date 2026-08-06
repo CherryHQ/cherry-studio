@@ -33,7 +33,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
+import { createFilePathHandle, type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -78,27 +78,6 @@ const NotesPage: FC = () => {
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
-  // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
-  // `file.tree.create` route. Whenever the watcher observes add / unlink / rename
-  // events, `root` (mutated in place) + `version` (tick) drive the
-  // projection effect below to refresh `notesTree`.
-  const {
-    root: treeRoot,
-    version: treeVersion,
-    treeId,
-    isLoading: isTreeLoading,
-    error: treeError
-  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
-
-  // Surface tree-create failures (missing ripgrep, EACCES on the notes
-  // folder, deleted root). Without this, the user sees a silently-empty
-  // tree with no toast and no log a non-developer would notice.
-  useEffect(() => {
-    if (!treeError) return
-    logger.error('Failed to load notes directory tree', treeError, { notesPath, treeId })
-    toast.error(t('notes.tree_load_failed'))
-  }, [treeError, notesPath, treeId, t])
-
   // useLiveQuery drives the notes tree; the file content lives in a unified
   // file↔memory session (SWR read + debounced autosave through the
   // `file.write_if_unchanged` optimistic lock, with encoding/BOM/CRLF preserved).
@@ -142,6 +121,48 @@ const NotesPage: FC = () => {
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
+
+  // Tell the session when the watcher reports an external `change` on the file
+  // being viewed — it reloads if idle, or flags a conflict if the user has
+  // unsaved edits. This rides `useDirectoryTree`'s own listener rather than a
+  // separate `file.tree.mutation` subscription: the latter can only be installed
+  // once `treeId` is published, which is after `activate` has already flushed the
+  // mutations buffered during the handshake. We still avoid piping through the
+  // projected tree, which would re-project on every keystroke save. The unlink →
+  // clear-active-file path is implicit: when the file leaves the tree, the
+  // `shouldClearPath` guard below clears `activeFilePath`.
+  const handleTreeMutation = useCallback(
+    (event: TreeMutationEvent) => {
+      if (event.type !== 'updated') return
+      const activePath = activeFilePathRef.current
+      if (!activePath) return
+      if (normalizePathValue(activePath) !== normalizePathValue(event.path)) return
+      // The event mtime lets the session dismiss our own autosave echo without IPC.
+      notifyExternalChange(event.stats.mtime)
+    },
+    [notifyExternalChange]
+  )
+
+  // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
+  // `file.tree.create` route. Whenever the watcher observes add / unlink / rename
+  // events, `root` (mutated in place) + `version` (tick) drive the
+  // projection effect below to refresh `notesTree`.
+  const {
+    root: treeRoot,
+    version: treeVersion,
+    treeId,
+    isLoading: isTreeLoading,
+    error: treeError
+  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS, handleTreeMutation)
+
+  // Surface tree-create failures (missing ripgrep, EACCES on the notes
+  // folder, deleted root). Without this, the user sees a silently-empty
+  // tree with no toast and no log a non-developer would notice.
+  useEffect(() => {
+    if (!treeError) return
+    logger.error('Failed to load notes directory tree', treeError, { notesPath, treeId })
+    toast.error(t('notes.tree_load_failed'))
+  }, [treeError, notesPath, treeId, t])
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
@@ -373,33 +394,6 @@ const NotesPage: FC = () => {
       isRenamingRef.current = false
     }
   }, [activeNode])
-
-  // Tell the session when the watcher reports an external `change` on the file
-  // being viewed — it reloads if idle, or flags a conflict if the user has
-  // unsaved edits. We listen to the same chokidar events via a tiny
-  // `file.tree.mutation` side-subscriber rather than piping through
-  // `useDirectoryTree`'s mutation stream (which would re-project the entire tree
-  // on every keystroke save). The unlink → clear-active-file path is implicit:
-  // when the file leaves the tree, the `shouldClearPath` guard above clears
-  // `activeFilePath`.
-  useEffect(() => {
-    if (!notesPath || !treeId) return
-    const unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
-      // file.tree.mutation is a shared event — ignore payloads from other trees.
-      if (payload.treeId !== treeId) return
-      if (payload.event.type !== 'updated') return
-      const activePath = activeFilePathRef.current
-      if (!activePath) return
-      const normalized = normalizePathValue(payload.event.path)
-      if (normalizePathValue(activePath) === normalized) {
-        // The event mtime lets the session dismiss our own autosave echo without IPC.
-        notifyExternalChange(payload.event.stats.mtime)
-      }
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [notesPath, treeId, notifyExternalChange])
 
   useEffect(() => {
     const editor = editorRef.current
