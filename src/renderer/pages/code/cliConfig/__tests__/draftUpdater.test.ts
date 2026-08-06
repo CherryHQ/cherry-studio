@@ -181,6 +181,9 @@ describe('updateCliConfigDraftConfig', () => {
 
     expect(parsed.compaction).toEqual({ auto: true, prune: false, reserved: 10000 })
     expect(parsed).not.toHaveProperty('autoCompact')
+
+    const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, {})
+    expect(JSON.parse(disabled[0].content).compaction).toEqual({ prune: false, reserved: 10000 })
   })
 
   it('returns the files unchanged when there is no managed connection', () => {

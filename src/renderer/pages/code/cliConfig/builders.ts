@@ -193,7 +193,10 @@ export function buildOpenCodeConfig(
   const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
-  const compaction = { ...asRecord(existing.compaction), auto: options.autoCompact === true }
+  const compaction = { ...asRecord(existing.compaction) }
+  delete cleaned.compaction
+  delete compaction.auto
+  if (options.autoCompact === true) compaction.auto = true
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
@@ -213,9 +216,9 @@ export function buildOpenCodeConfig(
         },
         models: { [resolved.model]: modelConfig }
       }
-    },
-    compaction
+    }
   }
+  if (Object.keys(compaction).length > 0) merged.compaction = compaction
   if (isOpenCodePermissionMode(options.permissionMode)) merged.permission = options.permissionMode
   return merged
 }
