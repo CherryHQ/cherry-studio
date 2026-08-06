@@ -4,11 +4,10 @@ import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { useEffect, useEffectEvent, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const WHEEL_STEP_THRESHOLD = 40
-const WHEEL_IDLE_RESET_MS = 120
+import { WheelStepControl } from './WheelStepControl'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
   'default',
@@ -32,101 +31,6 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   xhigh: 'assistants.settings.reasoning_effort.xhigh',
   max: 'assistants.settings.reasoning_effort.max',
   auto: 'assistants.settings.reasoning_effort.auto'
-}
-
-function normalizeWheelDelta(event: WheelEvent): number {
-  if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return event.deltaY
-  return Math.sign(event.deltaY) * WHEEL_STEP_THRESHOLD
-}
-
-interface ComposerEffortSliderProps {
-  ariaLabel: string
-  efforts: readonly ThinkingOption[]
-  value: number
-  valueText: string
-  onChange: (effort: ThinkingOption) => void
-}
-
-function ComposerEffortSlider({ ariaLabel, efforts, value, valueText, onChange }: ComposerEffortSliderProps) {
-  const wheelTargetRef = useRef<HTMLDivElement>(null)
-  const wheelDeltaRef = useRef(0)
-  const wheelIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleWheel = useEffectEvent((event: WheelEvent) => {
-    if (event.ctrlKey || event.metaKey || event.deltaY === 0) return
-
-    event.preventDefault()
-    event.stopPropagation()
-
-    const normalizedDelta = normalizeWheelDelta(event)
-    if (Math.sign(wheelDeltaRef.current) !== Math.sign(normalizedDelta)) wheelDeltaRef.current = 0
-    wheelDeltaRef.current += normalizedDelta
-
-    if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
-    wheelIdleTimerRef.current = setTimeout(() => {
-      wheelDeltaRef.current = 0
-    }, WHEEL_IDLE_RESET_MS)
-
-    if (Math.abs(wheelDeltaRef.current) < WHEEL_STEP_THRESHOLD) return
-
-    const direction = wheelDeltaRef.current < 0 ? 1 : -1
-    wheelDeltaRef.current = 0
-    const nextIndex = Math.min(Math.max(value + direction, 0), efforts.length - 1)
-    const nextEffort = efforts[nextIndex]
-    if (nextIndex !== value && nextEffort) onChange(nextEffort)
-  })
-
-  useEffect(() => {
-    const wheelTarget = wheelTargetRef.current
-    if (!wheelTarget) return
-
-    wheelTarget.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      wheelTarget.removeEventListener('wheel', handleWheel)
-      if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
-    }
-    // `handleWheel` is an Effect Event that reads the latest effort state without re-subscribing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <div ref={wheelTargetRef} className="relative mt-1.5 h-8">
-      <Slider
-        value={[value]}
-        min={0}
-        max={efforts.length - 1}
-        step={1}
-        size="lg"
-        getThumbAriaLabel={() => ariaLabel}
-        getThumbAriaValueText={() => valueText}
-        className={cn(
-          'h-8',
-          '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
-          '[&_[data-slot=slider-range]]:bg-primary',
-          '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
-          '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
-          '[&_[data-slot=slider-thumb]:hover]:ring-0'
-        )}
-        onValueChange={([nextIndex]) => {
-          const nextEffort = efforts[nextIndex]
-          if (nextEffort) onChange(nextEffort)
-        }}
-      />
-      <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-        {efforts.map((effort, index) =>
-          index === value ? null : (
-            <span
-              key={effort}
-              data-slot="composer-effort-step"
-              data-index={index}
-              className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
-              style={{ left: `${(index / (efforts.length - 1)) * 100}%` }}
-            />
-          )
-        )}
-      </div>
-    </div>
-  )
 }
 
 /** Keep the submitted selection valid without changing the provider's Default semantics. */
@@ -181,6 +85,10 @@ export function ComposerSpeedControl({
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+  const handleSliderValueChange = (index: number) => {
+    const effort = sliderEfforts[index]
+    if (effort) onReasoningEffortChange(effort)
+  }
 
   return (
     <Popover>
@@ -253,13 +161,44 @@ export function ComposerSpeedControl({
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
               <span className="text-primary">{t('agent.speed.smarter')}</span>
             </div>
-            <ComposerEffortSlider
-              ariaLabel={effortControlLabel}
-              efforts={sliderEfforts}
+            <WheelStepControl
               value={currentIndex}
-              valueText={effortLabel}
-              onChange={onReasoningEffortChange}
-            />
+              min={0}
+              max={sliderEfforts.length - 1}
+              className="relative mt-1.5 h-8"
+              onValueChange={handleSliderValueChange}>
+              <Slider
+                value={[currentIndex]}
+                min={0}
+                max={sliderEfforts.length - 1}
+                step={1}
+                size="lg"
+                getThumbAriaLabel={() => effortControlLabel}
+                getThumbAriaValueText={() => effortLabel}
+                className={cn(
+                  'h-8',
+                  '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                  '[&_[data-slot=slider-range]]:bg-primary',
+                  '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
+                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
+                  '[&_[data-slot=slider-thumb]:hover]:ring-0'
+                )}
+                onValueChange={([index]) => handleSliderValueChange(index)}
+              />
+              <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
+                {sliderEfforts.map((effort, index) =>
+                  index === currentIndex ? null : (
+                    <span
+                      key={effort}
+                      data-slot="composer-effort-step"
+                      data-index={index}
+                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
+                      style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                    />
+                  )
+                )}
+              </div>
+            </WheelStepControl>
           </div>
         ) : supportsReasoning ? (
           <RadioGroup
