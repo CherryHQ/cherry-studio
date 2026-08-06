@@ -9,6 +9,7 @@ import {
   useProviderActions,
   useProviderApiKeys,
   useProviderAuthConfig,
+  useProviderById,
   useProviderDisplayName,
   useProviderMutations,
   useProviders
@@ -244,6 +245,33 @@ describe('useProvider', () => {
 
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
+  })
+})
+
+describe('useProviderById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reads the provider without registering provider mutations', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: mockProvider1,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderById('openai'))
+
+    expect(result.current.provider).toBe(mockProvider1)
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+    expect(mockUseMutation).not.toHaveBeenCalled()
   })
 })
 

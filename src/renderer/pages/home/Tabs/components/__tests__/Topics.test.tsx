@@ -1,6 +1,7 @@
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
@@ -97,6 +98,19 @@ const notesSettingsMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
+
+const groupReorderMocks = vi.hoisted(() => ({
+  reorderGroup: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/hooks/useGroups', async () => {
+  const actual = await vi.importActual<typeof UseGroupsHook>('@renderer/hooks/useGroups')
+
+  return {
+    ...actual,
+    useGroupReorder: () => groupReorderMocks
+  }
+})
 
 const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: unknown }> | undefined
@@ -711,7 +725,6 @@ describe('Topics', () => {
       'data.export.menus.joplin': true,
       'data.export.menus.markdown': true,
       'data.export.menus.markdown_reason': true,
-      'data.export.menus.notes': true,
       'data.export.menus.notion': true,
       'data.export.menus.obsidian': true,
       'data.export.menus.plain_text': true,
@@ -1899,7 +1912,6 @@ describe('Topics', () => {
       joplin: true,
       markdown: true,
       markdown_reason: true,
-      notes: true,
       notion: true,
       obsidian: true,
       plain_text: true,
@@ -3235,6 +3247,29 @@ describe('Topics', () => {
     })
 
     expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('persists canonical assistant group section reorder in group mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+
+    renderTopicList()
+
+    const workSectionId = 'group:topic:section:assistant-group:group-work'
+    const homeSectionId = 'group:topic:section:assistant-group:group-home'
+    expect(dndMocks.sortableData.has(workSectionId)).toBe(true)
+    expect(dndMocks.sortableData.has(homeSectionId)).toBe(true)
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData(workSectionId), id: workSectionId },
+      over: { data: sortableData(homeSectionId), id: homeSectionId }
+    })
+
+    await vi.waitFor(() =>
+      expect(groupReorderMocks.reorderGroup).toHaveBeenCalledWith('group-work', { after: 'group-home' })
+    )
   })
 
   it('shows a toast when assistant group reorder persistence fails', async () => {

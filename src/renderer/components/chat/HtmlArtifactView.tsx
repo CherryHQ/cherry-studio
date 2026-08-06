@@ -2,6 +2,15 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import {
+  canConsumeVerticalWheel,
+  clampForwardedWheelDelta,
+  findVerticalWheelConsumer,
+  type ScrollRuntimeBoundary,
+  useScrollRuntimeBoundary,
+  VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX,
+  VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE
+} from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
@@ -111,6 +120,9 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
       sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
     }
     let lastReportedHeight = -1
+    const scrollableOverflowPattern = new RegExp(${JSON.stringify(
+      `^(?:${VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE})$`
+    )})
     const reportHeight = () => {
       const bodyHeight = document.body?.scrollHeight ?? 0
       const rootHeight = document.documentElement?.scrollHeight ?? 0
@@ -121,13 +133,12 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
       send('height', height)
     }
     const canScroll = (element, deltaY, isRoot = false) => {
-      if (!element || element.scrollHeight <= element.clientHeight + 1) return false
-      if (!isRoot) {
-        const overflowY = getComputedStyle(element).overflowY
-        if (!/(auto|scroll|overlay)/.test(overflowY)) return false
-      }
+      if (!element || element.scrollHeight <= element.clientHeight + ${VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX}) return false
+      const style = getComputedStyle(element)
+      if (!isRoot && !scrollableOverflowPattern.test(style.overflowY)) return false
+      if (style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
       if (deltaY < 0) return element.scrollTop > 0
-      return element.scrollTop + element.clientHeight < element.scrollHeight - 1
+      return deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - ${VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX}
     }
     const scrollActivationDelay = ${scrollActivationDelay}
     let isScrollActive = true
@@ -194,6 +205,19 @@ function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string):
   }
 }
 
+function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
+  const targetNode = event.target as Node | null
+  const element =
+    targetNode?.nodeType === Node.ELEMENT_NODE ? (targetNode as Element) : (targetNode?.parentElement ?? null)
+  const frameDocument = element?.ownerDocument
+  if (!frameDocument) return false
+
+  if (findVerticalWheelConsumer(element, event.deltaY, frameDocument.documentElement)) return true
+
+  const root = frameDocument.scrollingElement ?? frameDocument.documentElement
+  return canConsumeVerticalWheel(root, event.deltaY, true)
+}
+
 function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
   try {
     const frameDocument = iframe.contentDocument
@@ -240,37 +264,10 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
   }
 }
 
-/**
- * Replays a wheel that happened inside the preview onto the message list's scroller.
- *
- * A wheel inside the preview never reaches that scroller by itself: an iframe dispatches it in
- * its own document, and the webview is a separate process. The list stamps user scroll intent
- * from a wheel listener there, and without that stamp it reads the scroll that boundary chaining
- * just produced as drift -- so on an already user-owned viewport it answers by re-asserting the
- * frozen scrollTop before the next paint (`chatVirtualizerRuntime.tsx`, the non-user-initiated
- * branch of `onScroll`). Every further wheel chains again and is undone again, which is the
- * jitter. This carries the intent only: the scroll itself still comes from native chaining
- * (iframe) or the explicit `scrollBy` below (webview), since a synthetic wheel scrolls nothing.
- */
-function replayWheelIntentOnScroller(viewport: HTMLElement, deltaY: number): void {
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-  const view = viewport.ownerDocument.defaultView
-  if (!scroller || !view) return
-
-  // Bubbling like a genuine wheel, so listeners attached by delegation see it too.
-  scroller.dispatchEvent(new view.WheelEvent('wheel', { deltaY, bubbles: true }))
-}
-
-function forwardWheelToPage(viewport: HTMLElement, deltaY: number): void {
-  const boundedDeltaY = Math.max(-200, Math.min(200, deltaY))
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-  if (scroller) {
-    // Must precede the write: an unannounced `scrollBy` reads as drift and gets undone.
-    replayWheelIntentOnScroller(viewport, boundedDeltaY)
-    scroller.scrollBy({ top: boundedDeltaY })
-  } else {
-    window.scrollBy({ top: boundedDeltaY })
-  }
+/** Child realms report deltas; only the owning runtime may write the message viewport. */
+function routeWheelScroll(viewport: HTMLElement, scrollRuntime: ScrollRuntimeBoundary, deltaY: number): void {
+  if (scrollRuntime.scrollByWheel(deltaY)) return
+  viewport.ownerDocument.defaultView?.scrollBy({ top: clampForwardedWheelDelta(deltaY) })
 }
 
 function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObject<T | null>) {
@@ -310,10 +307,10 @@ function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObjec
   return isScrollActiveRef
 }
 
-function getMaxPreviewHeight(viewport: HTMLElement): number {
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
+function getMaxPreviewHeight(viewport: HTMLElement, scrollContainer: HTMLElement | null): number {
+  const scroller = scrollContainer?.contains(viewport) ? scrollContainer : null
   const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
-  const availableHeight = scrollerHeight > 0 ? scrollerHeight : window.innerHeight
+  const availableHeight = scrollerHeight > 0 ? scrollerHeight : (viewport.ownerDocument.defaultView?.innerHeight ?? 0)
   return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
 }
 
@@ -360,6 +357,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   const viewportRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
+  const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
 
   useLayoutEffect(() => {
@@ -376,7 +374,10 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       const contentHeight = getIframeContentHeight(iframe)
       if (contentHeight === null) return
 
-      const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
+      const nextHeight = Math.min(
+        getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
+        Math.max(1, Math.ceil(contentHeight * zoomScale))
+      )
       onHeightChange(nextHeight)
     }
 
@@ -384,11 +385,12 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       const wheelEvent = event as WheelEvent
       if (!isScrollActiveRef.current) {
         wheelEvent.preventDefault()
-        forwardWheelToPage(viewport, wheelEvent.deltaY)
+        routeWheelScroll(viewport, scrollRuntime, wheelEvent.deltaY)
         return
       }
 
-      replayWheelIntentOnScroller(viewport, wheelEvent.deltaY)
+      if (isWheelConsumedByEmbeddedDocument(wheelEvent)) return
+      scrollRuntime.notifyWheelIntent(wheelEvent.deltaY)
     }
 
     const observeDocument = () => {
@@ -433,8 +435,8 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     if (typeof ResizeObserver !== 'undefined') {
       layoutResizeObserver = new ResizeObserver(syncHeight)
       layoutResizeObserver.observe(viewport)
-      const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-      if (scroller) layoutResizeObserver.observe(scroller)
+      const scroller = scrollRuntime.getScrollContainer()
+      if (scroller?.contains(viewport)) layoutResizeObserver.observe(scroller)
     }
 
     return () => {
@@ -447,7 +449,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       iframe.removeEventListener('load', observeDocument)
       window.removeEventListener('resize', syncHeight)
     }
-  }, [html, isScrollActiveRef, onHeightChange, zoomScale])
+  }, [html, isScrollActiveRef, onHeightChange, scrollRuntime, zoomScale])
 
   return (
     <div ref={viewportRef} data-testid="adaptive-html-preview" className="relative h-full w-full overflow-hidden">
@@ -522,6 +524,7 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const viewportRef = useRef<HTMLDivElement>(null)
   const webviewRef = useRef<WebviewTag | null>(null)
   const contentHeightRef = useRef<number | null>(null)
+  const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
   const [messagePrefix] = useState(() => `__cherry_html_artifact_${crypto.randomUUID()}:`)
   const src = useMemo(() => {
@@ -544,14 +547,17 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
         contentHeightRef.current = message.value
         if (!onHeightChange) return
 
-        const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(message.value * zoomScale)))
+        const nextHeight = Math.min(
+          getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
+          Math.max(1, Math.ceil(message.value * zoomScale))
+        )
         onHeightChange(nextHeight)
         return
       }
 
       if (!forwardBoundaryWheel) return
 
-      forwardWheelToPage(viewport, message.value)
+      routeWheelScroll(viewport, scrollRuntime, message.value)
     }
 
     webview.addEventListener('console-message', handleConsoleMessage)
@@ -559,16 +565,19 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
     return () => {
       webview.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [forwardBoundaryWheel, messagePrefix, onHeightChange, zoomScale])
+  }, [forwardBoundaryWheel, messagePrefix, onHeightChange, scrollRuntime, zoomScale])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const contentHeight = contentHeightRef.current
     if (!viewport || contentHeight === null || !onHeightChange) return
 
-    const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
+    const nextHeight = Math.min(
+      getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
+      Math.max(1, Math.ceil(contentHeight * zoomScale))
+    )
     onHeightChange(nextHeight)
-  }, [onHeightChange, zoomScale])
+  }, [onHeightChange, scrollRuntime, zoomScale])
 
   return (
     <div ref={viewportRef} data-testid="interactive-html-preview" className="relative h-full w-full overflow-hidden">

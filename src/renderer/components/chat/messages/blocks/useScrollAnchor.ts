@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-import { findScrollParent, useIsScrollRuntimeManaged, useRequestScrollReadingControl } from './ScrollOwnershipContext'
+import {
+  findScrollParent,
+  useIsScrollRuntimeManaged,
+  useRequestScrollReadingControl
+} from '../list/ScrollOwnershipContext'
 
 interface ScrollAnchorOptions {
   enterReadingMode?: boolean
