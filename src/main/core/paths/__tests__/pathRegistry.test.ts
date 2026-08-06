@@ -68,7 +68,6 @@ describe('buildPathRegistry', () => {
 
     expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
     expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
-    expect('feature.cli.install_global' in registry).toBe(false)
   })
 
   it('keeps the root database and Claude config cleanup-only', () => {

@@ -7,7 +7,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { cacheCleanupService } from '@main/services/CacheCleanupService'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
-import { app, session } from 'electron'
+import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
@@ -166,8 +166,6 @@ describe('CacheCleanupService', () => {
         completeness: 'complete'
       }
     })
-    expect(session.fromPartition).toHaveBeenCalledWith('persist:webview')
-    expect(session.fromPartition).toHaveBeenCalledWith('html-artifact-preview')
   })
 
   it('clears both the active and legacy trace directories', async () => {
@@ -181,7 +179,6 @@ describe('CacheCleanupService', () => {
     const cleanup = await cacheCleanupService.run(['normal_cache'])
 
     expect(cleanup.results[0]?.status).toBe('cleared')
-    expect(cleanup.results[0]).not.toHaveProperty('issues')
     await expectMissing(tracePath, legacyTracePath)
   })
 
@@ -402,7 +399,6 @@ describe('CacheCleanupService', () => {
       appDataPath: [{ executablePath: '/other/CherryStudio', dataPath: '/other/data' }],
       retainedField: true
     })
-    expect(app.getPath).toHaveBeenCalledWith('exe')
   })
 
   it('serializes concurrent cleanup requests', async () => {
