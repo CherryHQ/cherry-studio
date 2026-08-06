@@ -1,3 +1,4 @@
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -135,6 +136,13 @@ describe('getReadableToolActivity', () => {
     ).toEqual({
       label: 'Viewing',
       description: 'web page'
+    })
+  })
+
+  it('describes provider-executed web search as a web lookup', () => {
+    expect(getReadableToolActivity(PROVIDER_WEB_SEARCH_TOOL_NAME, {}, false, t)).toEqual({
+      label: 'message.tools.activity.search',
+      description: 'related content'
     })
   })
 
