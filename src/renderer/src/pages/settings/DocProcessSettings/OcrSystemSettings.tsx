@@ -1,4 +1,5 @@
 // import { loggerService } from '@logger'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac, isWin } from '@renderer/config/constant'
@@ -35,7 +36,11 @@ export const OcrSystemSettings = () => {
     () =>
       translateLanguages.map((lang) => ({
         value: lang.langCode,
-        label: lang.emoji + ' ' + lang.label()
+        label: (
+          <>
+            <FlagEmoji emoji={lang.emoji} /> {lang.label()}
+          </>
+        )
       })),
     [translateLanguages]
   )

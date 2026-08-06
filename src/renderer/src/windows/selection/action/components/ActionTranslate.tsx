@@ -1,6 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
@@ -334,7 +335,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 <span>{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
+                  <FlagEmoji emoji={detectedLanguage?.emoji || '🌐'} style={{ marginRight: 4 }} />
                   <span>{detectedLanguage?.label() || t('translate.detected_source')}</span>
                 </>
               )}
