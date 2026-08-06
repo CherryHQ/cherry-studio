@@ -585,7 +585,7 @@ describe('AgentSessionRuntimeService', () => {
         })
       )
     )
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
   })
 
   it('ignores SDK usage when provider-call middleware owns the gateway route', () => {
@@ -794,7 +794,7 @@ describe('AgentSessionRuntimeService', () => {
         .map((call) => call[0].message)
         .filter((m: any) => m.role === 'assistant')
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('refreshes the trace context before starting a steer continuation stream', async () => {
@@ -831,7 +831,7 @@ describe('AgentSessionRuntimeService', () => {
         mocks.startRuntimeTurn.mock.invocationCallOrder[0]
       )
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
@@ -923,7 +923,7 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('opens a headless turn plus interactive steer roll continuation as interactive', async () => {
@@ -933,7 +933,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.headless).toBe(false)
       expect(service.getInteractionState('session-1').currentTurn).toBe('interactive')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('opens an interactive turn plus headless steer roll continuation as interactive', async () => {
@@ -943,7 +943,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.headless).toBe(false)
       expect(service.getInteractionState('session-1').currentTurn).toBe('interactive')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('inherits the rolled turn knowledge scope when the continuation has no steer message', async () => {
@@ -960,7 +960,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('inherits the rolled turn knowledge scope over a steer message carrying a different one', async () => {
@@ -983,7 +983,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
       expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
   })
 
@@ -1682,7 +1682,7 @@ describe('AgentSessionRuntimeService', () => {
     const updatePromise = (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
     expect(oldConnection.reconcile).toHaveBeenCalledOnce()
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     service.beginTurn(baseTurnInput)
     const newConnection = {
       close: vi.fn(),
@@ -2058,7 +2058,7 @@ describe('AgentSessionRuntimeService', () => {
         ]
       ])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
 
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts, 60_000)
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
@@ -2141,7 +2141,7 @@ describe('AgentSessionRuntimeService', () => {
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).not.toBe('unavailable')
 
-      interactive.closeSession('session-1')
+      void interactive.closeSession('session-1')
       interactive.beginTurn({ ...baseTurnInput, headless: true })
       const headlessEntry = getEntry(interactive)
       headlessEntry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
@@ -2273,7 +2273,7 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
 
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
     })
@@ -2362,7 +2362,7 @@ describe('AgentSessionRuntimeService', () => {
       // Receive-only: the generation is the SDK's own, so nothing goes to the CLI.
       expect(send).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -2378,7 +2378,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.currentTurn).toMatchObject({ headless: true })
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: entry.currentTurn })
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('replays an autonomous terminal that arrives before the receive-only turn is created', async () => {
@@ -2434,7 +2434,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
       expect(entry.currentTurn.turnId).toBe(deferredTurn.turnId)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('restores a deferred turn once when the receive-only placeholder cannot be saved', async () => {
@@ -2467,7 +2467,7 @@ describe('AgentSessionRuntimeService', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('does not start a receive-only stream after the session closes during trace refresh', async () => {
@@ -2491,7 +2491,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: expect.anything() })
       )
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       refreshed.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -2546,7 +2546,7 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('surfaces an early receive-only error and restores the deferred turn after connection loss', async () => {
@@ -2624,7 +2624,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.turnId).toBe(deferredTurn.turnId)
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', turn: entry.currentTurn })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('ignores a receive-only signal while an admitted turn is live', () => {
@@ -2714,7 +2714,7 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await originalReader.cancel().catch(() => undefined)
       await resumedReader.cancel().catch(() => undefined)
     })
@@ -2767,7 +2767,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.currentTurn.userMessage.id).toBe('user-3')
       expect(entry.runtimeState.queue).toEqual([])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
   })
 
@@ -2780,7 +2780,7 @@ describe('AgentSessionRuntimeService', () => {
     entry.connectionLoop = Promise.resolve()
     entry.runtimeState.launch = { kind: 'scheduled', target: 'queued-turn' }
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
 
     expect(connection.close).toHaveBeenCalled()
     expect(entry.connection).toBeUndefined()
@@ -3368,7 +3368,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
 
     // Context usage outlives the connection — no turn can run without one, so the last reading is
     // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
@@ -3556,7 +3556,7 @@ describe('AgentSessionRuntimeService', () => {
     // Warm: a turn ending does NOT tear the connection down — only closeSession / idle TTL does.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -3609,7 +3609,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
     expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -3746,7 +3746,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(connect).toHaveBeenCalledOnce()
       expect(connection.close).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
     })
@@ -3791,7 +3791,7 @@ describe('AgentSessionRuntimeService', () => {
           steer: true
         }
       ])
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3848,7 +3848,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ knowledgeBaseIds: ['kb-2'] }))
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await firstReader.cancel().catch(() => undefined)
       await secondReader.cancel().catch(() => undefined)
     })
@@ -3882,7 +3882,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).toHaveBeenCalledWith({ message: reorderedScopeMessage, systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -3934,7 +3934,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(connect).toHaveBeenCalledOnce()
       expect(connection.close).not.toHaveBeenCalled()
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await secondReader.cancel().catch(() => undefined)
     })
@@ -3972,7 +3972,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).toHaveBeenCalledWith({ message: sameEffectiveScopeMessage, systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4005,7 +4005,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(redirect).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: true })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4046,7 +4046,7 @@ describe('AgentSessionRuntimeService', () => {
       // connection built for a different tool set.
       expect(getEntry(service).pendingTurns[0].knowledgeBaseIds).toEqual(['kb-1'])
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4131,7 +4131,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
@@ -4178,7 +4178,7 @@ describe('AgentSessionRuntimeService', () => {
       const execution = getEntry(service).runtimeState.execution
       expect(execution.kind).toBe('idle')
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('rolls the turn at a steer-boundary: finalises A1a, opens A2 without re-sending, replays buffered chunks', async () => {
@@ -4312,7 +4312,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p3', delta: 'live' } })
       await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'live' }, done: false })
 
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
     })
@@ -4343,7 +4343,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: true })
     )
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
   })
 
   it('flags a mid-turn follow-up as a steer (system-reminder) while a turn is live', async () => {
@@ -4370,7 +4370,7 @@ describe('AgentSessionRuntimeService', () => {
     // Arrives while the first turn is live → flagged as a steer.
     service.enqueueUserMessage('session-1', userMessage('user-2'))
     expect(getEntry(service).pendingTurns[0]?.steer).toBe(true)
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 

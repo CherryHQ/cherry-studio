@@ -11,7 +11,7 @@ function createFakeChild(options: { pid?: number } = {}) {
   let killed = false
   let exitCode: number | null = null
   let signalCode: NodeJS.Signals | null = null
-  const kill = vi.fn((_signal: NodeJS.Signals) => {
+  const kill = vi.fn(() => {
     killed = true
     return true
   })

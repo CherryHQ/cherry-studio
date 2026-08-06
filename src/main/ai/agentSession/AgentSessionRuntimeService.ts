@@ -435,7 +435,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    if (existing) this.closeSession(input.sessionId)
+    if (existing) void this.closeSession(input.sessionId)
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
@@ -570,7 +570,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
       if (this.entries.get(sessionId) !== entry) return
       if (!connected) {
-        this.closeSession(sessionId)
+        void this.closeSession(sessionId)
         return
       }
       // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
@@ -677,7 +677,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.liveTurn(entry)) {
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
     }
-    this.closeSession(entry.sessionId)
+    void this.closeSession(entry.sessionId)
   }
 
   openTurnStream(input: OpenAgentSessionTurnStreamInput): ReadableStream<UIMessageChunk> {
@@ -696,7 +696,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => this.closeSession(entry.sessionId)
+          const onAbort = () => void this.closeSession(entry.sessionId)
           if (input.signal.aborted) {
             onAbort()
             return
@@ -852,7 +852,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const idleEntry = this.entries.get(sessionId)
     if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
-    this.closeSession(sessionId)
+    void this.closeSession(sessionId)
   }
 
   /**
@@ -1266,7 +1266,7 @@ export class AgentSessionRuntimeService extends BaseService {
             this.closeConnectionAsync(entry)
             continue
           case 'invalid':
-            this.closeSession(entry.sessionId)
+            void this.closeSession(entry.sessionId)
             return false
         }
       }
@@ -2782,7 +2782,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
       const { sessionId, agentType, lastResumeToken } = entry
-      this.closeSession(sessionId)
+      void this.closeSession(sessionId)
       if (lastResumeToken) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
