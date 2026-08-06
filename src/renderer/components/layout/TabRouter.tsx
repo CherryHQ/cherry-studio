@@ -25,7 +25,11 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     const history = createMemoryHistory({ initialEntries: [tab.url] })
     // defaultErrorComponent contains a route render error to its tab; without it the
     // error bubbles to the window-level boundary and tears down the whole window.
-    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
+    return createRouter({
+      routeTree,
+      history,
+      defaultErrorComponent: RouteErrorFallback
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 
