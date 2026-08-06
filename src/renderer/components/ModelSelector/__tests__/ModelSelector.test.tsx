@@ -451,19 +451,45 @@ describe('ModelSelector', () => {
     expect(onSelect).toHaveBeenCalledWith([firstId])
   })
 
-  it('refreshes selector data whenever it opens', async () => {
+  it('keeps lazy-mounted data active and refreshes it only on later openings', async () => {
     const refetchModels = vi.fn(async () => undefined)
     const refetchProviders = vi.fn(async () => undefined)
     const refetchPinnedModels = vi.fn(async () => undefined)
     mocks.useModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
-    const { rerender } = render(
-      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    const closed = (
+      <ModelSelector
+        open={false}
+        multiple={false}
+        mountStrategy="lazy-keep"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
     )
+    const opened = (
+      <ModelSelector
+        open
+        multiple={false}
+        mountStrategy="lazy-keep"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+    const { rerender } = render(closed)
     expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }))
 
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+    rerender(opened)
 
     expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
+    expect(refetchModels).not.toHaveBeenCalled()
+    expect(refetchProviders).not.toHaveBeenCalled()
+    expect(refetchPinnedModels).not.toHaveBeenCalled()
+
+    rerender(closed)
+
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
+
+    rerender(opened)
+
     await waitFor(() => expect(refetchModels).toHaveBeenCalledOnce())
     expect(refetchProviders).toHaveBeenCalledOnce()
     expect(refetchPinnedModels).toHaveBeenCalledOnce()
