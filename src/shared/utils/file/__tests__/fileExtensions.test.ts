@@ -32,7 +32,7 @@ describe('knowledge file-extension source-of-truth invariants', () => {
 
   it('accepts legacy .ppt without classifying it as an app-wide document', () => {
     expect(supported.has('.ppt')).toBe(true)
-    // Read by anydoc directly, so it must not be routed to a file processor.
+    // The external file processor has not been verified for legacy binary PowerPoint.
     expect(processing.has('.ppt')).toBe(false)
     // Deliberately absent from documentExts: that list feeds officeparser on the AI
     // attachment path, which does not handle the legacy binary PowerPoint format.

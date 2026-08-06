@@ -30,10 +30,11 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.docx':
       return new AnydocReader(() => new DocxReader())
     case '.epub':
-      return new AnydocReader(() => new EpubReader())
-    // Without anydoc these binary containers fall through to TextFileReader, which
-    // decodes the raw zip/OLE2 bytes as UTF-8 and yields ~20-42% mojibake.
+      return new AnydocReader(() => new EpubReader(), true)
     case '.ppt':
+      return new AnydocReader()
+    // Before anydoc, these binary containers fell through to TextFileReader. Keep
+    // that behavior as the fallback when anydoc is unavailable or cannot convert them.
     case '.pptx':
     case '.xls':
     case '.xlsx':

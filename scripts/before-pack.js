@@ -16,8 +16,8 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
   // anydoc converts binary office documents to markdown for the knowledge base.
-  // It ships no win32-arm64 build and no wasm fallback, so that target keeps the
-  // legacy readers — see AnydocReader's fallback.
+  // It ships no win32-arm64 build and no wasm fallback, so existing formats use
+  // their legacy readers there while newly supported .ppt fails visibly.
   '@firecrawl/anydoc-darwin-arm64',
   '@firecrawl/anydoc-darwin-x64',
   '@firecrawl/anydoc-linux-arm64-gnu',
