@@ -229,7 +229,31 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) =>
+      (
+        ({
+          'message.tools.placeholder.preparing_phrases.answer_on_the_way': '好答案正在路上',
+          'message.tools.placeholder.preparing_phrases.answer_puzzle': '答案拼图正在成形',
+          'message.tools.placeholder.preparing_phrases.answer_warming_up': '答案正在后台热身',
+          'message.tools.placeholder.preparing_phrases.brain_cells_huddle': '正在召集脑细胞开小会',
+          'message.tools.placeholder.preparing_phrases.brewing_solid_answer': '正在酝酿一个靠谱答案',
+          'message.tools.placeholder.preparing_phrases.catching_inspiration': '灵感捕捉中',
+          'message.tools.placeholder.preparing_phrases.changing_angle': '正在换个角度看问题',
+          'message.tools.placeholder.preparing_phrases.connecting_clues': '正在把线索串起来',
+          'message.tools.placeholder.preparing_phrases.finding_right_words': '正在找最合适的表达',
+          'message.tools.placeholder.preparing_phrases.gears_turning': '脑内齿轮转起来了',
+          'message.tools.placeholder.preparing_phrases.ideas_bubbling': '思路正在冒泡',
+          'message.tools.placeholder.preparing_phrases.ideas_lining_up': '思路正在排队就位',
+          'message.tools.placeholder.preparing_phrases.inspiration_radar': '灵感雷达已开启',
+          'message.tools.placeholder.preparing_phrases.mental_notebook': '正在翻翻脑内小本本',
+          'message.tools.placeholder.preparing_phrases.mining_ideas': '正在从想法堆里淘金',
+          'message.tools.placeholder.preparing_phrases.mulling_it_over': '让我再琢磨一小会儿',
+          'message.tools.placeholder.preparing_phrases.polishing_answer': '正在把答案打磨得更亮',
+          'message.tools.placeholder.preparing_phrases.serving_fresh_answer': '马上端上一份新鲜答案',
+          'message.tools.placeholder.preparing_phrases.sparking_ideas': '正在给思路加点火花',
+          'message.tools.placeholder.preparing_phrases.thought_around_corner': '思路拐个弯就到'
+        }) as Record<string, string>
+      )[key] ?? key
   })
 }))
 
@@ -329,6 +353,35 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => value?.actions.requestTranslationLanguages?.())
 
     await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
+  })
+
+  it('injects localized preparing phrases into shared list metadata', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.meta.preparingPhrases).toEqual([
+      '思路正在冒泡',
+      '脑内齿轮转起来了',
+      '灵感捕捉中',
+      '正在把线索串起来',
+      '好答案正在路上',
+      '答案拼图正在成形',
+      '正在酝酿一个靠谱答案',
+      '思路正在排队就位',
+      '正在翻翻脑内小本本',
+      '让我再琢磨一小会儿',
+      '正在把答案打磨得更亮',
+      '正在给思路加点火花',
+      '正在召集脑细胞开小会',
+      '灵感雷达已开启',
+      '正在换个角度看问题',
+      '答案正在后台热身',
+      '正在找最合适的表达',
+      '正在从想法堆里淘金',
+      '思路拐个弯就到',
+      '马上端上一份新鲜答案'
+    ])
   })
 
   it('exposes the language load status and retries through the shared refetch', () => {

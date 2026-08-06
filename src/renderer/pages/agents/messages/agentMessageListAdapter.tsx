@@ -161,6 +161,31 @@ export function useAgentMessageListProviderValue({
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const preparingPhrases = useMemo(
+    () => [
+      t('message.tools.placeholder.preparing_phrases.ideas_bubbling'),
+      t('message.tools.placeholder.preparing_phrases.gears_turning'),
+      t('message.tools.placeholder.preparing_phrases.catching_inspiration'),
+      t('message.tools.placeholder.preparing_phrases.connecting_clues'),
+      t('message.tools.placeholder.preparing_phrases.answer_on_the_way'),
+      t('message.tools.placeholder.preparing_phrases.answer_puzzle'),
+      t('message.tools.placeholder.preparing_phrases.brewing_solid_answer'),
+      t('message.tools.placeholder.preparing_phrases.ideas_lining_up'),
+      t('message.tools.placeholder.preparing_phrases.mental_notebook'),
+      t('message.tools.placeholder.preparing_phrases.mulling_it_over'),
+      t('message.tools.placeholder.preparing_phrases.polishing_answer'),
+      t('message.tools.placeholder.preparing_phrases.sparking_ideas'),
+      t('message.tools.placeholder.preparing_phrases.brain_cells_huddle'),
+      t('message.tools.placeholder.preparing_phrases.inspiration_radar'),
+      t('message.tools.placeholder.preparing_phrases.changing_angle'),
+      t('message.tools.placeholder.preparing_phrases.answer_warming_up'),
+      t('message.tools.placeholder.preparing_phrases.finding_right_words'),
+      t('message.tools.placeholder.preparing_phrases.mining_ideas'),
+      t('message.tools.placeholder.preparing_phrases.thought_around_corner'),
+      t('message.tools.placeholder.preparing_phrases.serving_fresh_answer')
+    ],
+    [t]
+  )
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -453,9 +478,10 @@ export function useAgentMessageListProviderValue({
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
       imageExportFileName: topic.name,
+      preparingPhrases,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, headerCapabilities.userProfile, preparingPhrases, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

@@ -5,6 +5,7 @@ import { BeatLoader } from 'react-spinners'
 interface PlaceholderBlockProps {
   isProcessing: boolean
   createdAt: string
+  preparingPhrases?: readonly string[]
   status?: PlaceholderStatus
 }
 
@@ -23,6 +24,16 @@ function getElapsedMs(createdAt: string): number {
   const createdAtMs = Date.parse(createdAt)
   if (!Number.isFinite(createdAtMs)) return 0
   return Math.max(0, Date.now() - createdAtMs)
+}
+
+function selectStablePreparingPhrase(createdAt: string, phrases?: readonly string[]): string | undefined {
+  if (!phrases?.length) return undefined
+
+  let hash = 0
+  for (let index = 0; index < createdAt.length; index++) {
+    hash = (hash * 31 + createdAt.charCodeAt(index)) >>> 0
+  }
+  return phrases[hash % phrases.length]
 }
 
 export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string, updateIntervalMs = 100): number {
@@ -55,19 +66,27 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({
+  createdAt,
+  isProcessing,
+  preparingPhrases,
+  status = 'preparing'
+}) => {
   const { t } = useTranslation()
 
-  if (isProcessing) {
-    return (
-      <div
-        className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-tertiary leading-5"
-        data-testid="message-status-placeholder">
-        <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
-        <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
-      </div>
-    )
-  }
-  return null
+  if (!isProcessing) return null
+
+  const label =
+    (status === 'preparing' ? selectStablePreparingPhrase(createdAt, preparingPhrases) : undefined) ??
+    t(PLACEHOLDER_LABEL_KEYS[status])
+
+  return (
+    <div
+      className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-tertiary leading-5"
+      data-testid="message-status-placeholder">
+      <span data-testid="message-status-text">{label}</span>
+      <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
+    </div>
+  )
 }
 export default React.memo(PlaceholderBlock)
