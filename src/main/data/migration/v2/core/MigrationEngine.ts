@@ -366,8 +366,13 @@ export class MigrationEngine {
 
       logger.error('Migration failed', err)
 
-      // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      // Mark migration as failed with error details. Wrap in its own try-catch
+      // so a secondary failure (e.g. DB in bad state) doesn't mask the original error.
+      try {
+        await this.markFailed(errorMessage)
+      } catch (markError) {
+        logger.error('Failed to record migration failure in database', markError as Error)
+      }
 
       return {
         success: false,

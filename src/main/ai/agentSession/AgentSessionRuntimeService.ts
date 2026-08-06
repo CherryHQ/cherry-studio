@@ -747,7 +747,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
-    // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
+    // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
     // The gate compares the live turn's frozen model/reasoning/Fast/knowledge config with the incoming
@@ -763,6 +763,8 @@ export class AgentSessionRuntimeService extends BaseService {
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
       )
     if (
+      entry.runtimeState.execution.kind === 'turn' &&
+      entry.runtimeState.execution.stream === 'open' &&
       turn &&
       this.isTurnLive(entry, turn) &&
       canRedirectOnCurrentConfig &&
@@ -776,7 +778,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
 
-    // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
+    // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
+    // wrapped in a steer system-reminder.
     this.applyRuntimeStateEvent(entry, {
       type: 'queue-turn',
       turn: {
@@ -789,9 +792,9 @@ export class AgentSessionRuntimeService extends BaseService {
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
     })
-    // An autonomous generation owns the connection until the runtime releases it.
-    // Keep the user input queued instead of sending it into that generation.
-    if ((!turn || !this.isTurnLive(entry, turn)) && !isAgentSessionRuntimeAutonomous(entry.runtimeState)) {
+    // The current execution owns the connection until terminal persistence releases it.
+    // Keep the user input queued until the runtime returns to idle.
+    if (entry.runtimeState.execution.kind === 'idle') {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     }
   }
@@ -2238,6 +2241,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    if (entry.runtimeState.execution.kind !== 'idle') return
+
     const pendingTurn = entry.runtimeState.queue[0]
     if (!pendingTurn) {
       this.refreshIdleTimer(entry)
@@ -2296,7 +2301,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // live renderer and settle the turn so the session doesn't sit idle on a doomed message.
       rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
-      application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
+      application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2573,7 +2578,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // The A2 placeholder save failed — abandon the roll, drop the buffered post-steer chunks, and
       // surface the failure (mirrors `startNextTurn`'s doomed-placeholder handling).
       rootSpan?.end()
-      application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
+      application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
