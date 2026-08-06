@@ -60,7 +60,28 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
+/**
+ * Tab divider. Chrome's own separator measures 2×16px at 8% white on its dark
+ * strip; ours keeps that height and tint but runs a step thinner (1.5px), which
+ * reads lighter against our narrower 4px tab gap. `--border` is 10%, one step
+ * too strong here — the dim is a one-off tint private to this file, not a
+ * shared alias.
+ */
+const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
+
+// Pinned/normal zone split — same hairline as the per-tab divider, and it
+// disappears on the same rule, so the two never behave differently side by side.
+const Separator = ({ hidden }: { hidden?: boolean }) => (
+  <div
+    data-tab-divider
+    data-visible={!hidden || undefined}
+    className={cn(
+      'mx-0.5 shrink-0 transition-opacity duration-150',
+      TAB_DIVIDER_CLASS,
+      hidden ? 'opacity-0' : 'opacity-100'
+    )}
+  />
+)
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -171,6 +192,8 @@ type NormalTabButtonProps = {
   closingWasActive?: boolean
   /** Animated unfreeze: the frozen width is gliding toward its natural flexed value. */
   isThawing?: boolean
+  /** Chrome-style hairline in the gap left of this tab, splitting it from its predecessor. */
+  showDivider?: boolean
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
@@ -187,6 +210,7 @@ const NormalTabButton = ({
   isClosing = false,
   closingWasActive = false,
   isThawing = false,
+  showDivider = false,
   drag,
   tabRef,
   tone,
@@ -299,6 +323,21 @@ const NormalTabButton = ({
             : tone.hoverClass,
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
+      {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
+          gap so it reads as belonging to neither tab. The bar hides it whenever a
+          neighbour lights up (active / hover / closing / dragging) — fading on the
+          same 150ms as the tab tints it hands over to, so the boundary is never
+          missing mid-swap. */}
+      <span
+        aria-hidden
+        data-tab-divider
+        data-visible={showDivider || undefined}
+        className={cn(
+          '-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2 transition-opacity duration-150',
+          TAB_DIVIDER_CLASS,
+          showDivider ? 'opacity-100' : 'opacity-0'
+        )}
+      />
       <TabIcon tab={tab} size={14} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
@@ -417,6 +456,7 @@ const TabRightClickMenu = ({
   onClose,
   onCloseOthers,
   onCloseToRight,
+  onOpenChange,
   children
 }: {
   isPinned: boolean
@@ -427,10 +467,16 @@ const TabRightClickMenu = ({
   onClose: () => void
   onCloseOthers: () => void
   onCloseToRight: () => void
+  /** Mirrors the open state up to the bar, which counts an open menu as a lit tab. */
+  onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const handleOpenChange = (open: boolean) => {
+    setMenuOpen(open)
+    onOpenChange?.(open)
+  }
 
   const items = useMemo<CommandContextMenuExtraItem[]>(() => {
     const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
@@ -505,7 +551,7 @@ const TabRightClickMenu = ({
       location="webcontents.context"
       extraItems={items}
       contentClassName="min-w-[130px]"
-      onOpenChange={setMenuOpen}>
+      onOpenChange={handleOpenChange}>
       {/* data-menu-open drives the tab's menu-open highlight. Unlike Radix's
           data-state, it is also set when the menu shows as a native OS popup. */}
       {isValidElement(children)
@@ -565,6 +611,10 @@ export const AppShellTabBar = ({
   // Tabs currently playing their collapse animation (id → whether they were the
   // active tab when the close started); removal is deferred until the animation ends.
   const [closingTabIds, setClosingTabIds] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  // Tab under the cursor, and the one whose context menu is open — both count as
+  // lit, so they suppress the dividers on either side of themselves.
+  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
+  const [menuOpenTabId, setMenuOpenTabId] = useState<string | null>(null)
   // Pointer closes are registered before the double-rAF animation starts. This
   // deduplicates click/double-click sequences and lets concurrent closes skip
   // every tab that is already on its way out.
@@ -710,6 +760,22 @@ export const AppShellTabBar = ({
     [handleTabClick]
   )
 
+  // ─── Tab dividers ───────────────────────────────────────────────────────────
+
+  /** A tab that draws its own surface — its own edges already separate it, so the dividers beside it go. */
+  const isTabLit = (tabId: string) =>
+    tabId === activeTabId ||
+    tabId === hoveredTabId ||
+    tabId === menuOpenTabId ||
+    closingTabIds.has(tabId) ||
+    isDragging(tabId) ||
+    isGhost(tabId)
+
+  // A reorder drag only translates tabs; the arrays keep their pre-drop order,
+  // so "the tab before me" no longer matches what the eye sees. Rather than
+  // predict the visual order, drop every divider until the drag settles.
+  const isReordering = normalTabs.some((tab) => isDragging(tab.id))
+
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
@@ -760,6 +826,7 @@ export const AppShellTabBar = ({
 
   const handleStripMouseLeave = () => {
     stripPointerInsideRef.current = false
+    setHoveredTabId(null)
     if ([...pendingCloseIdsRef.current].some((id) => !closingTabIds.has(id))) {
       thawAfterCollapseRef.current = true
       return
@@ -849,7 +916,10 @@ export const AppShellTabBar = ({
                     onDetach={() => detachTab?.(tab.id)}
                     onClose={() => closeTab(tab.id)}
                     onCloseOthers={() => handleCloseOthers(tab.id)}
-                    onCloseToRight={() => handleCloseToRight(tab.id)}>
+                    onCloseToRight={() => handleCloseToRight(tab.id)}
+                    onOpenChange={(open) =>
+                      setMenuOpenTabId(open ? tab.id : (current) => (current === tab.id ? null : current))
+                    }>
                     <PinnedTabButton
                       tab={tab}
                       isActive={tab.id === activeTabId}
@@ -877,7 +947,11 @@ export const AppShellTabBar = ({
             </div>
           )}
 
-          {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
+          {pinnedTabs.length > 0 && hasUnpinnedTabs && (
+            <Separator
+              hidden={isReordering || isTabLit(pinnedTabs[pinnedTabs.length - 1].id) || isTabLit(normalTabs[0].id)}
+            />
+          )}
 
           {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
           {normalTabs.map((tab, index) => {
@@ -928,6 +1002,8 @@ export const AppShellTabBar = ({
                 </TabRightClickMenu>
               )
             }
+            const prevTab = normalTabs[index - 1]
+            const showDivider = !!prevTab && !isReordering && !isTabLit(tab.id) && !isTabLit(prevTab.id)
             return (
               <TabRightClickMenu
                 key={tab.id}
@@ -938,7 +1014,10 @@ export const AppShellTabBar = ({
                 onDetach={() => detachTab?.(tab.id)}
                 onClose={() => closeTab(tab.id)}
                 onCloseOthers={() => handleCloseOthers(tab.id)}
-                onCloseToRight={() => handleCloseToRight(tab.id)}>
+                onCloseToRight={() => handleCloseToRight(tab.id)}
+                onOpenChange={(open) =>
+                  setMenuOpenTabId(open ? tab.id : (current) => (current === tab.id ? null : current))
+                }>
                 <NormalTabButton
                   tab={tab}
                   isActive={tab.id === activeTabId}
@@ -1014,6 +1093,9 @@ export const AppShellTabBar = ({
                   isClosing={closingTabIds.has(tab.id)}
                   closingWasActive={closingTabIds.get(tab.id) ?? false}
                   isThawing={isThawing}
+                  showDivider={showDivider}
+                  onMouseEnter={() => setHoveredTabId(tab.id)}
+                  onMouseLeave={() => setHoveredTabId((current) => (current === tab.id ? null : current))}
                   tone={tabTone}
                   drag={{
                     isDragging: isDragging(tab.id),
