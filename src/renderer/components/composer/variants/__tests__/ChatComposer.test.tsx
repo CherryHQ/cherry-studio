@@ -502,6 +502,7 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
+  useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
     return { models: [mocks.model ?? model, modelB] }
@@ -799,6 +800,22 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('renders context usage after the speed control next to the send action', async () => {
+    render(<ChatComposer topic={topic} contextUsage={{ contextTokens: 42, modelId: model.id }} onSend={vi.fn()} />)
+
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    const speedControl = within(sendAccessory).getByTestId('chat-speed-control')
+    const indicator = within(sendAccessory).getByRole('meter', {
+      name: 'agent.right_pane.info.context_usage 42%'
+    })
+    expect(speedControl.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(indicator).toHaveAttribute('tabindex', '0')
+    expect(indicator).toHaveAttribute('aria-valuenow', '42')
+
+    await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
+    expect(screen.getByText('Model A')).toBeInTheDocument()
   })
 
   it('uses page-owned context without querying or rendering duplicate context controls', async () => {

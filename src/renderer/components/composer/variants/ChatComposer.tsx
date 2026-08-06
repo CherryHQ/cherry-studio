@@ -1,4 +1,6 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
@@ -31,7 +33,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModels } from '@renderer/hooks/useModel'
+import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -129,8 +131,14 @@ export interface ChatConversationControlsSnapshot {
 
 export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationControlsSnapshot | null) => void
 
+export interface ChatContextUsageSource {
+  contextTokens: number
+  modelId: UniqueModelId
+}
+
 export interface ChatComposerProps {
   topic?: Topic
+  contextUsage?: ChatContextUsageSource | null
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -304,6 +312,60 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
   )
 })
 
+function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
+  const { t } = useTranslation()
+  const { model } = useModelById(usage?.modelId)
+  const maxTokens = model?.contextWindow
+  if (!usage || !model || typeof maxTokens !== 'number' || maxTokens <= 0) return null
+
+  const percentage = Math.round(Math.min(100, Math.max(0, (usage.contextTokens / maxTokens) * 100)) * 100) / 100
+  const ringColor = getAgentContextUsageColor(percentage)
+
+  return (
+    <NormalTooltip
+      side="top"
+      sideOffset={8}
+      showArrow={false}
+      contentProps={{
+        className:
+          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
+      }}
+      content={
+        <section className="space-y-2 text-xs">
+          <h3 className="font-medium text-foreground">{t('agent.right_pane.info.context_usage')}</h3>
+          <div className="space-y-2">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
+              <div className="h-full rounded-full" style={{ width: `${percentage}%`, background: ringColor }} />
+            </div>
+            <div className="flex items-center justify-between gap-3 text-muted-foreground">
+              <span className="shrink-0">
+                {usage.contextTokens.toLocaleString()} / {maxTokens.toLocaleString()} ({percentage}%)
+              </span>
+              <span className="min-w-0 truncate">{model.name}</span>
+            </div>
+          </div>
+        </section>
+      }>
+      <span
+        role="meter"
+        tabIndex={0}
+        aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percentage}
+        className="relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]"
+        style={
+          {
+            '--context-usage-color': ringColor,
+            '--context-usage-progress': `${percentage}%`
+          } as React.CSSProperties
+        }>
+        <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
+      </span>
+    </NormalTooltip>
+  )
+}
+
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
@@ -317,6 +379,7 @@ type ChatPlacementComposerProps =
 
 const ChatComposerRoot = ({
   topic,
+  contextUsage,
   scopeKey,
   topicId,
   assistantId,
@@ -370,6 +433,7 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
+            contextUsage={contextUsage}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -405,6 +469,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
+  contextUsage,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -1484,15 +1549,20 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = speedControlModel ? (
-    <ComposerSpeedControl
-      model={speedControlModel}
-      reasoningEffort={reasoningEffort}
-      fastMode={fastMode}
-      onReasoningEffortChange={handleReasoningEffortChange}
-      onFastModeChange={setFastMode}
-    />
-  ) : null
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+    <>
+      {speedControlModel ? (
+        <ComposerSpeedControl
+          model={speedControlModel}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <ChatComposerContextUsage usage={contextUsage} />
+    </>
+  )
 
   return (
     <ComposerToolDerivedStateProvider

@@ -14,6 +14,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: (props: {
     placement: 'home' | 'docked'
     scopeKey: string
+    contextUsage: { contextTokens: number; modelId: string } | null
     sendDisabled?: boolean
     onConversationControlsChange?: (snapshot: unknown) => void
   }) => {
@@ -41,6 +42,7 @@ const topic = { id: 'topic-1' } as Topic
 const baseProps = {
   placement: 'docked' as const,
   topic,
+  contextUsage: { contextTokens: 42, modelId: 'provider::model' as const },
   onSend: vi.fn()
 }
 
@@ -66,6 +68,7 @@ describe('ChatComposerSlot', () => {
       expect.objectContaining({
         resolvedContext: assistantContext,
         resolvedProviders: providers,
+        contextUsage: baseProps.contextUsage,
         externalContextControls: true,
         onConversationControlsChange
       })
@@ -82,7 +85,13 @@ describe('ChatComposerSlot', () => {
 
   it('does not forward slot sendDisabled into home placement', async () => {
     render(
-      <ChatComposerSlot placement="home" topic={topic} onSend={baseProps.onSend} composerContext={{ overrides: [] }} />
+      <ChatComposerSlot
+        placement="home"
+        topic={topic}
+        contextUsage={baseProps.contextUsage}
+        onSend={baseProps.onSend}
+        composerContext={{ overrides: [] }}
+      />
     )
 
     const composer = await screen.findByTestId('chat-fallback-composer')
