@@ -93,7 +93,6 @@ vi.mock('@main/ai/agents/prompt', () => ({
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
-const RUNTIME_MARKER = '## Available Runtimes'
 const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
@@ -200,7 +199,7 @@ describe('buildSystemPrompt — current workspace', () => {
     expect(result).toContain('Agent instructions.')
     expect(result).toContain(WORKSPACE_MARKER)
     expect(result).toContain(ARTIFACTS_MARKER)
-    expect(result).toContain(RUNTIME_MARKER)
+    expect(result).not.toContain('## Available Runtimes')
   })
 
   it('treats an empty system.md as a custom base and still retains Cherry context', async () => {
@@ -247,42 +246,34 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   })
 })
 
-describe('buildSystemPrompt — bundled-runtime guidance', () => {
-  beforeEach(() => {
-    mockFindBySessionId.mockReturnValue(null)
+describe('buildSystemPrompt — runtime/CLI handbook', () => {
+  it('does not inject the handbook for a normal agent with user instructions', async () => {
+    const result = promptText(
+      await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
+    )
+
+    expect(result).not.toContain('## Managed CLI Installation')
+    expect(result).not.toContain('## Available Runtimes')
+    expect(result).not.toContain('Install reusable CLIs only with `cli_install`')
   })
 
-  it('steers the agent to bun/uv with user instructions', async () => {
-    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    expect(promptText(result)).toContain(RUNTIME_MARKER)
-    // The model is told to use bun / uv explicitly, not node/npm/pip.
-    expect(promptText(result)).toContain('bun')
-    expect(promptText(result)).toContain('uv run python')
-  })
-
-  it('steers the agent to bun/uv without user instructions', async () => {
-    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    expect(promptText(result)).toContain(RUNTIME_MARKER)
-  })
-
-  it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
+  it('does not inject the handbook for a normal agent without user instructions', async () => {
     const result = promptText(await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd'))
 
-    expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
-    expect(result).toContain('Install reusable CLIs only with `cli_install`')
-    expect(result).toContain('read trusted public documentation')
-    expect(result).toContain('Do not run remote `curl`/`wget` install scripts for reusable CLIs')
-    expect(result).toContain('remain available for APIs, data, documentation, and project files')
-    expect(mockApplicationGet).not.toHaveBeenCalledWith('BinaryManager')
+    expect(result).not.toContain('## Managed CLI Installation')
+    expect(result).not.toContain('## Available Runtimes')
+    expect(result).not.toContain('Install dependencies INTO the project (cwd) only')
   })
 
-  it('injects the same runtime block for the Cherry Assistant', async () => {
+  it('does not inject the handbook for the Cherry Assistant', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
       configuration: { builtin_role: 'assistant' } as never
     })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    expect(promptText(result)).toContain(RUNTIME_MARKER)
+    const result = promptText(await buildSystemPrompt(makeSession(), agent, '/tmp/cwd'))
+
+    expect(result).not.toContain('## Managed CLI Installation')
+    expect(result).not.toContain('## Available Runtimes')
   })
 })
 
@@ -301,7 +292,6 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
     expect(result).toContain('SOUL_PROMPT')
     expect(result).toContain('Assistant instructions.')
-    expect(result).toContain(RUNTIME_MARKER)
     expect(result).toContain(ARTIFACTS_MARKER)
     expect(result).not.toContain('Non-negotiable Cherry Assistant contract')
   })

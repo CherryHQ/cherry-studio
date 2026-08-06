@@ -18,7 +18,9 @@ import {
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
   RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
+  type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -36,6 +38,7 @@ import {
   subscribeChatDraftCache
 } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -60,6 +63,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,
@@ -82,18 +86,7 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import {
-  CircleAlert,
-  FilePenLine,
-  Loader2,
-  MoreHorizontal,
-  PinIcon,
-  Plus,
-  SquarePen,
-  Trash2,
-  Unlink,
-  XIcon
-} from 'lucide-react'
+import { CircleAlert, FilePenLine, Loader2, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -761,6 +754,14 @@ export function Topics({
     if (!isRightPanel) return groupedTopics
     return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
+  // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
+  const topicGroupByForDisplay = useMemo(
+    () =>
+      displayMode === 'time'
+        ? withSoleGroupLabelHidden<Topic>(topicGroupBy, filteredTopics, { ignoreGroupIds: [TOPIC_PINNED_GROUP_ID] })
+        : topicGroupBy,
+    [displayMode, filteredTopics, topicGroupBy]
+  )
   const assistantIdsWithTopics = useMemo(() => {
     const assistantIds = new Set<string>()
 
@@ -988,7 +989,7 @@ export function Topics({
                 event.stopPropagation()
                 void onNewTopic?.({ assistantId: assistantGroupId })
               }}>
-              <SquarePen className="block" />
+              <NewConversationIcon className="block" />
             </ResourceList.GroupHeaderActionButton>
           </Tooltip>
         </>
@@ -1090,6 +1091,15 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
+  // See Sessions: assistants are entities, everything else here only gathers rows. The unlinked
+  // bucket gathers rows too, but it stands in the assistant run rather than above it, so it takes
+  // the bucket voice without the module break that would read as a section starting.
+  const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
+    if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return 'inline-bucket'
+
+    return group.id === TOPIC_PINNED_GROUP_ID || group.id.startsWith('topic:time:') ? 'bucket' : 'entity'
+  }, [])
+
   const getGroupHeaderTooltip = useCallback(
     (group: { id: string }) =>
       group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
@@ -1344,7 +1354,7 @@ export function Topics({
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
-        groupBy={topicGroupBy}
+        groupBy={topicGroupByForDisplay}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
@@ -1355,6 +1365,7 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
+        getGroupHeaderKind={getGroupHeaderKind}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: dragReady,
@@ -1406,7 +1417,7 @@ export function Topics({
               type="button"
               command="topic.create"
               aria-label={headerCreateLabel}
-              icon={<SquarePen />}
+              icon={<NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
@@ -1773,10 +1784,9 @@ const TopicRow = memo(function TopicRow({
         <ResourceList.ItemTitle
           title={topicName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
-            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            topic.pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone. The draft
             // indicator stays in flow and reserves its own space.
@@ -1810,7 +1820,7 @@ const TopicRow = memo(function TopicRow({
                 event.stopPropagation()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={13} className={cn('size-3.25!', topic.pinned && '-rotate-45')} />
+              <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
