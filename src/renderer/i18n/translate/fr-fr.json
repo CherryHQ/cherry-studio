@@ -451,7 +451,6 @@
         "collapse": "Réduire l'affichage",
         "collapse_all": "Réduire tout",
         "conversation": "Conversations",
-        "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
         "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
@@ -4425,7 +4424,8 @@
     "invalid_model": "Modèle invalide",
     "json_parse_error": "Format JSON invalide",
     "multi_select": {
-      "label": "Parallélisme multi-modèle (exclusif mutuel avec assistant multiple)"
+      "label": "Sélection multiple",
+      "tooltip": "Parallélisme multi-modèle"
     },
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
