@@ -58,6 +58,8 @@ const COOKIE_RELATIVE_PATHS = [
   path.join('Network', 'Cookies-journal')
 ] as const
 
+const ORPHAN_KNOWLEDGE_FRESHNESS_GATE_MS = 5 * 60 * 1000
+
 type CacheCleanupIssueCode = 'inspection_failed' | 'unsafe_target' | 'invalid_data'
 
 interface CacheCleanupIssue {
@@ -112,6 +114,14 @@ function isPathWithin(targetPath: string, rootPath: string): boolean {
     relativePath === '' ||
     (!path.isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`))
   )
+}
+
+async function pathContainsActiveUserData(targetPath: string): Promise<boolean> {
+  const activeUserData = application.getPath('app.userdata')
+  if (isPathWithin(activeUserData, targetPath)) return true
+
+  const [realTarget, realActiveUserData] = await Promise.all([fs.realpath(targetPath), fs.realpath(activeUserData)])
+  return isPathWithin(realActiveUserData, realTarget)
 }
 
 async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean> {
@@ -363,6 +373,15 @@ async function collectOrphanKnowledgeTargets(): Promise<{
 
     const status = await inspectTarget(targetPath, `${item}:${entry.name}`, 'directory')
     if (status === 'valid') {
+      try {
+        const stats = await fs.lstat(targetPath)
+        if (Date.now() - stats.mtimeMs <= ORPHAN_KNOWLEDGE_FRESHNESS_GATE_MS) continue
+      } catch (error) {
+        if (isNodeError(error, 'ENOENT')) continue
+        logger.warn('Failed to inspect knowledge base directory age', { path: targetPath, error })
+        issues.push(issue(`${item}:${entry.name}`, 'inspection_failed'))
+        continue
+      }
       targets.push({ item: `${item}:${entry.name}`, path: targetPath, kind: 'directory' })
     } else if (status === 'invalid') {
       issues.push(issue(`${item}:${entry.name}`, 'unsafe_target'))
@@ -411,6 +430,10 @@ async function inspectTarget(
     const hasExpectedType = kind === 'file' ? stats.isFile() : stats.isDirectory()
     if (stats.isSymbolicLink() || !hasExpectedType) {
       logger.warn('Cleanup target has an unexpected type', { item, path: targetPath, kind })
+      return 'invalid'
+    }
+    if (await pathContainsActiveUserData(targetPath)) {
+      logger.warn('Cleanup target contains the active userData directory', { item, path: targetPath })
       return 'invalid'
     }
     return 'valid'
@@ -879,7 +902,10 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
     collectOrphanKnowledgeTargets(),
     collectRestoreTargets()
   ])
-  const steps = await Promise.all([...knowledgePlan.targets, ...restorePlan.targets].map(removeCleanupTarget))
+  const steps = await Promise.all([
+    ...knowledgePlan.targets.map(removeOrphanKnowledgeTarget),
+    ...restorePlan.targets.map(removeCleanupTarget)
+  ])
 
   if (fileReport.outcome === 'completed') {
     steps.push({ state: fileReport.actualDeleteCount > 0 ? 'cleared' : 'not_found' })
@@ -893,6 +919,20 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   }
   steps.push(...[...knowledgePlan.issues, ...restorePlan.issues].map(() => ({ state: 'skipped' as const })))
   return resultFromSteps('orphaned_data', steps)
+}
+
+async function removeOrphanKnowledgeTarget(target: CleanupTarget): Promise<CleanupStepResult> {
+  const baseId = path.basename(target.path)
+  try {
+    if (knowledgeBaseService.listAllIds().has(baseId)) {
+      logger.info('Skipped knowledge base directory that is no longer orphaned', { baseId, path: target.path })
+      return { state: 'not_found' }
+    }
+  } catch (error) {
+    logger.warn('Failed to recheck knowledge base ownership before cleanup', { baseId, path: target.path, error })
+    return { state: 'skipped' }
+  }
+  return removeCleanupTarget(target)
 }
 
 async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {

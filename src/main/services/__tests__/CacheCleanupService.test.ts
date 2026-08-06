@@ -71,6 +71,7 @@ const emptyFileSweepReport = {
 describe('CacheCleanupService', () => {
   let root: string
   let tracePath: string
+  let userDataPath: string
 
   const rootPath = (...segments: string[]) => path.join(root, ...segments)
 
@@ -99,24 +100,25 @@ describe('CacheCleanupService', () => {
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
+    userDataPath = root
     tracePath = rootPath('Trace')
     vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
 
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       const paths: Record<string, string> = {
-        'app.userdata': root,
-        'app.userdata.data': rootPath('Data'),
+        'app.userdata': userDataPath,
+        'app.userdata.data': path.join(userDataPath, 'Data'),
         'app.session': rootPath('Session'),
         'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
         'app.temp': rootPath('Temp'),
         'feature.trace': tracePath,
         'v1.trace': rootPath('Home', 'trace'),
         'v1.cli.install': rootPath('Home', 'install'),
-        'v1.database.file': rootPath('cherrystudio.sqlite'),
-        'v1.agents.claude': rootPath('.claude'),
-        'feature.backup.restore.file': rootPath('restore-journal.json'),
-        'feature.files.data': rootPath('Data', 'Files'),
-        'feature.knowledgebase.data': rootPath('Data', 'KnowledgeBase'),
+        'v1.database.file': path.join(userDataPath, 'cherrystudio.sqlite'),
+        'v1.agents.claude': path.join(userDataPath, '.claude'),
+        'feature.backup.restore.file': path.join(userDataPath, 'restore-journal.json'),
+        'feature.files.data': path.join(userDataPath, 'Data', 'Files'),
+        'feature.knowledgebase.data': path.join(userDataPath, 'Data', 'KnowledgeBase'),
         'cherry.home': rootPath('Home'),
         'cherry.config': rootPath('HomeConfig')
       }
@@ -205,7 +207,7 @@ describe('CacheCleanupService', () => {
     expect(result.results[0]?.size).not.toHaveProperty('issues')
   })
 
-  it('counts and removes orphan files and UUID knowledge base directories only', async () => {
+  it('counts and removes old orphan files and UUID knowledge base directories only', async () => {
     const knownBaseId = '11111111-1111-4111-8111-111111111111'
     const orphanBaseId = '22222222-2222-4222-8222-222222222222'
     const knownBasePath = rootPath('Data', 'KnowledgeBase', knownBaseId)
@@ -214,6 +216,8 @@ describe('CacheCleanupService', () => {
     await writeTestFile(path.join(knownBasePath, 'raw', 'keep.md'), 'keep')
     await writeTestFile(path.join(orphanBasePath, '.cherry', 'index.sqlite'), Buffer.alloc(11))
     await writeTestFile(path.join(unknownDirectory, 'keep.bin'), 'keep')
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000)
+    await fs.utimes(orphanBasePath, oldMtime, oldMtime)
     vi.mocked(knowledgeBaseService.listAllIds).mockReturnValue(new Set([knownBaseId]))
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
       ...emptyFileSweepReport,
@@ -238,6 +242,33 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(orphanBasePath)
     await expectExisting(knownBasePath, unknownDirectory)
+  })
+
+  it('preserves a fresh UUID knowledge base directory without a database row', async () => {
+    const freshBaseId = '22222222-2222-4222-8222-222222222223'
+    const freshBasePath = rootPath('Data', 'KnowledgeBase', freshBaseId)
+    await writeTestFile(path.join(freshBasePath, '.cherry', 'index.sqlite'), 'new')
+
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(cleanup.results[0]?.status).toBe('not_found')
+    await expectExisting(freshBasePath)
+  })
+
+  it('rechecks knowledge base ownership immediately before deleting an old orphan directory', async () => {
+    const baseId = '22222222-2222-4222-8222-222222222224'
+    const basePath = rootPath('Data', 'KnowledgeBase', baseId)
+    await writeTestFile(path.join(basePath, '.cherry', 'index.sqlite'), 'keep')
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000)
+    await fs.utimes(basePath, oldMtime, oldMtime)
+    vi.mocked(knowledgeBaseService.listAllIds)
+      .mockReturnValueOnce(new Set())
+      .mockReturnValueOnce(new Set([baseId]))
+
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(cleanup.results[0]?.status).toBe('not_found')
+    await expectExisting(basePath)
   })
 
   it('does not follow a UUID-named knowledge base symlink', async () => {
@@ -291,6 +322,18 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results.every(({ status }) => status === 'cleared')).toBe(true)
     await expectMissing(...legacyFiles, ...legacyDirectories, ...restoreDirectories)
     await expectExisting(externalPath)
+  })
+
+  it('does not remove a legacy directory that contains the active userData directory', async () => {
+    const legacyInstallPath = rootPath('Home', 'install')
+    userDataPath = path.join(legacyInstallPath, 'active-profile')
+    const activeDatabase = path.join(userDataPath, 'Data', 'cherrystudio.sqlite')
+    await writeTestFile(activeDatabase, 'active')
+
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
+
+    expect(cleanup.results[0]?.status).toBe('skipped')
+    await expectExisting(activeDatabase)
   })
 
   it('counts and removes the root legacy database and Claude config without touching v2 data', async () => {
