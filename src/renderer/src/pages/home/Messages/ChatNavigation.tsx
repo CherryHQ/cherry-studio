@@ -119,18 +119,40 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   }
 
   const scrollToMessage = (element: HTMLElement) => {
-    // Use container: 'nearest' to keep scroll within the chat pane (Chromium-only, see #11565, #11567)
-    scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+    const container = document.getElementById(containerId)
+    if (!container) {
+      // Fallback to native scrollIntoView if container not found
+      scrollIntoView(element, { behavior: 'smooth', block: 'start' })
+      return
+    }
+
+    // Manual scroll calculation for column-reverse layout
+    // In column-reverse, the scroll container is inverted (newest at top, oldest at bottom)
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+
+    // Calculate the element's position relative to the container
+    // We want the element to be near the top of the visible area (for column-reverse, this means newer messages area)
+    const elementRelativeTop = elementRect.top - containerRect.top + container.scrollTop
+    const scrollTarget = elementRelativeTop - containerRect.height * 0.2 // Position at 20% from top
+
+    container.scrollTo({
+      top: Math.max(0, Math.min(scrollTarget, container.scrollHeight - containerRect.height)),
+      behavior: 'smooth'
+    })
   }
 
   const scrollToTop = () => {
     const container = document.getElementById(containerId)
-    container && container.scrollTo({ top: -container.scrollHeight, behavior: 'smooth' })
+    // The messages container uses column-reverse layout, so scrollTop=0 is the bottom (newest messages).
+    // To scroll to the top (oldest messages), we need to set scrollTop to scrollHeight.
+    container && container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }
 
   const scrollToBottom = () => {
     const container = document.getElementById(containerId)
-    container && container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+    // The messages container uses column-reverse layout, so scrollTop=0 is the bottom (newest messages).
+    container && container.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
