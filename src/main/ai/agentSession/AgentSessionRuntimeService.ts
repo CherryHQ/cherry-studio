@@ -2540,7 +2540,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `startNextTurn` this sends NOTHING to the connection (the steer is already in flight via the
    * PreToolUse hook) — the turn is pre-`admitted` so `admitTurn` no-ops, and the still-streaming SDK
    * turn's post-steer chunks are owned by the steer-transition state until A2 opens its stream.
-   * The steer message is reused only for rename/seed context — U2 is already a persisted row.
+   * The steer message is reused only for seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const transition = entry.runtimeState.execution
