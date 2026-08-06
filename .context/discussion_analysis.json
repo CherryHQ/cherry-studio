@@ -1,94 +1,94 @@
 {
-  "report_date": "2026-08-05",
-  "generated_at": "2026-08-05T22:00:00Z",
+  "report_date": "2026-08-06",
+  "generated_at": "2026-08-06T18:00:00Z",
   "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion' + 'help wanted' and high-comment issues",
   "discussion_volume": {
     "discussion_labeled_issues_open": 28,
-    "new_discussions_today": 5,
+    "new_discussions_today": 2,
     "top_new": [
-      "#17954 v2.0 conversation history limit removed from Edit Assistant (2 comments)",
-      "#17907 Restore mini programs to sidebar like v1.x (2 comments)",
-      "#17847 Reconnect on Failure (Connectivity)"
+      "#17981 [Discussion]: Could you consider adopting the expert team concept from workbuddy? (help wanted)",
+      "#17961 [Discussion]: Add platform prefix to release asset filenames",
+      "#17965 [Feature]: Preserve Unsent Content During Navigation/Model Switching (UI/UX)"
     ]
   },
   "theme_analysis": {
     "v2_feature_regressions": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v2.0 public launch driving regression reports from v1 users",
+      "description": "v2.0 driving ongoing regression reports from v1 users; volume normalizing from yesterday's spike",
       "key_issues": [
-        {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model"},
+        {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
         {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
         {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt"},
-        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x"},
-        {"number": 17571, "title": "v2 RC1 missing context count slider"}
+        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x", "comments": 2},
+        {"number": 17965, "title": "Preserve Unsent Content During Navigation/Model Switching"}
       ],
-      "signal": "Growing cluster — needs product decision on which v1 features to restore vs redesign in v2"
+      "signal": "Persistent cluster — product team needs explicit decision on v1 feature restoration roadmap"
     },
     "data_migration_reliability": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v1→v2 migration path has critical issues blocking upgrade",
+      "description": "v1→v2 migration path continues to surface critical issues",
       "key_issues": [
-        {"number": 17874, "title": "Repeated crashes during data migration upgrading to 2.0", "comments": 3},
-        {"number": 17830, "title": "v2 Agent migration ENOSPC — FIXED Aug 5", "closed": true},
+        {"number": 18051, "title": "Migration stuck in retry loop — cleanup overlaps legacy source (new today)"},
+        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 1},
         {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"}
       ],
-      "signal": "URGENT — multiple users hitting migration crashes; hotfix needed"
+      "signal": "New critical issue today (#18051) — migration reliability remains pre-stable blocker"
     },
     "agent_mcp_reliability": {
       "volume": "HIGH",
       "trending": true,
-      "description": "MCP process management and agent turn reliability",
+      "description": "MCP process management and agent reliability — multi-front issue cluster",
       "key_issues": [
+        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP (new today)", "filed_today": true},
+        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway (new today)", "filed_today": true},
         {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-        {"number": 17735, "title": "Built-in web search unlimited content → context overflow", "comments": 3},
-        {"number": 17895, "title": "Agent System Prompt Config Out of Sync"},
-        {"number": 17946, "title": "Auto-Compact OpenCode startup crash"}
+        {"number": 17999, "title": "MCP prompts visible but unusable in chat"}
       ],
-      "signal": "Pre-stable release blockers — core agent reliability must be fixed before GA"
+      "signal": "4 new MCP issues today — systemic reliability concern for v2.0 stable release"
     },
     "model_compatibility": {
       "volume": "MEDIUM",
       "description": "Various model providers and formats failing in v2",
       "key_issues": [
-        {"number": 17924, "title": "Gemini 3 tool calls fail through OpenAI-compatible proxies — $schema issue"},
+        {"number": 18029, "title": "Anthropic model output cannot exceed ~1900 tokens"},
+        {"number": 17973, "title": "Volcano Engine Ark Responses API: Invalid JSON — annotations field"},
         {"number": 17897, "title": "DeepSeek V4 Flash built-in search unavailable in v2.0"},
-        {"number": 17892, "title": "gpt-5.6 terra model not working"},
-        {"number": 17894, "title": "Agent OpenAI Responses + Anthropic format cannot process {{date}}, {{time}}"}
+        {"number": 17900, "title": "Cannot translate after setting deepseek v4 flash as translation model"}
       ]
     },
-    "architecture_discussions": {
+    "internal_team_roadmap": {
       "volume": "LOW",
-      "description": "Internal team design discussions — healthy sign",
+      "description": "3 new internal roadmap items filed today",
       "key_issues": [
-        {"number": 17649, "title": "JobManager cooperative safe points for backup quiescence"},
-        {"number": 17330, "title": "Agent workspace directory lifecycle contract"},
-        {"number": 17389, "title": "FileEntry reference ownership contract"}
+        {"number": 18045, "title": "Power/Prevent-Sleep setting (Off/Keep awake during tasks/Always)", "labels": ["feature", "internal_team"]},
+        {"number": 18044, "title": "Let Agent drive user's Chrome via CDP (no extension install)", "labels": ["feature", "Assistant", "internal_team"]},
+        {"number": 18043, "title": "Add Report Error button for chat/Agent failures", "labels": ["feature", "UI/UX", "internal_team"]}
       ]
     }
   },
   "top_by_engagement": [
-    {"number": 16994, "title": "Refactor Topic and Agent Session pagination", "comments": 8},
-    {"number": 17485, "title": "A JavaScript error in the main process", "comments": 6},
+    {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
     {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 17874, "title": "Repeated crashes during data migration to 2.0", "comments": 3},
+    {"number": 17801, "title": "Add status indicator for agent thinking/tool execution", "comments": 1},
+    {"number": 17735, "title": "Built-in web search unlimited content → context overflow", "comments": 3},
     {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3},
-    {"number": 17735, "title": "Built-in web search unlimited content", "comments": 3}
+    {"number": 17629, "title": "Processes remain after closing with minimize-to-tray disabled", "comments": 2}
   ],
   "sentiment_summary": {
-    "overall": "Mixed — Agent/Code Mate capabilities praised; v1→v2 regression pain is significant",
+    "overall": "Mixed — triage improving, but MCP and migration reliability remain concerns",
     "positive_signals": [
-      "Cherry Studio v2.0 generating significant community engagement",
-      "DeJeune and team driving rapid fixes (8 issues closed today)",
-      "Internal architecture discussions show healthy design culture"
+      "Unlabeled issues dropped from 28% → 11.6% overnight — active triage",
+      "Internal team filing new roadmap items (CDP agent, prevent-sleep, error reporting)",
+      "v2.0 stabilizing: net issue growth slowed from +43 yesterday to +14 today"
     ],
     "pain_points": [
-      "Data migration crashes block upgrade path",
-      "Missing v1 features: mini programs, history limit, context slider",
-      "MCP process management systemic issues",
-      "Security concern: portable build exposes localhost API",
-      "Model compatibility gaps: GPT-5.6, DeepSeek V4 Flash, Gemini 3 proxy issues"
+      "New migration retry loop bug (#18051) — potential data corruption",
+      "MCP reliability: 4 new issues today (ToolLoopTerminalError, HTTP endpoints, prompts unusable)",
+      "Missing v1 features cluster still growing: mini programs, history limit, topic prompt",
+      "Anthropic model output cap (~1900 tokens) — likely blocking serious usage",
+      "Lifecycle stopAll timeout missing — child process orphaning on shutdown"
     ]
   }
 }

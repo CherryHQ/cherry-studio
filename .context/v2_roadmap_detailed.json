@@ -1,213 +1,98 @@
 {
-  "report_date": "2026-08-05",
-  "v2_branch_status": {
-    "open_prs_to_v2": 0,
-    "closed_prs_to_v2_last_30d": 0,
-    "observation": "v2 branch is no longer the active development target. All current development merges to `main`. v1 branch receives hotfixes (4 open PRs targeting v1 today)."
+  "report_date": "2026-08-06",
+  "repository": "CherryHQ/cherry-studio",
+  "v2_status": "RELEASED — v2.0 live (rc.4+ confirmed in issues); main branch is v2 development target",
+  "v2_branch_prs": {
+    "open": 0,
+    "note": "No open PRs targeting v2 branch; all development consolidated to main"
   },
-  "latest_release_estimate": {
-    "tag": "v2.0.0-rc.4",
-    "note": "rc.4 shipped. Active regression and migration fixes ongoing. 8 issues closed today, 43 new filed — v2.0 public launch surge in progress."
-  },
-  "critical_fixed_today": [
+  "active_pain_points_post_v2_launch": [
     {
-      "number": 17830,
-      "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
-      "closed": "2026-08-05",
+      "area": "Data Migration",
       "severity": "CRITICAL",
-      "labels": ["Data"]
+      "open_count": 63,
+      "new_today": 1,
+      "top_issues": [
+        {"number": 18051, "title": "Migration stuck in retry loop — cleanup overlaps legacy source", "filed": "2026-08-06", "severity": "CRITICAL"},
+        {"number": 17957, "title": "V2 repeated crash during data migration"},
+        {"number": 17709, "title": "RC users migrated file entries remain permanently manual"},
+        {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"},
+        {"number": 17470, "title": "Migration aborts on legacy agents.db schema drift"}
+      ]
     },
     {
-      "number": 17885,
-      "title": "Disabled MCP tools still listed and exposed to agents — tool is disabled errors",
-      "closed": "2026-08-05",
-      "labels": ["MCP"]
+      "area": "MCP Reliability",
+      "severity": "HIGH",
+      "open_count": 54,
+      "new_today": 4,
+      "top_issues": [
+        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP (v2.0 regression)", "filed": "2026-08-06", "severity": "HIGH"},
+        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway", "filed": "2026-08-06", "severity": "MEDIUM"},
+        {"number": 17689, "title": "MCP stdio process leak (4 comments, growing)", "severity": "HIGH"},
+        {"number": 17999, "title": "MCP prompts visible but unusable in chat", "filed": "2026-08-06"},
+        {"number": 17688, "title": "mcp-auto-install npm package 404"}
+      ]
     },
     {
-      "number": 17851,
-      "title": "Pinning agent sessions fails — UUID v5 ids, schema only accepts v4/v7",
-      "closed": "2026-08-05"
+      "area": "Agent/Assistant",
+      "severity": "HIGH",
+      "open_count": 105,
+      "new_today": 3,
+      "top_issues": [
+        {"number": 18044, "title": "Let Agent drive Chrome via CDP (internal roadmap)", "filed": "2026-08-06"},
+        {"number": 18043, "title": "Add Report Error button for agent failures (internal roadmap)", "filed": "2026-08-06"},
+        {"number": 17260, "title": "Agent mode hard-coded to Claude Code SDK — no OpenAI fallback"},
+        {"number": 17329, "title": "Built-in Cherry Assistant crashes on first use"},
+        {"number": 17726, "title": "Built-in diagnostic channel fails after upgrade"}
+      ]
     },
     {
-      "number": 17853,
-      "title": "Agent first reasoning content rendered as plain body text instead of collapsible block",
-      "closed": "2026-08-05",
-      "labels": ["UI/UX"]
+      "area": "v1→v2 Regressions (UI/UX)",
+      "severity": "MEDIUM",
+      "open_count": 275,
+      "new_today": 5,
+      "top_issues": [
+        {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
+        {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
+        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x"},
+        {"number": 17949, "title": "Cannot check and manage topic prompt"},
+        {"number": 17965, "title": "Preserve unsent content during navigation/model switching"}
+      ]
     },
     {
-      "number": 17882,
-      "title": "After switching models, regenerating reply still uses previous model",
-      "closed": "2026-08-05",
-      "labels": ["Models"]
-    },
-    {
-      "number": 17927,
-      "title": "Reasoning effort cannot be reset to Default after moving slider",
-      "closed": "2026-08-05",
-      "labels": ["UI/UX"]
-    },
-    {
-      "number": 17850,
-      "title": "Left sidebar auto-expands when hovering left edge after collapse",
-      "closed": "2026-08-05",
-      "labels": ["UI/UX"]
-    },
-    {
-      "number": 17838,
-      "title": "Topic naming uses hidden migrated model + inherits assistant reasoning effort",
-      "closed": "2026-08-05",
-      "labels": ["Assistant", "Models"]
+      "area": "Performance",
+      "severity": "MEDIUM",
+      "open_count": 38,
+      "new_today": 0,
+      "top_issues": [
+        {"number": 17669, "title": "Defer HTML artifact runtime outside artifact messages"},
+        {"number": 17689, "title": "MCP stdio process leak"},
+        {"number": 17412, "title": "Virtualize global search message previews"},
+        {"number": 17362, "title": "Enabling MCP server serializes independent capability requests"},
+        {"number": 17316, "title": "Painting history rehydrates unchanged records"}
+      ]
     }
   ],
-  "active_development_areas": {
-    "build_toolchain_modernization": {
-      "status": "in_progress",
-      "description": "TypeScript 7, Oxlint, Vite 8, ESLint removal wave",
-      "tracking_issues": [
-        "#17746 Restore typescript/no-unnecessary-type-assertion to error (tsgolint 7 backlog)"
-      ],
-      "recent_prs": [
-        "TypeScript 7 migration",
-        "Oxlint/tsgolint 7 adoption",
-        "Oxfmt formatter",
-        "ESLint → Oxlint replacement",
-        "Vite 8 upgrade"
-      ]
-    },
-    "performance_lazy_loading": {
-      "status": "active",
-      "description": "Systematic lazy-load and virtualization wave — all filed by DeJeune",
-      "open_issues": [
-        "#17669 Defer HTML artifact runtime outside artifact messages",
-        "#17618 Limit painting template loading to visible cards",
-        "#17504 Avoid reparsing streamed Markdown translation every frame",
-        "#17412 Virtualize unbounded global search message previews",
-        "#17438 Reuse virtualized message list in Quick Assistant",
-        "#17363 Chat startup eagerly bundles error detail and diagnosis modules",
-        "#17362 Enabling MCP server serializes independent capability requests",
-        "#17316 Painting history rehydrates every unchanged record",
-        "#17289–17285 Painting/CLI/Backup/Notes lazy-load series (5 issues)",
-        "#17204 Knowledge route eagerly bundles optional RAG and recall panels"
-      ]
-    },
-    "data_migration_stability": {
-      "status": "URGENT",
-      "description": "v1→v2 migration path fixes — blocking user upgrades",
-      "new_today": [
-        "#17874 Repeated crashes during data migration upgrading to 2.0 (open, 3 comments)",
-        "#17946 Auto-Compact OpenCode startup crash — Cherry writes invalid key (open)"
-      ],
-      "fixed_today": [
-        "#17830 v2 Agent migration ENOSPC — FIXED"
-      ],
-      "still_open": [
-        "#17709 RC users' migrated file entries remain permanently manual",
-        "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
-        "#17470 v2 migration aborts on legacy agents.db schema drift"
-      ]
-    },
-    "agent_session_improvements": {
-      "status": "active",
-      "description": "Agent reliability, model selection, stream handling, orchestration",
-      "new_today": [
-        "#17895 Agent System Prompt Config Out of Sync — UI changes don't take effect (needs-triage)",
-        "#17894 Agent cannot process {{date}}, {{time}} in OpenAI Responses / Anthropic format"
-      ],
-      "open_issues": [
-        "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions (internal_team)",
-        "#17599 Pass immutable AssistantTurnOptions end to end",
-        "#17545 Support split stream lanes for background subagents",
-        "#17513 Build unified long-term memory system for non-developer users",
-        "#17587 Claude Agent sessions persist zero-output results as successful turns",
-        "#17727 Agent context compression not working in Work tab",
-        "#17735 Built-in web search unlimited content → context overflow (3 comments)"
-      ]
-    },
-    "security_and_connectivity": {
-      "status": "NEW — NEEDS ATTENTION",
-      "new_today": [
-        "#17948 v2 portable auto exposes Cherry API on localhost (Connectivity) — privacy/security issue"
-      ]
-    },
-    "mcp_improvements": {
-      "status": "active",
-      "description": "MCP reliability, OAuth, process management",
-      "fixed_today": [
-        "#17885 Disabled MCP tools still exposed to agents — FIXED"
-      ],
-      "open_issues": [
-        "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active)",
-        "#17859 Exa Web Search API Key Not Correctly Passed to MCP Service",
-        "#17688 mcp-auto-install npm 404",
-        "#17000 Refactor tool rendering into typed routing model"
-      ]
-    },
-    "model_compatibility": {
-      "status": "active",
-      "description": "Model-specific bugs and provider integrations",
-      "new_today": [
-        "#17924 Gemini 3 tool calls fail through OpenAI-compatible proxies — $schema strip needed",
-        "#17897 DeepSeek V4 Flash built-in search unavailable in v2.0 (regression)",
-        "#17892 gpt-5.6 terra model not working",
-        "#17900 Translation broken with deepseek v4 flash in v2.0"
-      ],
-      "open_ongoing": [
-        "#17212 Reasoning content must be echoed in multi-turn tool calling (multi-vendor)",
-        "#17127 Agent incompatible with llama.cpp Anthropic endpoint — invalid grammar",
-        "#16971 MiniMax M3 model fails in stream processing",
-        "#17642 Cannot adjust Chain of Thought length for NVIDIA GLM 5.2",
-        "#17253 GPT5.6 thinking format not supported"
-      ]
-    },
-    "v1_regression_recovery": {
-      "status": "active",
-      "description": "Features removed/broken in v2 that users expect from v1",
-      "open_regressions": [
-        "#17954 Conversation history limit option removed from Edit Assistant",
-        "#17949 Cannot check and manage topic prompt in v2",
-        "#17923 Themes, history navigation, tab behavior, reasoning effort regressions",
-        "#17571 Context count slider removed with no replacement",
-        "#17907 Mini programs not in sidebar",
-        "#17935 Model health check logic removed"
-      ]
-    },
-    "v1_hotfix_channel": {
-      "status": "active",
-      "open_prs_to_v1": 4,
-      "note": "v1 branch receiving hotfixes in parallel. 4 open PRs targeting v1 today."
-    },
-    "internal_team_roadmap": {
-      "description": "internal_team issues represent formal product roadmap items",
-      "open_count": 30,
-      "key_items": [
-        "#17782 Agent Orchestration Primitives — Read Peer Agent Sessions (Aug 3)",
-        "#14899 Unified Notification Center (P1, Planned, v2.4.0 milestone)",
-        "#16659 Streaming Idle Watchdog with Auto-Retry",
-        "#16658 Background Agent Task Recovery After Process Restart",
-        "#16657 Cross-Device Agent Task Continuation",
-        "#16656 Control Reasoning CoT in Historical Context",
-        "#16650 Separate Model for Tool Calls",
-        "#16648 Merge Chat History on Cloud Backup Restore",
-        "#16646 MCP Server Auto-Reconnect and Auth Recovery",
-        "#16643 Domain Allow-List for Web Search",
-        "#16642 Resume Interrupted Tool Turn",
-        "#16641 Answer Strictly from Knowledge Base",
-        "#16636 AI-Native Notes Editor",
-        "#16392 Cherry Cloud Relay and Mobile Entry"
-      ]
-    }
-  },
-  "summary_for_today": {
-    "fixed_critical": 1,
-    "fixed_total_today": 8,
-    "new_issues": 43,
-    "net_open_change": "+43",
-    "top_priority_tomorrow": [
-      "Data migration crashes (#17874) — hotfix",
-      "v2 portable localhost API exposure (#17948) — security review",
-      "Auto-Compact OpenCode startup crash (#17946) — Code Mate regression",
-      "MCP process leak (#17689) — systemic reliability",
-      "Triage 246 unlabeled issues from launch spike"
+  "internal_team_roadmap_items": [
+    {"number": 18045, "title": "Power / Prevent-Sleep setting", "labels": ["feature", "internal_team"], "filed": "2026-08-06"},
+    {"number": 18044, "title": "Agent drive Chrome via CDP", "labels": ["feature", "Assistant", "Agent", "internal_team"], "filed": "2026-08-06"},
+    {"number": 18043, "title": "Report Error button for chat/Agent failures", "labels": ["feature", "UI/UX", "internal_team"], "filed": "2026-08-06"},
+    {"number": 17782, "title": "Agent Orchestration Primitives", "labels": ["Assistant", "internal_team"]}
+  ],
+  "release_timeline_inference": {
+    "current_version": "v2.0.0-rc.4+ (based on issue references)",
+    "stability_signal": "IMPROVING — unlabeled triage down 28%→11.6%; issue growth slowing. Critical blockers remain: migration retry loop, MCP ToolLoopTerminalError.",
+    "suggested_hotfix_targets": [
+      "#18051 — Migration retry loop (data corruption risk)",
+      "#17984 — MCP ToolLoopTerminalError (agent regression)",
+      "#17689 — MCP stdio process leak (systemic)",
+      "#17957 — Migration crash (blocks upgrade path)"
+    ],
+    "suggested_rc5_focus": [
+      "Fix all 4 migration reliability issues",
+      "Fix MCP ToolLoopTerminalError and process leak",
+      "Restore top 3 v1 regressions: context limit, mini programs, topic prompt",
+      "Fix Anthropic ~1900 token output cap (#18029)"
     ]
   }
 }

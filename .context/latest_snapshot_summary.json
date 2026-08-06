@@ -1,57 +1,36 @@
 {
-  "snapshot_date": "2026-08-05",
-  "generated_at": "2026-08-05T22:00:00Z",
+  "snapshot_date": "2026-08-06",
+  "generated_at": "2026-08-06T18:00:00Z",
   "open_issues": {
-    "total": 880,
-    "delta_from_yesterday": 43,
-    "new_last_7d": 105,
-    "new_last_24h": 43,
-    "no_label": 246,
-    "no_label_pct": 28.0,
-    "note_on_no_label": "28% unlabeled is elevated vs yesterday's 11.2% — v2.0.0 launch spike brought many unlabeled user reports",
+    "total": 894,
+    "delta_from_yesterday": 14,
+    "new_last_24h": 20,
+    "no_label": 104,
+    "no_label_pct": 11.6,
+    "note_on_no_label": "Improved from yesterday's 28.0% — triage team appears to have labeled many v2 launch issues",
     "by_label": {
-      "UI/UX": 131,
-      "Models": 117,
-      "Performance": 59,
-      "MCP": 53,
-      "Assistant": 72,
-      "Data": 54,
-      "RAG": 44,
-      "needs-repro": 37,
-      "help wanted": 32,
-      "discussion": 28,
-      "inactive": 78,
-      "internal_team": 30,
-      "feature": 28,
-      "Connectivity": 9,
-      "Code Mate": 1,
-      "Docs": 3
+      "UI/UX": 275,
+      "Models": 172,
+      "Assistant": 105,
+      "Data": 63,
+      "MCP": 54,
+      "Performance": 38,
+      "RAG": 34,
+      "Connectivity": 21
     }
   },
   "open_prs": {
     "total": 383,
-    "draft": 0,
-    "by_base_branch": {
-      "main": "majority",
-      "v1": 4,
-      "other": "remainder"
-    },
-    "oldest_open": [
-      {"number": 17445, "title": "fix(settings): sync tray-dependent preferences", "age_days": 9},
-      {"number": 17499, "title": "feat(backup): replace Backup v2 with whole-database restore", "age_days": 8},
-      {"number": 17507, "title": "[codex] Add Modelsell provider", "age_days": 8},
-      {"number": 17508, "title": "perf(mcp-settings): parallelize capability refresh", "age_days": 8},
-      {"number": 17512, "title": "feat(notes-search): show and locate content matches", "age_days": 7}
-    ]
+    "note": "Estimated from yesterday baseline; exact count requires additional pagination"
   },
   "p1_open_issues": [
     {
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "labels": ["P1", "Planned", "UI/UX"],
+      "labels": ["P1", "Planned", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "created_at": "2026-05-07",
-      "age_days": 90,
+      "age_days": 91,
       "assignee": null
     },
     {
@@ -59,7 +38,7 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18",
-      "age_days": 140,
+      "age_days": 141,
       "assignee": null
     },
     {
@@ -67,48 +46,33 @@
       "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found (404)",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04",
-      "age_days": 154,
+      "age_days": 155,
       "assignee": "DeJeune"
     }
   ],
-  "recently_closed_p1": [
-    {
-      "number": 17636,
-      "title": "[Bug]: Agent session turn can hang forever after a failed turn",
-      "closed_at": "2026-07-30",
-      "labels": ["P1", "BUG", "v2", "Agent", "ClaudeCode"]
-    }
-  ],
   "new_issues_today_sample": [
-    "#17954 [Discussion]: v2.0 conversation history limit removed from Edit Assistant (Performance, Assistant)",
-    "#17953 [Bug]: builtin_web_search always fails — question.trim is not a function (Assistant)",
-    "#17952 [Feature]: Adopt AI SDK async model API for image/video generation",
-    "#17950 [Bug]: Low color contrast on translation option buttons (UI/UX)",
-    "#17949 [Bug]: V2 regression — cannot check and manage topic prompt (UI/UX)",
-    "#17948 [Bug]: v2 portable auto exposes API on localhost (Connectivity)",
-    "#17946 [Bug]: Enabling Auto-Compact for OpenCode breaks startup — invalid key 'autoCompact' (Code Mate)",
-    "#17944 [Feature]: Separate supported endpoint types from preferred endpoint routing (Models)",
-    "#17940 [Feature]: Allow custom provider models to declare provider-native server tools (Models)",
-    "#17938 [Feature]: Re-add button for saving user context edits (UI/UX)"
-  ],
-  "closed_today": [
-    "#17927 Reasoning effort cannot be reset to Default after slider (UI/UX)",
-    "#17885 Disabled MCP tools still listed and exposed to agents (MCP)",
-    "#17882 After switching models, regenerating uses previous model (Models)",
-    "#17853 Agent first reasoning content rendered as plain body text (UI/UX)",
-    "#17851 Pinning agent sessions fails — UUID v5 schema only accepts v4/v7",
-    "#17850 Left sidebar auto-expands when hovering left edge after collapse (UI/UX)",
-    "#17838 Topic naming uses hidden migrated model + inherits reasoning effort (Assistant, Models)",
-    "#17830 v2 Agent migration fans out shared workspace → ENOSPC (Data) — CRITICAL FIXED"
-  ],
-  "hot_issues_last_24h": [
-    "#17874 Repeated crashes during data migration upgrading to 2.0 (Data, 3 comments)",
-    "#17954 v2.0 conversation history limit removed (Performance, Discussion, 2 comments)",
-    "#17689 MCP stdio server process leak — python instances accumulate (MCP/Perf, 4 comments)",
-    "#17907 Restore mini programs to sidebar like v1.x (UI/UX, Discussion, 2 comments)",
-    "#17735 Built-in web search fetches unlimited content → Agent context overflow (3 comments)"
+    "#18055 [Bug]: Web search citations shown as raw [cite:xxx] markers in IM channels (UI/UX)",
+    "#18054 [Feature]: QQ adapter does not handle GROUP_MESSAGE_CREATE",
+    "#18051 [Bug]: V2 migration stuck in retry loop — cleanup overlaps legacy source (Data)",
+    "#18049 [Bug]: (empty title) RAG",
+    "#18045 Add a Power / Prevent-Sleep setting (feature, internal_team)",
+    "#18044 Let Agent drive user's Chrome via CDP (feature, Assistant, internal_team)",
+    "#18043 Add Report Error button for chat/Agent failures (feature, UI/UX, internal_team)",
+    "#18034 [Bug]: Traditional Chinese version 'token' incorrectly translated as '代幣'",
+    "#18029 [Bug]: Anthropic model output cannot exceed ~1900 tokens (Models)",
+    "#18011 [Bug]: Cannot find restore entry after hiding Knowledge Base (UI/UX)",
+    "#18007 [Bug]: v2.0 agent cannot access web properly",
+    "#18005 [Bug]: No QR code for WeChat channel binding (UI/UX, Connectivity)",
+    "#18003 [Bug]: Lifecycle stopAll has no per-service stop timeout",
+    "#17999 [Bug]: MCP prompts visible but unusable in chat (MCP, UI/UX)",
+    "#17998 [Bug]: ChatGPT MiniApp stays behind loading overlay (UI/UX)",
+    "#17995 [Bug]: (empty title) Data",
+    "#17992 [Feature]: Restore MCP-over-HTTP endpoints on v2 API Gateway (MCP)",
+    "#17984 [Bug]: ToolLoopTerminalError prematurely in multi-step MCP (MCP)",
+    "#17981 [Discussion]: expert team concept from workbuddy",
+    "#17979 [Bug]: .md files with Chinese filenames cannot be @-referenced"
   ],
   "merged_prs_last_30d": 572,
-  "closed_issues_last_30d": 380,
-  "velocity_note": "Major v2.0 launch spike — 43 new issues today (+43 net). rc.4 regression fixes ongoing. 8 issues closed today including critical ENOSPC migration bug. MCP process leak and data migration crashes top the active queue."
+  "closed_issues_last_30d": 394,
+  "velocity_note": "Net +14 open issues today. v2.0 launch stabilizing: triage improved (unlabeled dropped from 28% to 11.6%). MCP ToolLoopTerminalError (#17984) and migration retry loop (#18051) are new high-severity reports. Internal team filed 3 roadmap items (18043/18044/18045)."
 }

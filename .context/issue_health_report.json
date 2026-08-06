@@ -1,38 +1,37 @@
 {
-  "report_date": "2026-08-05",
-  "total_open": 880,
-  "delta_from_yesterday": 43,
+  "report_date": "2026-08-06",
+  "total_open": 894,
+  "delta_from_yesterday": 14,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Jul 29 – Aug 5)",
-      "estimated_count": 382,
-      "pct": 43.4,
-      "note": "Elevated by v2.0 launch — 43 new issues today alone"
+      "description": "Updated within last 7 days (Jul 30 – Aug 6)",
+      "count": 156,
+      "pct": 17.4,
+      "note": "Lower than yesterday (43.4%) — launch spike absorbed; daily rate normalizing"
     },
     "aging": {
-      "description": "Updated 7–30 days ago (Jul 6 – Jul 28)",
-      "estimated_count": 350,
-      "pct": 39.8,
+      "description": "Updated 7–30 days ago (Jul 7 – Jul 29)",
+      "count": 224,
+      "pct": 25.1,
       "note": "v2 beta period (July) backlog"
     },
     "stale": {
-      "description": "Updated 30–90 days ago (May 7 – Jul 5)",
-      "estimated_count": 120,
-      "pct": 13.6
+      "description": "Updated 30–90 days ago (May 8 – Jul 6)",
+      "count": 204,
+      "pct": 22.8
     },
     "zombie": {
-      "description": "Not updated in 90+ days (before May 7)",
-      "estimated_count": 28,
-      "pct": 3.2,
-      "note": "3 P1 issues aging in this bucket (13193, 13608, 14899)"
+      "description": "Not updated in 90+ days (before May 8)",
+      "count": 310,
+      "pct": 34.7,
+      "note": "Three P1 issues (#13193, #13608, #14899) persist in this bucket"
     }
   },
-  "note_on_inactive_label": "Issues with 'inactive' bot label (78 total) have updated_at bumped by bot comments, inflating Active count. True human-activity active count may be ~30 lower.",
   "label_coverage": {
-    "labeled_count": 634,
-    "unlabeled_count": 246,
-    "unlabeled_pct": 28.0,
-    "note": "Sharp rise from yesterday's 11.2% — v2.0 launch brought many user reports without triage. Triage backlog is now significant."
+    "labeled_count": 790,
+    "unlabeled_count": 104,
+    "unlabeled_pct": 11.6,
+    "note": "Significant improvement from yesterday (28.0% → 11.6%) — triage team active on v2 launch backlog"
   },
   "p1_open_issues": {
     "count": 3,
@@ -40,129 +39,79 @@
       {
         "number": 14899,
         "title": "Unified Notification Center",
-        "age_days": 90,
+        "age_days": 91,
         "milestone": "v2.4.0",
         "status": "Planned — no active fix PR found"
       },
       {
         "number": 13608,
         "title": "xiaomi mimo response last-line only",
-        "age_days": 140,
+        "age_days": 141,
         "status": "No fix PR — aging without triage"
       },
       {
         "number": 13193,
         "title": "Azure OpenAI responses API fallback failure (404)",
-        "age_days": 154,
+        "age_days": 155,
         "assignee": "DeJeune",
         "status": "Assigned to DeJeune — no fix PR yet"
       }
     ]
   },
-  "recently_closed_p1": [
+  "new_high_severity_today": [
     {
-      "number": 17636,
-      "title": "Agent session turn can hang forever after a failed turn",
-      "closed_at": "2026-07-30",
-      "note": "Fixed 6 days ago — strong signal"
-    }
-  ],
-  "critical_fixed_today": [
-    {
-      "number": 17830,
-      "title": "v2 Agent migration fans out shared workspace to every historical session → ENOSPC",
-      "closed_at": "2026-08-05",
+      "number": 18051,
+      "title": "V2 migration stuck in retry loop — cleanup target overlaps legacy source when session workspace is ancestor of Data/Agents",
       "labels": ["Data"],
-      "severity": "CRITICAL — disk exhaustion, data loss risk",
-      "note": "Fixed same-day after filing — responsive resolution"
+      "severity": "HIGH — blocks migration path, corruption risk",
+      "filed_at": "2026-08-06T16:35:59Z"
+    },
+    {
+      "number": 17984,
+      "title": "ToolLoopTerminalError triggered prematurely during complex multi-step MCP tool executions in v2.0",
+      "labels": ["MCP"],
+      "severity": "HIGH — agent workflow reliability regression",
+      "filed_at": "2026-08-06T05:39:37Z"
+    },
+    {
+      "number": 18003,
+      "title": "Lifecycle stopAll has no per-service stop timeout — one slow onStop starves later services and force-exit orphans child processes",
+      "labels": [],
+      "severity": "MEDIUM — process management robustness",
+      "filed_at": "2026-08-06T08:35:29Z"
+    },
+    {
+      "number": 17992,
+      "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway (/v1/mcps)",
+      "labels": ["MCP"],
+      "severity": "MEDIUM — MCP HTTP capability regression",
+      "filed_at": "2026-08-06T07:22:35Z"
     }
   ],
-  "rc4_regressions_open": {
-    "count": 6,
-    "new_today": [
-      "#17954 v2.0 conversation history limit removed from Edit Assistant (Discussion, Performance)",
-      "#17949 V2 regression — cannot check and manage topic prompt (UI/UX)",
-      "#17900 Unable to translate normally after setting translation model to deepseek v4 flash in v2.0"
-    ],
-    "existing": [
-      "#17571 v2 RC1 missing context count slider — no replacement",
-      "#17695 Agent migration keeps old workspace root after cross-machine v1 restore",
-      "#17341 Failed to persist root span ai.turn: Cannot read properties of undefined"
-    ]
-  },
-  "new_high_impact_today": {
-    "issues": [
-      {
-        "number": 17874,
-        "title": "Repeated crashes during data migration upgrading to 2.0",
-        "labels": ["Data"],
-        "severity": "HIGH — blocks upgrade path for v1 users",
-        "comments": 3
-      },
-      {
-        "number": 17946,
-        "title": "Enabling Auto-Compact for OpenCode breaks startup — Cherry writes invalid key 'autoCompact'",
-        "labels": ["Code Mate"],
-        "severity": "HIGH — startup crash regression"
-      },
-      {
-        "number": 17948,
-        "title": "v2 portable auto exposes Cherry API on localhost",
-        "labels": ["Connectivity"],
-        "severity": "HIGH — security/privacy issue"
-      }
-    ]
-  },
-  "agent_bugs_cluster": {
-    "count_estimate": 28,
-    "new_today": [
-      "#17895 Agent System Prompt Config Out of Sync — UI changes don't take effect (needs-triage)",
-      "#17894 Agent using OpenAI Responses + Anthropic format cannot process {{date}}, {{time}} (Models)"
-    ],
-    "ongoing_priority": [
-      "#17689 MCP stdio server process leak — python instances accumulate (4 comments)",
-      "#17735 Built-in web search fetches unlimited content → Agent context overflow (3 comments)",
-      "#17587 Claude Agent sessions persist zero-output results as successful turns",
-      "#17727 Agent context compression not working in Work tab",
-      "#17329 Built-in Cherry Assistant crashes — CherryAI not routable"
-    ]
-  },
-  "performance_issues_open": {
-    "count_estimate": 59,
-    "pattern": "Systematic lazy-load/virtualization wave filed by DeJeune. Many have corresponding open PRs. DeJeune is primary driver — execution in progress."
-  },
-  "mcp_cluster": {
-    "count_estimate": 53,
-    "new_today": [
-      "#17859 Exa Web Search API Key Not Correctly Passed to MCP Service (MCP)"
-    ],
-    "closed_today": [
-      "#17885 Disabled MCP tools still listed and exposed to agents (MCP) — FIXED"
-    ],
-    "still_open": [
-      "#17689 MCP stdio server process leak — python instances accumulate (4 comments — most active)",
-      "#17688 mcp-auto-install npm 404",
-      "#17000 Refactor tool rendering into typed routing model"
-    ]
-  },
-  "new_issue_activity_today": {
-    "count": 43,
-    "breakdown": {
-      "bugs": 22,
-      "feature_requests": 14,
-      "discussions": 5,
-      "other_or_empty": 2
+  "ongoing_priority_clusters": {
+    "data_migration": {
+      "count": 63,
+      "top": ["#18051 retry loop", "#17957 repeated crash", "#17709 RC file entries manual", "#17695 old workspace root"]
     },
-    "note": "Largest single-day spike this month — v2.0 public availability driving heavy traffic"
+    "mcp_reliability": {
+      "count": 54,
+      "top": ["#17984 ToolLoopTerminalError", "#17992 MCP-over-HTTP missing", "#17689 process leak (4 comments)", "#17999 prompts unusable"]
+    },
+    "agent_assistant": {
+      "count": 105,
+      "top": ["#18044 CDP Chrome control (internal)", "#17260 hard-coded SDK", "#17329 Cherry Assistant crash"]
+    },
+    "v1_v2_regressions": {
+      "count": "~30 estimated",
+      "top": ["#17954 history limit", "#17923 themes/nav/tabs", "#17907 mini programs", "#17949 topic prompt"]
+    }
   },
   "recommendations": [
-    "URGENT: Data migration crashes (#17874) — blocks v1→v2 upgrade path, needs hotfix",
-    "URGENT: v2 portable localhost API exposure (#17948) — security/privacy issue, needs immediate review",
-    "URGENT: Auto-Compact OpenCode startup crash (#17946) — Code Mate integration regression",
-    "Triage 246 unlabeled issues — 28% of backlog invisible to label filters (up from 11.2% yesterday)",
-    "MCP process leak #17689 (4 comments, growing) — systemic, needs fix before stable release",
-    "P1 issues #13608 (140 days) and #13193 (154 days) aging without fix — assign or close as wontfix",
-    "v2 context count slider #17571 missing 7 days with user pressure — needs design decision or PR",
-    "v2.0 regression cluster: 6 known regressions from v1 need product triage decisions"
+    "HIGH: Migration retry loop #18051 — new today, potential data corruption",
+    "HIGH: MCP ToolLoopTerminalError #17984 — agent workflow reliability in v2.0",
+    "ONGOING: MCP process leak #17689 — still 4 comments, growing user reports",
+    "TRIAGE: 104 unlabeled issues — down from 246 yesterday, keep momentum",
+    "P1 AGING: #13608 (141d) and #13193 (155d) without fix — assign or close as wontfix",
+    "ZOMBIE: 310 issues (34.7%) with 90d+ no activity — schedule quarterly triage sweep"
   ]
 }
