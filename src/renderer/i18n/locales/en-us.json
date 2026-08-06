@@ -4420,7 +4420,8 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model simultaneous responses"
+      "label": "Multi-select",
+      "tooltip": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
