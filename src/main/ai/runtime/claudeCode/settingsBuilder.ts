@@ -724,6 +724,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     // The stream adapter's background-work release waits for `session_state_changed: idle`
     // (streamAdapter.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+    CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})

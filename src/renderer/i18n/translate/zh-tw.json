@@ -451,7 +451,6 @@
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
         "conversation": "對話",
-        "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
         "earlier": "更早",
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
@@ -3925,7 +3924,7 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
-      "first_turn_not_supported": "第一個用戶訊息無法刪除。",
+      "generating_unavailable": "該分組中仍有回答正在生成，暫時無法刪除。",
       "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },
@@ -4010,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
-        "title": "刪除分組訊息"
+        "content": "是否刪除該分組中的所有助手回答？使用者提問和後續訊息將保留。",
+        "title": "刪除分組回答"
       },
       "retry_failed": "重試出錯的訊息"
     },
@@ -4425,7 +4424,8 @@
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
-      "label": "多模型同時回答"
+      "label": "多重選擇",
+      "tooltip": "多模型同時回答"
     },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
