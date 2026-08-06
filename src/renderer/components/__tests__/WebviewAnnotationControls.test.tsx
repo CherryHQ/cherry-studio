@@ -28,9 +28,6 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Textarea: {
-    Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
-  },
   ConfirmDialog: ({
     open,
     title,
@@ -50,6 +47,51 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     ) : null
 }))
+
+// The annotation editor reuses the composer editor kernel; fake the TipTap layer
+// with a plain textarea so the host command flow stays testable in jsdom.
+vi.mock('@renderer/components/composer/composerPreset', () => ({
+  createComposerEditorPreset: (options: { placeholder?: string }) => options
+}))
+vi.mock('@renderer/components/composer/composerDraft', () => ({
+  createComposerDraftContent: ({ text }: { text: string }) => text,
+  serializeComposerDocument: (source: unknown) => ({
+    text:
+      typeof source === 'object' && source !== null && 'text' in source
+        ? String((source as { text: unknown }).text)
+        : '',
+    tokens: []
+  })
+}))
+vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
+  useRichTextEditorKernel: (options: unknown) => options
+}))
+vi.mock('@tiptap/react', () => ({
+  EditorContent: ({ editor }: { editor: FakeKernelOptions }) => (
+    <textarea
+      aria-label={editor.editorProps.attributes['aria-label']}
+      placeholder={editor.extensions.placeholder}
+      defaultValue={editor.content}
+      onChange={(event) => editor.onUpdate?.({ editor: { text: event.target.value } })}
+      onKeyDown={(event) =>
+        editor.editorProps.handleKeyDown?.(
+          { state: { doc: { toJSON: () => ({ text: event.currentTarget.value }) } } },
+          event
+        )
+      }
+    />
+  )
+}))
+
+interface FakeKernelOptions {
+  content: string
+  extensions: { placeholder?: string }
+  editorProps: {
+    attributes: Record<string, string>
+    handleKeyDown?: (view: unknown, event: unknown) => boolean
+  }
+  onUpdate?: (payload: { editor: { text: string } }) => void
+}
 
 import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
 

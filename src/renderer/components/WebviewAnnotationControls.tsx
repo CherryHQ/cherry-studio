@@ -1,6 +1,9 @@
-import { Badge, Button, ConfirmDialog, Textarea, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { createComposerDraftContent, serializeComposerDocument } from '@renderer/components/composer/composerDraft'
+import { createComposerEditorPreset } from '@renderer/components/composer/composerPreset'
+import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -16,9 +19,9 @@ import {
   type WebviewAnnotationTarget,
   type WebviewPendingSelection
 } from '@shared/types/webview'
+import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -394,7 +397,11 @@ interface WebviewAnnotationEditorProps {
   onDelete: () => void
 }
 
-/** Host-rendered comment editor anchored over the WebView at the guest-reported selection rect. */
+/**
+ * Host-rendered comment editor anchored over the WebView at the guest-reported
+ * selection rect. Reuses the composer's editor kernel and schema preset so the
+ * input behaves and evolves with the chat composer, minus its chrome.
+ */
 function WebviewAnnotationEditor({
   webviewRef,
   anchor,
@@ -406,7 +413,7 @@ function WebviewAnnotationEditor({
 }: WebviewAnnotationEditorProps) {
   const { t } = useTranslation()
   const [comment, setComment] = useState(initialComment)
-  const trimmedComment = comment.trim()
+  const trimmedComment = comment.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
 
   // Captured once per anchor; the popover stays put if the guest page scrolls underneath.
   const position = useMemo(() => {
@@ -425,15 +432,42 @@ function WebviewAnnotationEditor({
     return { left, top }
   }, [anchor, webviewRef])
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onCancel()
-    } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      if (trimmedComment) onSave(trimmedComment)
-    }
-  }
+  const extensions = useMemo(
+    () => createComposerEditorPreset({ placeholder: t('webview.annotation.placeholder') }),
+    [t]
+  )
+  const initialContent = useMemo(
+    () => createComposerDraftContent({ text: initialComment, tokens: [] }),
+    [initialComment]
+  )
+  const editor = useRichTextEditorKernel({
+    extensions,
+    content: initialContent,
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        'aria-label': t('webview.annotation.placeholder'),
+        class:
+          'max-h-40 min-h-20 overflow-y-auto rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-primary'
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Escape') {
+          onCancel()
+          return true
+        }
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          const text = serializeComposerDocument(view.state.doc.toJSON())
+            .text.trim()
+            .slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+          if (text) onSave(text)
+          return true
+        }
+        return false
+      }
+    },
+    onCreate: ({ editor: created }) => created.commands.focus('end'),
+    onUpdate: ({ editor: updated }) => setComment(serializeComposerDocument(updated).text)
+  })
 
   return createPortal(
     <div
@@ -441,17 +475,7 @@ function WebviewAnnotationEditor({
       aria-label={t('webview.annotation.placeholder')}
       className="fixed z-50 flex flex-col gap-2 rounded-lg border border-border bg-popover p-3 shadow-lg"
       style={{ left: position.left, top: position.top, width: EDITOR_WIDTH_PX }}>
-      <Textarea.Input
-        autoFocus
-        value={comment}
-        maxLength={WEBVIEW_ANNOTATION_LIMITS.comment}
-        placeholder={t('webview.annotation.placeholder')}
-        aria-label={t('webview.annotation.placeholder')}
-        onChange={(event) => setComment(event.target.value)}
-        onKeyDown={handleKeyDown}
-        rows={3}
-        className="min-h-20 px-2.5 py-2 text-sm md:text-sm"
-      />
+      <EditorContent editor={editor} />
       <div className="flex items-center gap-2">
         {canDelete ? (
           <Button

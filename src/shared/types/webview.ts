@@ -19,6 +19,7 @@ export const WEBVIEW_ANNOTATION_LIMITS = {
   regionCoord: 10_000_000,
   regionElements: 12,
   role: 64,
+  styleText: 400,
   selector: 2_048,
   tagName: 64,
   targetId: 160,
@@ -48,7 +49,9 @@ export const WebviewElementLocatorSchema = z
     tagName: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.text).nullable(),
     ariaLabel: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.ariaLabel).nullable(),
-    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable()
+    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable(),
+    /** Compact non-default computed layout styles, e.g. `position: absolute; z-index: 3`. */
+    styles: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.styleText).optional()
   })
   .strict()
 
