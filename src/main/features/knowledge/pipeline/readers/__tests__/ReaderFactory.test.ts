@@ -255,6 +255,7 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.doc', fallbackReaderSpies.doc],
     ['.docx', fallbackReaderSpies.docx],
     ['.epub', fallbackReaderSpies.epub],
+    ['.ppt', fallbackReaderSpies.text],
     ['.pptx', fallbackReaderSpies.text],
     ['.xls', fallbackReaderSpies.text],
     ['.xlsx', fallbackReaderSpies.text]
@@ -275,17 +276,6 @@ describe('loadKnowledgeItemDocuments', () => {
     await reader.loadDataAsContent(content, 'sample.epub')
 
     expect(fallbackReaderSpies.epub).toHaveBeenCalledWith(content, 'sample.epub')
-  })
-
-  it('routes .ppt through anydoc without falling back to binary text', async () => {
-    const failure = new Error('Unsupported document')
-    toMarkdownBytesMock.mockRejectedValue(failure)
-    const reader = createSupportedFileReader('/tmp/sample.ppt' as AbsoluteFilePath)
-
-    await expect(reader.loadDataAsContent(new Uint8Array([1, 2, 3]), 'sample.ppt')).rejects.toBe(failure)
-    for (const fallbackSpy of Object.values(fallbackReaderSpies)) {
-      expect(fallbackSpy).not.toHaveBeenCalled()
-    }
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {

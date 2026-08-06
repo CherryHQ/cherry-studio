@@ -26,9 +26,8 @@ function normalizeError(error: unknown): Error {
  * is needed.
  *
  * anydoc ships no `win32-arm64` binary and no wasm fallback, so the native
- * module fails to load there. Existing formats can supply `createFallback` to
- * preserve their previous reader; newly supported `.ppt` fails visibly because
- * it has no usable fallback.
+ * module fails to load there. Formats can supply `createFallback` to remain
+ * readable when the native module is unavailable.
  */
 export class AnydocReader extends FileReader<Document<Metadata>> {
   constructor(
