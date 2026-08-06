@@ -289,6 +289,38 @@ describe('buildMcpServers', () => {
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
   })
 
+  it('exposes every cherry-tool to the built-in Assistant without a knowledge binding', async () => {
+    const assistant = {
+      id: 'agent-1',
+      mcps: [],
+      knowledgeBaseIds: [],
+      configuration: { builtin_role: 'assistant' }
+    } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(assistant)
+
+    const names = await cherryToolNames(buildMcpServers(session, assistant, true))
+
+    expect(names).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+    )
+  })
+
+  it('revokes unrestricted knowledge access when the built-in Assistant is deleted', async () => {
+    const assistant = {
+      id: 'agent-1',
+      mcps: [],
+      knowledgeBaseIds: [],
+      configuration: { builtin_role: 'assistant' }
+    } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(assistant)
+    const servers = buildMcpServers(session, assistant, true)
+
+    expect(await cherryToolNames(servers)).toContain('kb_search')
+
+    mockGetAgent.mockReturnValue(undefined)
+    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+  })
+
   /** Run kb_list through the server and report the id set the scope closure handed to the core. */
   async function scopePassedToKnowledgeCore(result: ReturnType<typeof buildMcpServers>): Promise<readonly string[]> {
     if (!result) throw new Error('buildMcpServers returned no servers')

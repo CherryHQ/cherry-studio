@@ -218,14 +218,14 @@ export class CherryBuiltinToolsServer {
   constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
     const knowledge = new CherryKnowledgeTools(agentContext)
-    const cli = agentContext.canManageCli === false ? undefined : new CherryCliTools()
+    const cli = new CherryCliTools()
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools(), ...(cli?.tools() ?? [])]
+      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools(), ...cli.tools()]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
-      if (cli?.handles(name)) {
+      if (cli.handles(name)) {
         return cli.call(name, request.params.arguments)
       }
       if (autonomy.handles(name)) {

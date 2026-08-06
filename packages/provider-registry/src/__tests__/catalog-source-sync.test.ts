@@ -18,13 +18,14 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, splitOverrideWireId } from '../../scripts/canonicalize'
+import { canonOf, prefixHit, splitOverrideWireId } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
   SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS,
   WEB_SEARCH_UNSUPPORTED_EFFORTS
 } from '../patterns/server-tool-constraints.gen'
+import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
@@ -57,6 +58,15 @@ const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'overrides
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
+  if (Array.isArray(conn.serverTools)) {
+    conn.serverTools = conn.serverTools.map((tool) => {
+      const config = { ...(tool as Record<string, unknown>) }
+      delete config.modelIdPrefixes
+      delete config.modelIds
+      delete config.imageModelIds
+      return config
+    })
+  }
   return { ...conn, description: `${String(p.name)} - AI model provider` }
 }
 
@@ -131,6 +141,41 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     // `pnpm generate` — or a hand edit of the .gen file — both fail here.
     const expected = CREATORS.flatMap((c) => c.reasoningFamilies ?? [])
     expect(REASONING_FAMILY_RULES.map(stable)).toEqual(expected.map(stable))
+  })
+
+  it('server-tool-models.gen.ts reflects the provider model selectors', () => {
+    const problems: string[] = []
+    const declaredKeys = new Set<string>()
+
+    for (const provider of PROVIDERS) {
+      for (const tool of provider.serverTools ?? []) {
+        if (tool.modelScope !== 'model-dependent') continue
+        const key = `${provider.id}/${tool.id}`
+        declaredKeys.add(key)
+        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[tool.id] ?? []
+        const exactIds = new Set(tool.modelIds ?? [])
+        const prefixes = tool.modelIdPrefixes ?? []
+
+        if (generated.length === 0) problems.push(`${key}: no generated models`)
+        for (const id of exactIds) {
+          if (!generated.includes(id)) problems.push(`${key}: exact model ${id} was not generated`)
+        }
+        for (const id of generated) {
+          if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
+            problems.push(`${key}: stale generated model ${id}`)
+          }
+        }
+      }
+    }
+
+    for (const [providerId, tools] of Object.entries(PROVIDER_SERVER_TOOL_MODEL_IDS)) {
+      for (const toolId of Object.keys(tools)) {
+        const key = `${providerId}/${toolId}`
+        if (!declaredKeys.has(key)) problems.push(`${key}: generated without a provider declaration`)
+      }
+    }
+
+    expect(problems).toEqual([])
   })
 
   it('server-tool-constraints.gen.ts reflects the creator constraint declarations', () => {
