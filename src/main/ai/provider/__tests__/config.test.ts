@@ -545,6 +545,29 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.geminiBaseURL).toBeDefined()
     })
 
+    it('routes a CherryIN OpenAI model on the Responses endpoint through the CherryIN provider', async () => {
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://open.cherryin.net',
+            adapterFamily: 'cherryin'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'cherryin::openai/gpt-5.6-terra',
+        apiModelId: 'openai/gpt-5.6-terra',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('cherryin')
+      expect(config.providerSettings).toMatchObject({ endpointType: 'openai-response' })
+    })
+
     it('routes a CherryIn google-generate-content model (e.g. nano-banana image) to the cherryin extension, not openai-compatible (REGRESSION)', async () => {
       // CherryIN relays its Google models via Gemini's native `generateContent`; its
       // registry declares `google-generate-content` → adapterFamily 'cherryin'.

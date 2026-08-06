@@ -465,6 +465,7 @@ export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
+export const PROVIDER_WEB_SEARCH_TOOL_NAME = 'webSearch'
 export const WEB_FETCH_TOOL_NAME = 'web_fetch'
 
 export const webSearchInputSchema = z.object({
