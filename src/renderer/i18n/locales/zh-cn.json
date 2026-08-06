@@ -1920,6 +1920,7 @@
         "time": "时间",
         "title": "展示方式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑对话名",

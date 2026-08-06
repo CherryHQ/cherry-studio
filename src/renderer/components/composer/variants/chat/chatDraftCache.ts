@@ -35,6 +35,18 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   }
 }
 
+export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
+  return draft.text.length > 0 || draft.tokens.length > 0 || draft.files.length > 0 || draft.knowledgeBaseIds.length > 0
+}
+
+export function readChatDraftPresence(topicId: string): boolean {
+  return hasChatDraftContent(readChatDraftCache(topicId))
+}
+
+export function subscribeChatDraftCache(topicId: string, listener: () => void): () => void {
+  return cacheService.subscribe(getChatDraftCacheKey(topicId), listener)
+}
+
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
   cacheService.setCasual<ChatComposerDraftCache>(
     getChatDraftCacheKey(topicId),

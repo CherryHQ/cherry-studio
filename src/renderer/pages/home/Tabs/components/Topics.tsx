@@ -31,6 +31,10 @@ import {
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
+import {
+  readChatDraftPresence,
+  subscribeChatDraftCache
+} from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
@@ -78,9 +82,20 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, Unlink, XIcon } from 'lucide-react'
+import {
+  CircleAlert,
+  FilePenLine,
+  Loader2,
+  MoreHorizontal,
+  PinIcon,
+  Plus,
+  SquarePen,
+  Trash2,
+  Unlink,
+  XIcon
+} from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -1763,9 +1778,8 @@ const TopicRow = memo(function TopicRow({
             RESOURCE_LIST_TITLE_FADE_CLASS,
             RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
-            // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin.
+            // so the title needs a standing yield for its dot zone. The draft
+            // indicator stays in flow and reserves its own space.
             hasTopicStreamIndicator && 'mr-7'
           )}
           onDoubleClick={(event) => {
@@ -1775,17 +1789,14 @@ const TopicRow = memo(function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!rowState.renaming && isTopicAwaitingApproval && (
-        <span
-          data-testid="topic-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
-          {t('agent.toolPermission.pendingBadge')}
-        </span>
-      )}
-      {hasTopicStreamIndicator && (
-        <TopicStreamIndicator
+      {!rowState.renaming && (
+        <TopicTrailingStatus
+          topicId={topic.id}
+          awaitingApprovalLabel={t('agent.toolPermission.pendingBadge')}
+          draftLabel={t('chat.topics.draft')}
+          isAwaitingApproval={isTopicAwaitingApproval}
           isErrored={isTopicStreamErrored}
-          isFulfilled={isTopicStreamFulfilled}
+          isFulfilled={!isActive && isTopicStreamFulfilled}
           isPending={isTopicStreamPending}
         />
       )}
@@ -1843,6 +1854,61 @@ const TopicRow = memo(function TopicRow({
     </>
   )
 })
+
+const TOPIC_DRAFT_INDICATOR_CLASS =
+  'pointer-events-none flex size-5 max-w-5 shrink-0 items-center justify-center overflow-hidden opacity-100 transition-[margin,max-width,opacity] duration-150 group-hover:-ml-1.5 group-hover:max-w-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:-ml-1.5 group-has-[[data-resource-list-item-actions][data-active=true]]:-ml-1.5 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+
+const TOPIC_AWAITING_APPROVAL_BADGE_CLASS =
+  'pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+
+const TopicTrailingStatus = ({
+  topicId,
+  awaitingApprovalLabel,
+  draftLabel,
+  isAwaitingApproval,
+  isErrored,
+  isFulfilled,
+  isPending
+}: {
+  topicId: string
+  awaitingApprovalLabel: string
+  draftLabel: string
+  isAwaitingApproval: boolean
+  isErrored: boolean
+  isFulfilled: boolean
+  isPending: boolean
+}) => {
+  if (isAwaitingApproval) {
+    return (
+      <span data-testid="topic-awaiting-approval-badge" className={TOPIC_AWAITING_APPROVAL_BADGE_CLASS}>
+        {awaitingApprovalLabel}
+      </span>
+    )
+  }
+
+  if (isPending || isErrored || isFulfilled) {
+    return <TopicStreamIndicator isErrored={isErrored} isFulfilled={isFulfilled} isPending={isPending} />
+  }
+
+  // The draft subscriber mounts only in the lowest-priority branch. Virtualized
+  // rows that are offscreen, or rows showing a higher-priority status, subscribe
+  // to no draft key at all.
+  return <TopicDraftIndicator topicId={topicId} label={draftLabel} />
+}
+
+const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: string }) => {
+  const subscribe = useCallback((listener: () => void) => subscribeChatDraftCache(topicId, listener), [topicId])
+  const getSnapshot = useCallback(() => readChatDraftPresence(topicId), [topicId])
+  const hasDraft = useSyncExternalStore(subscribe, getSnapshot, () => false)
+
+  if (!hasDraft) return null
+
+  return (
+    <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
+      <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
+    </span>
+  )
+}
 
 const TopicStreamIndicator = ({
   isErrored,

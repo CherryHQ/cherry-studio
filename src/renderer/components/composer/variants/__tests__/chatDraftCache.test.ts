@@ -2,7 +2,12 @@ import { cacheService } from '@data/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedToken } from '../../tokens'
-import { getChatDraftCacheKey, readChatDraftCache, writeChatDraftCache } from '../chat/chatDraftCache'
+import {
+  getChatDraftCacheKey,
+  hasChatDraftContent,
+  readChatDraftCache,
+  writeChatDraftCache
+} from '../chat/chatDraftCache'
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
@@ -92,5 +97,13 @@ describe('chatDraftCache', () => {
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
     vi.mocked(cacheService.getCasual).mockReturnValue(written)
     expect(readChatDraftCache('topic-a')).toEqual(draft)
+  })
+
+  it('detects text, tokens, files, and knowledge bases as draft content', () => {
+    expect(hasChatDraftContent({ text: '', tokens: [], files: [], knowledgeBaseIds: [] })).toBe(false)
+    expect(hasChatDraftContent({ text: 'draft', tokens: [], files: [], knowledgeBaseIds: [] })).toBe(true)
+    expect(hasChatDraftContent({ text: '', tokens: [quoteToken], files: [], knowledgeBaseIds: [] })).toBe(true)
+    expect(hasChatDraftContent({ text: '', tokens: [], files: [file], knowledgeBaseIds: [] })).toBe(true)
+    expect(hasChatDraftContent({ text: '', tokens: [], files: [], knowledgeBaseIds: ['base-1'] })).toBe(true)
   })
 })
