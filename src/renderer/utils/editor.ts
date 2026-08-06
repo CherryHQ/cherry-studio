@@ -1,3 +1,4 @@
+import { ipcApi } from '@renderer/ipc'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 
 /**
@@ -26,7 +27,10 @@ export function buildEditorUrl(app: ExternalAppInfo, filePath: string): string {
  */
 export async function openExternalApp(app: ExternalAppInfo, targetPath: string): Promise<void> {
   if (app.executable) {
-    await window.api.externalApps.open(app.id, targetPath)
+    if (app.id !== 'wt') {
+      throw new Error(`External app "${app.id}" cannot be launched as a process`)
+    }
+    await ipcApi.request('external_app.open', { appId: app.id, targetPath })
     return
   }
   window.open(buildEditorUrl(app, targetPath))

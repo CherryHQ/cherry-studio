@@ -1,6 +1,12 @@
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const requestMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: requestMock }
+}))
+
 import { buildEditorUrl, openExternalApp } from '../editor'
 
 const vscodeApp: ExternalAppInfo = {
@@ -32,14 +38,8 @@ describe('buildEditorUrl', () => {
 })
 
 describe('openExternalApp', () => {
-  const openMock = vi.hoisted(() => vi.fn())
-
   beforeEach(() => {
-    openMock.mockReset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { externalApps: { open: openMock } }
-    })
+    requestMock.mockReset()
     Object.defineProperty(window, 'open', { configurable: true, value: vi.fn() })
   })
 
@@ -47,20 +47,23 @@ describe('openExternalApp', () => {
     await openExternalApp(vscodeApp, '/tmp/workspace')
 
     expect(window.open).toHaveBeenCalledWith('vscode://file//tmp/workspace?windowId=_blank')
-    expect(openMock).not.toHaveBeenCalled()
+    expect(requestMock).not.toHaveBeenCalled()
   })
 
   it('launches executable-based apps through the main process', async () => {
-    openMock.mockResolvedValue(undefined)
+    requestMock.mockResolvedValue(undefined)
 
     await openExternalApp(windowsTerminalApp, 'C:\\work\\project')
 
-    expect(openMock).toHaveBeenCalledWith('wt', 'C:\\work\\project')
+    expect(requestMock).toHaveBeenCalledWith('external_app.open', {
+      appId: 'wt',
+      targetPath: 'C:\\work\\project'
+    })
     expect(window.open).not.toHaveBeenCalled()
   })
 
   it('forwards the error when launching an executable-based app fails', async () => {
-    openMock.mockRejectedValue(new Error('wt.exe was not found'))
+    requestMock.mockRejectedValue(new Error('wt.exe was not found'))
 
     await expect(openExternalApp(windowsTerminalApp, 'C:\\work\\project')).rejects.toThrow('wt.exe was not found')
   })

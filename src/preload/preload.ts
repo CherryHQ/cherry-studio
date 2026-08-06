@@ -11,7 +11,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
-import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
   AbsoluteFilePath,
   CreateInternalEntryIpcParams,
@@ -209,9 +209,7 @@ const api = {
   // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   externalApps: {
-    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled),
-    open: (appId: ExternalAppId, targetPath: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.ExternalApps_Open, appId, targetPath)
+    detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
   },
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
