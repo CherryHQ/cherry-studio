@@ -1278,6 +1278,12 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     <DragOverlay dropAnimation={null}>
       {dragOverlayContent ? (
         <div
+          // The overlay is a detached copy of the row: it is never hovered and only
+          // carries whatever resting state the row had, so a row that paints its
+          // surface on hover would fly over the list fully transparent. Row visuals
+          // belong to the consumer, so mark the overlay instead of styling it here —
+          // consumers key their own surface off `[data-drag-overlay]`.
+          data-drag-overlay="true"
           className="pointer-events-none"
           style={{
             height: activeDragState?.overlaySize?.height,

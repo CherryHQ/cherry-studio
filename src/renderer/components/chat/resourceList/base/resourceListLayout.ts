@@ -57,6 +57,18 @@ export const RESOURCE_LIST_ACTIVE_ROW_CLASS =
 export const RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS =
   'group-data-[active-descendant=true]:text-resource-list-row-active-foreground group-data-[selected=true]:text-resource-list-row-selected-foreground'
 
+/**
+ * Surface for the copy of a row that flies with the cursor inside the drag
+ * overlay (`[data-drag-overlay]`, set by GroupedSortableVirtualList). That copy
+ * is detached from the list, so it is never hovered and — unless the dragged row
+ * happens to be the selected one — resolves to no background at all, leaving its
+ * text stacked directly on the rows underneath. Reuse the hover fill
+ * (`resource-list-row-hover`, see RESOURCE_LIST_INTERACTIVE_ROW_CLASS) so the
+ * copy reads exactly like the row it was lifted out of; the text keeps its
+ * resting colour because hover no longer recolours it.
+ */
+export const RESOURCE_LIST_DRAG_OVERLAY_ROW_CLASS = 'in-data-drag-overlay:bg-resource-list-row-hover'
+
 export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
 
 export const RESOURCE_LIST_LEADING_SLOT_BASE_CLASS = 'flex size-6 shrink-0 items-center justify-center'
