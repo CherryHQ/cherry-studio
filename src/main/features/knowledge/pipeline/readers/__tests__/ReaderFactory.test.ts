@@ -5,9 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
-  doc: vi.fn(async (filePath: string) => [{ metadata: { reader: 'doc', filePath } }]),
-  drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
-  epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
+  anydoc: vi.fn(async (filePath: string) => [{ metadata: { reader: 'anydoc', filePath } }]),
+  drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }])
 }))
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
@@ -83,11 +82,13 @@ vi.mock('@vectorstores/readers/text', () => ({
   }
 }))
 
-vi.mock('../files/DocReader', () => ({
-  DocReader: class {
-    loadData = customReaderSpies.doc
+vi.mock('../files/AnydocReader', () => ({
+  AnydocReader: class {
+    loadData = customReaderSpies.anydoc
   }
 }))
+
+vi.mock('../files/DocReader', () => ({ DocReader: class {} }))
 
 vi.mock('../files/DraftsExportReader', () => ({
   DraftsExportReader: class {
@@ -95,11 +96,7 @@ vi.mock('../files/DraftsExportReader', () => ({
   }
 }))
 
-vi.mock('../files/EpubReader', () => ({
-  EpubReader: class {
-    loadData = customReaderSpies.epub
-  }
-}))
+vi.mock('../files/EpubReader', () => ({ EpubReader: class {} }))
 
 // The URL reader reads its snapshot verbatim via fs, not a vectorstores reader.
 const readFileMock = vi.hoisted(() => vi.fn())
@@ -188,7 +185,6 @@ describe('loadKnowledgeItemDocuments', () => {
   it.each([
     ['.pdf', 'pdf'],
     ['.csv', 'csv'],
-    ['.docx', 'docx'],
     ['.html', 'html'],
     ['.htm', 'html'],
     ['.json', 'json'],
@@ -241,18 +237,21 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('uses the doc reader for legacy binary .doc files', async () => {
-    const item = createFileItem('.doc')
+  it.each(['.doc', '.docx', '.epub', '.ppt', '.pptx', '.xls', '.xlsx'])(
+    'converts %s files to markdown with the anydoc reader',
+    async (ext) => {
+      const item = createFileItem(ext)
 
-    const docs = await loadKnowledgeItemDocuments(item)
+      const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(customReaderSpies.doc).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.doc')
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.doc'
-      }
-    })
-  })
+      expect(customReaderSpies.anydoc).toHaveBeenCalledWith(`/mock/feature.knowledgebase.data/base-1/raw/sample${ext}`)
+      expect(docs[0]).toMatchObject({
+        metadata: {
+          source: `/tmp/sample${ext}`
+        }
+      })
+    }
+  )
 
   it('uses the drafts export reader for .draftsexport files', async () => {
     const item = createFileItem('.draftsexport')
@@ -265,19 +264,6 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.draftsexport'
-      }
-    })
-  })
-
-  it('uses the epub reader for .epub files', async () => {
-    const item = createFileItem('.epub')
-
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(customReaderSpies.epub).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.epub')
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.epub'
       }
     })
   })

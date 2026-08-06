@@ -12,6 +12,7 @@ import { TextFileReader } from '@vectorstores/readers/text'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
+import { AnydocReader } from './files/AnydocReader'
 import { DocReader } from './files/DocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
@@ -25,11 +26,18 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.csv':
       return new CSVReader()
     case '.doc':
-      return new DocReader()
+      return new AnydocReader(() => new DocReader())
     case '.docx':
-      return new DocxReader()
+      return new AnydocReader(() => new DocxReader())
     case '.epub':
-      return new EpubReader()
+      return new AnydocReader(() => new EpubReader())
+    // Without anydoc these binary containers fall through to TextFileReader, which
+    // decodes the raw zip/OLE2 bytes as UTF-8 and yields ~20-42% mojibake.
+    case '.ppt':
+    case '.pptx':
+    case '.xls':
+    case '.xlsx':
+      return new AnydocReader(() => new TextFileReader())
     case '.html':
     case '.htm':
       return new HTMLReader()
