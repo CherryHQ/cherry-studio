@@ -5950,22 +5950,24 @@
         "button": "清除缓存",
         "calculating": "计算中…",
         "error": "清除缓存失败",
+        "legacy_warning": {
+          "confirm": "仍要选择",
+          "description": "清理完成后，此选项包含的 v1 版本数据将被永久删除。如果没有备份，这些数据将无法恢复。",
+          "message": "v1 版本数据将被永久删除",
+          "title": "确认选择 v1 版本遗留数据？"
+        },
         "options": {
           "legacy_v1": {
-            "description": "升级到 v2 后不再使用的 v1 版本数据，包括旧知识库回滚数据和未迁移的旧记忆数据。清理后无法恢复。",
+            "description": "v1 版本遗留数据，包括旧的对话记录和设置。清理后无法恢复。",
             "title": "v1 版本遗留数据"
           },
           "normal_cache": {
-            "description": "HTTP、代码、Shader、CacheStorage 缓存，以及临时文件和 Trace 数据。",
-            "title": "普通缓存"
+            "description": "清理应用使用过程中产生的缓存和临时文件，释放存储空间，不会删除聊天记录和设置。",
+            "title": "应用缓存"
           },
           "orphaned_data": {
-            "description": "清理不再使用的文件和知识库残留，不会影响正在使用的数据。",
+            "description": "清理不再使用的文件、知识库残留和备份恢复临时文件。",
             "title": "残留文件与知识库"
-          },
-          "restore_staging": {
-            "description": "备份恢复过程中产生的临时文件。清理后，未完成的恢复将无法继续。",
-            "title": "备份恢复临时文件"
           },
           "site_data": {
             "description": "网站与小程序使用的 Cookie 和站点存储；清理后可能需要重新登录网站。",

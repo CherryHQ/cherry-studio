@@ -5950,22 +5950,24 @@
         "button": "Golește memoria cache",
         "calculating": "Se calculează…",
         "error": "Eroare la golirea memoriei cache",
+        "legacy_warning": {
+          "confirm": "Selectează oricum",
+          "description": "După finalizarea curățării, datele v1 incluse în această opțiune vor fi șterse definitiv. Fără o copie de siguranță, aceste date nu vor putea fi recuperate.",
+          "message": "Datele v1 vor fi șterse definitiv",
+          "title": "Selectați datele v1 rămase?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "Date din v1 care nu mai sunt utilizate după actualizarea la v2, inclusiv date vechi pentru revenirea bazei de cunoștințe și date Memory vechi care nu au fost migrate. Ștergerea lor este ireversibilă.",
+            "description": "Date rămase din v1, inclusiv istoricul vechi al conversațiilor și setările. Ștergerea lor este ireversibilă.",
             "title": "Date rămase din v1"
           },
           "normal_cache": {
-            "description": "Cache-uri HTTP, de cod, shader și CacheStorage, fișiere temporare și date de urmărire.",
-            "title": "Cache obișnuit"
+            "description": "Șterge cache-ul și fișierele temporare create în timpul utilizării aplicației pentru a elibera spațiu de stocare. Istoricul conversațiilor și setările nu sunt șterse.",
+            "title": "Cache-ul aplicației"
           },
           "orphaned_data": {
-            "description": "Elimină fișierele și bazele de cunoștințe rămase care nu mai sunt utilizate. Datele încă utilizate sunt păstrate.",
+            "description": "Elimină fișierele neutilizate, bazele de cunoștințe rămase și fișierele temporare de restaurare.",
             "title": "Fișiere și baze de cunoștințe rămase"
-          },
-          "restore_staging": {
-            "description": "Fișiere temporare create în timpul restaurării copiilor de siguranță. Ștergerea lor împiedică continuarea oricărei restaurări nefinalizate.",
-            "title": "Fișiere temporare de restaurare"
           },
           "site_data": {
             "description": "Cookie-uri și spațiu de stocare folosite de site-uri și miniaplicații. Este posibil să fiți deconectat de pe site-uri.",

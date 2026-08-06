@@ -5950,22 +5950,24 @@
         "button": "Limpar cache",
         "calculating": "A calcular…",
         "error": "Falha ao limpar cache",
+        "legacy_warning": {
+          "confirm": "Selecionar mesmo assim",
+          "description": "Após a conclusão da limpeza, os dados da v1 incluídos nesta opção serão eliminados permanentemente. Sem uma cópia de segurança, não poderão ser recuperados.",
+          "message": "Os dados da v1 serão eliminados permanentemente",
+          "title": "Selecionar os dados residuais da v1?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "Dados da v1 que deixaram de ser utilizados após a atualização para a v2, incluindo dados antigos de reversão da base de conhecimentos e dados antigos de Memory que não foram migrados. A eliminação é irreversível.",
+            "description": "Dados residuais da v1, incluindo históricos de conversas antigos e definições. A eliminação é irreversível.",
             "title": "Dados residuais da v1"
           },
           "normal_cache": {
-            "description": "Caches HTTP, de código, de shaders e CacheStorage, ficheiros temporários e dados de rastreio.",
-            "title": "Cache normal"
+            "description": "Limpa a cache e os ficheiros temporários criados durante a utilização da aplicação para libertar espaço de armazenamento. O histórico de conversas e as definições não são eliminados.",
+            "title": "Cache da aplicação"
           },
           "orphaned_data": {
-            "description": "Remove ficheiros e bases de conhecimento residuais que já não são utilizados. Os dados ainda em utilização são preservados.",
+            "description": "Remove ficheiros não utilizados, bases de conhecimento residuais e ficheiros temporários de restauro.",
             "title": "Ficheiros e bases de conhecimento residuais"
-          },
-          "restore_staging": {
-            "description": "Ficheiros temporários criados durante o restauro de cópias de segurança. Ao eliminá-los, qualquer restauro incompleto deixa de poder continuar.",
-            "title": "Ficheiros temporários de restauro"
           },
           "site_data": {
             "description": "Cookies e armazenamento de sites utilizados por sites e miniaplicações. Poderá terminar a sessão nos sites.",

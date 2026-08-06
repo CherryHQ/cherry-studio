@@ -1,13 +1,22 @@
-import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import type {
   CacheCleanupGroup,
   CacheCleanupGroupInspection,
   CacheCleanupSizeSnapshot
 } from '@shared/types/cacheCleanup'
 import { CACHE_CLEANUP_GROUPS } from '@shared/types/cacheCleanup'
-import { ArchiveRestore, DatabaseZap, FolderX, Globe2, LoaderCircle, Trash2 } from 'lucide-react'
+import { DatabaseZap, FolderX, Globe2, LoaderCircle, Trash2 } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,12 +56,6 @@ const CLEANUP_OPTIONS = [
     icon: DatabaseZap,
     titleKey: 'settings.data.clear_cache.options.legacy_v1.title',
     descriptionKey: 'settings.data.clear_cache.options.legacy_v1.description'
-  },
-  {
-    group: 'restore_staging',
-    icon: ArchiveRestore,
-    titleKey: 'settings.data.clear_cache.options.restore_staging.title',
-    descriptionKey: 'settings.data.clear_cache.options.restore_staging.description'
   }
 ] as const
 
@@ -118,7 +121,7 @@ async function inspectCleanupGroup(group: CacheCleanupGroup): Promise<CacheClean
 
 export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onClear }) => {
   const { t } = useTranslation()
-  const [selected, setSelected] = useState<Set<CacheCleanupGroup>>(() => new Set(['normal_cache']))
+  const [selected, setSelected] = useState<Set<CacheCleanupGroup>>(() => new Set())
   const [optionStates, setOptionStates] =
     useState<Record<CacheCleanupGroup, CleanupOptionState>>(createLoadingOptionStates)
   const [cleaning, setCleaning] = useState(false)
@@ -158,8 +161,31 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const totalEstimated = selectedStates.some((state) => state.inspection?.size.accuracy === 'estimated')
   const canConfirm = !cleaning && selected.size > 0 && !totalLoading
 
-  const toggleGroup = (group: CacheCleanupGroup, checked: boolean) => {
+  const toggleGroup = async (group: CacheCleanupGroup, checked: boolean) => {
     if (cleaning) return
+
+    if (group === 'legacy_v1' && checked) {
+      const confirmed = await popup.confirm({
+        title: t('settings.data.clear_cache.legacy_warning.title'),
+        content: (
+          <Alert
+            type="error"
+            showIcon
+            className="shadow-none"
+            message={t('settings.data.clear_cache.legacy_warning.message')}
+            description={t('settings.data.clear_cache.legacy_warning.description')}
+          />
+        ),
+        icon: null,
+        okText: t('settings.data.clear_cache.legacy_warning.confirm'),
+        cancelText: t('common.cancel'),
+        okButtonProps: { danger: true },
+        maskClosable: false,
+        closable: false
+      })
+      if (!confirmed || !popupOpen.current) return
+    }
+
     setSelected((current) => {
       const next = new Set(current)
       if (checked) next.add(group)
@@ -241,7 +267,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
                   className="mt-0.5"
                   checked={selected.has(group)}
                   disabled={cleaning}
-                  onCheckedChange={(checked) => toggleGroup(group, checked === true)}
+                  onCheckedChange={(checked) => void toggleGroup(group, checked === true)}
                 />
                 <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">

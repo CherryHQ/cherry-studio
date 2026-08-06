@@ -286,7 +286,7 @@ describe('CacheCleanupService', () => {
     await fs.symlink(externalPath, path.join(legacyDirectories[0], 'custom', 'external-link'))
     await fs.symlink(externalPath, path.join(restoreDirectories[0], 'custom', 'external-link'))
 
-    const groups = ['legacy_v1', 'restore_staging'] as const
+    const groups = ['legacy_v1', 'orphaned_data'] as const
     const inspection = await cacheCleanupService.inspect([...groups])
     const cleanup = await cacheCleanupService.run([...groups])
 

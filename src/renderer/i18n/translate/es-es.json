@@ -5950,22 +5950,24 @@
         "button": "Limpiar caché",
         "calculating": "Calculando…",
         "error": "Error al limpiar la caché",
+        "legacy_warning": {
+          "confirm": "Seleccionar de todos modos",
+          "description": "Cuando finalice la limpieza, los datos de v1 incluidos en esta opción se eliminarán permanentemente. Sin una copia de seguridad, no podrán recuperarse.",
+          "message": "Los datos de v1 se eliminarán permanentemente",
+          "title": "¿Seleccionar los datos residuales de v1?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "Datos de v1 que ya no se utilizan después de actualizar a v2, incluidos los datos antiguos de reversión de la base de conocimientos y los datos antiguos de Memory que no se migraron. No se pueden recuperar después de eliminarlos.",
+            "description": "Datos residuales de v1, incluidos los historiales de conversaciones antiguos y la configuración. No se pueden recuperar después de eliminarlos.",
             "title": "Datos residuales de v1"
           },
           "normal_cache": {
-            "description": "Cachés HTTP, de código, shaders y CacheStorage, además de archivos temporales y datos de trazas.",
-            "title": "Caché normal"
+            "description": "Limpia la caché y los archivos temporales generados al usar la aplicación para liberar espacio de almacenamiento. No elimina el historial de conversaciones ni la configuración.",
+            "title": "Caché de la aplicación"
           },
           "orphaned_data": {
-            "description": "Elimina archivos y bases de conocimiento residuales que ya no se utilizan. Los datos que siguen en uso se conservan.",
+            "description": "Elimina archivos sin uso, bases de conocimiento residuales y archivos temporales de restauración.",
             "title": "Archivos y bases de conocimiento residuales"
-          },
-          "restore_staging": {
-            "description": "Archivos temporales creados durante la restauración de copias de seguridad. Al eliminarlos, no podrá continuar ninguna restauración incompleta.",
-            "title": "Archivos temporales de restauración"
           },
           "site_data": {
             "description": "Cookies y almacenamiento de sitios web utilizados por sitios web y miniaplicaciones. Es posible que se cierre tu sesión en los sitios web.",

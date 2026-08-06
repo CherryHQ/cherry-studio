@@ -1,12 +1,6 @@
 import type { OutputFor } from '../ipc/types'
 
-export const CACHE_CLEANUP_GROUPS = [
-  'normal_cache',
-  'site_data',
-  'orphaned_data',
-  'legacy_v1',
-  'restore_staging'
-] as const
+export const CACHE_CLEANUP_GROUPS = ['normal_cache', 'site_data', 'orphaned_data', 'legacy_v1'] as const
 
 export type CacheCleanupGroup = (typeof CACHE_CLEANUP_GROUPS)[number]
 

@@ -5950,22 +5950,24 @@
         "button": "Clear Cache",
         "calculating": "Calculating…",
         "error": "Error clearing cache",
+        "legacy_warning": {
+          "confirm": "Select Anyway",
+          "description": "After cleanup finishes, the v1 data included in this option will be permanently deleted. Without a backup, this data cannot be recovered.",
+          "message": "v1 data will be permanently deleted",
+          "title": "Select leftover v1 data?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "v1 data no longer used after upgrading to v2, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
+            "description": "Leftover v1 data, including old conversation history and settings. Clearing it cannot be undone.",
             "title": "Leftover data from v1"
           },
           "normal_cache": {
-            "description": "HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "Regular cache"
+            "description": "Clears cache and temporary files created while using the app to free up storage space. Your conversation history and settings will not be deleted.",
+            "title": "App cache"
           },
           "orphaned_data": {
-            "description": "Removes leftover files and knowledge bases that are no longer in use. Data still in use is kept.",
+            "description": "Removes unused files, leftover knowledge bases, and temporary backup restore files.",
             "title": "Leftover files and knowledge bases"
-          },
-          "restore_staging": {
-            "description": "Temporary files created during backup restore. Clearing them prevents any unfinished restore from continuing.",
-            "title": "Temporary restore files"
           },
           "site_data": {
             "description": "Cookies and site storage used by websites and mini apps. You may be signed out of websites.",

@@ -372,12 +372,16 @@ async function collectOrphanKnowledgeTargets(): Promise<{
 }
 
 async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
-  const [fileReport, knowledgePlan] = await Promise.all([
+  const [fileReport, knowledgePlan, restorePlan] = await Promise.all([
     application.get('FileManager').inspectOrphanFiles(),
-    collectOrphanKnowledgeTargets()
+    collectOrphanKnowledgeTargets(),
+    collectRestoreTargets()
   ])
-  const knowledgeMeasurement = await measurePaths(
-    knowledgePlan.targets.map(({ item, path: targetPath }) => ({ item, path: targetPath }))
+  const targetMeasurement = await measurePaths(
+    [...knowledgePlan.targets, ...restorePlan.targets].map(({ item, path: targetPath }) => ({
+      item,
+      path: targetPath
+    }))
   )
   const fileIssues: CacheCleanupIssue[] = []
   if (fileReport.outcome !== 'completed' || fileReport.statFailedCount > 0) {
@@ -386,8 +390,8 @@ async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
 
   return toSizeSnapshot(
     {
-      bytes: fileReport.plannedDeleteBytes + knowledgeMeasurement.bytes,
-      issues: [...fileIssues, ...knowledgePlan.issues, ...knowledgeMeasurement.issues]
+      bytes: fileReport.plannedDeleteBytes + targetMeasurement.bytes,
+      issues: [...fileIssues, ...knowledgePlan.issues, ...restorePlan.issues, ...targetMeasurement.issues]
     },
     'exact'
   )
@@ -765,18 +769,6 @@ function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: Ca
   ])
 }
 
-async function inspectRestoreStaging(): Promise<CacheCleanupSizeSnapshot> {
-  const { targets, issues } = await collectRestoreTargets()
-  const measurement = await measurePaths(targets.map(({ item, path: targetPath }) => ({ item, path: targetPath })))
-  return toSizeSnapshot(
-    {
-      bytes: measurement.bytes,
-      issues: [...issues, ...measurement.issues]
-    },
-    'exact'
-  )
-}
-
 async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupInspection> {
   try {
     const size =
@@ -786,9 +778,7 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
           ? await inspectSiteData()
           : group === 'orphaned_data'
             ? await inspectOrphanedData()
-            : group === 'legacy_v1'
-              ? await inspectLegacyV1()
-              : await inspectRestoreStaging()
+            : await inspectLegacyV1()
     return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
@@ -884,11 +874,12 @@ async function clearSiteData(): Promise<CacheCleanupGroupResult> {
 }
 
 async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
-  const [fileReport, knowledgePlan] = await Promise.all([
+  const [fileReport, knowledgePlan, restorePlan] = await Promise.all([
     application.get('FileManager').cleanupOrphanFiles(),
-    collectOrphanKnowledgeTargets()
+    collectOrphanKnowledgeTargets(),
+    collectRestoreTargets()
   ])
-  const steps = await Promise.all(knowledgePlan.targets.map(removeCleanupTarget))
+  const steps = await Promise.all([...knowledgePlan.targets, ...restorePlan.targets].map(removeCleanupTarget))
 
   if (fileReport.outcome === 'completed') {
     steps.push({ state: fileReport.actualDeleteCount > 0 ? 'cleared' : 'not_found' })
@@ -900,7 +891,7 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   } else {
     steps.push({ state: 'failed' })
   }
-  steps.push(...knowledgePlan.issues.map(() => ({ state: 'skipped' as const })))
+  steps.push(...[...knowledgePlan.issues, ...restorePlan.issues].map(() => ({ state: 'skipped' as const })))
   return resultFromSteps('orphaned_data', steps)
 }
 
@@ -956,20 +947,12 @@ async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
   return resultFromSteps('legacy_v1', steps)
 }
 
-async function clearRestoreStaging(): Promise<CacheCleanupGroupResult> {
-  const { targets, issues } = await collectRestoreTargets()
-  const steps = await Promise.all(targets.map(removeCleanupTarget))
-  steps.push(...issues.map(() => ({ state: 'skipped' as const })))
-  return resultFromSteps('restore_staging', steps)
-}
-
 async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResult> {
   try {
     if (group === 'normal_cache') return await clearNormalCache()
     if (group === 'site_data') return await clearSiteData()
     if (group === 'orphaned_data') return await clearOrphanedData()
-    if (group === 'legacy_v1') return await clearLegacyV1()
-    return await clearRestoreStaging()
+    return await clearLegacyV1()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })
     return resultFromSteps(group, [{ state: 'failed' }])

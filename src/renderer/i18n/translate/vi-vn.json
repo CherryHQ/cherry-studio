@@ -5950,22 +5950,24 @@
         "button": "Xóa bộ nhớ đệm",
         "calculating": "Đang tính…",
         "error": "Lỗi khi xóa bộ nhớ cache",
+        "legacy_warning": {
+          "confirm": "Vẫn chọn",
+          "description": "Sau khi dọn dẹp hoàn tất, dữ liệu v1 trong mục này sẽ bị xóa vĩnh viễn. Nếu không có bản sao lưu, dữ liệu này sẽ không thể khôi phục.",
+          "message": "Dữ liệu v1 sẽ bị xóa vĩnh viễn",
+          "title": "Chọn dữ liệu v1 còn sót lại?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "Dữ liệu v1 không còn được sử dụng sau khi nâng cấp lên v2, bao gồm dữ liệu hoàn tác cơ sở tri thức cũ và dữ liệu Memory cũ chưa được di chuyển. Không thể khôi phục sau khi xóa.",
+            "description": "Dữ liệu v1 còn sót lại, bao gồm lịch sử trò chuyện cũ và các cài đặt. Không thể khôi phục sau khi xóa.",
             "title": "Dữ liệu v1 còn sót lại"
           },
           "normal_cache": {
-            "description": "Bộ nhớ đệm HTTP, mã, shader và CacheStorage, cùng các tệp tạm thời và dữ liệu truy vết.",
-            "title": "Bộ nhớ đệm thông thường"
+            "description": "Xóa bộ nhớ đệm và các tệp tạm thời được tạo trong quá trình sử dụng ứng dụng để giải phóng dung lượng. Lịch sử trò chuyện và cài đặt sẽ không bị xóa.",
+            "title": "Bộ nhớ đệm ứng dụng"
           },
           "orphaned_data": {
-            "description": "Xóa các tệp và cơ sở kiến thức còn sót lại không còn được sử dụng. Dữ liệu đang sử dụng sẽ được giữ lại.",
+            "description": "Xóa các tệp không còn sử dụng, cơ sở kiến thức còn sót lại và tệp khôi phục tạm thời.",
             "title": "Tệp và cơ sở kiến thức còn sót lại"
-          },
-          "restore_staging": {
-            "description": "Các tệp tạm thời được tạo trong quá trình khôi phục bản sao lưu. Sau khi xóa, mọi quá trình khôi phục chưa hoàn tất sẽ không thể tiếp tục.",
-            "title": "Tệp khôi phục tạm thời"
           },
           "site_data": {
             "description": "Cookie và bộ nhớ trang web được các trang web và ứng dụng nhỏ sử dụng. Bạn có thể bị đăng xuất khỏi các trang web.",

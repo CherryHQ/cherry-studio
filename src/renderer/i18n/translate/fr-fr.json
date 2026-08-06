@@ -5950,22 +5950,24 @@
         "button": "Effacer le cache",
         "calculating": "Calcul en cours…",
         "error": "Échec de l'effacement du cache",
+        "legacy_warning": {
+          "confirm": "Sélectionner quand même",
+          "description": "Une fois le nettoyage terminé, les données de la v1 incluses dans cette option seront définitivement supprimées. Sans sauvegarde, elles ne pourront pas être récupérées.",
+          "message": "Les données de la v1 seront définitivement supprimées",
+          "title": "Sélectionner les données résiduelles de la v1 ?"
+        },
         "options": {
           "legacy_v1": {
-            "description": "Données de la v1 qui ne sont plus utilisées après la mise à niveau vers la v2, notamment les anciennes données de restauration de la base de connaissances et les anciennes données Memory non migrées. Leur suppression est irréversible.",
+            "description": "Données résiduelles de la v1, notamment les anciens historiques de conversation et les paramètres. Leur suppression est irréversible.",
             "title": "Données résiduelles de la v1"
           },
           "normal_cache": {
-            "description": "Caches HTTP, de code, de shaders et CacheStorage, ainsi que fichiers temporaires et données de trace.",
-            "title": "Cache standard"
+            "description": "Supprime le cache et les fichiers temporaires créés lors de l’utilisation de l’application afin de libérer de l’espace. L’historique des conversations et les paramètres ne sont pas supprimés.",
+            "title": "Cache de l’application"
           },
           "orphaned_data": {
-            "description": "Supprime les fichiers et bases de connaissances résiduels qui ne sont plus utilisés. Les données encore utilisées sont conservées.",
+            "description": "Supprime les fichiers inutilisés, les bases de connaissances résiduelles et les fichiers temporaires de restauration.",
             "title": "Fichiers et bases de connaissances résiduels"
-          },
-          "restore_staging": {
-            "description": "Fichiers temporaires créés lors de la restauration d’une sauvegarde. Leur suppression empêche toute restauration inachevée de se poursuivre.",
-            "title": "Fichiers temporaires de restauration"
           },
           "site_data": {
             "description": "Cookies et stockage de site utilisés par les sites web et les mini-apps. Vous devrez peut-être vous reconnecter à certains sites.",
