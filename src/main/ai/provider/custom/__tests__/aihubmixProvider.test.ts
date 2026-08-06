@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import { registryModelRouting } from '../../../__tests__/fixtures'
 import { createAihubmix } from '../aihubmix/aihubmixProvider'
 
+const MODEL_ROUTING = registryModelRouting('aihubmix')
+
 describe('createAihubmix', () => {
-  const provider = createAihubmix({ apiKey: 'sk-test' })
+  const provider = createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk-test' })
 
   it('routes OpenAI LLM ids to the Responses API model', () => {
     const model = provider.languageModel('gpt-4o') as unknown as { constructor: { name: string }; provider: string }

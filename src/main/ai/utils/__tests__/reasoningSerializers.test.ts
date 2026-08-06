@@ -67,6 +67,36 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking_mode: 'adaptive' } })
   })
 
+  it("spends the cheapest declared tier when 'none' is not on the model's ladder", () => {
+    const profile = REASONING_FORMAT_PROFILES['openai-chat'].wire
+    const claudeOnChatWire = makeModel({
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }],
+        selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max']
+      }
+    })
+
+    const invocation = resolveReasoningInvocation({ selection: 'none', model: claudeOnChatWire, profile })
+
+    expect(invocation.kind).toBe('effort')
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'low' })
+  })
+
+  it("keeps the off wire mode when 'none' is on the ladder", () => {
+    const profile = REASONING_FORMAT_PROFILES['openai-chat'].wire
+    const gpt5 = makeModel({
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
+      }
+    })
+
+    const invocation = resolveReasoningInvocation({ selection: 'none', model: gpt5, profile })
+
+    expect(invocation.kind).toBe('off')
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'none' })
+  })
+
   it('encodes Gemma 4 thinking control as Ollama booleans', () => {
     const controls = inferReasoningControls('gemma4:31b')
     expect(controls).toEqual([{ kind: 'toggle' }])

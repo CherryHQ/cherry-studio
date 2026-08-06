@@ -16,7 +16,7 @@ import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
-import { makeProvider } from '../../__tests__/fixtures/provider'
+import { makeProvider, registryModelRouting } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
@@ -102,6 +102,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const provider = makeProvider({
       id: 'vertex',
       authType: 'iam-gcp',
+      modelRouting: registryModelRouting('vertexai'),
       defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
       endpointConfigs: {
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
@@ -164,6 +165,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: {
           [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
@@ -201,6 +203,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -240,6 +243,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -270,6 +274,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -304,6 +309,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         const provider = makeProvider({
           id: 'vertex',
           authType: 'iam-gcp',
+          modelRouting: registryModelRouting('vertexai'),
           defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
           endpointConfigs: {
             [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
@@ -337,6 +343,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
@@ -354,6 +361,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
+        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -440,18 +448,21 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('Azure routing (iam-azure → buildAzureConfig)', () => {
     it('routes an Azure provider with a Claude model id to azure-anthropic', async () => {
+      // Azure rows carry no endpointTypes (its listing has no `supported_endpoint_types`), so the
+      // registry's `modelRouting` is what puts Claude on the anthropic surface.
       const provider = makeProvider({
         id: 'azure-openai',
         authType: 'iam-azure',
+        modelRouting: registryModelRouting('azure-openai'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' }
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'azure-anthropic' }
         }
       })
       const model = makeModel({
         id: 'azure::claude',
-        apiModelId: 'claude-3-5-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        apiModelId: 'claude-3-5-sonnet'
       })
 
       const config = await providerToAiSdkConfig(provider, model)
@@ -993,6 +1004,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'my-dmxapi',
         presetProviderId: 'dmxapi',
+        modelRouting: registryModelRouting('dmxapi'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -1026,6 +1038,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'my-aihubmix',
         presetProviderId: 'aihubmix',
+        modelRouting: registryModelRouting('aihubmix'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {

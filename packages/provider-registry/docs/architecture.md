@@ -3,7 +3,9 @@
 The catalog of AI **models** (what exists) and **providers** (how to reach them), plus the **M:N link** between them. It is a **code-generation pipeline**: hand-maintained TypeScript source + pinned upstream snapshots → three generated JSON files → read at runtime by the app.
 
 Reasoning controls have an additional model-capability/request-encoding boundary documented in
-[reasoning-control.md](./reasoning-control.md).
+[reasoning-control.md](./reasoning-control.md). The rules every capability family follows — reasoning,
+server tools, image generation, video generation — are in
+[capability-dsl.md](./capability-dsl.md).
 
 > The three `data/*.json` files are **pure artifacts**. Never hand-edit them — edit the source and run `pnpm generate`. See [../CLAUDE.md](../CLAUDE.md).
 

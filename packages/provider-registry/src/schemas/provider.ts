@@ -137,6 +137,29 @@ export const RegistryEndpointConfigSchema = z.object({
   adapterFamily: z.string().optional()
 })
 
+/**
+ * One dispatch rule of a gateway's per-model endpoint routing. Rules are ordered
+ * and the FIRST whose `pattern` matches (and whose `exclude` does not) wins; a
+ * model matching nothing falls back to the provider's `defaultChatEndpoint`.
+ */
+export const ProviderModelRouteSchema = z.object({
+  /** Case-insensitive regex tested against the RAW api model id. */
+  pattern: z.string(),
+  /** Ids the rule must NOT claim — vendor prefixes shared with image/tts SKUs. */
+  exclude: z.string().optional(),
+  /** Wire endpoint the gateway serves matching models on. */
+  endpointType: EndpointTypeSchema,
+  /**
+   * ONLY when the namespace `resolveProviderOptionsKey` derives from the endpoint is wrong.
+   * The namespace follows the AI SDK class, which follows the provider's `adapterFamily` — the
+   * same anthropic backend reads `anthropic` under AiHubMix and `vertex` under Vertex, so it is
+   * not a property of the route. The lone exception is a gateway that hands some chat-completions
+   * models to a VENDOR class instead of its own compatible one (AiHubMix/DMXAPI's OpenAI SKUs
+   * read `openai` while the passthrough line reads the provider id).
+   */
+  providerOptionsKey: z.string().optional()
+})
+
 export const ProviderConfigSchema = z
   .object({
     /** Unique provider identifier */
@@ -200,6 +223,14 @@ export const ProviderConfigSchema = z
     reportedCostCurrency: ZodCurrencySchema,
     /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
     fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
+    /**
+     * Per-model endpoint dispatch for multi-backend gateways (AiHubMix, DMXAPI):
+     * one registered provider that serves a model on the VENDOR's native endpoint,
+     * chosen by the model id. Their `/models` lists carry no
+     * `supported_endpoint_types` and user-added ids never pass through one, so the
+     * rule has to run off the id — see {@link resolveProviderModelRoute}.
+     */
+    modelRouting: z.array(ProviderModelRouteSchema).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })
@@ -224,5 +255,6 @@ export { ENDPOINT_TYPE } from './enums'
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
+export type ProviderModelRoute = z.infer<typeof ProviderModelRouteSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

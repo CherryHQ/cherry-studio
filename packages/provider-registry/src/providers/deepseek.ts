@@ -1,4 +1,21 @@
+import type { ReasoningSupport } from '../schemas/model'
 import { defineProvider } from './types'
+
+/**
+ * V4 speaks two different off-switches (api-docs.deepseek.com/zh-cn/guides/thinking_mode):
+ * chat-completions toggles `thinking.type`, while the Responses API has a real
+ * `none` effort tier. Declaring the ladder per endpoint keeps `reasoning_effort:
+ * "none"` — a 400 on chat — off the chat wire (#17900).
+ */
+const V4_EFFORTS = ['low', 'high', 'xhigh', 'max'] as const
+
+const chatSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: [...V4_EFFORTS] }, { kind: 'toggle' }]
+}
+
+const responsesSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', ...V4_EFFORTS] }]
+}
 
 const flashEffortMap = {
   minimal: 'low' as const,
@@ -120,15 +137,15 @@ export default defineProvider({
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { wire: flashChatEffortWire },
-        'openai-responses': { wire: responsesEffortWire }
+        'openai-chat-completions': { support: chatSupport, wire: flashChatEffortWire },
+        'openai-responses': { support: responsesSupport, wire: responsesEffortWire }
       }
     },
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
       reasoningContracts: {
-        'openai-chat-completions': { wire: proChatEffortWire }
+        'openai-chat-completions': { support: chatSupport, wire: proChatEffortWire }
       }
     }
   ]

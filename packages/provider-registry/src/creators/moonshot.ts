@@ -8,6 +8,19 @@ export default defineCreator({
   modelsDevProviders: ['moonshotai', 'moonshotai-cn'],
   families: ['kimi'],
   idPrefixes: ['kimi', 'moonshot'],
+  models: [
+    {
+      id: 'kimi-k2-6',
+      name: 'Kimi K2.6',
+      // models.dev ships both a `none` tier and a toggle. K2.6 turns thinking off
+      // through `reasoning_effort: none` (the provider contract's off wire), so the
+      // tier is the real one and the toggle is a second, contradictory claim — the
+      // shape that let a generic wire emit an unsupported `none` elsewhere (#17900).
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }]
+      }
+    }
+  ],
   reasoningFamilies: [
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the

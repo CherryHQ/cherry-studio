@@ -1,29 +1,27 @@
+import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { resolveDmxapiChatFamily, resolveDmxapiChatRoute } from '../dmxapi/dmxapiRouting'
+import { resolveDmxapiChatFamily } from '../dmxapi/dmxapiRouting'
 
-describe('resolveDmxapiChatFamily', () => {
-  it.each([
-    ['claude-opus-4-6', 'anthropic'],
-    ['gemini-2.5-pro', 'gemini'],
-    ['gemini-2.5-flash-image-preview', 'openai-compat'],
-    ['gpt-5', 'openai'],
-    ['o3', 'openai'],
-    ['qwen3.5-plus', 'openai-compat']
-  ] as const)('routes %s → %s', (modelId, family) => {
-    expect(resolveDmxapiChatFamily(modelId)).toBe(family)
-  })
+const route = (endpointType: ProviderModelRoute['endpointType']): ProviderModelRoute => ({
+  pattern: 'irrelevant',
+  endpointType,
+  providerOptionsKey: 'irrelevant'
 })
 
-describe('resolveDmxapiChatRoute', () => {
+// Which ids reach which endpoint is registry data (packages/provider-registry `modelRouting`,
+// covered by its own test); this only maps that endpoint onto the SDK model class.
+describe('resolveDmxapiChatFamily', () => {
   it.each([
-    ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
-    ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
-    // Both use chat-completions, but the concrete SDK models read different option namespaces.
-    ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
-    ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'dmxapi']
-  ] as const)('maps %s → %s / %s', (modelId, endpointType, providerOptionsKey) => {
-    expect(resolveDmxapiChatRoute(modelId)).toEqual({ endpointType, providerOptionsKey })
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'gemini'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai']
+  ] as const)('maps %s → %s', (endpointType, family) => {
+    expect(resolveDmxapiChatFamily(route(endpointType))).toBe(family)
+  })
+
+  it('falls back to the openai-compatible passthrough for unrouted models', () => {
+    expect(resolveDmxapiChatFamily(undefined)).toBe('openai-compat')
   })
 })

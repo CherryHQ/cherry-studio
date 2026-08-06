@@ -577,7 +577,10 @@ function buildVertexConfig(
     : undefined
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
+  // Claude reaches the anthropic endpoint through the registry's `modelRouting`, so the resolved
+  // adapter family already says so — no second id test here (it would be a rule the reasoning
+  // projection can't see).
+  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic'
 
   // MaaS open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss) are served over
   // Vertex's OpenAI-compatible Chat Completions endpoint, not the Gemini generateContent
@@ -672,11 +675,11 @@ function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
 function buildAzureConfig(
   ctx: BuilderContext
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
-  const modelId = ctx.model.apiModelId ?? ctx.model.id
   const endpointType = ctx.endpointType
 
-  // Azure + Claude model → azure-anthropic
-  if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+  // Claude reaches this endpoint through the registry's `modelRouting` — no second id test here
+  // (it would be a rule the reasoning projection can't see).
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return {
       providerId: 'azure-anthropic',
       endpoint: ctx.endpoint,
@@ -763,7 +766,8 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      modelRouting: ctx.actualProvider.modelRouting
     }
   }
 }
@@ -775,7 +779,8 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      modelRouting: ctx.actualProvider.modelRouting
     }
   }
 }

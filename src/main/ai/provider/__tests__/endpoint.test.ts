@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { makeModel, makeProvider } from '../../__tests__/fixtures'
+import { makeModel, makeProvider, registryModelRouting } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
@@ -362,6 +362,7 @@ describe('resolveEffectiveEndpoint', () => {
     // default openai-chat endpoint and the reasoning namespace/dialect is wrong for claude/gemini/gpt.
     const aihubmix = makeProvider({
       id: 'aihubmix',
+      modelRouting: registryModelRouting('aihubmix'),
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.com/v1', adapterFamily: 'aihubmix' },
@@ -374,16 +375,28 @@ describe('resolveEffectiveEndpoint', () => {
       }
     })
 
+    // Asserts the namespace the request actually writes into: the route only carries one when the
+    // endpoint-derived default would be wrong, so this stays stable whichever side supplies it.
+    const namespaceOf = (provider: Provider, id: string) => {
+      const resolved = resolveEffectiveEndpoint(provider, { id } as never)
+      return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolved.endpointType), {
+        endpointType: resolved.endpointType,
+        gatewayProviderOptionsKey: resolved.providerOptionsKey
+      })
+    }
+
     it.each([
       ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
       ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
       ['gpt-4o', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+      // Responses-incapable OpenAI SKU: same endpoint as the passthrough line, but @ai-sdk/openai's
+      // class reads `openai` — the one case a route must override the derived namespace.
+      ['o1-mini', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
+      // Unrouted ids are the passthrough line and read the provider's own namespace.
       ['glm-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'aihubmix']
-    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
-      expect(resolveEffectiveEndpoint(aihubmix, { id } as never)).toMatchObject({
-        endpointType,
-        providerOptionsKey
-      })
+    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, namespace) => {
+      expect(resolveEffectiveEndpoint(aihubmix, { id } as never).endpointType).toBe(endpointType)
+      expect(namespaceOf(aihubmix, id)).toBe(namespace)
     })
 
     it('routes by apiModelId when present (renamed/user-added ids)', () => {
@@ -406,6 +419,7 @@ describe('resolveEffectiveEndpoint', () => {
       // the default instead — no regression until the row is reconciled.
       const staleAihubmix = makeProvider({
         id: 'aihubmix',
+        modelRouting: registryModelRouting('aihubmix'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.com/v1', adapterFamily: 'aihubmix' },
@@ -431,6 +445,7 @@ describe('resolveEffectiveEndpoint', () => {
   describe('multi-backend gateway per-model routing (DMXAPI)', () => {
     const dmxapi = makeProvider({
       id: 'dmxapi',
+      modelRouting: registryModelRouting('dmxapi'),
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -451,18 +466,24 @@ describe('resolveEffectiveEndpoint', () => {
     it.each([
       ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
       ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+      // Same endpoint, different SDK classes → different namespaces.
       ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
       ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'dmxapi']
-    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
-      expect(resolveEffectiveEndpoint(dmxapi, { id } as never)).toMatchObject({
-        endpointType,
-        providerOptionsKey
-      })
+    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, namespace) => {
+      const resolved = resolveEffectiveEndpoint(dmxapi, { id } as never)
+      expect(resolved.endpointType).toBe(endpointType)
+      expect(
+        resolveProviderOptionsKey(resolveAiSdkProviderId(dmxapi, resolved.endpointType), {
+          endpointType: resolved.endpointType,
+          gatewayProviderOptionsKey: resolved.providerOptionsKey
+        })
+      ).toBe(namespace)
     })
 
     it('keeps a stale row without the Google endpoint on its existing chat route', () => {
       const staleDmxapi = makeProvider({
         id: 'dmxapi',
+        modelRouting: registryModelRouting('dmxapi'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {

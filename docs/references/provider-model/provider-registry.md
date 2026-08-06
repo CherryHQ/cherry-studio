@@ -2,6 +2,9 @@
 
 This document describes how Cherry Studio loads, parses, and merges provider/model preset data with user data.
 
+For how a *capability* (reasoning, server tools, image/video generation) is modeled across those
+layers — which side owns which fact, and why — see [Capability Modeling](./capability-modeling.md).
+
 ## Architecture Overview
 
 ```

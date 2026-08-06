@@ -124,6 +124,27 @@
           "official": "https://aihubmix.com"
         }
       },
+      "modelRouting": [
+        {
+          "endpointType": "anthropic-messages",
+          "pattern": "^claude"
+        },
+        {
+          "endpointType": "google-generate-content",
+          "exclude": "(?:no-think|-search)$|embedding",
+          "pattern": "^(?:gemini|imagen)"
+        },
+        {
+          "endpointType": "openai-chat-completions",
+          "pattern": "gpt-4o(?:-mini)?-search-preview|o1-(?:mini|preview)",
+          "providerOptionsKey": "openai"
+        },
+        {
+          "endpointType": "openai-responses",
+          "exclude": "gpt-4o-image",
+          "pattern": "\\bgpt\\b|^o[134]"
+        }
+      ],
       "name": "AiHubMix",
       "serverTools": [
         {
@@ -371,6 +392,23 @@
           "official": "https://www.dmxapi.cn/"
         }
       },
+      "modelRouting": [
+        {
+          "endpointType": "anthropic-messages",
+          "pattern": "claude"
+        },
+        {
+          "endpointType": "google-generate-content",
+          "exclude": "image|imagen|tts|audio|embedding",
+          "pattern": "^gemini-"
+        },
+        {
+          "endpointType": "openai-chat-completions",
+          "exclude": "image|dall-e",
+          "pattern": "^(?:gpt-|o\\d)",
+          "providerOptionsKey": "openai"
+        }
+      ],
       "name": "DMXAPI"
     },
     {
@@ -893,11 +931,14 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Azure OpenAI - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "azure"
+        },
         "openai-chat-completions": {
           "adapterFamily": "azure"
         },
         "openai-responses": {
-          "adapterFamily": "azure-responses"
+          "adapterFamily": "azure"
         }
       },
       "id": "azure-openai",
@@ -909,6 +950,12 @@
           "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service"
         }
       },
+      "modelRouting": [
+        {
+          "endpointType": "anthropic-messages",
+          "pattern": "^claude"
+        }
+      ],
       "name": "Azure OpenAI",
       "serverTools": [
         {
@@ -956,7 +1003,7 @@
       "description": "VertexAI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "google-vertex-anthropic"
+          "adapterFamily": "google-vertex"
         },
         "google-generate-content": {
           "adapterFamily": "google-vertex"
@@ -971,6 +1018,12 @@
           "official": "https://cloud.google.com/vertex-ai"
         }
       },
+      "modelRouting": [
+        {
+          "endpointType": "anthropic-messages",
+          "pattern": "^claude"
+        }
+      ],
       "name": "VertexAI",
       "serverTools": [
         {
@@ -1459,7 +1512,7 @@
           "baseUrl": "https://api.x.ai"
         },
         "openai-responses": {
-          "adapterFamily": "xai-responses",
+          "adapterFamily": "xai",
           "baseUrl": "https://api.x.ai/v1",
           "reasoningFormat": {
             "type": "openai-responses",
@@ -2067,5 +2120,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3f210ce4fbae8e68"
+  "version": "1b7078aca2c69507"
 }

@@ -53,13 +53,19 @@ function resolveSelection(
 ): CanonicalReasoningSelection | undefined {
   if (!selection || selection === 'default') return 'default'
   const selectable = model.reasoning?.selectableEfforts ?? []
-  if (selection === 'none') {
-    return selectable.includes(selection) ? selection : undefined
-  }
 
   const declared = selectable.filter(
     (effort): effort is Exclude<ReasoningEffort, 'none' | 'auto'> => effort !== 'none' && effort !== 'auto'
   )
+  if (selection === 'none') {
+    if (selectable.includes(selection)) return selection
+    // The model can't be silenced on this wire, but the caller asked for as
+    // little thinking as possible (the translate stream always does). Spending
+    // the cheapest tier honours that better than omitting the knob and getting
+    // the model's full default effort.
+    return declared.length > 0 ? nearestThinkingOption(selection, declared) : undefined
+  }
+
   // `selectableEfforts` is the model's UI vocabulary. A cross-dialect request can still carry
   // canonical `auto`; let the wire profile map it when the target has adjustable effort tiers.
   if (selection === 'auto') {

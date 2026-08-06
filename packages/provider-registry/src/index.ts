@@ -62,12 +62,18 @@ export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
+  ProviderModelRoute,
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
   ServerToolConfig
 } from './schemas/provider'
-export { FastModeTransportSchema, REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
+export {
+  FastModeTransportSchema,
+  ProviderModelRouteSchema,
+  REASONING_FORMAT_TYPES,
+  ServerToolConfigSchema
+} from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,
@@ -92,6 +98,10 @@ export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
 export { normalizeModelId } from './utils/normalize'
+
+// Gateway per-model endpoint dispatch
+export type { ModelEndpointInput } from './utils/modelRouting'
+export { resolveModelEndpoint, resolveProviderModelRoute } from './utils/modelRouting'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'

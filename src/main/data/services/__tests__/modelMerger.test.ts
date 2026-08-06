@@ -417,6 +417,48 @@ describe('mergePresetModel — reasoning', () => {
     expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'none'])
   })
 
+  it('drops none when the wire expresses off as an effort tier the model lacks', () => {
+    const preset = {
+      id: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      capabilities: ['reasoning'],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }, { kind: 'toggle' }]
+      }
+    } as any
+    // The generic openai-chat wire, which every aggregator serving Claude over
+    // chat-completions falls back to. `reasoning_effort: "none"` is a 400 there.
+    const wire = {
+      off: {
+        operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
+      },
+      effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
+    }
+
+    const model = mergePresetModel(preset, null, 'provider', wire)
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('keeps none when the model owns the none effort tier', () => {
+    const preset = {
+      id: 'gpt-5-1',
+      name: 'GPT-5.1',
+      capabilities: ['reasoning'],
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }] }
+    } as any
+    const wire = {
+      off: {
+        operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
+      },
+      effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
+    }
+
+    const model = mergePresetModel(preset, null, 'openai', wire)
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['none', 'low', 'medium', 'high'])
+  })
+
   it('prefers an endpoint-keyed model contract over the endpoint wire', () => {
     const endpointWire = {
       effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }

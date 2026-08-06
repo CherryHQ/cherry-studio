@@ -842,5 +842,44 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+
+    it("should project reasoning through the model's first declared endpoint, not the provider default", async () => {
+      // Mirrors deepseek-v4-flash: the request goes to the first declared endpoint
+      // (`resolveEffectiveEndpoint`), so its contract must own the vocabulary.
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'dual-endpoint-model',
+            name: 'Dual Endpoint Model',
+            capabilities: ['reasoning'],
+            reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }, { kind: 'toggle' }] }
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'openai',
+            modelId: 'dual-endpoint-model',
+            endpointTypes: ['openai-responses', 'openai-chat-completions'],
+            reasoningContracts: {
+              'openai-chat-completions': { support: { controls: [{ kind: 'effort', values: ['low', 'high'] }] } },
+              'openai-responses': { support: { controls: [{ kind: 'effort', values: ['none', 'low', 'high'] }] } }
+            }
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'openai', name: 'OpenAI', defaultChatEndpoint: 'openai-chat-completions', metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const result = providerRegistryService.lookupModel('openai', 'dual-endpoint-model')
+
+      expect(result.reasoningProfile.format).toBe('openai-responses')
+      expect(result.reasoningProfile.support?.controls).toEqual([{ kind: 'effort', values: ['none', 'low', 'high'] }])
+    })
   })
 })

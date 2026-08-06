@@ -6,7 +6,7 @@ import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from 
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import { makeAssistant, makeModel, makeProvider, registryModelRouting } from '../../../../__tests__/fixtures'
 import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -746,7 +746,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     expect(result.options.providerOptions).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
   })
 
-  it("omits reasoning params when the model cannot be turned off ('none' degrades to omit)", async () => {
+  it("spends the cheapest tier when the model cannot be turned off ('none' degrades to the lowest effort)", async () => {
     const { provider } = makeOffCapableSetup()
     const model = makeModel({
       id: 'custom-claude::claude-fixed',
@@ -766,7 +766,9 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    expect(result.options.providerOptions).toBeUndefined()
+    expect(result.options.providerOptions).toEqual({
+      anthropic: { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'low' }
+    })
   })
 
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
@@ -780,6 +782,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
     const provider = makeProvider({
       id: 'aihubmix',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      // Gemini ids reach the Google endpoint through the registry routing table.
+      modelRouting: registryModelRouting('aihubmix'),
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'aihubmix' }

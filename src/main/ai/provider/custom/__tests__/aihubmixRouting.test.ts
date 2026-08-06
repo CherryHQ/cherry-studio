@@ -1,41 +1,29 @@
+import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { resolveAihubmixChatFamily, resolveAihubmixEndpointType } from '../aihubmix/aihubmixRouting'
+import { resolveAihubmixChatFamily } from '../aihubmix/aihubmixRouting'
 
-// The family here must stay in lock-step with `createChatModel`'s dispatch in aihubmixProvider.ts —
-// both derive from `resolveAihubmixChatFamily`, so this table also guards that dispatch.
-describe('resolveAihubmixChatFamily', () => {
-  it.each([
-    ['claude-opus-4-6', 'anthropic'],
-    ['claude-3-5-haiku', 'anthropic'],
-    ['gemini-2.5-pro', 'gemini'],
-    ['imagen-4.0-generate-001', 'gemini'],
-    // gpt/o LLMs go to the Responses API…
-    ['gpt-4o', 'openai-responses'],
-    ['o3', 'openai-responses'],
-    // …except the chat-completion-only exceptions
-    ['gpt-4o-search-preview', 'openai-chat'],
-    ['o1-mini', 'openai-chat'],
-    ['o1-preview', 'openai-chat'],
-    // everything else is the openai-compatible fallback
-    ['glm-5', 'compat'],
-    ['deepseek-v4', 'compat'],
-    ['qwen3.5-plus', 'compat'],
-    ['gpt-4o-image', 'compat'] // excluded from the OpenAI LLM path
-  ] as const)('routes %s → %s', (modelId, family) => {
-    expect(resolveAihubmixChatFamily(modelId)).toBe(family)
-  })
+const route = (endpointType: ProviderModelRoute['endpointType']): ProviderModelRoute => ({
+  pattern: 'irrelevant',
+  endpointType,
+  providerOptionsKey: 'irrelevant'
 })
 
-describe('resolveAihubmixEndpointType', () => {
+// Which ids reach which endpoint is registry data (packages/provider-registry `modelRouting`,
+// covered by its own test). This maps that endpoint onto the SDK model class, and must stay in
+// lock-step with `createChatModel`'s dispatch in aihubmixProvider.ts.
+describe('resolveAihubmixChatFamily', () => {
   it.each([
-    ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-    ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
-    ['gpt-4o', ENDPOINT_TYPE.OPENAI_RESPONSES],
-    ['o1-mini', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-    ['glm-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-  ] as const)('maps %s → %s', (modelId, endpointType) => {
-    expect(resolveAihubmixEndpointType(modelId)).toBe(endpointType)
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'gemini'],
+    [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai-responses'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-chat']
+  ] as const)('maps %s → %s', (endpointType, family) => {
+    expect(resolveAihubmixChatFamily(route(endpointType))).toBe(family)
+  })
+
+  it('falls back to the openai-compatible passthrough for unrouted models', () => {
+    expect(resolveAihubmixChatFamily(undefined)).toBe('compat')
   })
 })

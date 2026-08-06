@@ -1,15 +1,18 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
+import { registryModelRouting } from '../../../../__tests__/fixtures'
 import { createDmxapiProvider } from '../../dmxapi/dmxapiProvider'
 import { captureWithFetch } from './captureRequest'
+
+const MODEL_ROUTING = registryModelRouting('dmxapi')
 
 const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('DMXAPI chat boundary', () => {
   it('serializes compat reasoning from providerOptions.dmxapi', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
         .languageModel('qwen3.5-plus')
         .doGenerate({
           prompt: PROMPT,
@@ -23,7 +26,7 @@ describe('DMXAPI chat boundary', () => {
 
   it('serializes native OpenAI reasoning from providerOptions.openai', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
         .languageModel('gpt-5')
         .doGenerate({
           prompt: PROMPT,
@@ -37,7 +40,7 @@ describe('DMXAPI chat boundary', () => {
 
   it('derives the Gemini v1beta base from the shared configured chat base', async () => {
     const req = await captureWithFetch((fetch) =>
-      createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
+      createDmxapiProvider({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1', fetch })
         .languageModel('gemini-2.5-pro')
         .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
     )
@@ -48,6 +51,7 @@ describe('DMXAPI chat boundary', () => {
   it('uses the resolved Gemini endpoint when Chat and Gemini point at different proxies', async () => {
     const req = await captureWithFetch((fetch) =>
       createDmxapiProvider({
+        modelRouting: MODEL_ROUTING,
         apiKey: 'sk',
         baseURL: 'https://gemini.dmx.example/custom/v1beta',
         endpointBaseURLs: {

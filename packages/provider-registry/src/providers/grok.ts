@@ -10,7 +10,7 @@ export default defineProvider({
       baseUrl: 'https://api.x.ai'
     },
     'openai-responses': {
-      adapterFamily: 'xai-responses',
+      adapterFamily: 'xai',
       baseUrl: 'https://api.x.ai/v1',
       reasoningFormat: {
         type: 'openai-responses',

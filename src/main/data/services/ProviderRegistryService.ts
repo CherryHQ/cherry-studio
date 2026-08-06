@@ -20,6 +20,7 @@ import type {
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
   ProviderModelReasoningContract,
+  ProviderModelRoute,
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
@@ -39,6 +40,7 @@ import {
   MODEL_CAPABILITY,
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
+  resolveModelEndpoint,
   selectFormatWire
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
@@ -88,6 +90,8 @@ export interface ProviderDisplayMetadata {
   apiFeatures?: ApiFeatures
   /** Registry default chat endpoint, used when the row stores no override. */
   defaultChatEndpoint?: EndpointType
+  /** Registry per-model endpoint dispatch, for gateways that serve each model on its vendor's endpoint. */
+  modelRouting?: ProviderModelRoute[]
 }
 
 /**
@@ -128,8 +132,8 @@ export interface ListProviderRegistryModelsOptions {
 // Registry → Runtime Model merge functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Endpoints that can carry reasoning. Order is the fallback priority for picking the chat endpoint. */
-const CHAT_REASONING_ENDPOINT_PRIORITY: EndpointType[] = [
+/** Endpoints that can carry reasoning. */
+const CHAT_REASONING_ENDPOINTS: EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_RESPONSES,
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
@@ -226,6 +230,31 @@ export function resolveReasoningProfileFromRegistry(input: {
 }
 
 /**
+ * Whether the active wire can really turn thinking off for this model.
+ *
+ * Some wires say "off" by writing the `none` effort tier — the generic
+ * openai-chat profile does. That only holds when the model owns that tier: a
+ * SKU whose off-switch is a `toggle` (Claude's `thinking.type: disabled`, the
+ * GLM/Kimi switches) keeps its toggle on its native wire, but an aggregator
+ * serving it over plain chat-completions projects it onto the generic profile,
+ * where "off" degrades to `reasoning_effort: "none"` and the server 400s on an
+ * effort tier it doesn't have. Off we can't express is off we must not offer.
+ */
+function canExpressOff(
+  profile: ReasoningWireProfile,
+  effortValues: readonly ReasoningEffortType[] | undefined
+): boolean {
+  const off = profile.off
+  if (!off) return false
+  if (!effortValues || effortValues.includes(REASONING_EFFORT.NONE)) return true
+  // `none` is only ever meaningful as an effort tier: every other off-switch on
+  // the wire is a boolean, a token budget, or a vendor keyword (`disabled`).
+  return !off.operations.some(
+    (operation) => operation.value.source === 'literal' && operation.value.value === REASONING_EFFORT.NONE
+  )
+}
+
+/**
  * Materialize the endpoint-projected vocabulary stored on every runtime model.
  * Renderer consumers read this result directly; they do not repeat capability/profile inference.
  */
@@ -261,8 +290,9 @@ function deriveSelectableEfforts(
     intrinsic = []
   }
 
+  const effortValues = effortControl?.kind === 'effort' ? effortControl.values : undefined
   return intrinsic.filter((selection) => {
-    if (selection === REASONING_EFFORT.NONE) return profile.off !== undefined
+    if (selection === REASONING_EFFORT.NONE) return canExpressOff(profile, effortValues)
     if (selection === REASONING_EFFORT.AUTO) return profile.auto !== undefined || profile.effort !== undefined
     return profile.effort !== undefined
   })
@@ -532,32 +562,24 @@ function resolveReasoning(
 }
 
 function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
-  return CHAT_REASONING_ENDPOINT_PRIORITY.includes(endpointType)
+  return CHAT_REASONING_ENDPOINTS.includes(endpointType)
 }
 
-function resolveReasoningEndpointType(
-  endpointTypes: EndpointType[] | undefined,
-  defaultChatEndpoint: EndpointType | undefined
-): EndpointType | undefined {
-  const candidates = (endpointTypes ?? []).filter(isChatReasoningEndpointType)
-
-  if (candidates.length === 1) {
-    return candidates[0]
-  }
-
-  if (defaultChatEndpoint !== undefined && isChatReasoningEndpointType(defaultChatEndpoint)) {
-    if (candidates.length === 0 || candidates.includes(defaultChatEndpoint)) {
-      return defaultChatEndpoint
-    }
-  }
-
-  for (const endpointType of CHAT_REASONING_ENDPOINT_PRIORITY) {
-    if (candidates.includes(endpointType)) {
-      return endpointType
-    }
-  }
-
-  return undefined
+/**
+ * Pick the endpoint whose reasoning contract describes this model — the one the
+ * request will actually use. Shares `resolveModelEndpoint`'s priority with
+ * `resolveEffectiveEndpoint`, narrowed to endpoints that can carry reasoning:
+ * projecting through any other endpoint hands the renderer a vocabulary the wire
+ * never speaks — deepseek-v4-flash declares Responses first yet the ladder came
+ * from chat-completions, and every AiHubMix/DMXAPI model is routed per id.
+ */
+function resolveReasoningEndpointType(input: {
+  endpointTypes?: EndpointType[]
+  modelRouting?: ProviderModelRoute[]
+  modelId?: string
+  defaultChatEndpoint?: EndpointType
+}): EndpointType | undefined {
+  return resolveModelEndpoint({ ...input, accept: isChatReasoningEndpointType }).endpointType
 }
 
 /** Convert proto reasoning data to the provider-neutral runtime form. */
@@ -677,7 +699,8 @@ class ProviderRegistryService {
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
-        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined,
+        modelRouting: provider?.modelRouting
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
@@ -807,10 +830,12 @@ class ProviderRegistryService {
     fallbackModelId: string
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveReasoningEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
-    )
+    const endpointType = resolveReasoningEndpointType({
+      endpointTypes: registryOverride?.endpointTypes,
+      modelRouting: profileProvider?.modelRouting,
+      modelId: registryOverride?.apiModelId ?? fallbackModelId,
+      defaultChatEndpoint: context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+    })
     const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
     const inferredControls =
       presetModel?.reasoning || contract?.support || !inferReasoningMembership(fallbackModelId)
@@ -836,7 +861,13 @@ class ProviderRegistryService {
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
     const effectiveEndpoint =
-      endpointType ?? resolveReasoningEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
+      endpointType ??
+      resolveReasoningEndpointType({
+        endpointTypes: model.endpointTypes,
+        modelRouting: profileProvider?.modelRouting,
+        modelId: model.apiModelId ?? undefined,
+        defaultChatEndpoint: provider.defaultChatEndpoint
+      })
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
     )

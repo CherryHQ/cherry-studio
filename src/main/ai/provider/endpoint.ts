@@ -3,6 +3,7 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
+import { resolveModelEndpoint } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -11,7 +12,6 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
-import { resolveGatewayRoute } from './gatewayRouting'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -38,16 +38,23 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `model.endpointTypes[0]` → gateway per-model route → `provider.defaultChatEndpoint` →
- * `undefined`. The gateway step resolves the wire endpoint from the model id for multi-backend
- * gateways (AiHubMix, …) whose models carry no explicit `endpointTypes` (see `gatewayRouting`).
- * `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * The endpoint this request goes to. The priority itself lives in `resolveModelEndpoint` so the
+ * catalog's reasoning projection resolves through the same chain — when the two disagreed, the
+ * renderer offered a vocabulary the wire never spoke (#17900). `getBaseUrl` applies its own
+ * fallback among `endpointConfigs`.
  */
 export function resolveEffectiveEndpoint(provider: Provider, model: Model): ResolvedEndpoint {
-  const gatewayRoute = resolveGatewayRoute(provider, model)
-  const endpointType = model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
-  const providerOptionsKey =
-    gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
+  const { endpointType, route } = resolveModelEndpoint({
+    endpointTypes: model.endpointTypes,
+    modelRouting: provider.modelRouting,
+    modelId: model.apiModelId ?? model.id,
+    defaultChatEndpoint: provider.defaultChatEndpoint,
+    // Never route to an endpoint the provider row doesn't declare: fabricating connection config
+    // for an incomplete row drops `aiSdkProviderId` off the gateway family, which breaks both
+    // builder selection and the reasoning namespace.
+    acceptRoute: (candidate) => !!provider.endpointConfigs?.[candidate.endpointType]
+  })
+  const providerOptionsKey = route && endpointType === route.endpointType ? route.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
 }
 
@@ -66,6 +73,11 @@ export function resolveProviderVariant(
   if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
     const responsesVariant = `${baseProviderId}-responses`
     if (responsesVariant in appProviderIds) return appProviderIds[responsesVariant]
+  }
+
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    const anthropicVariant = `${baseProviderId}-anthropic`
+    if (anthropicVariant in appProviderIds) return appProviderIds[anthropicVariant]
   }
 
   return baseProviderId

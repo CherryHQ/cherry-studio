@@ -11,6 +11,7 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { type ProviderModelRoute, resolveProviderModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
@@ -29,6 +30,8 @@ export interface DmxapiProviderSettings {
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
   headers?: Record<string, string>
   fetch?: FetchFunction
+  /** Registry per-model endpoint dispatch (`ProviderConfig.modelRouting`), injected by `config.ts`. */
+  modelRouting?: ProviderModelRoute[]
 }
 
 export interface DmxapiProvider extends ProviderV3 {
@@ -152,7 +155,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveDmxapiChatFamily(modelId)) {
+    switch (resolveDmxapiChatFamily(resolveProviderModelRoute(settings.modelRouting, modelId))) {
       case 'anthropic':
         return new AnthropicMessagesLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,

@@ -1,61 +1,26 @@
 /**
- * DMXAPI per-model chat routing — single source of truth for the runtime model class, endpoint
- * protocol, and provider-options namespace.
+ * DMXAPI model-class dispatch.
+ *
+ * Which backend an id belongs to is registry data (`ProviderConfig.modelRouting` in
+ * `providers/dmxapi.ts`), shared with request-time endpoint resolution and the catalog's reasoning
+ * projection. This module only maps the resolved route onto the AI SDK model class.
  */
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 export type DmxapiChatFamily = 'openai-compat' | 'openai' | 'anthropic' | 'gemini'
 
-const CHAT_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiChatFamily, 'openai-compat'>
-  match: (modelId: string) => boolean
-}> = [
-  { family: 'anthropic', match: (id) => /claude/i.test(id) },
-  {
-    family: 'gemini',
-    // Gemini chat models only; image, TTS, audio, and embedding variants have separate routes.
-    match: (id) => /^gemini-/i.test(id) && !/(image|imagen|tts|audio|embedding)/i.test(id)
-  },
-  {
-    family: 'openai',
-    // Native OpenAI chat models. Image variants are handled by the image-model router.
-    match: (id) => /^(gpt-|o\d)/i.test(id) && !/(image|dall-e)/i.test(id)
+/** An unrouted id is the openai-compatible passthrough line. */
+export function resolveDmxapiChatFamily(route: ProviderModelRoute | undefined): DmxapiChatFamily {
+  switch (route?.endpointType) {
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+      return 'anthropic'
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+      return 'gemini'
+    // Native OpenAI chat models — @ai-sdk/openai's chat class reads the canonical `openai` namespace.
+    case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+      return 'openai'
+    default:
+      return 'openai-compat'
   }
-]
-
-export function resolveDmxapiChatFamily(modelId: string): DmxapiChatFamily {
-  return CHAT_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
-}
-
-const FAMILY_ENDPOINT: Record<DmxapiChatFamily, EndpointType> = {
-  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  'openai-compat': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-}
-
-const FAMILY_PROVIDER_OPTIONS_KEY: Record<DmxapiChatFamily, string> = {
-  anthropic: 'anthropic',
-  gemini: 'google',
-  // @ai-sdk/openai's chat model reads the canonical `openai` namespace.
-  openai: 'openai',
-  // @ai-sdk/openai-compatible derives this from the `dmxapi.chat` provider string.
-  'openai-compat': 'dmxapi'
-}
-
-export interface DmxapiChatRoute {
-  endpointType: EndpointType
-  providerOptionsKey: string
-}
-
-export function resolveDmxapiChatRoute(modelId: string): DmxapiChatRoute {
-  const family = resolveDmxapiChatFamily(modelId)
-  return {
-    endpointType: FAMILY_ENDPOINT[family],
-    providerOptionsKey: FAMILY_PROVIDER_OPTIONS_KEY[family]
-  }
-}
-
-export function resolveDmxapiEndpointType(modelId: string): EndpointType {
-  return resolveDmxapiChatRoute(modelId).endpointType
 }

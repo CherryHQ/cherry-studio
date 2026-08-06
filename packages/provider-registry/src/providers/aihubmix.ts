@@ -39,6 +39,25 @@ export default defineProvider({
       baseUrl: 'https://aihubmix.com/gemini/v1beta'
     }
   },
+  // Per-model dispatch: AiHubMix serves each model on its vendor's native endpoint, keyed by the raw
+  // api id (their `/models` list carries no `supported_endpoint_types`). Ordered — first match wins,
+  // anything unmatched is the openai-compatible passthrough on `defaultChatEndpoint`.
+  modelRouting: [
+    { pattern: '^claude', endpointType: 'anthropic-messages' },
+    {
+      pattern: '^(?:gemini|imagen)',
+      exclude: '(?:no-think|-search)$|embedding',
+      endpointType: 'google-generate-content'
+    },
+    // Responses-incapable OpenAI SKUs stay on chat-completions but still go to @ai-sdk/openai's chat
+    // class, which reads the canonical `openai` namespace — not the `aihubmix` one the endpoint implies.
+    {
+      pattern: 'gpt-4o(?:-mini)?-search-preview|o1-(?:mini|preview)',
+      endpointType: 'openai-chat-completions',
+      providerOptionsKey: 'openai'
+    },
+    { pattern: '\\bgpt\\b|^o[134]', exclude: 'gpt-4o-image', endpointType: 'openai-responses' }
+  ],
   // AiHubMix serves the vendors' native endpoints, so its language models carry
   // `aihubmix.<vendor>` provider strings and resolveToolCapability's aggregator fallback finds the
   // real vendor factory. `vendors` keeps the openai-compatible passthrough line (grok, deepseek,

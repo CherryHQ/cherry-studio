@@ -75,6 +75,21 @@ export default defineProvider({
       baseUrl: 'https://www.dmxapi.cn'
     }
   },
+  // Per-model dispatch onto the vendors' native endpoints, keyed by the raw api id. Ordered — first
+  // match wins, anything unmatched is the openai-compatible passthrough on `defaultChatEndpoint`.
+  // Image / TTS / audio / embedding variants share these prefixes but have their own routes.
+  modelRouting: [
+    { pattern: 'claude', endpointType: 'anthropic-messages' },
+    { pattern: '^gemini-', exclude: 'image|imagen|tts|audio|embedding', endpointType: 'google-generate-content' },
+    // Native OpenAI chat models go to @ai-sdk/openai's chat class, which reads the canonical `openai`
+    // namespace — not the `dmxapi` one this endpoint implies for the passthrough line.
+    {
+      pattern: '^(?:gpt-|o\\d)',
+      exclude: 'image|dall-e',
+      endpointType: 'openai-chat-completions',
+      providerOptionsKey: 'openai'
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://www.dmxapi.cn/',

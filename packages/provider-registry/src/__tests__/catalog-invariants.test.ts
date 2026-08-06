@@ -16,7 +16,7 @@ import { canonOf, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { SERVER_TOOL } from '../schemas/enums'
-import { ModelListSchema } from '../schemas/model'
+import { ModelListSchema, type ReasoningControl } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
@@ -245,6 +245,35 @@ describe('catalog invariants (data/*.json)', () => {
         .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
         .map((override) => `${override.providerId}/${override.modelId}`)
     ).toEqual([])
+  })
+
+  // A `toggle` and a `none` tier are two mutually exclusive ways of saying
+  // "reasoning can be disabled": the toggle means the endpoint has a separate
+  // off-switch, the tier means its effort field literally accepts `none`. A
+  // model declaring both lets a wire pick the wrong one and send an effort the
+  // API rejects (#17900) — pick whichever one the vendor actually implements.
+  it('a reasoning declaration never carries both a toggle and a `none` effort tier', () => {
+    const declarations: Array<{ id: string; controls?: ReasoningControl[] }> = [
+      ...ModelListSchema.parse(modelsRaw).models.map((model) => ({
+        id: model.id,
+        controls: model.reasoning?.controls
+      })),
+      ...providerModelOverrides.flatMap((override) =>
+        Object.entries(override.reasoningContracts ?? {}).map(([endpointType, contract]) => ({
+          id: `${override.providerId}/${override.modelId} (${endpointType})`,
+          controls: contract.support?.controls
+        }))
+      )
+    ]
+
+    const contradictory = declarations
+      .filter(({ controls }) => {
+        const effort = controls?.find((control) => control.kind === 'effort')
+        return effort?.kind === 'effort' && effort.values.includes('none') && controls?.some((c) => c.kind === 'toggle')
+      })
+      .map(({ id }) => id)
+
+    expect(contradictory).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {

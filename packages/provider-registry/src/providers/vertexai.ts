@@ -22,12 +22,17 @@ export default defineProvider({
   defaultChatEndpoint: 'google-generate-content',
   endpointConfigs: {
     'anthropic-messages': {
-      adapterFamily: 'google-vertex-anthropic'
+      adapterFamily: 'google-vertex'
     },
     'google-generate-content': {
       adapterFamily: 'google-vertex'
     }
   },
+  // Vertex fronts two vendors' protocols and picks by model id: Claude SKUs are served over
+  // anthropic-messages, everything else over Gemini's generateContent. Declaring it here (instead of
+  // a `startsWith('claude')` in the config builder) is what lets the reasoning projection see the
+  // same endpoint the request uses — otherwise Claude-on-Vertex gets Gemini's thinking wire.
+  modelRouting: [{ pattern: '^claude', endpointType: 'anthropic-messages' }],
   serverTools: [
     {
       id: 'web-search',
