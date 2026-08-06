@@ -116,6 +116,8 @@ export interface BeginAgentSessionTurnInput {
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
   messageSnapshot?: MessageSnapshot
+  /** Only an untouched session's initial turn may run the two-stage automatic naming flow. */
+  shouldAutoName?: boolean
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -155,6 +157,8 @@ type AgentSessionTurn = {
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
+  /** Whether this initial turn owns the session's one automatic AI naming attempt. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
@@ -402,6 +406,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       messageSnapshot,
+      shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
@@ -2730,6 +2735,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
+    const afterPersist = currentTurn.shouldAutoName
+      ? async (finalMessage: CherryUIMessage) => {
+          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+        }
+      : undefined
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,
@@ -2738,9 +2748,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
-        }
+        afterPersist
       }),
       onPersistFailed: (error) =>
         application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
