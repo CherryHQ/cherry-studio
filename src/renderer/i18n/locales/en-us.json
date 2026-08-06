@@ -1936,7 +1936,7 @@
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
-          "label": "Export as markdown",
+          "label": "Export as Markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notes": "Export to Notes",
@@ -5783,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "New Assistant",
+      "create_tag": "New",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
       "group_filter": "Filter by group",
@@ -5970,12 +5971,16 @@
         "third_party": "Third-party Connections"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Third-party Apps",
+          "copy": "Copy",
+          "file": "File Export"
+        },
         "docx": "Export as Word",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
