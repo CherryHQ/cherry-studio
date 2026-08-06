@@ -18,6 +18,7 @@ import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
+import { geminiToolSchemaCompatibilityFeature } from './geminiToolSchemaCompatibility'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
@@ -47,6 +48,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
+  geminiToolSchemaCompatibilityFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
