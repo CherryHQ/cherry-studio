@@ -21,11 +21,11 @@ export interface TracePageProps {
 
 export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
-  const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
-  const [showList, setShowList] = useState(true)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pollError, setPollError] = useState<string | null>(null)
   const failureCountRef = useRef(0)
   const emptyCountRef = useRef(0)
+  const endedPollKeyRef = useRef<string | null>(null)
   const { t } = useTranslation()
 
   const mergeTraceNodes = useCallback((oldNodes: TraceNode[], newNodes: TraceNode[]): TraceNode[] => {
@@ -88,25 +88,42 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   }, [])
 
   const handleNodeClick = (nodeId: string) => {
-    const latestNode = findNodeById(spans, nodeId)
-    if (latestNode) {
-      setSelectedNode(latestNode)
-      setShowList(false)
+    if (findNodeById(spans, nodeId)) {
+      setSelectedNodeId(nodeId)
     }
   }
 
   const handleShowList = () => {
-    setShowList(true)
-    setSelectedNode(null)
+    setSelectedNodeId(null)
   }
 
+  // Derived at render: the poll merge rebuilds node objects, so resolving the
+  // selection by id here replaces the former setSpans → effect →
+  // setSelectedNode chain (an extra render pass per poll tick). A node that
+  // vanished from the trace resolves to null and falls back to the list view.
+  const selectedNode = selectedNodeId ? findNodeById(spans, selectedNodeId) : null
+  const showList = !selectedNode
+
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged key, and clearing here would wipe the loaded trace (the poll
+  // effect below does not restart for a trace that already ended).
+  const resetKeyRef = useRef(`${topicId}:${traceId}`)
   useEffect(() => {
+    const key = `${topicId}:${traceId}`
+    if (resetKeyRef.current === key) return
+    resetKeyRef.current = key
     setSpans([])
-    setSelectedNode(null)
-    setShowList(true)
+    setSelectedNodeId(null)
   }, [topicId, traceId])
 
   useEffect(() => {
+    // A poll loop that already ran to natural completion for this key must not
+    // be restarted by an <Activity> re-show — every switch back to a finished
+    // trace would otherwise re-poll for seconds until the stop detectors
+    // re-trip. A failure stop is not marked, so a re-show retries it.
+    const pollKey = `${topicId}:${traceId}:${String(reload)}`
+    if (endedPollKeyRef.current === pollKey) return
+
     // Interval is local to this effect run, never a shared ref: an effect re-run
     // during the first `await poll()` would otherwise let the new run's interval
     // be created after this run's cleanup, leaking it (and let one run's stop
@@ -139,6 +156,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         if (matchedSpans.length === 0) {
           emptyCountRef.current++
           if (emptyCountRef.current >= 30 && lastSpanCount === 0) {
+            endedPollKeyRef.current = pollKey
             stop()
             return
           }
@@ -151,7 +169,10 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
 
         const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
         consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
-        if (consecutiveEnded >= 20) stop()
+        if (consecutiveEnded >= 20) {
+          endedPollKeyRef.current = pollKey
+          stop()
+        }
       } catch (error) {
         if (cancelled) return
         failureCountRef.current++
@@ -179,18 +200,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
       }
     }
   }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
-
-  useEffect(() => {
-    if (selectedNode) {
-      const latest = findNodeById(spans, selectedNode.id)
-      if (!latest) {
-        setShowList(true)
-        setSelectedNode(null)
-      } else if (latest !== selectedNode) {
-        setSelectedNode(latest)
-      }
-    }
-  }, [spans, selectedNode, findNodeById])
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">
