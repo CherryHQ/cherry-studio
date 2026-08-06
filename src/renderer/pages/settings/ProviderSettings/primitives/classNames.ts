@@ -419,6 +419,7 @@ export const modelSyncClasses = {
     'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success-subtle',
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
+  manageRowSubtitle: 'truncate font-mono text-xs leading-4 text-muted-foreground select-text',
   manageRowDescriptionHelp:
     'inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:bg-accent/40 focus-visible:text-foreground',
   manageStaleBadge:

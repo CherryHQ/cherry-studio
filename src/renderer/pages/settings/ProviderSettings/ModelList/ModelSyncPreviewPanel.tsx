@@ -87,6 +87,7 @@ const ManageModelRow = memo(function ManageModelRow({
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const apiModelId = modelIdLine(model)
   const actionTooltip = isAdded
     ? isDefaultModel
       ? t('settings.models.manage.default_model_cannot_remove')
@@ -98,7 +99,7 @@ const ManageModelRow = memo(function ManageModelRow({
       <ModelGlyph model={model} />
       <div className="min-w-0 flex-1">
         <div className={modelSyncClasses.manageRowTitleLine}>
-          <p className={modelSyncClasses.manageRowTitle}>{modelIdLine(model)}</p>
+          <p className={modelSyncClasses.manageRowTitle}>{model.name || apiModelId}</p>
           {model.description ? (
             <Tooltip content={model.description} placement="top">
               <span tabIndex={0} aria-label={model.description} className={modelSyncClasses.manageRowDescriptionHelp}>
@@ -112,6 +113,7 @@ const ManageModelRow = memo(function ManageModelRow({
             </Badge>
           ) : null}
         </div>
+        <p className={modelSyncClasses.manageRowSubtitle}>{apiModelId}</p>
       </div>
       <div className={modelSyncClasses.fetchCapabilityStrip}>
         <ModelTagsWithLabel
