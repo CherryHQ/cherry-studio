@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
-  applicationIsQuitting: { value: true },
   closeWarmQueries: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
@@ -66,17 +66,12 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: {
-    get: mocks.applicationGet,
-    get isQuitting() {
-      return mocks.applicationIsQuitting.value
-    }
-  }
+  application: { get: mocks.applicationGet }
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
-const { claudeCodeProcessManager, toolApprovalRegistry } = await import('../../runtime/claudeCode')
+const { toolApprovalRegistry } = await import('../../runtime/claudeCode')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -252,7 +247,6 @@ describe('AgentSessionRuntimeService', () => {
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
-    mocks.applicationIsQuitting.value = true
     mocks.closeWarmQueries.mockResolvedValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
@@ -2790,6 +2784,14 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
   })
 
+  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
+    ServiceContainer.reset()
+    const container = ServiceContainer.getInstance()
+    container.register(AgentSessionRuntimeService)
+
+    expect(container.getMetadata('AgentSessionRuntimeService')?.dependencies).toContain('ClaudeCodeProcessManager')
+  })
+
   it('waits for every graceful connection close before service stop resolves', async () => {
     vi.useFakeTimers()
     try {
@@ -2826,31 +2828,9 @@ describe('AgentSessionRuntimeService', () => {
 
       secondClose.resolve()
       await expect(stopping).resolves.toBeUndefined()
-      expect(mocks.closeWarmQueries).toHaveBeenCalledOnce()
       expect(service.inspect('session-1')).toBeUndefined()
       expect(service.inspect('session-2')).toBeUndefined()
     } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('limits a non-quitting service stop to agent runtime entries', async () => {
-    vi.useFakeTimers()
-    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
-    try {
-      mocks.applicationIsQuitting.value = false
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
-      getEntry(service).connection = connection
-
-      await expect(service._doStop()).resolves.toBeUndefined()
-
-      expect(connection.close).toHaveBeenCalledOnce()
-      expect(mocks.closeWarmQueries).not.toHaveBeenCalled()
-      expect(shutdown).not.toHaveBeenCalled()
-    } finally {
-      shutdown.mockRestore()
       vi.useRealTimers()
     }
   })

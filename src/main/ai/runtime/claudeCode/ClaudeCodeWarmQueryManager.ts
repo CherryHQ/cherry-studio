@@ -5,13 +5,13 @@ import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, LifecycleEvents, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
-import { claudeCodeProcessManager, spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -147,25 +147,14 @@ export function createClaudeCodeWarmQuerySignature(
 
 @Injectable('ClaudeCodeWarmQueryManager')
 @ServicePhase(Phase.WhenReady)
+// Warm queries spawn CLI children through ClaudeCodeProcessManager. Declaring it keeps that owner
+// stopping LAST, so its sweep runs after these entries are disposed — do not drop it as unused.
+@DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
-  private applicationShutdownPromise?: Promise<void>
 
   // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
-
-  protected onInit(): void {
-    const lifecycleManager = application.getLifecycleManager()
-    // stopAll awaits services serially. Start the bounded process timeline at its boundary so an
-    // earlier slow service cannot consume the application's force-exit budget first.
-    const startApplicationShutdown = () => {
-      if (!application.isQuitting) return
-      lifecycleManager.off(LifecycleEvents.BEFORE_STOP_ALL, startApplicationShutdown)
-      void this.startApplicationShutdown()
-    }
-    lifecycleManager.on(LifecycleEvents.BEFORE_STOP_ALL, startApplicationShutdown)
-    this.registerDisposable(() => lifecycleManager.off(LifecycleEvents.BEFORE_STOP_ALL, startApplicationShutdown))
-  }
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
@@ -279,27 +268,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   protected onStop(): Promise<void> {
-    if (!application.isQuitting) return this.closeAll()
-    return this.startApplicationShutdown()
+    return this.closeAll()
   }
 
   protected onDestroy(): Promise<void> {
     return this.closeAll()
-  }
-
-  private startApplicationShutdown(): Promise<void> {
-    if (!this.applicationShutdownPromise) {
-      this.applicationShutdownPromise = claudeCodeProcessManager.shutdown(async () => {
-        const closings: Promise<unknown>[] = [this.closeAll()]
-        try {
-          closings.push(application.get('AgentSessionRuntimeService').closeAll())
-        } catch (error) {
-          logger.warn('Failed to start agent runtime shutdown', { error })
-        }
-        await Promise.allSettled(closings)
-      })
-    }
-    return this.applicationShutdownPromise
   }
 
   private refreshIdleTimer(key: string, entry: WarmQueryEntry): void {

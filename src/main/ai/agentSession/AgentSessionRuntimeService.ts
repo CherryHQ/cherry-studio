@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -40,7 +40,7 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { claudeCodeProcessManager, type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -276,6 +276,10 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
+// The dependency is runtime, not lexical: this service's connections spawn CLI children through
+// ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
+// these entries are closed — do not drop it as unused. Covered by a stop-order test.
+@DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
@@ -1106,23 +1110,14 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  protected onStop(): Promise<void> {
+  protected async onStop(): Promise<void> {
     this.isShuttingDown = true
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    if (!application.isQuitting) return this.closeAll()
-    return claudeCodeProcessManager.shutdown(async () => {
-      const closings: Promise<unknown>[] = [this.closeAll()]
-      try {
-        closings.push(application.get('ClaudeCodeWarmQueryManager').closeAll())
-      } catch (error) {
-        logger.warn('Failed to start Claude warm query shutdown', { error })
-      }
-      await Promise.allSettled(closings)
-    })
+    await this.closeAll()
   }
 
   protected async onDestroy(): Promise<void> {
@@ -2797,8 +2792,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  public closeAll(): Promise<void> {
-    this.isShuttingDown = true
+  private closeAll(): Promise<void> {
     const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
     return Promise.allSettled(closings).then(() => undefined)
   }

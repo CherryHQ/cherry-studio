@@ -65,7 +65,7 @@ If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exi
 ```
 shutdown()
     ├── bootConfigService.flush()   ← save pending debounced writes
-    ├── stopAll()                   ← BEFORE_STOP_ALL, then onStop() in reverse initialization order
+    ├── stopAll()                   ← onStop() in reverse initialization order
     ├── destroyAll()                ← onDestroy() in reverse initialization order
     └── loggerService.finish()      ← close logger (must be last)
 ```

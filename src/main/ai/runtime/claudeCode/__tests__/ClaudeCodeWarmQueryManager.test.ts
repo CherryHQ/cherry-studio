@@ -1,4 +1,4 @@
-import { BaseService, DependsOn, Injectable, LifecycleManager, Phase, ServiceContainer } from '@main/core/lifecycle'
+import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,9 +6,6 @@ const {
   startupMock,
   buildWarmRequestMock,
   applicationGetMock,
-  applicationGetLifecycleManagerMock,
-  applicationIsQuitting,
-  closeAgentRuntimeMock,
   traceModeEnabledMock,
   prepareTraceMock,
   ensureTraceIdMock
@@ -16,9 +13,6 @@ const {
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
-  applicationGetLifecycleManagerMock: vi.fn(),
-  applicationIsQuitting: { value: true },
-  closeAgentRuntimeMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
   prepareTraceMock: vi.fn(),
   ensureTraceIdMock: vi.fn()
@@ -29,13 +23,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: {
-    get: applicationGetMock,
-    getLifecycleManager: applicationGetLifecycleManagerMock,
-    get isQuitting() {
-      return applicationIsQuitting.value
-    }
-  }
+  application: { get: applicationGetMock }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -52,7 +40,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { claudeCodeProcessManager, spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
+const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
 function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
@@ -82,16 +70,12 @@ describe('ClaudeCodeWarmQueryManager', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
-    applicationGetLifecycleManagerMock.mockImplementation(() => LifecycleManager.getInstance())
     applicationGetMock.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
-      if (name === 'AgentSessionRuntimeService') return { closeAll: closeAgentRuntimeMock }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    closeAgentRuntimeMock.mockResolvedValue(undefined)
-    applicationIsQuitting.value = true
     traceModeEnabledMock.mockReturnValue(false)
   })
 
@@ -165,124 +149,33 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await expect(closing).resolves.toBeUndefined()
   })
 
-  it('limits a non-quitting service stop to warm entries', async () => {
-    applicationIsQuitting.value = false
-    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
+  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
+    const container = ServiceContainer.getInstance()
+    container.register(ClaudeCodeWarmQueryManager)
+
+    expect(container.getMetadata('ClaudeCodeWarmQueryManager')?.dependencies).toContain('ClaudeCodeProcessManager')
+  })
+
+  it('closes every warm entry on service stop', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
-    startupMock.mockResolvedValueOnce(warm)
-    try {
-      manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-      await Promise.resolve()
-
-      await expect(manager._doStop()).resolves.toBeUndefined()
-
-      expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
-      expect(closeAgentRuntimeMock).not.toHaveBeenCalled()
-      expect(shutdown).not.toHaveBeenCalled()
-    } finally {
-      shutdown.mockRestore()
-    }
-  })
-
-  it('starts application shutdown before a later service can block serial stop', async () => {
-    const delayedStop = createDeferred<void>()
-    const shutdownDone = createDeferred<void>()
-    const events: string[] = []
-
-    @Injectable('DelayedStopService')
-    @DependsOn(['ClaudeCodeWarmQueryManager'])
-    class DelayedStopService extends BaseService {
-      protected override async onStop(): Promise<void> {
-        events.push('delayed-stop-started')
-        await delayedStop.promise
-      }
-    }
-
-    const lifecycleManager = LifecycleManager.getInstance()
-    const container = ServiceContainer.getInstance()
-    container.register(ClaudeCodeWarmQueryManager)
-    container.register(DelayedStopService)
-    const closeWarmQueries = vi.spyOn(container.get(ClaudeCodeWarmQueryManager), 'closeAll')
-
-    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown').mockImplementation((close) => {
-      events.push('claude-shutdown-started')
-      void close()
-      return shutdownDone.promise
-    })
-
-    await lifecycleManager.startPhase(Phase.WhenReady)
-    const stopping = lifecycleManager.stopAll()
-    let stopSettled = false
-    void stopping.then(() => {
-      stopSettled = true
-    })
-
-    try {
-      await Promise.resolve()
-
-      expect(events).toEqual(['claude-shutdown-started', 'delayed-stop-started'])
-      expect(closeWarmQueries).toHaveBeenCalledOnce()
-      expect(closeAgentRuntimeMock).toHaveBeenCalledOnce()
-      expect(stopSettled).toBe(false)
-
-      delayedStop.resolve()
-      await Promise.resolve()
-      expect(stopSettled).toBe(false)
-
-      shutdownDone.resolve()
-      await expect(stopping).resolves.toBeUndefined()
-      expect(shutdown).toHaveBeenCalledOnce()
-    } finally {
-      delayedStop.resolve()
-      shutdownDone.resolve()
-      await stopping
-      closeWarmQueries.mockRestore()
-      shutdown.mockRestore()
-    }
-  })
-
-  it('does not start application shutdown for a non-quitting stopAll', async () => {
-    applicationIsQuitting.value = false
-    const lifecycleManager = LifecycleManager.getInstance()
-    const container = ServiceContainer.getInstance()
-    container.register(ClaudeCodeWarmQueryManager)
-    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
-
-    try {
-      await lifecycleManager.startPhase(Phase.WhenReady)
-      await lifecycleManager.stopAll()
-
-      expect(shutdown).not.toHaveBeenCalled()
-    } finally {
-      shutdown.mockRestore()
-    }
-  })
-
-  it('bounds a hanging warm cleanup during stop without rejecting', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery(new Promise<void>(() => {}))
     startupMock.mockResolvedValueOnce(warm)
     manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
     await Promise.resolve()
 
-    const stopped = manager._doStop().then(
-      () => 'resolved' as const,
-      () => 'rejected' as const
-    )
-    let outcome: 'pending' | 'resolved' | 'rejected' = 'pending'
-    void stopped.then((result) => {
-      outcome = result
-    })
+    await expect(manager._doStop()).resolves.toBeUndefined()
+    expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+  })
+
+  it('does not reject stop when a warm cleanup fails', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery(Promise.reject(new Error('dispose failed')))
+    startupMock.mockResolvedValueOnce(warm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
     await Promise.resolve()
 
+    await expect(manager._doStop()).resolves.toBeUndefined()
     expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
-    expect(outcome).toBe('pending')
-    await vi.advanceTimersByTimeAsync(1_999)
-    expect(outcome).toBe('pending')
-    await vi.advanceTimersByTimeAsync(1)
-    await expect(stopped).resolves.toBe('resolved')
-    expect(closeAgentRuntimeMock).toHaveBeenCalledOnce()
   })
 
   it('closes a stale warm query when session options change', async () => {

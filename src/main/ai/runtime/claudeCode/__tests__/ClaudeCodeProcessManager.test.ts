@@ -1,9 +1,26 @@
 import { EventEmitter } from 'node:events'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  BaseService,
+  DependsOn,
+  Injectable,
+  LifecycleManager,
+  Phase,
+  ServiceContainer,
+  ServicePhase
+} from '@main/core/lifecycle'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ClaudeCodeProcessManager } from '../ClaudeCodeProcessManager'
+import { ClaudeCodeProcessManager, type SpawnProcess } from '../ClaudeCodeProcessManager'
+
+/** The production class takes no constructor args (container contract); tests swap the seam here. */
+class TestProcessManager extends ClaudeCodeProcessManager {
+  constructor(spawnProcess: SpawnProcess) {
+    super()
+    this.spawnProcess = spawnProcess
+  }
+}
 
 function createFakeChild(options: { pid?: number } = {}) {
   const emitter = new EventEmitter()
@@ -37,6 +54,10 @@ function createFakeChild(options: { pid?: number } = {}) {
   return {
     process,
     kill,
+    setExited(code: number | null, signal: NodeJS.Signals | null) {
+      exitCode = code
+      signalCode = signal
+    },
     emitExit(code: number | null = 0, signal: NodeJS.Signals | null = null, updateStatus = true) {
       if (updateStatus) {
         exitCode = code
@@ -50,16 +71,52 @@ function createFakeChild(options: { pid?: number } = {}) {
   }
 }
 
+const spawnOptions: SpawnOptions = {
+  command: '/opt/claude',
+  args: [],
+  env: {},
+  signal: new AbortController().signal
+}
+
 describe('ClaudeCodeProcessManager', () => {
-  afterEach(() => {
-    vi.useRealTimers()
+  beforeEach(() => {
+    LifecycleManager.reset()
+    ServiceContainer.reset()
+    BaseService.resetInstances()
   })
 
-  it('maps SDK spawn options to Node spawn and stops tracking the child after exit', async () => {
-    vi.useFakeTimers()
+  it('sweeps only after every service that spawns through it has stopped', async () => {
+    const stopped: string[] = []
+
+    @Injectable('SpawningConsumerService')
+    @ServicePhase(Phase.WhenReady)
+    @DependsOn(['ClaudeCodeProcessManager'])
+    class SpawningConsumerService extends BaseService {
+      protected override onStop(): void {
+        stopped.push('consumer')
+      }
+    }
+
+    const container = ServiceContainer.getInstance()
+    // Registered after the consumer on purpose: the sweep must follow @DependsOn, not registry order.
+    container.register(SpawningConsumerService)
+    container.register(ClaudeCodeProcessManager)
+
+    await LifecycleManager.getInstance().startPhase(Phase.WhenReady)
+    const killAll = vi
+      .spyOn(container.get(ClaudeCodeProcessManager), 'killAll')
+      .mockImplementation(() => void stopped.push('sweep'))
+
+    await LifecycleManager.getInstance().stopAll()
+
+    expect(killAll).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+    expect(stopped).toEqual(['consumer', 'sweep'])
+  })
+
+  it('maps SDK spawn options to Node spawn and stops tracking the child after exit', () => {
     const child = createFakeChild()
     const spawnProcess = vi.fn(() => child.process)
-    const manager = new ClaudeCodeProcessManager(spawnProcess)
+    const manager = new TestProcessManager(spawnProcess)
     const controller = new AbortController()
     const options: SpawnOptions = {
       command: '/opt/claude',
@@ -69,7 +126,7 @@ describe('ClaudeCodeProcessManager', () => {
       signal: controller.signal
     }
 
-    expect(manager.spawnClaudeCodeProcess(options)).toBe(child.process)
+    expect(manager.spawn(options)).toBe(child.process)
     expect(spawnProcess).toHaveBeenCalledWith('/opt/claude', ['--output-format', 'stream-json'], {
       cwd: '/workspace',
       env: { ANTHROPIC_API_KEY: 'test-key' },
@@ -80,109 +137,54 @@ describe('ClaudeCodeProcessManager', () => {
 
     // The exit event is authoritative even for a custom SpawnedProcess whose status fields lag.
     child.emitExit(0, null, false)
-    await expect(manager.shutdown(() => undefined)).resolves.toBeUndefined()
+    manager.killAll('SIGTERM')
     expect(child.kill).not.toHaveBeenCalled()
   })
 
-  it('stops tracking a child whose spawn fails before receiving a pid', async () => {
-    vi.useFakeTimers()
+  it('stops tracking a child whose spawn fails before receiving a pid', () => {
     const child = createFakeChild({ pid: undefined })
-    const manager = new ClaudeCodeProcessManager(vi.fn(() => child.process))
-    manager.spawnClaudeCodeProcess({
-      command: '/missing/claude',
-      args: [],
-      env: {},
-      signal: new AbortController().signal
-    })
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn({ ...spawnOptions, command: '/missing/claude' })
 
     expect(() => child.emitError()).not.toThrow()
-    await expect(manager.shutdown(() => undefined)).resolves.toBeUndefined()
+    manager.killAll('SIGTERM')
     expect(child.kill).not.toHaveBeenCalled()
   })
 
-  it('escalates only tracked live children and reuses one signal chain across repeated shutdowns', async () => {
-    vi.useFakeTimers()
-    const gracefulExit = createFakeChild()
-    const termExit = createFakeChild()
-    const stubborn = createFakeChild()
-    const spawnProcess = vi
-      .fn()
-      .mockReturnValueOnce(gracefulExit.process)
-      .mockReturnValueOnce(termExit.process)
-      .mockReturnValueOnce(stubborn.process)
-    const manager = new ClaudeCodeProcessManager(spawnProcess)
-    const options = {
-      command: '/opt/claude',
-      args: [],
-      env: {},
-      signal: new AbortController().signal
-    }
-    manager.spawnClaudeCodeProcess(options)
-    manager.spawnClaudeCodeProcess(options)
-    manager.spawnClaudeCodeProcess(options)
+  it('signals only tracked children that are still live', () => {
+    const live = createFakeChild()
+    const alreadyExited = createFakeChild()
+    const spawnProcess = vi.fn().mockReturnValueOnce(live.process).mockReturnValueOnce(alreadyExited.process)
+    const manager = new TestProcessManager(spawnProcess)
+    manager.spawn(spawnOptions)
+    manager.spawn(spawnOptions)
 
-    const firstClose = vi.fn()
-    const shutdown = manager.shutdown(firstClose)
-    await vi.advanceTimersByTimeAsync(1_999)
-    expect(gracefulExit.kill).not.toHaveBeenCalled()
-    expect(termExit.kill).not.toHaveBeenCalled()
-    expect(stubborn.kill).not.toHaveBeenCalled()
+    // Status fields report the exit, but no 'exit' event arrived to untrack the handle.
+    alreadyExited.setExited(null, 'SIGTERM')
 
-    gracefulExit.emitExit(0, null, false)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(gracefulExit.kill).not.toHaveBeenCalled()
-    expect(termExit.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
-    expect(stubborn.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
-
-    termExit.emitExit(null, 'SIGTERM', false)
-    await vi.advanceTimersByTimeAsync(999)
-    expect(stubborn.kill).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1)
-    await expect(shutdown).resolves.toBeUndefined()
-    expect(termExit.kill).toHaveBeenCalledTimes(1)
-    expect(stubborn.kill).toHaveBeenNthCalledWith(2, 'SIGKILL')
-
-    const secondClose = vi.fn()
-    await expect(manager.shutdown(secondClose)).resolves.toBeUndefined()
-    await vi.runAllTimersAsync()
-    expect(firstClose).toHaveBeenCalledOnce()
-    expect(secondClose).toHaveBeenCalledOnce()
-    expect(termExit.kill).toHaveBeenCalledTimes(1)
-    expect(stubborn.kill).toHaveBeenCalledTimes(2)
+    manager.killAll('SIGTERM')
+    expect(live.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+    expect(alreadyExited.kill).not.toHaveBeenCalled()
   })
 
-  it('absorbs synchronous and asynchronous graceful close failures', async () => {
-    vi.useFakeTimers()
-    const throwingManager = new ClaudeCodeProcessManager(vi.fn())
-    const rejectingManager = new ClaudeCodeProcessManager(vi.fn())
+  it('sweeps live children on service stop', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn(spawnOptions)
 
-    await expect(
-      throwingManager.shutdown(() => {
-        throw new Error('close failed')
-      })
-    ).resolves.toBeUndefined()
-    await expect(rejectingManager.shutdown(() => Promise.reject(new Error('close failed')))).resolves.toBeUndefined()
+    await expect(manager._doStop()).resolves.toBeUndefined()
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
   })
 
-  it('bounds a hanging graceful close and absorbs child kill failures', async () => {
-    vi.useFakeTimers()
+  it('absorbs child kill failures', () => {
     const child = createFakeChild()
     child.kill.mockImplementation(() => {
       throw new Error('kill failed')
     })
-    const manager = new ClaudeCodeProcessManager(vi.fn(() => child.process))
-    manager.spawnClaudeCodeProcess({
-      command: '/opt/claude',
-      args: [],
-      env: {},
-      signal: new AbortController().signal
-    })
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn(spawnOptions)
 
-    const shutdown = manager.shutdown(() => new Promise<void>(() => {}))
-    await vi.advanceTimersByTimeAsync(3_000)
-
-    await expect(shutdown).resolves.toBeUndefined()
-    expect(child.kill).toHaveBeenNthCalledWith(1, 'SIGTERM')
-    expect(child.kill).toHaveBeenNthCalledWith(2, 'SIGKILL')
+    expect(() => manager.killAll('SIGTERM')).not.toThrow()
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
   })
 })

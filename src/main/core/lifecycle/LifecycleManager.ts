@@ -189,10 +189,6 @@ export class LifecycleManager extends EventEmitter {
     logger.info('Stopping all services...')
     const start = performance.now()
 
-    // Synchronous boundary notification: listeners may start work that must overlap
-    // the serial reverse-order stop, while their own onStop later joins that work.
-    this.emit(LifecycleEvents.BEFORE_STOP_ALL)
-
     // Stop in reverse order
     const stopOrder = [...this.initializationOrder].reverse()
 

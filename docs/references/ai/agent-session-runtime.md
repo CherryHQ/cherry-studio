@@ -246,21 +246,25 @@ When the idle timer expires, the runtime closes the entry:
 
 Service stop and destroy close all runtime entries.
 
-Application shutdown also owns the Claude Code CLI subprocess boundary. Every SDK `Options` object
-uses a host spawn wrapper that records only the `ChildProcess` handles created by this app and drops
-each handle on `exit`. At the lifecycle `BEFORE_STOP_ALL` boundary during application quit, the
-warm-query lifecycle owner starts both close aggregates before serial service teardown can block:
-warm handles use their async-dispose contract, while live queries call `close()` and await
-`return()`. Its later `onStop()` joins the same cached shutdown promise; both service stop paths also
-retain the shared process-manager shutdown as a fallback.
+`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
+dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
+stops last — after their queries are closed — instead of relying on registry order.
 
-One process-wide shutdown timeline bounds that cooperative cleanup. It allows up to two seconds for
-the close aggregates and registered children to settle, sends `SIGTERM` only to registered children
-that are still live, waits up to one further second, then sends `SIGKILL` to the remaining registered
-handles. Repeated lifecycle calls reuse the same timeline and never repeat a signal. Cleanup,
-timeout, and signal failures are logged and absorbed so service stop always completes within roughly
-three seconds, below the application's five-second forced-exit fallback. No process-name lookup or
-machine-wide kill is used.
+Graceful cleanup is the close path: warm handles use their async-dispose contract, live queries call
+`close()` and await `return()`, and the shared `AbortController` signals the child. Its own `onStop()`
+then synchronously sends `SIGTERM` to whatever handle is still registered — a best-effort sweep for
+children the connection and warm-query abstractions lost track of. It waits for nothing and escalates
+to nothing: shutdown can be cut short by the OS at any point, so a child that must not outlive the app
+cannot depend on this running. No process-name lookup or machine-wide kill is used.
+
+Survival past an abrupt exit is the CLI's own responsibility, and it honours it. Holding its stdin as
+a pipe is what arms this: when the app dies the write end closes and the CLI sees EOF. Measured on
+macOS arm64 with SDK 0.3.220 — `SIGKILL` on the parent leaves the CLI reparented to PID 1 and it exits
+by itself ~240ms later; closing only its stdin while the parent stays alive exits it cleanly (code 0)
+within ~2s. So the sweep above is an accelerator and a net for lost handles, never the mechanism that
+keeps a CLI from outliving the app. Never spawn the CLI with `detached` or with stdin redirected away
+from the app — either would disarm this.
 
 ## Write quiesce
 
