@@ -32,7 +32,7 @@ vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
 }))
-vi.mock('@main/services/CacheCleanupService', () => ({
+vi.mock('@main/services/cacheCleanup', () => ({
   cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
 }))
 vi.mock('electron', () => ({

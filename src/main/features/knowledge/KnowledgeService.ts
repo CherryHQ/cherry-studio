@@ -17,6 +17,7 @@ import type {
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
+import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -81,6 +82,10 @@ export class KnowledgeService extends BaseService {
 
   async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
     return await this.baseAdmin.removeOrphanBaseArtifacts(baseId)
+  }
+
+  inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
+    return this.baseAdmin.inspectOrphanBaseArtifacts()
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {

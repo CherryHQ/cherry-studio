@@ -4,7 +4,8 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { cacheCleanupService } from '@main/services/CacheCleanupService'
+import { inspectOrphanBaseArtifacts } from '@main/features/knowledge/base/orphanBaseArtifacts'
+import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
@@ -111,7 +112,7 @@ describe('CacheCleanupService', () => {
     })
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'FileManager') return MockMainFileManagerExport.fileManager
-      if (name === 'KnowledgeService') return { removeOrphanBaseArtifacts }
+      if (name === 'KnowledgeService') return { inspectOrphanBaseArtifacts, removeOrphanBaseArtifacts }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }) as typeof application.get)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue(emptyFileSweepReport)
@@ -402,6 +403,24 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results[0]?.status).toBe('partial')
     await expectExisting(externalBase)
     await expect(fs.lstat(orphanLink)).resolves.toBeDefined()
+  })
+
+  it('does not inspect a knowledge base root through a symbolic-link parent', async () => {
+    const orphanBaseId = '33333333-3333-4333-8333-333333333334'
+    const externalData = rootPath('ExternalData')
+    const externalBase = path.join(externalData, 'KnowledgeBase', orphanBaseId)
+    await fs.rm(rootPath('Data'), { recursive: true })
+    await writeTestFile(path.join(externalBase, '.cherry', 'index.sqlite'), 'keep')
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000)
+    await fs.utimes(externalBase, oldMtime, oldMtime)
+    await fs.symlink(externalData, rootPath('Data'))
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
+    expect(cleanup.results[0]?.status).toBe('partial')
+    await expectExisting(externalBase)
   })
 
   it('removes exact owned files and directory trees without inspecting their contents', async () => {

@@ -19,6 +19,7 @@ import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionS
 import { classifyKnowledgeItemSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
+import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
@@ -102,6 +103,10 @@ export class KnowledgeBaseAdminService {
       await vectorStoreService.deleteStore(baseId)
       return true
     })
+  }
+
+  inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
+    return inspectOrphanBaseArtifacts()
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
