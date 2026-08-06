@@ -9,10 +9,12 @@ const MARKER_FILE = `${USER_DATA}/data-reset.pending.json`
 const MARKER_ASIDE = `${USER_DATA}/data-reset.pending.invalid`
 const DATABASE_FILE = `${USER_DATA}/Data/cherrystudio.sqlite`
 const CLAUDE_ROOT = `${USER_DATA}/Data/Agents/.claude`
+const VERSION_LOG_FILE = `${USER_DATA}/version.log`
 
 let applicationMock: ReturnType<typeof createMockApplication>
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
+const appendFileSyncMock = vi.fn()
 const rmSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
 const realpathNativeMock = vi.fn()
@@ -147,6 +149,7 @@ function stubElectron() {
   webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
+    app: { isPackaged: false },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
     session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
@@ -163,6 +166,7 @@ function stubApplication(userData: string = USER_DATA, opts: { throwOnUserData?:
     if (key === 'feature.data_reset.marker_file') return `${userData}/data-reset.pending.json`
     if (key === 'app.database.file') return `${userData}/Data/cherrystudio.sqlite`
     if (key === 'feature.agents.claude.root') return `${userData}/Data/Agents/.claude`
+    if (key === 'feature.version_log.file') return `${userData}/version.log`
     return '/mock/unknown'
   })
   vi.doMock('@application', () => ({ application: applicationMock }))
@@ -195,6 +199,9 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     return [...listing]
   })
   rmSyncMock.mockImplementation(() => undefined)
+  appendFileSyncMock.mockImplementation((target: string, data: string) => {
+    fsCtl.files.set(target, `${fsCtl.files.get(target) ?? ''}${data}`)
+  })
   realpathNativeMock.mockImplementation((p: string) => p)
 
   readFileSyncMock.mockImplementation((p: string) => {
@@ -270,6 +277,7 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
 
   const realpathSync = Object.assign(vi.fn(), { native: realpathNativeMock })
   const fsMock = {
+    appendFileSync: appendFileSyncMock,
     readdirSync: readdirSyncMock,
     rmSync: rmSyncMock,
     realpathSync,
@@ -298,6 +306,10 @@ function seedMarker(marker: DataResetMarker): void {
 
 function seedRawMarker(raw: string): void {
   fsCtl.files.set(MARKER_FILE, raw)
+}
+
+function seedRawVersionLog(raw: string): void {
+  fsCtl.files.set(VERSION_LOG_FILE, raw)
 }
 
 function markerExists(): boolean {
@@ -399,11 +411,16 @@ describe('runDataReset', () => {
 
     expect(wipedEntries()).toContain(`${USER_DATA}/Data`)
     expect(rmSyncMock).toHaveBeenCalledWith(APP_TEMP, expect.anything())
+    expect(appendFileSyncMock).not.toHaveBeenCalled()
     expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'full_reset' })
   })
 
-  it('removes only current v2 migration targets with the database last', async () => {
+  it('removes only current v2 migration targets, then records a supported v1 source version', async () => {
     stubAll(pendingMarker({ operation: 'v1_remigration' }))
+    seedRawVersionLog(
+      '1.7.21|mac|prod|unpackaged|install|2026-08-05T13:34:28.984Z\n' +
+        '2.0.0|mac|prod|packaged|install|2026-08-05T14:01:04.323Z\n'
+    )
     await runReset()
 
     expect(rmSyncMock.mock.calls.map(([target]) => target)).toEqual([
@@ -412,10 +429,46 @@ describe('runDataReset', () => {
       CLAUDE_ROOT,
       DATABASE_FILE
     ])
+    expect(appendFileSyncMock).toHaveBeenCalledOnce()
+    expect(appendFileSyncMock).toHaveBeenCalledWith(
+      VERSION_LOG_FILE,
+      expect.stringMatching(
+        /^1\.9\.13\|(win|mac|linux|unknown)\|(prod|dev)\|(packaged|unpackaged)\|(install|portable)\|.+\n$/
+      ),
+      'utf8'
+    )
+    expect(rmSyncMock.mock.invocationCallOrder.at(-1)).toBeLessThan(appendFileSyncMock.mock.invocationCallOrder[0])
+    expect(appendFileSyncMock.mock.invocationCallOrder[0]).toBeLessThan(renameSyncMock.mock.invocationCallOrder.at(-1)!)
+
+    const { checkUpgradePathCompatibility, readPreviousVersion } = await import(
+      '@main/data/migration/v2/core/versionPolicy'
+    )
+    const previousVersion = readPreviousVersion(VERSION_LOG_FILE, '2.0.0')
+    expect(previousVersion).toBe('1.9.13')
+    expect(
+      checkUpgradePathCompatibility({ currentAppVersion: '2.0.0', previousVersion, versionLogExists: true })
+    ).toEqual({ outcome: 'pass' })
+
     expect(rmSyncMock).not.toHaveBeenCalledWith(APP_TEMP, expect.anything())
     expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'v1_remigration' })
     expect(markerExists()).toBe(false)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps remigration pending when the supported version record cannot be written', async () => {
+    stubAll(pendingMarker({ operation: 'v1_remigration' }))
+    appendFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOSPC: no space left on device')
+    })
+
+    await runReset()
+
+    expect(rmSyncMock).toHaveBeenCalledWith(DATABASE_FILE, expect.anything())
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', operation: 'v1_remigration', attempts: 1 })
+    expect(fsCtl.commits.map((commit) => commit?.status)).toEqual(['pending'])
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Migration Reset Failed', expect.any(String))
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('keeps a failed remigration pending, refuses to boot, and retries on the next launch', async () => {
