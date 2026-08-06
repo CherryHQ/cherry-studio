@@ -279,6 +279,16 @@
         "description": "El archivo excede el límite de vista previa de {{limit}}.",
         "title": "Archivo demasiado grande para previsualizar"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "El panel de archivos requiere una ruta local absoluta válida. Por favor, seleccione el directorio de trabajo nuevamente.",
+          "title": "Ruta de espacio de trabajo no válida"
+        },
+        "load_error": {
+          "description": "Asegúrate de que el directorio de trabajo todavía existe y es accesible, e inténtalo de nuevo.",
+          "title": "No se pudieron cargar los archivos del espacio de trabajo"
+        }
+      },
       "unavailable": {
         "description": "Este archivo no pudo abrirse; es posible que haya sido movido o eliminado.",
         "title": "Archivo no disponible"
@@ -758,6 +768,13 @@
         "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
       },
       "resume": "Reanudar",
+      "reuseSession": {
+        "bound": "Ver sesión",
+        "description": "Continúa cada ejecución en la misma sesión en lugar de iniciar una nueva.",
+        "label": "Reutilizar sesión",
+        "pending": "Esperando la primera ejecución",
+        "warning": "Una sesión reutilizada sigue acumulando contexto, lo que aumenta el costo de tokens con el tiempo y puede desbordar la ventana de contexto del modelo. Para vincular una sesión limpia, deshabilítela y guarde, luego habilítela y guarde."
+      },
       "run": "Ejecutar",
       "runTriggered": "Tarea activada",
       "save": "Guardar",
@@ -1419,6 +1436,11 @@
         "placeholder": "Buscar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens ahorrados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Nueva conversación"
     },
@@ -1484,6 +1506,13 @@
       },
       "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
+      "note_reference": {
+        "description": "Adjunta una nota de Notas",
+        "empty": "No se encontraron notas",
+        "load_failed": "Error al cargar notas",
+        "loading": "Cargando notas...",
+        "title": "Nota de Referencia"
+      },
       "paste_text_file": "Pegar en la entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
@@ -1614,6 +1643,10 @@
           "description": "No activar la función de búsqueda web",
           "label": "Sin búsqueda web"
         },
+        "route": {
+          "builtin": "Búsquedas con la herramienta integrada del modelo",
+          "client": "Búsquedas con {{provider}}"
+        },
         "settings": "Configuración de búsqueda en red"
       }
     },
@@ -1696,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Saltar al turno {{number}}"
+      },
       "bottom": "Volver abajo",
       "close": "Cerrar",
       "first": "Ya es el primer mensaje",
@@ -3166,6 +3202,7 @@
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta."
       },
       "processor": "Proveedor de Procesamiento",
+      "processor_not_configured": "No configurado",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
       "reset_action": "Restablecer valores predeterminados",
@@ -3416,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Compresión automática",
+        "context_compress_model": "Modelo de compresión",
+        "context_compress_model_follow": "Predeterminado",
         "context_count": "Recuento de contexto",
+        "context_management": "Gestión de contexto",
+        "context_truncate_threshold": "Umbral de truncamiento de salida de herramienta (caracteres)",
         "creative": "Creativo",
         "custom_params": "Parámetros personalizados",
         "custom_params_add": "Agregar parámetro",
@@ -3428,8 +3470,17 @@
           "avatar": {
             "hint": "Utilizado para identificar al asistente en la biblioteca y en los chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automáticamente los turnos anteriores al acercarse a la ventana de contexto"
+          },
           "context_count": {
             "hint": "Número de mensajes recientes conservados como contexto"
+          },
+          "context_management": {
+            "hint": "Anular la configuración global de gestión de contexto para este asistente; desactivado hereda la configuración global"
+          },
+          "context_truncate_threshold": {
+            "hint": "Las salidas de la herramienta que superen esta cantidad de caracteres se descargan y se truncan"
           },
           "custom_params": {
             "hint": "Parámetros adicionales del proveedor enviados con las solicitudes"
@@ -4274,6 +4325,7 @@
       "cutoff": "Truncando el contenido de búsqueda...",
       "fetch_complete": "{{count}} resultados de búsqueda",
       "fetch_empty": "No se encontraron resultados de búsqueda",
+      "fetch_opaque": "Buscado por el modelo",
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
@@ -5146,6 +5198,7 @@
     "reset": "Restablecer",
     "rotate_left": "Rotar a la izquierda",
     "rotate_right": "Rotar a la derecha",
+    "save_as": "Guardar como",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
@@ -5730,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Nuevo Asistente",
+      "create_tag": "Nuevo",
       "empty_text": "Aún no hay asistentes",
       "filter": "Asistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5854,7 +5908,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatea con Cherry Assistant para compartir tus comentarios.",
+          "title": "Usar Agente"
+        },
+        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Inténtalo de nuevo.",
         "button": "Enviar feedback",
+        "dialog": {
+          "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
+          "title": "Elige un canal de retroalimentación"
+        },
+        "github": {
+          "description": "Crea un informe de error o una solicitud de funcionalidad en GitHub.",
+          "title": "Problema de GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Comparta sus comentarios a través de nuestra encuesta de Feishu.",
+          "title": "Encuesta de retroalimentación"
+        },
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
@@ -7380,6 +7452,7 @@
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
+        "model": "Modelo de Denominación",
         "prompt": "Sugerencias para nombramiento de temas"
       },
       "translate_model": "Modelo de traducción",
@@ -8142,6 +8215,10 @@
         "check": "Comprobar",
         "check_failed": "Verificación fallida",
         "check_success": "Verificación exitosa",
+        "client_tools_preferred": {
+          "description": "Utilice los servicios de búsqueda y recuperación de URL configurados anteriormente incluso cuando el modelo tenga búsqueda integrada. Cuando está desactivado, el modelo lo gestiona.",
+          "label": "Preferir servicios de búsqueda configurados"
+        },
         "compression": {
           "cutoff": {
             "limit": {

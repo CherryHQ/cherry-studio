@@ -84,6 +84,7 @@ vi.mock('../adapters', () => ({
 }))
 
 import { processMessage } from '../proxyStream'
+import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
 
 function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMessage[] {
   const messages: CherryUIMessage[] = []
@@ -170,15 +171,16 @@ function commit(listener: StreamListener): void {
   listener.onChunk({ type: 'text-delta', id: 't1', delta: 'hello' } as any)
 }
 
-const NO_PREFILL_CONTINUATION_TEXT =
-  'Continue with the original user request above. The preceding assistant message is context, not a reply to complete.'
-
-function useGatewayModel(apiModelId: string, endpointType: EndpointType = ENDPOINT_TYPE.ANTHROPIC_MESSAGES): void {
-  mockGetProvider.mockReturnValue({ id: 'aihubmix', name: 'AiHubMix', isEnabled: true })
+function useGatewayModel(
+  apiModelId: string,
+  endpointType: EndpointType = ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  providerId = 'aihubmix'
+): void {
+  mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
   mockListModels.mockReturnValue([
     {
-      id: createUniqueModelId('aihubmix', apiModelId),
-      providerId: 'aihubmix',
+      id: createUniqueModelId(providerId, apiModelId),
+      providerId,
       apiModelId,
       capabilities: [],
       endpointTypes: [endpointType]
@@ -189,10 +191,11 @@ function useGatewayModel(apiModelId: string, endpointType: EndpointType = ENDPOI
 function createAnthropicParams(
   apiModelId: string,
   messages: MessageCreateParams['messages'],
-  streaming = true
+  streaming = true,
+  providerId = 'aihubmix'
 ): MessageCreateParams {
   return {
-    model: `aihubmix:${apiModelId}`,
+    model: `${providerId}:${apiModelId}`,
     max_tokens: 1024,
     messages,
     stream: streaming
@@ -221,8 +224,8 @@ async function processAndCaptureStreamMessages(
   return mockStreamPrompt.mock.calls[0][0].messages as CherryUIMessage[]
 }
 
-describe('processMessage (no-prefill normalization)', () => {
-  it('appends a continuation for an internal no-prefill Anthropic request without mutating config params', async () => {
+describe('processMessage (internal Agent continuation normalization)', () => {
+  it('appends a continuation for an internal Agent request without mutating config params', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
     const params = createAnthropicParams('claude-opus-5', [
@@ -244,7 +247,7 @@ describe('processMessage (no-prefill normalization)', () => {
       {
         id: 'no-prefill-continuation',
         role: 'user',
-        parts: [{ type: 'text', text: NO_PREFILL_CONTINUATION_TEXT }]
+        parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
       }
     ])
     expect(params).toEqual(snapshot)
@@ -273,7 +276,7 @@ describe('processMessage (no-prefill normalization)', () => {
       {
         id: 'no-prefill-continuation',
         role: 'user',
-        parts: [{ type: 'text', text: NO_PREFILL_CONTINUATION_TEXT }]
+        parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
       }
     ])
     expect(params).toEqual(snapshot)
@@ -293,7 +296,7 @@ describe('processMessage (no-prefill normalization)', () => {
     expect(messages.at(-1)).toEqual({
       id: 'no-prefill-continuation',
       role: 'user',
-      parts: [{ type: 'text', text: NO_PREFILL_CONTINUATION_TEXT }]
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
     })
   })
 
@@ -311,7 +314,7 @@ describe('processMessage (no-prefill normalization)', () => {
     expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
   })
 
-  it('leaves Claude 4.5 prefill unchanged for an internal request', async () => {
+  it('appends a continuation for an internal request targeting an older Claude model', async () => {
     useGatewayModel('claude-opus-4-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
     const params = createAnthropicParams('claude-opus-4-5', [
@@ -321,8 +324,12 @@ describe('processMessage (no-prefill normalization)', () => {
 
     const messages = await processAndCaptureStreamMessages(params)
 
-    expect(messages).toHaveLength(2)
-    expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
   })
 
   it('does not duplicate a continuation when the request already ends with a user message', async () => {
@@ -356,7 +363,7 @@ describe('processMessage (no-prefill normalization)', () => {
     })
   })
 
-  it('leaves an OpenAI-compatible endpoint unchanged', async () => {
+  it('appends a continuation for an internal request targeting an OpenAI-compatible endpoint', async () => {
     useGatewayModel('claude-opus-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     mockIsInternalAgentRequest.mockReturnValue(true)
     const params = createAnthropicParams('claude-opus-5', [
@@ -366,8 +373,35 @@ describe('processMessage (no-prefill normalization)', () => {
 
     const messages = await processAndCaptureStreamMessages(params)
 
-    expect(messages).toHaveLength(2)
-    expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+
+  it('appends a continuation for Doubao GLM-5.2 through OpenAI Responses', async () => {
+    useGatewayModel('glm-5-2-260617', ENDPOINT_TYPE.OPENAI_RESPONSES, 'doubao')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'glm-5-2-260617',
+      [
+        { role: 'user', content: 'Original request' },
+        { role: 'assistant', content: 'Deferred Agent context' }
+      ],
+      true,
+      'doubao'
+    )
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
   })
 
   it('leaves a non-Anthropic input format unchanged', async () => {
@@ -402,7 +436,7 @@ describe('processMessage (no-prefill normalization)', () => {
     expect(messages.at(-1)).toEqual({
       id: 'no-prefill-continuation',
       role: 'user',
-      parts: [{ type: 'text', text: NO_PREFILL_CONTINUATION_TEXT }]
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
     })
   })
 })

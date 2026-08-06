@@ -5,12 +5,12 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +20,10 @@ import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
+import AgentComposerImpl, {
+  AgentHomeComposer as AgentHomeComposerImpl,
+  MissingAgentHomeComposer
+} from '../AgentComposer'
 import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
@@ -31,10 +34,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeBases: [] as KnowledgeBase[],
   agentKnowledgeBaseIds: [] as string[],
   agentConfiguration: {} as AgentConfiguration,
-  agentLookupId: undefined as string | null | undefined,
-  modelLookupId: undefined as UniqueModelId | null | undefined,
   modelResult: undefined as Model | undefined,
-  modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   listDirectory: vi.fn(),
@@ -66,7 +66,6 @@ const mocks = vi.hoisted(() => ({
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
   optionalQuickPanel: null as { isVisible: boolean; symbol: string; updateList: (items: unknown) => void } | null,
-  contextUsagePercentage: null as number | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
   derivedToolState: undefined as
@@ -137,6 +136,57 @@ const model = {
   isEnabled: true,
   isHidden: false
 } satisfies Model
+
+type ControlledComposerProps = ComponentProps<typeof AgentComposerImpl>
+type TestComposerProps = Omit<
+  ControlledComposerProps,
+  'sessionOverride' | 'resolvedAgent' | 'resolvedModel' | 'resolvedWorkspaceWarning'
+> &
+  Partial<
+    Pick<ControlledComposerProps, 'sessionOverride' | 'resolvedAgent' | 'resolvedModel' | 'resolvedWorkspaceWarning'>
+  >
+
+const createControlledSession = (): ControlledComposerProps['sessionOverride'] => ({
+  workspaceId: mocks.sessionWorkspaceId,
+  workspace: {
+    id: mocks.sessionWorkspaceId,
+    type: 'user',
+    name: mocks.sessionWorkspaceName,
+    path: mocks.sessionWorkspacePath
+  }
+})
+
+const createControlledAgent = (): NonNullable<ControlledComposerProps['resolvedAgent']> =>
+  ({
+    id: 'agent-1',
+    name: 'Agent',
+    type: 'claude-code',
+    model: 'anthropic::claude-sonnet-4-5',
+    modelName: 'Claude Sonnet 4.5',
+    instructions: 'Follow instructions',
+    knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
+    configuration: mocks.agentConfiguration
+  }) as unknown as NonNullable<ControlledComposerProps['resolvedAgent']>
+
+const AgentComposer = (props: TestComposerProps) => (
+  <AgentComposerImpl
+    sessionOverride={createControlledSession()}
+    resolvedAgent={createControlledAgent()}
+    resolvedModel={mocks.modelResult}
+    resolvedWorkspaceWarning={null}
+    {...props}
+  />
+)
+
+const AgentHomeComposer = (props: TestComposerProps) => (
+  <AgentHomeComposerImpl
+    sessionOverride={createControlledSession()}
+    resolvedAgent={createControlledAgent()}
+    resolvedModel={mocks.modelResult}
+    resolvedWorkspaceWarning={null}
+    {...props}
+  />
+)
 
 const file = {
   id: 'file-1',
@@ -393,21 +443,6 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', as
 })
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: (agentId?: string | null) => {
-    mocks.agentLookupId = agentId
-    return {
-      agent: {
-        id: 'agent-1',
-        name: 'Agent',
-        type: 'claude-code',
-        model: 'anthropic::claude-sonnet-4-5',
-        modelName: 'Claude Sonnet 4.5',
-        instructions: 'Follow instructions',
-        knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
-        configuration: mocks.agentConfiguration
-      }
-    }
-  },
   useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
 }))
 
@@ -415,60 +450,12 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
-  useAgentSessionContextUsage: () => ({
-    usage:
-      mocks.contextUsagePercentage === null
-        ? null
-        : {
-            categories: [],
-            totalTokens: 42,
-            maxTokens: 100,
-            rawMaxTokens: 100,
-            percentage: mocks.contextUsagePercentage,
-            gridRows: [],
-            model: 'agent/deepseek-v4-flash',
-            memoryFiles: [],
-            mcpTools: [],
-            agents: [],
-            isAutoCompactEnabled: false,
-            apiUsage: null
-          },
-    percentage: mocks.contextUsagePercentage
-  })
-}))
-
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
   useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useSession: () => ({
-    session: {
-      id: 'session-1',
-      agentId: 'agent-1',
-      name: 'Session',
-      accessiblePaths: [mocks.sessionWorkspacePath],
-      workspaceId: mocks.sessionWorkspaceId,
-      workspace: {
-        id: mocks.sessionWorkspaceId,
-        type: 'user',
-        name: mocks.sessionWorkspaceName,
-        path: mocks.sessionWorkspacePath,
-        orderKey: 'a0',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }
-    }
-  }),
   useUpdateSession: () => ({ updateSession: mocks.updateSession })
-}))
-
-vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (id: UniqueModelId | null) => {
-    mocks.modelLookupId = id
-    return { model: mocks.modelResult, isLoading: mocks.modelLoading }
-  }
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
@@ -733,10 +720,7 @@ describe('AgentComposer', () => {
     mocks.knowledgeBases = []
     mocks.agentKnowledgeBaseIds = []
     mocks.agentConfiguration = {}
-    mocks.agentLookupId = undefined
-    mocks.modelLookupId = undefined
     mocks.modelResult = model
-    mocks.modelLoading = false
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
@@ -823,7 +807,6 @@ describe('AgentComposer', () => {
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
-    mocks.contextUsagePercentage = null
     mocks.surfaceProps = undefined
     mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
@@ -861,7 +844,7 @@ describe('AgentComposer', () => {
     restoreRequestAnimationFrame = undefined
   })
 
-  it('resolves the agent model through the v2 UniqueModelId', () => {
+  it('uses the page-resolved model', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -872,7 +855,6 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
@@ -1169,7 +1151,7 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
-  it('uses page-resolved context without subscribing to agent and model data again', () => {
+  it('uses the controlled session, agent, and model context', () => {
     const resolvedAgent = {
       id: 'agent-1',
       name: 'Agent',
@@ -1177,7 +1159,6 @@ describe('AgentComposer', () => {
       model: model.id,
       configuration: {}
     } as any
-
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1196,9 +1177,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.agentLookupId).toBeNull()
-    expect(mocks.modelLookupId).toBeNull()
     expect(mocks.runtimeHostProps?.model).toBe(model)
+    expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
   })
 
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
@@ -2142,11 +2122,31 @@ describe('AgentComposer', () => {
     })
   })
 
-  it('renders context usage next to the send action when cached usage exists', async () => {
-    mocks.contextUsagePercentage = 42
+  it('renders context usage for the selected Gateway model but hides a different model cache', async () => {
+    mocks.modelResult = {
+      ...model,
+      id: 'minimax::MiniMax-M3',
+      providerId: 'minimax',
+      apiModelId: 'MiniMax-M3',
+      name: 'MiniMax M3'
+    }
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      categories: [],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'minimax:MiniMax-M3',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    })
     mocks.sessionLayout = 'time'
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -2157,7 +2157,7 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const modelButton = within(leftControls).getByRole('button', { name: /MiniMax M3/ })
     const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     const sendAccessory = screen.getByTestId('composer-send-accessory')
@@ -2172,7 +2172,36 @@ describe('AgentComposer', () => {
     expect(indicator).toHaveAttribute('style', expect.stringContaining('color-mix(in oklch'))
 
     await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
-    expect(screen.getByText('agent/deepseek-v4-flash')).toBeInTheDocument()
+    expect(within(sendAccessory).getByText('MiniMax M3')).toBeInTheDocument()
+    expect(within(sendAccessory).queryByText('minimax:MiniMax-M3')).not.toBeInTheDocument()
+
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      categories: [],
+      totalTokens: 24,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 24,
+      gridRows: [],
+      model: 'openai:gpt-4o',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).queryByLabelText(/context_usage/)
+    ).not.toBeInTheDocument()
   })
 
   it('provides workspace file resources through the @ mention suggestion source', async () => {
@@ -4455,34 +4484,7 @@ describe('AgentComposer', () => {
     expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
   })
 
-  it('does not block sends when workspace status preflight fails', async () => {
-    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('preflight unavailable'))
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() =>
-      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: '/workspace' })
-    )
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(screen.queryByText('agent.session.workspace_status.inaccessible')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('send'))
-
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
-  })
-
-  it('does not preflight the system no-project workspace path', () => {
+  it('renders the controlled system no-project workspace without a local preflight', () => {
     mocks.sessionLayout = 'time'
 
     render(

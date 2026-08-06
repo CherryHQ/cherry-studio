@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   assistant: undefined as any,
   model: undefined as Model | undefined,
-  provider: undefined as any
+  provider: undefined as any,
+  providerLookupId: undefined as string | undefined
 }))
 
 const launcherApi: ToolLauncherApi = {
@@ -67,7 +68,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: mocks.provider })
+  useProviderById: (providerId?: string) => {
+    mocks.providerLookupId = providerId
+    return { provider: mocks.provider }
+  }
 }))
 
 vi.mock('@renderer/utils/api', () => ({
@@ -154,11 +158,24 @@ describe('WebSearchButton', () => {
       isHidden: false
     }
     mocks.provider = undefined
+    mocks.providerLookupId = undefined
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
+  })
+
+  it('reads only the current model provider', () => {
+    const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.providerLookupId).toBe('anthropic')
+
+    mocks.model = undefined
+    view.unmount()
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.providerLookupId).toBeUndefined()
   })
 
   it('opens web search settings and restores trigger focus when external providers are missing', () => {

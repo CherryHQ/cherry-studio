@@ -17,11 +17,33 @@ function parseResultUrl(url: string): { hostname: string; domain: string } {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Display target emitted by provider-executed Responses web search tools. */
+function getProviderWebSearchTarget(response: unknown): string {
+  if (!isRecord(response) || !isRecord(response.action)) return ''
+
+  const action = response.action
+  switch (action.type) {
+    case 'search':
+      return typeof action.query === 'string' ? action.query : ''
+    case 'openPage':
+      return typeof action.url === 'string' ? action.url : ''
+    case 'findInPage':
+      if (typeof action.pattern === 'string' && action.pattern) return action.pattern
+      return typeof action.url === 'string' ? action.url : ''
+    default:
+      return ''
+  }
+}
+
 const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
-  const query = inputParse.success ? inputParse.data.query : ''
+  const query = inputParse.success ? inputParse.data.query : getProviderWebSearchTarget(toolResponse.response)
   // A tool can share the `web_search` wire name without sharing our result shape: Kimi's official
   // formula returns an opaque (encrypted) payload its own platform resolves. An unparseable output
   // means we do not KNOW the count — reporting zero claimed the search found nothing when it had.

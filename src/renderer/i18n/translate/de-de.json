@@ -279,6 +279,16 @@
         "description": "Datei überschreitet das {{limit}}-Vorschau-Limit.",
         "title": "Datei zu groß zur Vorschau"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Das Dateipanel erfordert einen gültigen absoluten lokalen Pfad. Bitte wählen Sie das Arbeitsverzeichnis erneut aus.",
+          "title": "Ungültiger Arbeitsbereich-Pfad"
+        },
+        "load_error": {
+          "description": "Stellen Sie sicher, dass das Arbeitsverzeichnis noch existiert und zugänglich ist, und versuchen Sie es dann erneut.",
+          "title": "Arbeitsbereichdateien konnten nicht geladen werden"
+        }
+      },
       "unavailable": {
         "description": "Diese Datei konnte nicht geöffnet werden – sie wurde möglicherweise verschoben oder gelöscht.",
         "title": "Datei nicht verfügbar"
@@ -758,6 +768,13 @@
         "placeholder": "Was soll der Agent tun, wenn diese Aufgabe ausgeführt wird?"
       },
       "resume": "Fortsetzen",
+      "reuseSession": {
+        "bound": "Sitzung anzeigen",
+        "description": "Führen Sie jede Ausführung in derselben Sitzung fort, anstatt eine neue zu starten.",
+        "label": "Sitzung wiederverwenden",
+        "pending": "Warten auf den ersten Lauf",
+        "warning": "Eine wiederverwendete Sitzung sammelt kontinuierlich Kontext an, was die Token-Kosten im Laufe der Zeit erhöht und das Kontextfenster des Modells überlaufen lassen kann. Um eine saubere Sitzung neu zu binden, deaktivieren und speichern Sie, dann aktivieren und speichern Sie erneut."
+      },
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
@@ -1419,6 +1436,11 @@
         "placeholder": "Suchen"
       }
     },
+    "compaction": {
+      "compacted": "Kontext komprimiert, ~{{count}} Token gespart",
+      "compacted_plain": "Kontext komprimiert",
+      "compacting": "Kontext wird komprimiert…"
+    },
     "conversation": {
       "new": "Neuer Chat"
     },
@@ -1484,6 +1506,13 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
+      "note_reference": {
+        "description": "Eine Notiz aus Notizen anhängen",
+        "empty": "Keine Notizen gefunden",
+        "load_failed": "Notizen konnten nicht geladen werden",
+        "loading": "Notizen werden geladen...",
+        "title": "Referenzhinweis"
+      },
       "paste_text_file": "In die Eingabe einfügen",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1614,6 +1643,10 @@
           "description": "Websuchfunktion nicht aktivieren",
           "label": "Keine Websuche"
         },
+        "route": {
+          "builtin": "Suchen mit dem integrierten Tool des Modells",
+          "client": "Suchen mit {{provider}}"
+        },
         "settings": "Websuch-Einstellungen"
       }
     },
@@ -1696,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Springe zu Zug {{number}}"
+      },
       "bottom": "Zum Boden scrollen",
       "close": "Schließen",
       "first": "Bereits die erste Nachricht",
@@ -3166,6 +3202,7 @@
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
       "processor": "Verarbeitungsanbieter",
+      "processor_not_configured": "Nicht konfiguriert",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -3416,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Automatische Komprimierung",
+        "context_compress_model": "Komprimierungsmodell",
+        "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_management": "Kontextverwaltung",
+        "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
         "custom_params": "Benutzerdefinierte Parameter",
         "custom_params_add": "Parameter hinzufügen",
@@ -3428,8 +3470,17 @@
           "avatar": {
             "hint": "Wird verwendet, um den Assistenten in der Bibliothek und in Chats zu identifizieren"
           },
+          "context_compress_enabled": {
+            "hint": "Ältere Gesprächswendungen automatisch zusammenfassen, wenn sich das Kontextfenster füllt"
+          },
           "context_count": {
             "hint": "Anzahl der kürzlichen Nachrichten, die als Kontext beibehalten werden"
+          },
+          "context_management": {
+            "hint": "Globale Kontextverwaltungseinstellungen für diesen Assistenten überschreiben; aus übernimmt die globalen Einstellungen"
+          },
+          "context_truncate_threshold": {
+            "hint": "Tool-Ausgaben, die diese Zeichenanzahl überschreiten, werden ausgelagert und abgeschnitten"
           },
           "custom_params": {
             "hint": "Zusätzliche Provider-Parameter, die mit Anfragen gesendet werden"
@@ -4274,6 +4325,7 @@
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
       "fetch_empty": "Keine Suchergebnisse gefunden",
+      "fetch_opaque": "Vom Modell durchsucht",
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
@@ -5146,6 +5198,7 @@
     "reset": "Zurücksetzen",
     "rotate_left": "Nach links drehen",
     "rotate_right": "Nach rechts drehen",
+    "save_as": "Speichern unter",
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
@@ -5730,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Neuer Assistent",
+      "create_tag": "Neu",
       "empty_text": "Noch keine Assistenten",
       "filter": "Filter-Assistenten",
       "group_filter": "Nach Gruppe filtern",
@@ -5854,7 +5908,25 @@
         "title": "Unternehmen"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatte mit dem Cherry Assistant, um Feedback zu teilen.",
+          "title": "Verwenden Sie Agent"
+        },
+        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
+          "title": "Wählen Sie einen Feedback-Kanal"
+        },
+        "github": {
+          "description": "Erstelle einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Empfohlen",
+        "survey": {
+          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
+          "title": "Feedback-Umfrage"
+        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -7380,6 +7452,7 @@
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
         "label": "Thema-Benennung",
+        "model": "Namensmodell",
         "prompt": "Thema-Benennung-Prompt"
       },
       "translate_model": "Übersetzungsmodell",
@@ -8142,6 +8215,10 @@
         "check": "Erkennen",
         "check_failed": "Erkennung fehlgeschlagen",
         "check_success": "Erkennung erfolgreich",
+        "client_tools_preferred": {
+          "description": "Verwenden Sie die oben konfigurierten Such- und URL-Abrufdienste auch dann, wenn das Modell eine integrierte Suche hat. Wenn ausgeschaltet, übernimmt das Modell die Verarbeitung.",
+          "label": "Konfigurierte Suchdienste bevorzugen"
+        },
         "compression": {
           "cutoff": {
             "limit": {
