@@ -1,6 +1,7 @@
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -128,7 +129,7 @@ describe('ComposerSpeedControl UI', () => {
     ).toBe('default')
   })
 
-  it('uses only a slider for GPT-5.6, with Off first and Default filtered out', () => {
+  it('uses a slider for GPT-5.6, with Off first and Default as a separate choice', () => {
     const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
@@ -139,11 +140,14 @@ describe('ComposerSpeedControl UI', () => {
     expect(slider).toHaveAttribute('data-value', '3')
     expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
     fireEvent.click(screen.getByTestId('select-slider-min'))
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('select-slider-max'))
 
@@ -163,7 +167,10 @@ describe('ComposerSpeedControl UI', () => {
     )
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
     expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
@@ -228,21 +235,35 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '2')
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '1')
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 
-  it('changes a displayed stored Default after slider interaction', () => {
+  it('restores provider Default after selecting an explicit slider tier', async () => {
+    const user = userEvent.setup()
     render(<ControlledSpeedControl model={codexModel} initialEffort="default" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
-    fireEvent.click(screen.getByTestId('select-slider-max'))
+    await user.click(screen.getByTestId('select-slider-max'))
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.max'
     )
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
+
+    await user.click(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' }))
+
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.default'
+    )
+    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
+    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.default'
+    )
   })
 
   it('toggles Fast only for a capable provider-model pair', () => {

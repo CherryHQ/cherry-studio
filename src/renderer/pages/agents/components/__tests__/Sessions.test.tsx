@@ -1805,10 +1805,9 @@ describe('Sessions', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-b', {
       forceNew: true,
-      title: 'Beta session',
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-b' }
+      title: 'Beta session'
     })
     requestAnimationFrameSpy.mockRestore()
   })

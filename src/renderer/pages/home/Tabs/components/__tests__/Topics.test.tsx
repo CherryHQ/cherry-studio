@@ -1409,10 +1409,9 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-c', {
       forceNew: true,
-      title: 'Gamma topic',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-c' }
+      title: 'Gamma topic'
     })
     requestAnimationFrameSpy.mockRestore()
   })

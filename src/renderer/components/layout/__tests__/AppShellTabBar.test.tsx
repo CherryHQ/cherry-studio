@@ -1026,6 +1026,132 @@ describe('AppShellTabBar', () => {
     }
   })
 
+  it('divides adjacent normal tabs, skipping the first tab and every lit neighbor', () => {
+    const tabs = [createTab('a'), createTab('b'), createTab('c'), createTab('d')]
+
+    renderTabBar({ tabs, activeTabId: 'c' })
+
+    const hasDivider = (name: string) =>
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
+
+    // "A" opens the strip; "C" is active, so both boundaries around it stay clear.
+    expect(hasDivider('A')).toBe(false)
+    expect(hasDivider('B')).toBe(true)
+    expect(hasDivider('C')).toBe(false)
+    expect(hasDivider('D')).toBe(false)
+  })
+
+  it('keeps the divider at Chrome-matched metrics', () => {
+    renderTabBar({ tabs: [createTab('a'), createTab('b'), createTab('c')], activeTabId: 'a' })
+
+    // The tint/thickness were calibrated against a Chrome screenshot; pin them so
+    // a later "tidy-up" cannot silently wash the divider out again.
+    const divider = screen.getByRole('button', { name: 'C' }).querySelector('[data-tab-divider]')
+    expect(divider).toHaveClass('h-4', 'w-[1.5px]', 'bg-border/80')
+    // It fades on the same 150ms as the tab tint it hands the boundary over to.
+    expect(divider).toHaveClass('transition-opacity', 'duration-150')
+  })
+
+  it('drops every divider while a reorder drag is in flight', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+
+    try {
+      const tabs = [createTab('a'), createTab('b'), createTab('c'), createTab('d')]
+      renderTabBar({ tabs, activeTabId: 'a' })
+
+      const hasDivider = (name: string) =>
+        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
+      expect(hasDivider('C')).toBe(true)
+
+      // Dragging only translates tabs — the arrays keep their pre-drop order, so a
+      // divider drawn from that order can land against the dragged tab.
+      const dragged = screen.getByRole('button', { name: 'D' })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 300, clientY: 20 })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(dragged, pointerDown)
+      const pointerMove = new MouseEvent('pointermove', { bubbles: true, clientX: 120, clientY: 20 })
+      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
+      fireEvent(document, pointerMove)
+
+      expect(dragged).toHaveClass('cursor-grabbing')
+      expect(document.querySelectorAll('[data-tab-divider][data-visible]')).toHaveLength(0)
+    } finally {
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+    }
+  })
+
+  it('clears the divider beside a tab whose context menu is open', () => {
+    const tabs = [createTab('a'), createTab('b'), createTab('c')]
+    renderTabBar({ tabs, activeTabId: 'a' })
+
+    const hasDivider = (name: string) =>
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
+    expect(hasDivider('C')).toBe(true)
+
+    // A menu-open tab is tinted like a hovered one, and the modal menu steals the
+    // pointer — so hover state alone cannot keep the neighbouring divider away.
+    fireEvent.click(screen.getAllByTestId('menu-set-open')[1])
+    expect(hasDivider('B')).toBe(false)
+    expect(hasDivider('C')).toBe(false)
+
+    fireEvent.click(screen.getAllByTestId('menu-set-closed')[1])
+    expect(hasDivider('C')).toBe(true)
+  })
+
+  it('clears the divider beside a collapsing tab, and the zone separator beside a lit tab', () => {
+    const restore = mockCloseAnimation()
+
+    try {
+      const tabs = [createTab('p', { isPinned: true }), createTab('a'), createTab('b'), createTab('c')]
+      renderTabBar({ tabs, activeTabId: 'a' })
+
+      const hasDivider = (name: string) =>
+        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
+      // The pinned zone already ends in its own separator, so the first normal tab
+      // must not add one on top of it.
+      expect(hasDivider('A')).toBe(false)
+      expect(hasDivider('C')).toBe(true)
+
+      const closeButton = within(screen.getByRole('button', { name: 'B' })).getByRole('button', { name: 'tab.close' })
+      // detail: 1 marks it a real pointer close — the path that plays the collapse.
+      fireEvent.click(closeButton, { detail: 1 })
+      act(() => {
+        vi.advanceTimersByTime(40)
+      })
+
+      // "B" is collapsing: its own divider and the one on "C" must stay away until
+      // it is gone, or a hairline flashes in the shrinking gap.
+      expect(hasDivider('B')).toBe(false)
+      expect(hasDivider('C')).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
+  it('clears the dividers on both sides of the hovered tab', async () => {
+    const user = userEvent.setup()
+    const tabs = [createTab('a'), createTab('b'), createTab('c')]
+
+    renderTabBar({ tabs, activeTabId: 'a' })
+
+    const hasDivider = (name: string) =>
+      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
+
+    expect(hasDivider('C')).toBe(true)
+
+    await user.hover(screen.getByRole('button', { name: 'B' }))
+    expect(hasDivider('B')).toBe(false)
+    expect(hasDivider('C')).toBe(false)
+
+    await user.unhover(screen.getByRole('button', { name: 'B' }))
+    expect(hasDivider('C')).toBe(true)
+  })
+
   it('keeps the tab highlighted while its context menu is open', () => {
     renderTabBar()
 
