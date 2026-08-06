@@ -54,7 +54,8 @@ function renderActions(
   uiMessages: ReturnType<typeof uiMsg>[],
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
-  startNewContextBlocked = false
+  startNewContextBlocked = false,
+  siblingsMap: Parameters<typeof useChatWriteActions>[0]['siblingsMap'] = {}
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
@@ -63,6 +64,7 @@ function renderActions(
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
       uiMessages,
+      siblingsMap,
       activeNodeId,
       rootId,
       regenerate,
@@ -125,6 +127,7 @@ describe('useChatWriteActions — clear context', () => {
       useChatWriteActions({
         topic: { id: 't1' } as Topic,
         uiMessages: [uiMsg('u1', 'user', 'vroot')],
+        siblingsMap: {},
         activeNodeId: 'u1',
         rootId: 'vroot',
         regenerate: vi.fn(async () => {}),
@@ -326,6 +329,22 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ query: { ids: 'a1,a2' } })
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
     expect(invalidateMessages).toHaveBeenCalledWith(['a1', 'a2'])
+  })
+
+  it('expands displayed bubbles to their full regenerate bucket before deletion', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.deleteMessageGroupTrigger).mockResolvedValueOnce({ deletedIds: ['a1-old', 'a1', 'a2'] })
+    const messages = [...tree(), uiMsg('a2', 'assistant', 'u1')]
+    // a1 was regenerated: the hidden older version shares its sibling group.
+    const siblingsMap = {
+      a1: [{ id: 'a1-old' }, { id: 'a1' }]
+    } as unknown as Parameters<typeof useChatWriteActions>[0]['siblingsMap']
+    const { actions } = renderActions('vroot', messages, cache, undefined, false, siblingsMap)
+
+    await actions.deleteMessageGroup(['a1', 'a2'])
+
+    expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ query: { ids: 'a1-old,a1,a2' } })
+    expect(invalidateMessages).toHaveBeenCalledWith(['a1-old', 'a1', 'a2'])
   })
 
   it('rejects message group deletion before the root is available', async () => {

@@ -79,6 +79,9 @@ function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined)
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
+  /** Any sibling member id → full ordered sibling group (see `useTopicMessages`). Used to
+   *  expand displayed reply bubbles to their whole regenerate bucket on group deletion. */
+  siblingsMap: Record<string, DbMessage[]>
   activeNodeId: string | null
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
@@ -104,6 +107,7 @@ export function useChatWriteActions(params: Params): Result {
   const {
     topic,
     uiMessages,
+    siblingsMap,
     activeNodeId,
     rootId,
     regenerate,
@@ -256,10 +260,17 @@ export function useChatWriteActions(params: Params): Result {
       ) {
         throw new Error('Message group deletion is unavailable')
       }
-      const deletedSet = new Set(uniqueMessageIds)
+      // Each rendered bubble is only its model bucket's representative — regenerated
+      // versions of the same reply sit hidden behind the sibling navigator. Expand every
+      // id to its full sibling group so those are deleted with the group. (Hidden siblings
+      // are absent from `uiMessages`, so availability is checked on the displayed ids above.)
+      const targetIds = Array.from(
+        new Set(uniqueMessageIds.flatMap((messageId) => siblingsMap[messageId]?.map((m) => m.id) ?? [messageId]))
+      )
+      const deletedSet = new Set(targetIds)
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
       try {
-        const result = await deleteMessageGroupTrigger({ query: { ids: uniqueMessageIds.join(',') } })
+        const result = await deleteMessageGroupTrigger({ query: { ids: targetIds.join(',') } })
         invalidateCachedMessageUiStates(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
@@ -267,7 +278,14 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [branchWithoutIds, deleteMessageGroupTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
+    [
+      branchWithoutIds,
+      deleteMessageGroupTrigger,
+      getMessageDeleteAvailability,
+      rollbackBranch,
+      seedOptimisticBranch,
+      siblingsMap
+    ]
   )
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
