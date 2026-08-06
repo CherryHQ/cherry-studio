@@ -5,9 +5,9 @@ import * as React from 'react'
 
 const radioGroupItemVariants = cva(
   cn(
-    'aspect-square shrink-0 rounded-full border border-input bg-transparent text-primary shadow-none transition-[color,border-color,box-shadow] outline-none',
-    'data-[state=checked]:border-2 data-[state=checked]:border-primary',
-    'focus-visible:border-primary',
+    'relative aspect-square shrink-0 rounded-full border border-input bg-transparent shadow-none transition-[color,border-color,box-shadow] outline-none',
+    'data-[state=checked]:border-control-accent',
+    'focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35 focus-visible:ring-inset',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
     'disabled:cursor-not-allowed disabled:opacity-50'
   ),
@@ -25,6 +25,19 @@ const radioGroupItemVariants = cva(
   }
 )
 
+const radioGroupIndicatorVariants = cva('block rounded-full bg-control-accent', {
+  variants: {
+    size: {
+      sm: 'size-1.5',
+      md: 'size-2',
+      lg: 'size-2.5'
+    }
+  },
+  defaultVariants: {
+    size: 'md'
+  }
+})
+
 function RadioGroup({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
   return <RadioGroupPrimitive.Root data-slot="radio-group" className={cn('grid gap-3', className)} {...props} />
 }
@@ -40,9 +53,13 @@ function RadioGroupItem({
       data-size={size}
       className={cn(radioGroupItemVariants({ size }), className)}
       {...props}>
-      <RadioGroupPrimitive.Indicator data-slot="radio-group-indicator" />
+      <RadioGroupPrimitive.Indicator
+        data-slot="radio-group-indicator"
+        className="absolute inset-0 flex items-center justify-center">
+        <span className={cn(radioGroupIndicatorVariants({ size }))} />
+      </RadioGroupPrimitive.Indicator>
     </RadioGroupPrimitive.Item>
   )
 }
 
-export { RadioGroup, RadioGroupItem, radioGroupItemVariants }
+export { RadioGroup, radioGroupIndicatorVariants, RadioGroupItem, radioGroupItemVariants }

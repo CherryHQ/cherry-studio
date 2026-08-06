@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest'
 import { Input } from '../input'
 
 describe('Input', () => {
-  it('changes its own border on focus without drawing an outer ring', () => {
+  it('uses the compact v2 shape and a subtle keyboard focus ring', () => {
     render(<Input aria-label="Name" />)
 
     const input = screen.getByRole('textbox', { name: 'Name' })
-    expect(input.className).toContain('focus-visible:border-primary')
-    expect(input.className).not.toMatch(/focus-visible:ring-(?!0)/)
+    expect(input).toHaveClass('h-8', 'rounded-lg', 'px-2.5')
+    expect(input.className).toContain('focus-visible:border-ring')
+    expect(input.className).toContain('focus-visible:ring-1')
+    expect(input.className).toContain('focus-visible:ring-inset')
     expect(input.className).not.toContain('focus-visible:outline-')
   })
 })

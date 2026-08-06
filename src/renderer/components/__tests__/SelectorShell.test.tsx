@@ -133,8 +133,27 @@ describe('SelectorShell', () => {
     expect(content).toHaveClass('shadow-none')
     expect(content).toHaveClass('animation-selector-shell-content')
     expect(panel).toHaveClass('bg-popover')
+    expect(panel).toHaveClass('py-1')
     expect(panel).toHaveClass('shadow-lg')
     expect(panel).toHaveClass('animation-selector-shell-panel')
+  })
+
+  it('renders search as a contained pill instead of a panel divider', () => {
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}>
+        <div />
+      </SelectorShell>
+    )
+
+    const searchChrome = document.querySelector<HTMLElement>('[data-selector-shell-chrome="search"]')
+    const searchPill = searchChrome?.firstElementChild
+    expect(searchChrome).not.toHaveClass('border-b')
+    expect(searchPill).toHaveClass('rounded-full', 'border-border-subtle', 'bg-background')
+    expect(screen.getByPlaceholderText('Search')).toHaveClass('rounded-full')
   })
 
   it('applies contentHeight as a fixed popover target height', () => {

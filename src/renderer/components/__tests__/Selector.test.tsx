@@ -1,8 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import Selector from '../Selector'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof CherryStudioUi>())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -25,6 +28,26 @@ vi.mock('@renderer/i18n/resolver', () => ({
   }
 }))
 
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+  }
+  if (!HTMLElement.prototype.releasePointerCapture) {
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.setPointerCapture) {
+    HTMLElement.prototype.setPointerCapture = () => {}
+  }
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
+
+afterEach(cleanup)
+
 describe('Selector', () => {
   it('renders the selected single option and emits the original option value', async () => {
     const onChange = vi.fn()
@@ -41,9 +64,24 @@ describe('Selector', () => {
     )
 
     const trigger = screen.getByRole('combobox', { name: /one/i })
-    expect(trigger).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
+    expect(trigger).toHaveClass(
+      'justify-between',
+      'rounded-lg',
+      'border-input',
+      'bg-transparent',
+      'hover:border-border-strong',
+      'hover:bg-transparent',
+      'focus-visible:border-ring',
+      'aria-expanded:bg-transparent',
+      'dark:bg-transparent'
+    )
+    expect(trigger.querySelector('.grid')).toHaveClass('items-center')
+    expect(trigger.querySelector('[data-slot="select-value"]')?.parentElement).toHaveClass('col-start-1', 'row-start-1')
+    expect(trigger).not.toHaveClass('bg-accent')
 
     await userEvent.click(trigger)
+    expect(trigger).not.toHaveClass('bg-accent')
     await userEvent.click(screen.getByRole('option', { name: /two/i }))
 
     expect(onChange).toHaveBeenCalledWith(2)
@@ -91,7 +129,7 @@ describe('Selector', () => {
     )
 
     const combobox = screen.getByRole('combobox', { name: /plain/i })
-    expect(combobox).toHaveAttribute('aria-disabled', 'true')
+    expect(combobox).toBeDisabled()
     expect(combobox).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.click(combobox)

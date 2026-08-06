@@ -378,10 +378,15 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
   const { icon, children, badge, className } = props
   const shortcut = 'shortcut' in props ? props.shortcut : undefined
   const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
+  const coloredIcon =
+    icon && React.isValidElement<{ className?: string }>(icon)
+      ? // eslint-disable-next-line @eslint-react/no-clone-element
+        React.cloneElement(icon, { className: cn('text-current', icon.props.className) })
+      : icon
   return (
     <>
       <span className={cn('flex min-w-0 flex-1 items-center gap-2', className)}>
-        {icon && <span className="size-4 shrink-0">{icon}</span>}
+        {coloredIcon && <span className="size-4 shrink-0">{coloredIcon}</span>}
         <span className="min-w-0 flex-1 truncate">{children}</span>
       </span>
       <span className="ml-auto flex items-center gap-1">

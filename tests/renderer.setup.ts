@@ -207,6 +207,8 @@ vi.mock('@cherrystudio/ui', () => {
         )
       )
     },
+    HorizontalScrollContainer: ({ children, className }) =>
+      React.createElement('div', { className, style: { display: 'flex', overflowX: 'auto' } }, children),
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
