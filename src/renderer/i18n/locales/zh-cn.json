@@ -3925,7 +3925,7 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
-      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "generating_unavailable": "该分组中仍有回答正在生成，暂时无法删除。",
       "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
@@ -4010,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "删除分组消息会删除用户提问和所有助手的回答",
-        "title": "删除分组消息"
+        "content": "是否删除该分组中的所有助手回答？用户提问和后续消息将保留。",
+        "title": "删除分组回答"
       },
       "retry_failed": "重试出错的消息"
     },

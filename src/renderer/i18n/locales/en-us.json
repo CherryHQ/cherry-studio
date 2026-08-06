@@ -3925,7 +3925,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
-      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
@@ -4010,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
+        "title": "Delete Group Replies"
       },
       "retry_failed": "Retry failed messages"
     },
