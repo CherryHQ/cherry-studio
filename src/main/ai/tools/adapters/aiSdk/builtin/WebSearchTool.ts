@@ -35,7 +35,7 @@ const webSearchTool = tool({
   strict: true,
   execute: async ({ query }, options) => {
     if (typeof query !== 'string' || !query.trim()) {
-      return webLookupModelOutput([])
+      return []
     }
     return markTrustedLocalToolTerminalFailure(
       await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
