@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
 import type { ExternalAppConfig, ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
+import { spawn } from 'child_process'
 import { app } from 'electron'
-import { existsSync, statSync } from 'fs'
+import { lstatSync, statSync } from 'fs'
 import path from 'path'
 
 const logger = loggerService.withContext('ExternalAppsService')
@@ -66,16 +66,37 @@ class ExternalAppsService {
       throw new Error(`Executable for external app "${appId}" was not found`)
     }
     const directory = this.resolveTerminalDirectory(targetPath)
+    const launchContext = { appId, executablePath, targetPath, directory }
+    logger.info('Launching external app', launchContext)
 
     await new Promise<void>((resolve, reject) => {
-      const child = crossPlatformSpawn(executablePath, ['-d', directory], { env: process.env })
-      child.on('error', reject)
-      child.on('close', (code) => {
+      // Windows Terminal is a GUI app; hiding the spawned process also hides its window.
+      const child = spawn(executablePath, ['-d', directory], { env: process.env, shell: false, windowsHide: false })
+      let settled = false
+
+      child.on('error', (error) => {
+        if (settled) return
+        settled = true
+        logger.error('Failed to launch external app', error, { appId, executablePath, targetPath, directory })
+        reject(error)
+      })
+      child.on('close', (code, signal) => {
+        if (settled) return
+        settled = true
         if (code === 0) {
+          logger.info('External app launched', launchContext)
           resolve()
-        } else {
-          reject(new Error(`"${config.name}" exited with code ${code}`))
+          return
         }
+        logger.warn('External app exited unsuccessfully', {
+          appId,
+          executablePath,
+          targetPath,
+          directory,
+          exitCode: code,
+          signal
+        })
+        reject(new Error(`"${config.name}" exited with code ${code}`))
       })
     })
   }
@@ -96,7 +117,14 @@ class ExternalAppsService {
     if (!executablePath) {
       return null
     }
-    return { ...appConfig, path: executablePath }
+    try {
+      // App Execution Aliases are reparse points. `lstatSync` inspects the alias
+      // itself instead of following it, which can fail with EACCES on Windows.
+      lstatSync(executablePath)
+      return { ...appConfig, path: executablePath }
+    } catch {
+      return null
+    }
   }
 
   private resolveExecutablePath(appConfig: ExternalAppConfig): string | null {
@@ -110,8 +138,7 @@ class ExternalAppsService {
     // Windows Terminal (Store app) registers its `wt.exe` App Execution Alias here.
     // `path.win32` keeps the resulting path deterministic (backslash-separated) even
     // when the service is exercised on a non-Windows host (e.g. CI unit tests).
-    const aliasPath = path.win32.join(localAppData, 'Microsoft', 'WindowsApps', appConfig.executable)
-    return existsSync(aliasPath) ? aliasPath : null
+    return path.win32.join(localAppData, 'Microsoft', 'WindowsApps', appConfig.executable)
   }
 
   private resolveTerminalDirectory(targetPath: string): string {

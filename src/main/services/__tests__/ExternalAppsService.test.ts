@@ -1,17 +1,18 @@
+import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import * as fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getApplicationInfoForProtocol: vi.fn(),
-  crossPlatformSpawn: vi.fn()
+  spawn: vi.fn()
 }))
 
 vi.mock('electron', () => ({
   app: { getApplicationInfoForProtocol: mocks.getApplicationInfoForProtocol }
 }))
 
-vi.mock('@main/utils/processRunner', () => ({
-  crossPlatformSpawn: mocks.crossPlatformSpawn
+vi.mock('child_process', () => ({
+  spawn: mocks.spawn
 }))
 
 import type { externalAppsService } from '../ExternalAppsService'
@@ -20,20 +21,25 @@ type ExternalAppsServiceInstance = typeof externalAppsService
 
 const WT_ALIAS_PATH = 'C:\\Users\\test\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe'
 
-function mockSpawnExit(code: number) {
+function mockSpawn() {
+  const listeners = new Map<string, (...args: any[]) => void>()
   const child = {
-    on: vi.fn((event: string, cb: (arg: unknown) => void) => {
-      if (event === 'close') cb(code)
+    on: vi.fn((event: string, listener: (...args: any[]) => void) => {
+      listeners.set(event, listener)
       return child
     })
   }
-  mocks.crossPlatformSpawn.mockReturnValue(child as never)
-  return child
+  mocks.spawn.mockReturnValue(child as never)
+  return {
+    emitError: (error: Error) => listeners.get('error')?.(error),
+    emitClose: (code: number | null, signal: NodeJS.Signals | null = null) => listeners.get('close')?.(code, signal)
+  }
 }
 
 describe('ExternalAppsService', () => {
   let service: ExternalAppsServiceInstance
-  let existsSyncSpy: MockInstance<(path: fs.PathLike) => boolean>
+  let logger: MockMainLoggerService
+  let lstatSyncSpy: MockInstance<fs.StatSyncFn>
   let statSyncSpy: MockInstance<fs.StatSyncFn>
   let platformSpy: MockInstance<() => NodeJS.Platform>
 
@@ -42,7 +48,6 @@ describe('ExternalAppsService', () => {
     vi.clearAllMocks()
     vi.stubEnv('LOCALAPPDATA', 'C:\\Users\\test\\AppData\\Local')
 
-    // Three protocol apps installed (Zed empty-name = not installed), WT alias missing by default.
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => {
       switch (protocol) {
         case 'vscode://':
@@ -54,13 +59,14 @@ describe('ExternalAppsService', () => {
       }
     })
 
-    // Import the fresh singleton first so module-load-time fs usage runs against the real fs,
-    // then install the fs/platform spies for the test body.
     service = (await import('../ExternalAppsService')).externalAppsService
-    existsSyncSpy = vi.spyOn(fs, 'existsSync')
+    logger = (await import('@logger')).loggerService as unknown as typeof logger
+    lstatSyncSpy = vi.spyOn(fs, 'lstatSync')
     statSyncSpy = vi.spyOn(fs, 'statSync')
     platformSpy = vi.spyOn(process, 'platform', 'get')
-    existsSyncSpy.mockReturnValue(false)
+    lstatSyncSpy.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
     platformSpy.mockReturnValue('win32')
   })
 
@@ -81,8 +87,11 @@ describe('ExternalAppsService', () => {
     expect(mocks.getApplicationInfoForProtocol).toHaveBeenCalledWith('zed://')
   })
 
-  it('detects Windows Terminal through its App Execution Alias on Windows', async () => {
-    existsSyncSpy.mockReturnValue(true)
+  it('detects Windows Terminal by inspecting its App Execution Alias without following it', async () => {
+    lstatSyncSpy.mockReturnValue({} as fs.Stats)
+    statSyncSpy.mockImplementation(() => {
+      throw new Error('EACCES')
+    })
 
     const apps = await service.detectInstalledApps()
 
@@ -93,6 +102,8 @@ describe('ExternalAppsService', () => {
       tags: ['terminal'],
       path: WT_ALIAS_PATH
     })
+    expect(lstatSyncSpy).toHaveBeenCalledWith(WT_ALIAS_PATH)
+    expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
   it('does not detect Windows Terminal when the App Execution Alias is missing', async () => {
@@ -103,34 +114,46 @@ describe('ExternalAppsService', () => {
 
   it('does not detect Windows Terminal on non-Windows platforms', async () => {
     platformSpy.mockReturnValue('darwin')
-    existsSyncSpy.mockReturnValue(true)
+    lstatSyncSpy.mockReturnValue({} as fs.Stats)
 
     const apps = await service.detectInstalledApps()
 
     expect(apps.find((app) => app.id === 'wt')).toBeUndefined()
+    expect(lstatSyncSpy).not.toHaveBeenCalled()
   })
 
-  it('spawns wt.exe with the target directory when opening a folder', async () => {
-    existsSyncSpy.mockReturnValue(true)
-    mockSpawnExit(0)
+  it('spawns the controlled alias path without a separate existence precheck', async () => {
+    const child = mockSpawn()
 
-    await service.open('wt', 'C:\\work\\project')
+    const openPromise = service.open('wt', 'C:\\work\\project')
+    child.emitClose(0)
+    await openPromise
 
-    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+    expect(lstatSyncSpy).not.toHaveBeenCalled()
+    const launchContext = {
+      appId: 'wt',
+      executablePath: WT_ALIAS_PATH,
+      targetPath: 'C:\\work\\project',
+      directory: 'C:\\work\\project'
+    }
+    expect(logger.info).toHaveBeenCalledWith('Launching external app', launchContext)
+    expect(logger.info).toHaveBeenCalledWith('External app launched', launchContext)
+    expect(mocks.spawn).toHaveBeenCalledWith(
       WT_ALIAS_PATH,
       ['-d', 'C:\\work\\project'],
-      expect.objectContaining({ env: expect.any(Object) })
+      expect.objectContaining({ env: expect.any(Object), shell: false, windowsHide: false })
     )
   })
 
   it('opens a terminal in the containing directory when the target is a file', async () => {
-    existsSyncSpy.mockReturnValue(true)
     statSyncSpy.mockReturnValue({ isFile: () => true } as fs.Stats)
-    mockSpawnExit(0)
+    const child = mockSpawn()
 
-    await service.open('wt', 'C:\\work\\project\\report.xlsx')
+    const openPromise = service.open('wt', 'C:\\work\\project\\report.xlsx')
+    child.emitClose(0)
+    await openPromise
 
-    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+    expect(mocks.spawn).toHaveBeenCalledWith(
       WT_ALIAS_PATH,
       ['-d', 'C:\\work\\project'],
       expect.objectContaining({ env: expect.any(Object) })
@@ -138,13 +161,14 @@ describe('ExternalAppsService', () => {
   })
 
   it('keeps a directory target as-is when opening a terminal', async () => {
-    existsSyncSpy.mockReturnValue(true)
     statSyncSpy.mockReturnValue({ isFile: () => false } as fs.Stats)
-    mockSpawnExit(0)
+    const child = mockSpawn()
 
-    await service.open('wt', 'C:\\work\\project')
+    const openPromise = service.open('wt', 'C:\\work\\project')
+    child.emitClose(0)
+    await openPromise
 
-    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+    expect(mocks.spawn).toHaveBeenCalledWith(
       WT_ALIAS_PATH,
       ['-d', 'C:\\work\\project'],
       expect.objectContaining({ env: expect.any(Object) })
@@ -152,17 +176,16 @@ describe('ExternalAppsService', () => {
   })
 
   it('opens in the containing directory when the target file does not exist yet', async () => {
-    existsSyncSpy.mockReturnValue(true)
-    // statSync throws (target not found) — the heuristic must still treat the
-    // dotted final segment as a file and fall back to its directory.
     statSyncSpy.mockImplementation(() => {
       throw new Error('ENOENT')
     })
-    mockSpawnExit(0)
+    const child = mockSpawn()
 
-    await service.open('wt', 'C:\\work\\project\\draft.txt')
+    const openPromise = service.open('wt', 'C:\\work\\project\\draft.txt')
+    child.emitClose(0)
+    await openPromise
 
-    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+    expect(mocks.spawn).toHaveBeenCalledWith(
       WT_ALIAS_PATH,
       ['-d', 'C:\\work\\project'],
       expect.objectContaining({ env: expect.any(Object) })
@@ -170,15 +193,16 @@ describe('ExternalAppsService', () => {
   })
 
   it('keeps a non-existent extension-less path as-is when opening a terminal', async () => {
-    existsSyncSpy.mockReturnValue(true)
     statSyncSpy.mockImplementation(() => {
       throw new Error('ENOENT')
     })
-    mockSpawnExit(0)
+    const child = mockSpawn()
 
-    await service.open('wt', 'C:\\work\\brand-new-project')
+    const openPromise = service.open('wt', 'C:\\work\\brand-new-project')
+    child.emitClose(0)
+    await openPromise
 
-    expect(mocks.crossPlatformSpawn).toHaveBeenCalledWith(
+    expect(mocks.spawn).toHaveBeenCalledWith(
       WT_ALIAS_PATH,
       ['-d', 'C:\\work\\brand-new-project'],
       expect.objectContaining({ env: expect.any(Object) })
@@ -190,17 +214,47 @@ describe('ExternalAppsService', () => {
     await expect(service.open('unknown' as never, 'C:\\work')).rejects.toThrow('cannot be launched as a process')
   })
 
-  it('rejects when the executable is not installed', async () => {
-    existsSyncSpy.mockReturnValue(false)
+  it('rejects before spawning when the executable path cannot be resolved on this platform', async () => {
+    platformSpy.mockReturnValue('darwin')
 
-    await expect(service.open('wt', 'C:\\work')).rejects.toThrow('was not found')
+    await expect(service.open('wt', '/tmp/work')).rejects.toThrow('was not found')
+    expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
-  it('rejects when wt.exe exits with a non-zero code', async () => {
-    existsSyncSpy.mockReturnValue(true)
-    mockSpawnExit(1)
+  it('logs and forwards spawn errors only once', async () => {
+    const child = mockSpawn()
+    const error = new Error('spawn EACCES')
 
-    await expect(service.open('wt', 'C:\\work')).rejects.toThrow('exited with code 1')
+    const openPromise = service.open('wt', 'C:\\work')
+    child.emitError(error)
+    child.emitClose(1)
+
+    await expect(openPromise).rejects.toBe(error)
+    expect(logger.error).toHaveBeenCalledOnce()
+    expect(logger.error).toHaveBeenCalledWith('Failed to launch external app', error, {
+      appId: 'wt',
+      executablePath: WT_ALIAS_PATH,
+      targetPath: 'C:\\work',
+      directory: 'C:\\work'
+    })
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('logs and rejects when Windows Terminal exits unsuccessfully', async () => {
+    const child = mockSpawn()
+
+    const openPromise = service.open('wt', 'C:\\work')
+    child.emitClose(1)
+
+    await expect(openPromise).rejects.toThrow('exited with code 1')
+    expect(logger.warn).toHaveBeenCalledWith('External app exited unsuccessfully', {
+      appId: 'wt',
+      executablePath: WT_ALIAS_PATH,
+      targetPath: 'C:\\work',
+      directory: 'C:\\work',
+      exitCode: 1,
+      signal: null
+    })
   })
 
   it('caches detection results for five minutes', async () => {
