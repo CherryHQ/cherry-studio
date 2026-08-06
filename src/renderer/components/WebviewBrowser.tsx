@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'
 import { WebviewNavigation } from './WebviewNavigation'
 import WebviewSearch from './WebviewSearch'
@@ -15,10 +16,18 @@ interface Props {
   isHostActive: boolean
   reloadKey?: number | string
   toolbarActions?: ReactNode
+  onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
 
 /** A reusable browser surface for Agent panes, artifact previews, and future WebView hosts. */
-export function WebviewBrowser({ initialUrl, target, isHostActive, reloadKey, toolbarActions }: Props) {
+export function WebviewBrowser({
+  initialUrl,
+  target,
+  isHostActive,
+  reloadKey,
+  toolbarActions,
+  onAnnotationSaved
+}: Props) {
   const { t } = useTranslation()
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
@@ -59,6 +68,7 @@ export function WebviewBrowser({ initialUrl, target, isHostActive, reloadKey, to
         isWebviewReady={isReady}
         isHostActive={isHostActive}
         target={target}
+        onAnnotationSaved={onAnnotationSaved}
         toolbarActions={toolbarActions}
       />
       <div className="relative min-h-0 flex-1 bg-white">

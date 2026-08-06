@@ -1,14 +1,9 @@
-import {
-  WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
-  type WebviewAnnotationGuestEvent,
-  WebviewAnnotationHostCommandSchema
-} from '@shared/types/webview'
+import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, WebviewAnnotationHostCommandSchema } from '@shared/types/webview'
 import { ipcRenderer } from 'electron'
 
 import { WebviewAnnotationController } from './WebviewAnnotationController'
 
-const controller = new WebviewAnnotationController((state) => {
-  const event: WebviewAnnotationGuestEvent = { type: 'state_changed', state }
+const controller = new WebviewAnnotationController((event) => {
   ipcRenderer.sendToHost(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, event)
 })
 

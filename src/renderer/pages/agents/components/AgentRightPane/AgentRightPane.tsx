@@ -34,6 +34,7 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
+import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -43,6 +44,7 @@ import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -56,6 +58,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
+import { sanitizeWebviewAnnotationUrl } from '@shared/utils/webviewAnnotations'
 import {
   Activity,
   Bot,
@@ -722,14 +725,43 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   )
 }
 
+const ANNOTATION_TOKEN_LABEL_MAX = 32
+
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
+  const sessionId = scope.meta.sessionId
   const target = useMemo(
     () => ({
-      id: `agent-browser:${scope.meta.sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),
+      id: `agent-browser:${sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),
       label: (scope.meta.sessionName?.trim() || scope.browserTitle).slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
     }),
-    [scope.browserTitle, scope.meta.sessionId, scope.meta.sessionName]
+    [scope.browserTitle, sessionId, scope.meta.sessionName]
+  )
+
+  // Every saved annotation lands in the composer as a reference chip the user can keep or delete.
+  const handleAnnotationSaved = useCallback(
+    ({ annotation, page }: WebviewAnnotationSavedPayload) => {
+      if (!sessionId) return
+      const url = sanitizeWebviewAnnotationUrl(page.url)
+      const pageLabel = page.title.trim() || url || 'page'
+      const { comment, element, region } = annotation
+      const label =
+        comment.length > ANNOTATION_TOKEN_LABEL_MAX ? `${comment.slice(0, ANNOTATION_TOKEN_LABEL_MAX)}…` : comment
+      const regionSummary = region
+        ? `; region ${region.rect.width}×${region.rect.height} containing ${region.elements.length} element(s)`
+        : ''
+      void EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
+        topicId: buildAgentSessionTopicId(sessionId),
+        token: {
+          id: `webview-annotation:${annotation.id}`,
+          kind: 'webviewAnnotation' as const,
+          label,
+          description: comment,
+          promptText: `[Webview annotation on ${pageLabel}] ${comment} (selector: ${element.selector}${regionSummary})`
+        }
+      })
+    },
+    [sessionId]
   )
 
   return (
@@ -737,6 +769,7 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
       target={target}
       isHostActive={active}
+      onAnnotationSaved={handleAnnotationSaved}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
     />
   )

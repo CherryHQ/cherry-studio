@@ -10,7 +10,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { WebviewAnnotationControls } from './WebviewAnnotationControls'
+import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 
 const logger = loggerService.withContext('WebviewNavigation')
 const WEBVIEW_CHECK_INITIAL_MS = 100
@@ -30,6 +30,7 @@ interface Props {
   isHostActive: boolean
   target: WebviewAnnotationTarget
   onReload?: () => void
+  onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
   toolbarActions?: ReactNode
 }
 
@@ -68,6 +69,7 @@ export function WebviewNavigation({
   isHostActive,
   target,
   onReload,
+  onAnnotationSaved,
   toolbarActions
 }: Props) {
   const { t } = useTranslation()
@@ -358,6 +360,7 @@ export function WebviewNavigation({
           isWebviewReady={isWebviewReady}
           isHostActive={isHostActive}
           target={target}
+          onAnnotationSaved={onAnnotationSaved}
         />
         {canOpenExternal ? (
           <Tooltip content={t('webview.navigation.open_external')} placement="bottom">
