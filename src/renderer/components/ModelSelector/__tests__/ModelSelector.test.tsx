@@ -15,8 +15,7 @@ const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
   loggerError: vi.fn(),
   openSettingsTab: vi.fn(),
-  selectorShellMount: vi.fn(),
-  selectorShellUnmount: vi.fn(),
+  shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
   useModelSelectorData: vi.fn()
 }))
@@ -106,8 +105,10 @@ vi.mock('@renderer/components/SelectorShell', () => ({
     'data-testid': dataTestId
   }: SelectorShellProps) => {
     useEffect(() => {
-      mocks.selectorShellMount()
-      return () => mocks.selectorShellUnmount()
+      mocks.shellEvents.push('mount')
+      return () => {
+        mocks.shellEvents.push('unmount')
+      }
     }, [])
 
     const actions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
@@ -238,6 +239,7 @@ describe('ModelSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.bottomActions = []
+    mocks.shellEvents = []
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -272,7 +274,9 @@ describe('ModelSelector', () => {
 
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {
     const user = userEvent.setup()
-    const resetTags = vi.fn()
+    const resetTags = vi.fn(() => {
+      mocks.shellEvents.push('reset')
+    })
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
         resetTags,
@@ -297,17 +301,17 @@ describe('ModelSelector', () => {
     }
 
     render(<Host />)
-    expect(mocks.selectorShellMount).toHaveBeenCalledOnce()
+    expect(mocks.shellEvents).toEqual(['mount'])
 
     await user.click(screen.getAllByRole('option')[0])
 
-    expect(mocks.selectorShellUnmount).toHaveBeenCalledOnce()
-    expect(mocks.selectorShellMount).toHaveBeenCalledTimes(2)
-    expect(resetTags).toHaveBeenCalled()
+    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
   })
 
   it('tears down the lazy shell when the parent closes the controlled selector', async () => {
-    const resetTags = vi.fn()
+    const resetTags = vi.fn(() => {
+      mocks.shellEvents.push('reset')
+    })
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
         resetTags,
@@ -327,15 +331,13 @@ describe('ModelSelector', () => {
     )
 
     const { rerender } = render(renderSelector(true))
-    expect(mocks.selectorShellMount).toHaveBeenCalledOnce()
+    expect(mocks.shellEvents).toEqual(['mount'])
 
     await act(async () => {
       rerender(renderSelector(false))
     })
 
-    expect(mocks.selectorShellUnmount).toHaveBeenCalledOnce()
-    expect(mocks.selectorShellMount).toHaveBeenCalledTimes(2)
-    expect(resetTags).toHaveBeenCalled()
+    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
   })
 
   it('clears a single selection from the bottom option and closes the selector', async () => {

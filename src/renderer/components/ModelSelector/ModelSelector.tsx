@@ -301,7 +301,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
   const hasActiveTagFilterRef = useRef(false)
-  const wasOpenRef = useRef(false)
+  const [renderedOpen, setRenderedOpen] = useState(false)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -327,6 +327,17 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+
+  // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
+  // rendering the open->closed transition unmounts it in that same commit, so the closed-state
+  // effect below can never reset the tags on the stale rows.
+  if (renderedOpen !== open) {
+    setRenderedOpen(open)
+    if (!open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
+      setShellKey((key) => key + 1)
+    }
+  }
+
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const multiSelectModeRef = useRef(multiSelectMode)
   const wasDataEnabledRef = useRef(false)
@@ -658,16 +669,6 @@ export function ModelSelector(props: ModelSelectorProps) {
       void refetchPinnedModels()
     }
   }, [dataEnabled, open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
-
-  // A lazy-kept filtered list still owns Radix hover-card anchors. Unmount it on the
-  // open->closed transition, before the closed-state effect resets the tags below.
-  useLayoutEffect(() => {
-    const wasOpen = wasOpenRef.current
-    wasOpenRef.current = open
-    if (wasOpen && !open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
-      setShellKey((key) => key + 1)
-    }
-  }, [mountStrategy, open])
 
   useEffect(() => {
     if (!open) {
