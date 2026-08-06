@@ -138,23 +138,16 @@ describe('ComposerSpeedControl UI', () => {
     const slider = screen.getByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '5')
     expect(slider).toHaveAttribute('data-value', '3')
-    const steps = container.querySelectorAll('[data-slot="composer-effort-step"]')
-    expect(steps).toHaveLength(6)
-    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).toHaveAttribute(
-      'data-current',
-      'true'
-    )
+    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
+    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
       'aria-pressed',
       'false'
     )
     fireEvent.click(screen.getByTestId('select-slider-min'))
-    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(6)
-    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="0"]')).toHaveAttribute(
-      'data-current',
-      'true'
-    )
+    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
+    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="0"]')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
