@@ -47,12 +47,10 @@ vi.mock('@main/utils/binaryEnv', () => ({
 import * as builderModule from '../builder'
 import { DirectoryTreeManager } from '../DirectoryTreeManager'
 
-// Capture handlers registered via `ipcMain.handle` so the Zod validation
-// tests below can drive each channel without an actual Electron runtime.
-// Other electron surfaces (`app.isPackaged`, etc.) are stubbed minimally
-// because the import graph (logger, @main/utils' toAsarUnpackedPath) pulls
-// them in transitively.
-const registeredHandlers = new Map<string, (event: unknown, params: unknown) => unknown>()
+// Electron surfaces (`app.isPackaged`, etc.) are stubbed minimally because the
+// import graph (logger, @main/utils' toAsarUnpackedPath) pulls them in
+// transitively. The `file.tree.*` routes live in the IpcApi handler map now, so
+// nothing here registers on `ipcMain`.
 vi.mock('electron', () => ({
   app: {
     isPackaged: false,
@@ -60,12 +58,8 @@ vi.mock('electron', () => ({
     getAppPath: () => '/tmp'
   },
   ipcMain: {
-    handle: (channel: string, listener: (event: unknown, params: unknown) => unknown) => {
-      registeredHandlers.set(channel, listener)
-    },
-    removeHandler: (channel: string) => {
-      registeredHandlers.delete(channel)
-    },
+    handle: () => {},
+    removeHandler: () => {},
     on: () => {},
     removeListener: () => {}
   }
@@ -75,7 +69,7 @@ vi.mock('electron', () => ({
  * Minimal `WebContents`-shaped double. We only touch:
  *   - `id` (registry buckets by it)
  *   - `isDestroyed()` (mutation forwarder guards on it)
- *   - `send(channel, payload)` (where mutations land)
+ *   - `send(channel, event, payload)` (where mutations land)
  *   - `once('destroyed', listener)` (orphan-cleanup hook)
  */
 function makeSender(id: number) {
@@ -85,8 +79,8 @@ function makeSender(id: number) {
   const sender = {
     id,
     isDestroyed: () => destroyed,
-    send: (channel: string, payload: TreeMutationPushPayload) => {
-      if (channel === IpcChannel.File_TreeMutation) sentMutations.push(payload)
+    send: (channel: string, event: string, payload: TreeMutationPushPayload) => {
+      if (channel === IpcChannel.IpcApi_Event && event === 'file.tree.mutation') sentMutations.push(payload)
     },
     once: (event: string, listener: () => void) => {
       if (event === 'destroyed') destroyedListeners.push(listener)
@@ -183,6 +177,8 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
 
     const created1 = await registry.create(sender1, tmp, undefined)
     const created2 = await registry.create(sender2, tmp, undefined)
+    expect(registry.activateTree(created1.treeId, created1.revision)).toBe(true)
+    expect(registry.activateTree(created2.treeId, created2.revision)).toBe(true)
 
     await new Promise((resolve) => setTimeout(resolve, 100)) // let watcher settle
     await writeFile(path.join(tmp, 'fanout.md'), 'x')
@@ -205,7 +201,30 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     const added2 = sender2.sentMutations.find((m) => m.event.type === 'added')
     expect(added1?.treeId).toBe(created1.treeId)
     expect(added2?.treeId).toBe(created2.treeId)
+    expect(added1?.revision).toBe(created1.revision + 1)
+    expect(added2?.revision).toBe(created2.revision + 1)
     expect(added1?.event).toEqual(added2?.event)
+  })
+
+  it('buffers mutations after the snapshot until the renderer activates the tree', async () => {
+    await writeFile(path.join(tmp, 'old.md'), 'x')
+    const sender = makeSender(1)
+    const created = await registry.create(sender, tmp, undefined)
+
+    registry.rename(created.treeId, path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+    expect(sender.sentMutations).toEqual([])
+
+    expect(registry.activateTree(created.treeId, created.revision + 1)).toBe(false)
+    expect(sender.sentMutations).toEqual([])
+
+    expect(registry.activateTree(created.treeId, created.revision)).toBe(true)
+    expect(sender.sentMutations).toEqual([
+      expect.objectContaining({
+        treeId: created.treeId,
+        revision: created.revision + 1,
+        event: expect.objectContaining({ type: 'renamed' })
+      })
+    ])
   })
 
   it('does not tear down the shared builder when one of two consumers disposes', async () => {
@@ -273,6 +292,8 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
 
     const created1 = await registry.create(sender1, tmp, undefined)
     const created2 = await registry.create(sender2, tmp, undefined)
+    expect(registry.activateTree(created1.treeId, created1.revision)).toBe(true)
+    expect(registry.activateTree(created2.treeId, created2.revision)).toBe(true)
 
     const applied = registry.rename(created1.treeId, path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
     expect(applied).toBe(true)
@@ -289,39 +310,6 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
   it('rename(treeId, …) returns false when the treeId is unknown', () => {
     const applied = registry.rename('does-not-exist', '/a/old', '/a/new')
     expect(applied).toBe(false)
-  })
-
-  describe('IPC handler Zod validation', () => {
-    beforeEach(async () => {
-      registeredHandlers.clear()
-      await (registry as unknown as { _doInit: () => Promise<void> })._doInit()
-    })
-
-    it('File_TreeCreate rejects missing rootPath', async () => {
-      const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { options: { withStats: true } } as unknown)).rejects.toThrow()
-    })
-
-    it('File_TreeCreate rejects a relative rootPath', async () => {
-      const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { rootPath: 'relative/path' } as unknown)).rejects.toThrow()
-    })
-
-    it('File_TreeCreate rejects negative maxDepth', async () => {
-      const handler = registeredHandlers.get('file:tree:create')!
-      await expect(handler({}, { rootPath: tmp, options: { maxDepth: -1 } } as unknown)).rejects.toThrow()
-    })
-
-    it('File_TreeDispose rejects missing treeId', async () => {
-      const handler = registeredHandlers.get('file:tree:dispose')!
-      await expect(handler({}, {} as unknown)).rejects.toThrow()
-    })
-
-    it('File_TreeRename rejects relative oldPath / newPath', async () => {
-      const handler = registeredHandlers.get('file:tree:rename')!
-      await expect(handler({}, { treeId: 't-1', oldPath: 'a.md', newPath: '/abs/b.md' } as unknown)).rejects.toThrow()
-      await expect(handler({}, { treeId: 't-1', oldPath: '/abs/a.md', newPath: 'b.md' } as unknown)).rejects.toThrow()
-    })
   })
 
   it('drops all trees and their builders when the owning webContents is destroyed', async () => {

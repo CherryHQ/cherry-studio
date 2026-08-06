@@ -1,16 +1,10 @@
 import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type {
-  CreateTreeIpcResult,
-  DirectoryTreeOptions,
-  TreeDir,
-  TreeDirRoot,
-  TreeMutationPushPayload,
-  TreeNode
-} from '@shared/utils/file'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
@@ -320,7 +314,7 @@ function useLazyArtifactFileTree({
     watcher.disposed = true
     watcher.unsubscribe?.()
     if (watcher.treeId) {
-      Promise.resolve(window.api.tree.dispose(watcher.treeId)).catch((err) => {
+      Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: watcher.treeId })).catch((err) => {
         logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err as Error)
       })
     }
@@ -447,23 +441,23 @@ function useLazyArtifactFileTree({
 
       void (async () => {
         try {
-          const result: CreateTreeIpcResult = await window.api.tree.create(dirPath, {
-            maxDepth: 1,
-            includeHidden: false
+          const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
+            rootPath: AbsoluteFilePathSchema.parse(dirPath),
+            options: { maxDepth: 1, includeHidden: false }
           })
           if (
             watcher.disposed ||
             requestWorkspacePath !== currentWorkspacePathRef.current ||
             lazyDirectoryWatchersRef.current.get(dirId) !== watcher
           ) {
-            Promise.resolve(window.api.tree.dispose(result.treeId)).catch((err) => {
+            Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
               logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
             })
             return
           }
 
           watcher.treeId = result.treeId
-          watcher.unsubscribe = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
+          watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
             if (payload.treeId !== result.treeId) return
             loadDirectoryChildren(dirId, { force: true })
           })

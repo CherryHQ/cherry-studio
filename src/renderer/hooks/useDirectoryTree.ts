@@ -1,4 +1,8 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
@@ -7,7 +11,6 @@ import {
   type TreeDirRoot,
   TreeFile,
   type TreeMutationEvent,
-  type TreeMutationPushPayload,
   type TreeNode
 } from '@shared/utils/file'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -22,8 +25,8 @@ export interface UseDirectoryTreeResult {
   readonly version: number
   /**
    * Identifier of the live tree on the main side. Consumers that subscribe to
-   * the shared `File_TreeMutation` channel directly should filter incoming
-   * payloads by this id. `null` until the first `File_TreeCreate` resolves.
+   * the shared `file.tree.mutation` event directly should filter incoming
+   * payloads by this id. `null` until the create/activate handoff completes.
    */
   readonly treeId: string | null
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
@@ -33,6 +36,7 @@ export interface UseDirectoryTreeResult {
 interface MirrorState {
   readonly root: TreeDirRoot
   readonly nodes: Map<string, TreeNode>
+  revision: number
 }
 
 function indexTree(root: TreeDirRoot): Map<string, TreeNode> {
@@ -139,14 +143,17 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       // Wrap so mocked / synchronous dispose impls that return `undefined`
       // don't throw before our `.catch`. The IPC contract is async; we
       // treat the result defensively.
-      Promise.resolve(window.api.tree.dispose(treeId)).catch((err) => {
+      Promise.resolve(ipcApi.request('file.tree.dispose', { treeId })).catch((err) => {
         logger.error(`Failed to dispose tree ${treeId}`, err as Error)
       })
     }
 
     void (async () => {
       try {
-        const result: CreateTreeIpcResult = await window.api.tree.create(rootPath, optionsRef.current)
+        const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
+          rootPath: AbsoluteFilePathSchema.parse(rootPath),
+          options: optionsRef.current
+        })
         if (cancelled) {
           disposeTree(result.treeId)
           return
@@ -156,28 +163,51 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
 
         const snapshotRoot = rootFromSerialized(result.snapshot)
         const nodes = indexTree(snapshotRoot)
-        mirrorRef.current = { root: snapshotRoot, nodes }
-        setRoot(snapshotRoot)
-        setTreeId(result.treeId)
-        setIsLoading(false)
+        mirrorRef.current = { root: snapshotRoot, nodes, revision: result.revision }
 
-        unsubscribeMutations = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
+        unsubscribeMutations = ipcApi.on('file.tree.mutation', (payload) => {
           if (payload.treeId !== result.treeId) return
           const mirror = mirrorRef.current
           if (!mirror) return
+          if (payload.revision <= mirror.revision) return
+          const expectedRevision = mirror.revision + 1
+          if (payload.revision !== expectedRevision) {
+            const revisionError = new Error(
+              `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
+            )
+            logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
+            setError(revisionError)
+            return
+          }
           const changed = applyMutation(mirror, payload.event)
+          mirror.revision = payload.revision
           if (changed) setVersion((v) => v + 1)
         })
+
+        const activated = await ipcApi.request('file.tree.activate', {
+          treeId: result.treeId,
+          revision: result.revision
+        })
+        if (!activated) throw new Error(`Failed to activate directory tree ${result.treeId}`)
+        if (cancelled) return
+
+        setRoot(snapshotRoot)
+        setTreeId(result.treeId)
+        setIsLoading(false)
       } catch (err) {
         if (cancelled) return
+        unsubscribeMutations?.()
+        unsubscribeMutations = null
+        if (createdTreeId) {
+          disposeTree(createdTreeId)
+          createdTreeId = null
+        }
+        mirrorRef.current = null
         const normalized = err instanceof Error ? err : new Error(String(err))
         // Distinguish "the main-side manager stopped while our create was
-        // in flight" from a real failure. Electron preserves `error.name`
-        // across IPC, so the main side's `DirectoryTreeStoppedError`
-        // arrives here with `.name === 'DirectoryTreeStoppedError'`. That
-        // case fires during app shutdown or service restart — no consumer
-        // toast is useful, the UI is going away.
-        if (normalized.name === 'DirectoryTreeStoppedError') {
+        // in flight" from a real failure — it fires during app shutdown or
+        // service restart, where no consumer toast is useful.
+        if (normalized instanceof IpcError && normalized.code === fileErrorCodes.DIRECTORY_TREE_STOPPED) {
           setIsLoading(false)
           return
         }

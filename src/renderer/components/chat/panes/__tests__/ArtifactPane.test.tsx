@@ -113,6 +113,7 @@ it('watches an allowed missing workspace without limiting discovery depth', () =
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
+  treeActivate: vi.fn(),
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
   ipcRequest: vi.fn(),
@@ -150,7 +151,7 @@ const mocks = vi.hoisted(() => ({
 /**
  * Convert the flat-path fixtures the tests still use into a
  * `SerializedTreeNode` snapshot — the wire shape `useDirectoryTree`
- * receives from the main-side `File_TreeCreate` IPC. Absolute paths outside
+ * receives from the main-side `file.tree.create` route. Absolute paths outside
  * the workspace are silently dropped (matching what the watcher would
  * surface in practice: nothing).
  */
@@ -232,7 +233,7 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.nextTreeId += 1
   const treeId = `tree-${mocks.nextTreeId}`
   const snapshot = pathsToSnapshot(workspacePath, paths)
-  mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
+  mocks.treeCreate.mockResolvedValueOnce({ treeId, revision: 0, snapshot })
 }
 
 function binaryReadResult(content: Uint8Array) {
@@ -563,8 +564,15 @@ vi.mock('@renderer/ipc', () => ({
     // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
     // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
     // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
-    request: (route: string, input: unknown) =>
-      route === 'file.get_metadata' ? mocks.getMetadata(input) : mocks.ipcRequest(route, input)
+    // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
+    request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
+      if (route === 'file.get_metadata') return mocks.getMetadata(input)
+      if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
+      if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
+      if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
+      return mocks.ipcRequest(route, input)
+    },
+    on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
   }
 }))
 
@@ -601,8 +609,10 @@ describe('ArtifactPane', () => {
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
       treeId: 'tree-default',
+      revision: 0,
       snapshot: pathsToSnapshot('/tmp/workspace', [])
     })
+    mocks.treeActivate.mockResolvedValue(true)
     // `restoreAllMocks` in afterEach wipes out custom implementations, so
     // re-bind via `mockImplementation` (more robust than `mockResolvedValue`
     // for callers that don't await the returned promise — the hook does
@@ -632,11 +642,6 @@ describe('ArtifactPane', () => {
         },
         fs: {
           readText: mocks.fsReadText
-        },
-        tree: {
-          create: mocks.treeCreate,
-          dispose: mocks.treeDispose,
-          onMutation: mocks.treeOnMutation
         }
       }
     })
@@ -971,7 +976,9 @@ describe('ArtifactPane', () => {
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Overlay')
-    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    let pushMutation:
+      | ((payload: { treeId: string; revision: number; event: { type: 'removed'; path: string } }) => void)
+      | undefined
     mocks.treeOnMutation.mockImplementation((cb) => {
       pushMutation = cb as typeof pushMutation
       return () => {
@@ -987,7 +994,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
-      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+      pushMutation?.({ treeId: 'tree-1', revision: 1, event: { type: 'removed', path: '/tmp/workspace/README.md' } })
     })
 
     await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
@@ -1141,6 +1148,7 @@ describe('ArtifactPane', () => {
     let pushMutation:
       | ((payload: {
           treeId: string
+          revision: number
           event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
         }) => void)
       | undefined
@@ -1167,6 +1175,7 @@ describe('ArtifactPane', () => {
     act(() => {
       pushMutation?.({
         treeId: 'tree-default',
+        revision: 1,
         event: {
           type: 'updated',
           path: '/tmp/workspace/src/old.md',
@@ -1183,6 +1192,7 @@ describe('ArtifactPane', () => {
     let pushMutation:
       | ((payload: {
           treeId: string
+          revision: number
           event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
         }) => void)
       | undefined
@@ -1212,6 +1222,7 @@ describe('ArtifactPane', () => {
     act(() => {
       pushMutation?.({
         treeId: 'tree-default',
+        revision: 1,
         event: {
           type: 'updated',
           path: '/tmp/workspace/src/new.md',
@@ -1578,7 +1589,9 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     // Capture the live mutation listener so the test can push a `removed`
     // event the way the main-side builder would.
-    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    let pushMutation:
+      | ((payload: { treeId: string; revision: number; event: { type: 'removed'; path: string } }) => void)
+      | undefined
     mocks.treeOnMutation.mockImplementation((cb) => {
       pushMutation = cb as typeof pushMutation
       return () => {
@@ -1594,7 +1607,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
-      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+      pushMutation?.({ treeId: 'tree-1', revision: 1, event: { type: 'removed', path: '/tmp/workspace/README.md' } })
     })
 
     await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())

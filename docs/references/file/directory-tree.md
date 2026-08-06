@@ -30,7 +30,7 @@ Forcing the tree into FileManager (or vice versa) would put a DB-backed lifecycl
 Three things sit on top of `chokidar` that any real caller would re-invent:
 
 1. **Initial scan via `ripgrep --files`**, not chokidar's own walker. Chokidar opens an FSEvents / inotify handle per directory; on a workspace with `node_modules` the install hits `ulimit -n` and surfaces as `EMFILE`. Ripgrep streams a flat list of files, then a single `chokidar.FSWatcher` is attached with a `.gitignore`-derived `ignored` predicate so the recursive watch never enters the excluded subtrees in the first place.
-2. **`(rootPath, options)` dedupe** — every `File_TreeCreate` IPC call returns a unique `treeId` (the renderer needs one to route mutation pushes), but identical roots share one underlying builder. The expensive resource (FS scan + watcher install) lives main-side; dedupe must too.
+2. **`(rootPath, options)` dedupe** — every `file.tree.create` call returns a unique `treeId` (the renderer needs one to route mutation pushes), but identical roots share one underlying builder. The expensive resource (FS scan + watcher install) lives main-side; dedupe must too.
 3. **`TreeNode` class hierarchy with identity preservation** — renames mutate `path` once at the subtree root and cascade via `adjustChildrenPaths`, so identity-based consumer caches (React keys, lookup maps) survive a rename. Rebuilding the subtree throws those caches away.
 
 ### 1.3 Relationship to DirectoryWatcher
@@ -56,8 +56,7 @@ src/main/services/file/tree/   ← parallel to internal/ and watcher/
 │     ├── create(sender, rootPath, options) — attach or share a builder
 │     ├── dispose(treeId) — drop a consumer; tear down builder if last
 │     ├── disposeAllForWebContents(id) — on `destroyed` cascade
-│     ├── disposed flag — short-circuits in-flight builders on onStop
-│     └── registerIpcHandlers() — File_TreeCreate / File_TreeDispose
+│     └── disposed flag — short-circuits in-flight builders on onStop
 │
 ├── search.ts             ← listDirectory: ripgrep + optional fuzzy match
 │                           consumed only by builder.ts and ipc.ts
@@ -79,14 +78,14 @@ src/shared/file/types/tree.ts   ← shared with renderer
 ├── SerializedTreeNode — wire DTO (parentless, plain object)
 ├── TreeNode / TreeFile / TreeDir / TreeDirRoot — class hierarchy
 ├── TreeMutationEvent — added | removed | updated
-├── CreateTreeIpcResult — { treeId, snapshot }
-└── TreeMutationPushPayload — { treeId, event }
+├── CreateTreeIpcResult — { treeId, revision, snapshot }
+└── TreeMutationPushPayload — { treeId, revision, event }
 
 src/renderer/hooks/useDirectoryTree.ts   ← renderer hook
-├── On mount → File_TreeCreate → rehydrate TreeNode class hierarchy
-├── On File_TreeMutation (filtered by treeId) → applyMutation in place
+├── On mount → file.tree.create → rehydrate hierarchy → subscribe → file.tree.activate
+├── On file.tree.mutation (filtered by treeId) → applyMutation in place
 ├── Returns { root, isLoading, error, version, treeId, getNode }
-└── On unmount → File_TreeDispose
+└── On unmount → file.tree.dispose
 ```
 
 ### 2.1 Why `search.ts` and `gitignore.ts` Live Here
@@ -105,12 +104,12 @@ If a future caller needs `listDirectory` outside the tree primitive (and outside
 
 ### 3.1 Identity: `treeId` vs `(rootPath, options)`
 
-Every `File_TreeCreate` IPC call returns a unique `treeId`. The renderer uses this to filter mutation pushes (the `File_TreeMutation` channel is shared across all live trees in a window). Distinct treeIds may share a builder:
+Every `file.tree.create` call returns a unique `treeId`. The renderer uses this to filter mutation pushes (the `file.tree.mutation` event is shared across all live trees in a window). Distinct treeIds may share a builder:
 
 ```
-File_TreeCreate('/work/notes', {...})  → treeId=t-1
-File_TreeCreate('/work/notes', {...})  → treeId=t-2  ← same builder
-File_TreeCreate('/work/code',  {...})  → treeId=t-3  ← new builder
+file.tree.create('/work/notes', {...})  → treeId=t-1
+file.tree.create('/work/notes', {...})  → treeId=t-2  ← same builder
+file.tree.create('/work/code',  {...})  → treeId=t-3  ← new builder
 
 Tear down t-1 → refcount on (/work/notes) builder = 1
 Tear down t-2 → refcount = 0, grace timer queued
@@ -121,7 +120,7 @@ Tear down t-2 → refcount = 0, grace timer queued
 
 ### 3.2 Dispose Grace Window
 
-`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When a keyed consumer is replaced or a tab unmounts and immediately remounts, `File_TreeDispose(old)` and `File_TreeCreate(new)` can occur back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
+`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When a keyed consumer is replaced or a tab unmounts and immediately remounts, `file.tree.dispose(old)` and `file.tree.create(new)` can occur back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
 
 500ms is long enough to span any realistic React commit (sub-millisecond in practice) and short enough that a genuine workspace close doesn't keep the watcher FDs alive noticeably.
 
@@ -141,7 +140,7 @@ Without this, the freshly-built builder would resolve after `disposeAll()` clear
 
 ### 3.4 webContents-Destroyed Cascade
 
-The registry tracks `webContentsId → Set<treeId>`. When `sender.once('destroyed')` fires (e.g. a window closes), all trees owned by that sender are disposed in one pass. Renderer-side cleanup via `File_TreeDispose` is preferred (it triggers the grace window), but this cascade is the safety net for crashed windows.
+The registry tracks `webContentsId → Set<treeId>`. When `sender.once('destroyed')` fires (e.g. a window closes), all trees owned by that sender are disposed in one pass. Renderer-side cleanup via `file.tree.dispose` is preferred (it triggers the grace window), but this cascade is the safety net for crashed windows.
 
 Note: the cascade routes each disposal through the regular `dispose(treeId)` path, which **still arms the 500 ms grace window** for each shared builder whose refcount drops to zero. The renderer is gone so no remount is coming, but waiting an extra 500 ms before tearing the watcher down has no observable cost. Test fixtures that need synchronous teardown call `disposeAll()` instead.
 
@@ -155,42 +154,52 @@ This is intentional — the alternative is re-sorting on every mutation, which o
 
 ## 4. IPC Contract
 
-### 4.1 Channels
+### 4.1 Routes
 
-| Channel | Value | Direction | Payload | Returns |
-|---|---|---|---|---|
-| `File_TreeCreate` | `file:tree:create` | renderer → main | `{ rootPath, options? }` | `{ treeId, snapshot: SerializedTreeNode }` |
-| `File_TreeDispose` | `file:tree:dispose` | renderer → main | `{ treeId }` | `void` |
-| `File_TreeRename` | `file:tree:rename` | renderer → main | `{ treeId, oldPath, newPath }` | `boolean` (true if applied) |
-| `File_TreeMutation` | `file:tree:mutation` | main → renderer (push) | `{ treeId, event: TreeMutationEvent }` | — |
+The tree primitive rides [IpcApi](../ipc/README.md) — schemas in `src/shared/ipc/schemas/file.ts`, handlers in `src/main/ipc/handlers/file.ts`.
 
-The `file:tree:*` prefix places these alongside `File_Open` / `File_Read` / etc. — the tree primitive is part of the file module, so its IPC namespace is too.
+| Route / event | Direction | Payload | Returns |
+|---|---|---|---|
+| `file.tree.create` | renderer → main | `{ rootPath, options? }` | `{ treeId, revision, snapshot: SerializedTreeNode }` |
+| `file.tree.activate` | renderer → main | `{ treeId, revision }` | `boolean` (true when activated) |
+| `file.tree.dispose` | renderer → main | `{ treeId }` | `void` |
+| `file.tree.rename` | renderer → main | `{ treeId, oldPath, newPath }` | `boolean` (true if applied) |
+| `file.tree.mutation` | main → renderer (push) | `{ treeId, revision, event: TreeMutationEvent }` | — |
+
+The `file.tree.*` subtree places these alongside `file.read` / `file.open` / etc. — the tree primitive is part of the file module, so its route namespace is too.
+
+`file.tree.mutation` is a **class-B topic stream**: `DirectoryTreeManager` `send`s each payload straight to the owning consumer's `WebContents` rather than broadcasting, so a tree costs only the window that asked for it.
 
 ### 4.2 Validation
 
-Both `File_TreeCreate` and `File_TreeDispose` validate their payloads through Zod at the handler boundary. `rootPath` must satisfy `AbsoluteFilePathSchema` (non-empty, no null bytes, starts with `/`, or a drive letter followed by `/` or `\` — either case, e.g. `C:\` or `C:/`). `options` is validated against `DirectoryTreeOptionsSchema` — the same schema whose `z.infer` produces the `DirectoryTreeOptions` TypeScript type, so wire shape and static type cannot drift.
+The `IpcRouter` parses every request payload against its route schema before the handler runs. `rootPath` must satisfy `AbsoluteFilePathSchema` (non-empty, no null bytes, starts with `/`, or a drive letter followed by `/` or `\` — either case, e.g. `C:\` or `C:/`). `options` is validated against `DirectoryTreeOptionsSchema` — the same schema whose `z.infer` produces the `DirectoryTreeOptions` TypeScript type, so wire shape and static type cannot drift. Activation additionally requires a non-negative integer revision matching the snapshot baseline.
 
-A malformed payload rejects with a `ZodError` Promise rejection at the IPC boundary; the renderer's `invoke()` rejects with the same error. There is no silent narrowing — handlers never see an unvalidated object.
+A malformed payload rejects with an `IpcError(VALIDATION_FAILED)` carrying the zod issues; handlers never see an unvalidated object.
+
+`file.tree.create` also needs a **managed window** sender — the mutation stream is addressed by the caller's `WebContents`, so a tree whose owner is not a WindowManager window could never receive a push and the route refuses instead of leaking a watcher. When the manager is torn down mid-create it rejects with the `FILE_DIRECTORY_TREE_STOPPED` domain code, which `useDirectoryTree` swallows silently (the UI is going away).
 
 ### 4.3 Renderer Surface
 
-The preload bridge exposes the channels behind `window.api.tree`:
-
 ```ts
-window.api.tree.create(rootPath, options?)        → Promise<CreateTreeIpcResult>
-window.api.tree.dispose(treeId)                   → Promise<void>
-window.api.tree.rename(treeId, oldPath, newPath)  → Promise<boolean>
-window.api.tree.onMutation(callback)              → () => void  // unsubscribe
+ipcApi.request('file.tree.create', { rootPath, options })        → Promise<CreateTreeIpcResult>
+ipcApi.request('file.tree.activate', { treeId, revision })       → Promise<boolean>
+ipcApi.request('file.tree.dispose', { treeId })                  → Promise<void>
+ipcApi.request('file.tree.rename', { treeId, oldPath, newPath }) → Promise<boolean>
+ipcApi.on('file.tree.mutation', callback)                        → () => void  // unsubscribe
 ```
 
-Each `onMutation` call registers its own `ipcRenderer.on` listener. All listeners receive every `File_TreeMutation` push regardless of which tree it belongs to; consumers **must** filter by `payload.treeId`. The `useDirectoryTree` hook does this internally and exposes its `treeId` so downstream side-subscribers can do the same.
+Every `file.tree.mutation` subscriber receives all pushes delivered to its window regardless of which tree they belong to; consumers **must** filter by `payload.treeId`. The `useDirectoryTree` hook does this internally and exposes its `treeId` so downstream side-subscribers can do the same.
+
+`create` and `activate` form a two-phase snapshot-to-stream handoff. Main subscribes the new consumer to the shared builder before taking its snapshot, then buffers every later mutation for that consumer. `create` returns the snapshot together with its baseline `revision`; the renderer builds its mirror and installs `onMutation` before calling `activate`. Main then flushes buffered events in revision order and switches the consumer to live forwarding. There is therefore no interval in which a mutation can fall between the snapshot and the renderer listener, and no compensating filesystem scan is required.
+
+Revisions are monotonic per `treeId`. The snapshot owns its returned revision, and every later mutation increments it by one. Renderer mirrors ignore already-applied revisions and treat a forward gap as a broken stream rather than silently accepting stale state.
 
 ### 4.4 Explicit Rename
 
-`File_TreeRename` is invoked by callers that just performed a file-system rename (e.g. Notes after `window.api.file.rename`). The flow:
+`file.tree.rename` is invoked by callers that just performed a file-system rename (e.g. Notes after `window.api.file.rename`). The flow:
 
 1. Renderer performs the FS rename (already happens today).
-2. Renderer calls `window.api.tree.rename(treeId, oldPath, newPath)`.
+2. Renderer calls `ipcApi.request('file.tree.rename', { treeId, oldPath, newPath })`.
 3. Main side `DirectoryTreeBuilder.rename(oldPath, newPath)`:
    - Mutates the existing `TreeNode` instance via the `path` setter, which cascades through `adjustChildrenPaths` and repoints the parent's `_children` map.
    - Re-keys the internal `Map<path, TreeNode>` so descendants are reachable under their new paths.
@@ -244,9 +253,9 @@ Four event types, applied to the renderer mirror in `applyMutation`:
 - `added` — `{ path, kind, basename, parentPath, stats? }`. Creates a new `TreeFile` or `TreeDir`, attaches under `parentPath`.
 - `removed` — `{ path }`. Removes the node and (if directory) all descendants from the index.
 - `updated` — `{ path, stats }`. Updates `node.stats` in place; only fires when the tree was built with `withStats: true`.
-- `renamed` — `{ oldPath, newPath, basename }`. Mutates the existing `TreeNode` instance via the `path` setter (identity preserved); cascades to descendants when a directory is renamed. **Only** emitted via the explicit `File_TreeRename` IPC — chokidar cannot synthesize this on its own. See §4.4.
+- `renamed` — `{ oldPath, newPath, basename }`. Mutates the existing `TreeNode` instance via the `path` setter (identity preserved); cascades to descendants when a directory is renamed. **Only** emitted via the explicit `file.tree.rename` route — chokidar cannot synthesize this on its own. See §4.4.
 
-Renames observed by the watcher alone surface as `removed` + `added` (chokidar's native shape). When a caller wants identity preservation, it must invoke `File_TreeRename` after the FS-level rename — see §4.4.
+Renames observed by the watcher alone surface as `removed` + `added` (chokidar's native shape). When a caller wants identity preservation, it must invoke `file.tree.rename` after the FS-level rename — see §4.4.
 
 ### 5.4 External-Rename Identity Loss
 
@@ -258,7 +267,7 @@ We considered pairing chokidar's `unlink` + `add` into a synthetic `renamed` eve
 - **Filename + timestamp pairing has a measurable false-positive rate** on bursty FS operations (`git checkout` switching branches, editor batch-saves, build pipelines rewriting bundles in place). A **mis-paired identity** — claiming "file A renamed to file B" when really A was deleted and B was created independently — is strictly worse than identity loss, because downstream caches now follow the wrong file silently.
 - **The heuristic adds API surface** every caller would have to reason about (pairing window, opt-out, false-positive handling).
 
-Within-Cherry renames go through `File_TreeRename` (§4.4) and *do* preserve identity, because the caller knows it's a rename and the chokidar `unlink` + `add` are suppressed by the dedup window. The external-rename case sits outside that contract on purpose — Cherry can't claim "rename" on behalf of an event source that didn't tell us it was a rename.
+Within-Cherry renames go through `file.tree.rename` (§4.4) and *do* preserve identity, because the caller knows it's a rename and the chokidar `unlink` + `add` are suppressed by the dedup window. The external-rename case sits outside that contract on purpose — Cherry can't claim "rename" on behalf of an event source that didn't tell us it was a rename.
 
 Reconsider if external editor integration with the Notes workspace becomes a real pain point — most likely path is an opt-in builder option (e.g. `pairExternalRenames: true`) that enables heuristic pairing with documented false-positive risk, pushing the trade-off to the caller rather than forcing it on every consumer.
 
@@ -288,7 +297,7 @@ This is fine today (Notes' workspaces are typically a few hundred markdown files
 
 ### 6.2 Mutation Events Are Not Server-Side Batched
 
-Each watcher event becomes one `File_TreeMutation` IPC push. `chokidar` debounces within a single file (200ms `stabilityThreshold`) but does **not** batch across files, so a bursty FS operation — `git checkout` switching to a branch with hundreds of touched files — emits a corresponding burst of pushes. Each renderer hook runs `applyMutation` per push and ticks `version`, so a `useMemo(() => sort(tree), [version])` consumer will recompute repeatedly through the burst.
+Each watcher event becomes one `file.tree.mutation` IPC push. `chokidar` debounces within a single file (200ms `stabilityThreshold`) but does **not** batch across files, so a bursty FS operation — `git checkout` switching to a branch with hundreds of touched files — emits a corresponding burst of pushes. Each renderer hook runs `applyMutation` per push and ticks `version`, so a `useMemo(() => sort(tree), [version])` consumer will recompute repeatedly through the burst.
 
 Consumers should debounce their downstream work (`useDeferredValue` / `useTransition` / a `version`-keyed `useMemo` whose body is fast enough to absorb the storm). A microtask-batched `TreeMutationBatchEvent` would solve this at the wire layer if usage justifies it; not implemented today.
 
@@ -300,10 +309,9 @@ Consumers should debounce their downstream work (`useDeferredValue` / `useTransi
 
 | Phase | Action |
 |---|---|
-| `onInit` | `registerIpcHandlers()` — wires `File_TreeCreate` / `File_TreeDispose` |
 | `onStop` | `disposeAll()` — clears consumers, force-tears all shared builders, drops in-flight promises |
 
-IPC handlers are registered via `this.ipcHandle()` (from `BaseService`), so they are auto-cleaned on stop. No manual `ipcMain.removeHandler` calls.
+The service registers no IPC of its own: the `file.tree.*` routes live in the IpcApi handler map (`src/main/ipc/handlers/file.ts`) and delegate to it via `application.get('DirectoryTreeManager')`.
 
 ---
 
@@ -316,10 +324,10 @@ const { root, isLoading, error, version, treeId, getNode } = useDirectoryTree(ro
 ```
 
 - `root: TreeDirRoot | null` — the live tree. Mutated in place; `version` ticks each time.
-- `isLoading: boolean` — `true` between mount and first `File_TreeCreate` resolution.
-- `error: Error | null` — populated on rejected `File_TreeCreate`; cleared on next mount.
+- `isLoading: boolean` — `true` between mount and completion of the create/activate handoff.
+- `error: Error | null` — populated when create/activate fails or the mutation stream skips a revision; cleared on next mount.
 - `version: number` — monotonic counter. Increment on each applied mutation; use as a `useMemo` dependency for derived state (sorting, filtering, projecting).
-- `treeId: string | null` — for downstream side-subscribers to filter `File_TreeMutation` payloads.
+- `treeId: string | null` — for downstream side-subscribers to filter `file.tree.mutation` payloads.
 - `getNode(absPath)` — O(1) lookup in the local index. Stable identity across re-renders.
 
 Re-creates only on `rootPath` change. Options are sampled at mount; changing them later does not trigger a rebuild — pass a different `rootPath` if you need a different scan.
@@ -328,8 +336,8 @@ Re-creates only on `rootPath` change. Options are sampled at mount; changing the
 
 The hook handles four overlapping concerns:
 
-1. **Mid-flight `rootPath` change** — the previous effect's cleanup sets `cancelled = true`; the resolved snapshot calls `disposeTree(createdTreeId)` instead of swapping into state.
-2. **Unmount during in-flight create** — same cancellation path; if `createdTreeId` was assigned before cleanup, the cleanup also calls `disposeTree`.
+1. **Mid-flight `rootPath` change** — the previous effect's cleanup sets `cancelled = true`; a later create/activate resolution cannot swap the old tree into state.
+2. **Unmount during create or activate** — cleanup removes the mutation listener and disposes any assigned `treeId`.
 3. **Post-unmount rejection** — the catch block guards on `cancelled` before calling `setError`.
 4. **StrictMode mount-unmount-mount** — the first mount's effect cleanup disposes its treeId; the second mount creates a fresh one. No leaked builders.
 
@@ -347,7 +355,7 @@ The hook handles four overlapping concerns:
 
 The tree primitive does not:
 
-- Persist any of its state — every tree is rebuilt from disk on `File_TreeCreate`.
+- Persist any of its state — every tree is rebuilt from disk on `file.tree.create`.
 - Read or write the DB — no `@main/data/**` imports.
 - Know about `FileEntry` — paths are paths; entries are managed orthogonally by FileManager.
 - Implement its own FS event source — it consumes `createDirectoryWatcher`.

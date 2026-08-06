@@ -79,7 +79,7 @@ const NotesPage: FC = () => {
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
-  // `File_TreeCreate` IPC. Whenever the watcher observes add / unlink / rename
+  // `file.tree.create` route. Whenever the watcher observes add / unlink / rename
   // events, `root` (mutated in place) + `version` (tick) drive the
   // projection effect below to refresh `notesTree`.
   const {
@@ -377,15 +377,15 @@ const NotesPage: FC = () => {
   // Tell the session when the watcher reports an external `change` on the file
   // being viewed — it reloads if idle, or flags a conflict if the user has
   // unsaved edits. We listen to the same chokidar events via a tiny
-  // `File_TreeMutation` side-subscriber rather than piping through
+  // `file.tree.mutation` side-subscriber rather than piping through
   // `useDirectoryTree`'s mutation stream (which would re-project the entire tree
   // on every keystroke save). The unlink → clear-active-file path is implicit:
   // when the file leaves the tree, the `shouldClearPath` guard above clears
   // `activeFilePath`.
   useEffect(() => {
     if (!notesPath || !treeId) return
-    const unsubscribe = window.api.tree.onMutation((payload) => {
-      // File_TreeMutation is a shared channel — ignore payloads from other trees.
+    const unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
+      // file.tree.mutation is a shared event — ignore payloads from other trees.
       if (payload.treeId !== treeId) return
       if (payload.event.type !== 'updated') return
       const activePath = activeFilePathRef.current
@@ -724,8 +724,12 @@ const NotesPage: FC = () => {
         // or the IPC fails, the watcher will catch up via removed+added —
         // just without identity preservation.
         if (treeId) {
-          await window.api.tree
-            .rename(treeId, oldPath, renamed.path)
+          await ipcApi
+            .request('file.tree.rename', {
+              treeId,
+              oldPath: AbsoluteFilePathSchema.parse(oldPath),
+              newPath: AbsoluteFilePathSchema.parse(renamed.path)
+            })
             .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
         }
 

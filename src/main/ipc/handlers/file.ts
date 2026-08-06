@@ -10,13 +10,25 @@ import {
   showInFolder as showPathInFolder,
   writeIfUnchangedByPath
 } from '@main/services/file'
-import { StaleVersionError } from '@main/services/file'
+import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
-import type { IpcHandlersFor } from '@shared/ipc/types'
+import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+
+/**
+ * The caller window's WebContents — the directory tree addresses its mutation
+ * stream by it (class-B topic stream, see the schema's `FileEventSchemas`).
+ * A tree whose owner is not a managed window could never receive a push, so
+ * `file.tree.create` refuses instead of leaking a watcher nobody reads.
+ */
+function requireSenderWebContents(senderId: WindowId | null): Electron.WebContents {
+  const wc = senderId == null ? undefined : application.get('WindowManager').getWindow(senderId)?.webContents
+  if (!wc) throw new Error('file.tree.create requires a managed window sender')
+  return wc
+}
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -124,5 +136,24 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
-  }
+  },
+  'file.tree.create': async ({ rootPath, options }, { senderId }) => {
+    try {
+      return await application.get('DirectoryTreeManager').create(requireSenderWebContents(senderId), rootPath, options)
+    } catch (error) {
+      // Shutdown-in-flight, not a failure the user should be toasted about — carry a
+      // domain code so the renderer can stay quiet (`error.name` does not survive IpcApi).
+      if (error instanceof DirectoryTreeStoppedError) {
+        throw new IpcError(fileErrorCodes.DIRECTORY_TREE_STOPPED, error.message)
+      }
+      throw error
+    }
+  },
+  'file.tree.activate': async ({ treeId, revision }) =>
+    application.get('DirectoryTreeManager').activateTree(treeId, revision),
+  'file.tree.dispose': async ({ treeId }) => {
+    application.get('DirectoryTreeManager').dispose(treeId)
+  },
+  'file.tree.rename': async ({ treeId, oldPath, newPath }) =>
+    application.get('DirectoryTreeManager').rename(treeId, oldPath, newPath)
 }
