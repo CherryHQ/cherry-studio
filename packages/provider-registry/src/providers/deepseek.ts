@@ -94,6 +94,14 @@ export default defineProvider({
   apiFeatures: {
     arrayContent: false
   },
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: ['deepseek-v4-flash'],
+      endpointTypes: ['openai-responses']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://platform.deepseek.com/api_keys',

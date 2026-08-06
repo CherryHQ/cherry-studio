@@ -32,6 +32,7 @@ import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
@@ -245,6 +246,18 @@ export async function resolveProviderAiSdkConfig(
         const config = buildGenericProviderConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+        return config
+      })
+    },
+    // DashScope's web_extractor (help.aliyun.com/zh/model-studio/web-extractor) is a Responses tool that
+    // must accompany web_search and needs thinking mode. @ai-sdk/openai drops any tool id it does not
+    // know, so it is appended to the serialized body (dashscopeWebExtractor.ts) rather than via a factory.
+    {
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
+        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
+          customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
@@ -624,6 +637,8 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
       return 'openai-response'
     case ENDPOINT_TYPE.JINA_RERANK:
       return 'jina-rerank'
+    case ENDPOINT_TYPE.OPENAI_EMBEDDINGS:
+      return 'embedding'
     default:
       return 'openai'
   }
