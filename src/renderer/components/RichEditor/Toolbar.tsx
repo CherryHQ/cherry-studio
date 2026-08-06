@@ -22,13 +22,16 @@ interface ToolbarItemInternal {
 // Group ordering for toolbar layout
 const TOOLBAR_GROUP_ORDER = ['formatting', 'text', 'blocks', 'structure', 'media', 'history']
 
-function getToolbarItems(enableImageInsertion: boolean): ToolbarItemInternal[] {
+function getToolbarItems(enableImageInsertion: boolean, disabledCommands: readonly string[]): ToolbarItemInternal[] {
   const items: ToolbarItemInternal[] = []
+  const disabledCommandIds = new Set(disabledCommands)
+
+  if (!enableImageInsertion) {
+    disabledCommandIds.add('image')
+  }
 
   TOOLBAR_GROUP_ORDER.forEach((groupName, groupIndex) => {
-    const groupCommands = getCommandsByGroup(groupName).filter(
-      (command) => enableImageInsertion || command.id !== 'image'
-    )
+    const groupCommands = getCommandsByGroup(groupName).filter((command) => !disabledCommandIds.has(command.id))
 
     if (groupCommands.length > 0 && groupIndex > 0) {
       items.push({ id: `divider-${groupIndex}`, type: 'divider' })
@@ -85,7 +88,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   formattingState,
   onCommand,
   scrollContainer,
-  enableImageInsertion = true
+  enableImageInsertion = true,
+  disabledCommands = []
 }) => {
   const { t } = useTranslation()
   const [showImageUploader, setShowImageUploader] = useState(false)
@@ -154,7 +158,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setShowImageUploader(false)
   }
 
-  const toolbarItems = getToolbarItems(enableImageInsertion)
+  const toolbarItems = getToolbarItems(enableImageInsertion, disabledCommands)
 
   return (
     <ToolbarWrapper data-testid="rich-editor-toolbar">

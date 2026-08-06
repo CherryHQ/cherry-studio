@@ -462,16 +462,22 @@ export interface CommandFilterOptions {
   category?: CommandCategory
   maxResults?: number
   enableImageInsertion?: boolean
+  disabledCommands?: readonly string[]
 }
 
 // Filter commands based on search query and category
 export function filterCommands(options: CommandFilterOptions = {}): Command[] {
-  const { query = '', category, enableImageInsertion = true } = options
+  const { query = '', category, enableImageInsertion = true, disabledCommands = [] } = options
 
   let filtered = getAllCommands()
+  const disabledCommandIds = new Set(disabledCommands)
 
   if (!enableImageInsertion) {
-    filtered = filtered.filter((cmd) => cmd.id !== 'image')
+    disabledCommandIds.add('image')
+  }
+
+  if (disabledCommandIds.size > 0) {
+    filtered = filtered.filter((cmd) => !disabledCommandIds.has(cmd.id))
   }
 
   // Filter by category if specified
@@ -674,16 +680,16 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
 }
 
 export const createCommandSuggestion = (
-  options: { enableImageInsertion?: boolean } = {}
+  options: Pick<CommandFilterOptions, 'enableImageInsertion' | 'disabledCommands'> = {}
 ): Omit<SuggestionOptions<Command, MentionNodeAttrs>, 'editor'> => {
-  const { enableImageInsertion = true } = options
-  if (enableImageInsertion) return commandSuggestion
+  const { enableImageInsertion = true, disabledCommands } = options
+  if (enableImageInsertion && !disabledCommands?.length) return commandSuggestion
 
   return {
     ...commandSuggestion,
     items: ({ query }: { query: string }) => {
       try {
-        return filterCommands({ query, enableImageInsertion })
+        return filterCommands({ query, enableImageInsertion, disabledCommands })
       } catch (error) {
         logger.error('Error filtering commands:', error as Error)
         return []

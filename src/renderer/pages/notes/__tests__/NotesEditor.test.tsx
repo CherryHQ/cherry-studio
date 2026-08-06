@@ -70,4 +70,25 @@ describe('NotesEditor focus behavior', () => {
 
     expect(mocks.richEditorProps).toHaveBeenCalledWith(expect.objectContaining({ autoFocus }))
   })
+
+  it('uses instance-level command configuration', () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent="note"
+        tokenCount={4}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+      />
+    )
+
+    expect(mocks.richEditorProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableImageInsertion: false,
+        disabledCommands: ['inlineMath']
+      })
+    )
+    expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('onCommandsReady')
+  })
 })

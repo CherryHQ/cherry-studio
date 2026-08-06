@@ -56,6 +56,8 @@ export interface RichEditorProps {
   enableSpellCheck?: boolean
   /** Whether users can insert images */
   enableImageInsertion?: boolean
+  /** Toolbar and slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 export interface ToolbarItem {
@@ -235,6 +237,8 @@ export interface ToolbarProps {
   scrollContainer?: React.RefObject<HTMLDivElement | null>
   /** Whether image insertion controls are enabled */
   enableImageInsertion?: boolean
+  /** Toolbar commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 // Command System Types for Slash Commands

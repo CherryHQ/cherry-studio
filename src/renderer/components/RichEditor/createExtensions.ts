@@ -53,6 +53,8 @@ export interface CreateRichEditorExtensionsOptions {
   onColumnActionClick?: TableActionHandler<'colIndex'>
   /** Whether image input rules and insertion commands are enabled. */
   enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance. */
+  disabledCommands?: readonly string[]
 }
 
 /**
@@ -77,7 +79,8 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     mathInlineOptions,
     onRowActionClick,
     onColumnActionClick,
-    enableImageInsertion = true
+    enableImageInsertion = true,
+    disabledCommands
   } = options
 
   return [
@@ -125,7 +128,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       HTMLAttributes: {
         class: 'mention'
       },
-      suggestion: createCommandSuggestion({ enableImageInsertion })
+      suggestion: createCommandSuggestion({ enableImageInsertion, disabledCommands })
     }),
     Typography,
     MarkdownTable.configure({

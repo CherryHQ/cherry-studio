@@ -13,10 +13,11 @@ import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
+const DISABLED_RICH_EDITOR_COMMANDS = ['inlineMath'] as const
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -56,13 +57,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       userViewModeOverrideRef.current = false
       setTmpViewMode(currentViewModeRef.current)
     }, [activeNodeId])
-
-    const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
-      const disabledCommands = ['image', 'inlineMath']
-      disabledCommands.forEach((commandId) => {
-        commandAPI.unregisterCommand(commandId)
-      })
-    }, [])
 
     if (!activeNodeId) {
       return (
@@ -112,7 +106,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-              onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
               autoFocus={currentContent.trim().length === 0}
@@ -124,6 +117,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
+              enableImageInsertion={false}
+              disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
             />
           )}
         </div>

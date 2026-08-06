@@ -41,6 +41,8 @@ export interface UseRichEditorOptions {
   enableSpellCheck?: boolean
   /** Whether users can insert images */
   enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -95,6 +97,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     autoFocus = true,
     enableSpellCheck = false,
     enableImageInsertion = true,
+    disabledCommands,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -261,10 +264,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onColumnActionClick: ({ colIndex, position }) => {
           showTableActionMenu('column', colIndex, position)
         },
-        enableImageInsertion
+        enableImageInsertion,
+        disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
   const editor = useEditor({
