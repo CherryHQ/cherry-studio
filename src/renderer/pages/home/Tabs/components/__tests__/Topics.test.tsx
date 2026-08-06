@@ -517,6 +517,24 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
   }
 }
 
+/**
+ * Time groups only label themselves when the list spans more than one bucket, so fixtures that
+ * assert on a bucket header need an older topic to contrast with.
+ */
+function withEarlierTopic(items: ApiTopic[]): ApiTopic[] {
+  return [
+    ...items,
+    createApiTopic({
+      id: 'topic-earlier',
+      name: 'Earlier topic',
+      assistantId: 'assistant-1',
+      orderKey: 'zzz',
+      createdAt: '2025-11-01T01:00:00.000Z',
+      updatedAt: '2025-11-01T01:00:00.000Z'
+    })
+  ]
+}
+
 function createTopicPageItems(count: number): ApiTopic[] {
   return Array.from({ length: count }, (_, index) =>
     createApiTopic({
@@ -700,6 +718,17 @@ function clearTopicStreamCache(...topicIds: string[]) {
     cacheService.deleteShared(topicStreamStatusCacheKey(topicId))
     cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
   }
+}
+
+/**
+ * An entity group header (agent / assistant) switches away when clicked, so its fold control is a
+ * separate button beside the label and `aria-expanded` lives there. Bucket headers (workdir, time
+ * ranges, pinned) still toggle as one row and keep the attribute on the header button itself.
+ */
+function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
 }
 
 describe('Topics', () => {
@@ -945,7 +974,8 @@ describe('Topics', () => {
     })
     const { setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    // Everything falls into one time bucket, so the list drops the redundant "Today" header.
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTitle('chat.conversation.new'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
@@ -1115,7 +1145,7 @@ describe('Topics', () => {
 
   it('keeps right panel groups fully expanded without collapse controls', () => {
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(6)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1896,7 +1926,9 @@ describe('Topics', () => {
   it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
+    // One rule for both themes: titles sit at `foreground`, no per-theme override.
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground')
+    expect(screen.getByText('Alpha topic')).not.toHaveClass('dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
@@ -2104,7 +2136,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(51) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(51)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -2251,8 +2283,14 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     fireEvent.click(screen.getByLabelText('Display mode'))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
 
@@ -2517,7 +2555,7 @@ describe('Topics', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
-          items: createTopicPageItems(51)
+          items: withEarlierTopic(createTopicPageItems(51))
         }
       ],
       isLoading: false,
@@ -2606,7 +2644,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.queryByText('Topic A')).not.toBeInTheDocument()
   })
 
@@ -2743,9 +2784,18 @@ describe('Topics', () => {
       .find((button) => button.hasAttribute('aria-expanded'))
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Unlinked Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
@@ -2880,7 +2930,7 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
-    expect(assistantGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(assistantGroupButton)).toHaveAttribute('aria-expanded', 'true')
 
     const animationFrameCallbacks: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -3038,12 +3088,12 @@ describe('Topics', () => {
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.click(betaGroupButton)
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
@@ -3052,7 +3102,9 @@ describe('Topics', () => {
     )
 
     const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    // With the group open the row announces the selection; the header stays quiet so screen readers
+    // hear one "current", not two.
+    expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
@@ -3062,7 +3114,10 @@ describe('Topics', () => {
       undefined,
       createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
     )
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
   })
 
   it('moves the assistant resource entry into the topic options menu', () => {
@@ -3184,9 +3239,15 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
