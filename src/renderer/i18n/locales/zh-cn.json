@@ -3289,6 +3289,7 @@
   },
   "launchpad": {
     "apps": "应用",
+    "manage_sidebar": "管理侧边栏",
     "minapps": "小程序",
     "miniApps": "小程序",
     "pin_to_sidebar": "添加到侧边栏",
