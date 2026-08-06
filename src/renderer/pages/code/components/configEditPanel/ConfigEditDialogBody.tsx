@@ -87,7 +87,8 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
-          <DialogTitle className="flex min-w-0 items-center gap-2">
+          {/* pr-8 keeps the trailing action clear of the absolutely positioned close button. */}
+          <DialogTitle className="flex min-w-0 items-center gap-2 pr-8">
             {isApiGatewayProviderId(provider.id) ? (
               // Match the gateway list card: a broadcast-tower glyph (relay/hub metaphor).
               <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background text-foreground">

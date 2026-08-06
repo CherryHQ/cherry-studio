@@ -25,6 +25,7 @@ vi.mock('@cherrystudio/ui', async () => {
     value: ''
   })
   const AccordionItemContext = React.createContext('')
+  const PopoverContext = React.createContext<{ open?: boolean; onOpenChange?: (open: boolean) => void }>({})
 
   return {
     Accordion: ({ children, value, onValueChange }: any) => (
@@ -134,9 +135,33 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogFooter: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-    Popover: ({ children }: any) => <div>{children}</div>,
-    PopoverContent: ({ children }: any) => <div>{children}</div>,
-    PopoverTrigger: ({ children }: any) => <div>{children}</div>,
+    MenuList: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    MenuItem: ({ label, onClick, disabled, ...props }: any) => (
+      <button type="button" data-slot="menu-item" onClick={onClick} disabled={disabled} {...props}>
+        {label}
+      </button>
+    ),
+    // Controlled mock: the avatar menu only renders while open, so tests exercise the
+    // real open/close flow instead of reaching hidden menu items.
+    Popover: ({ children, open, onOpenChange }: any) => (
+      <PopoverContext value={{ open, onOpenChange }}>
+        <div data-slot="popover" data-open={open ? 'true' : 'false'}>
+          {children}
+        </div>
+      </PopoverContext>
+    ),
+    PopoverContent: ({ children }: any) => {
+      const { open } = React.use(PopoverContext)
+      return open ? <div data-slot="popover-content">{children}</div> : null
+    },
+    PopoverTrigger: ({ children }: any) => {
+      const { onOpenChange } = React.use(PopoverContext)
+      return (
+        <div onClick={() => onOpenChange?.(true)} onKeyDown={(event) => event.key === 'Enter' && onOpenChange?.(true)}>
+          {children}
+        </div>
+      )
+    },
     Scrollbar: ({ children, ...props }: any) => (
       <div data-slot="scrollbar" {...props}>
         {children}
@@ -190,6 +215,10 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 }))
+
+function openAvatarMenu() {
+  fireEvent.click(screen.getByLabelText('settings.provider.logo.label'))
+}
 
 function toggleMoreSettings() {
   fireEvent.click(
@@ -330,7 +359,8 @@ describe('ProviderEditorDrawer', () => {
     })
     await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+    openAvatarMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.logo.reset' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
@@ -342,6 +372,61 @@ describe('ProviderEditorDrawer', () => {
         })
       )
     })
+  })
+
+  it('keeps the logo actions behind the avatar menu and swaps in the picker in place', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    // Closed: none of the three actions are reachable.
+    expect(screen.queryByRole('button', { name: 'settings.provider.logo.upload' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.provider.logo.builtin' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.provider.logo.reset' })).not.toBeInTheDocument()
+
+    openAvatarMenu()
+    expect(screen.getByRole('button', { name: 'settings.provider.logo.upload' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.provider.logo.builtin' })).toBeInTheDocument()
+    // Nothing to reset yet on a fresh custom provider.
+    expect(screen.getByRole('button', { name: 'settings.provider.logo.reset' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'pick-openai' })).not.toBeInTheDocument()
+
+    // The picker replaces the menu inside the same popover.
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.logo.builtin' }))
+    expect(screen.getByRole('button', { name: 'pick-openai' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.provider.logo.builtin' })).not.toBeInTheDocument()
+  })
+
+  it('closes the avatar menu after picking a built-in icon and reopens on the menu view', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    openAvatarMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.logo.builtin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
+
+    expect(screen.queryByRole('button', { name: 'pick-openai' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo', 'icon:openai')
+
+    // Reopening lands back on the menu, not on the picker it was left in.
+    openAvatarMenu()
+    expect(screen.getByRole('button', { name: 'settings.provider.logo.builtin' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'pick-openai' })).not.toBeInTheDocument()
+    // A logo now exists, so reset becomes actionable.
+    expect(screen.getByRole('button', { name: 'settings.provider.logo.reset' })).toBeEnabled()
   })
 
   it('submits a preset-key logo edit when an icon is selected after uploading', async () => {
@@ -370,6 +455,9 @@ describe('ProviderEditorDrawer', () => {
     })
     await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
 
+    // The picker lives behind the avatar menu's built-in-logo entry.
+    openAvatarMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.logo.builtin' }))
     fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
@@ -719,6 +807,8 @@ describe('ProviderEditorDrawer', () => {
 
     const { rerender } = render(<ProviderEditorDrawer {...sharedProps} mode={{ kind: 'create-custom' }} />)
 
+    openAvatarMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.logo.builtin' }))
     fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Claude Gateway' }

@@ -6817,7 +6817,6 @@
         "title": "自动更新"
       },
       "avatar": {
-        "builtin": "内置头像",
         "reset": "重置头像"
       },
       "backup": {
@@ -7900,6 +7899,12 @@
           "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
           "label": "图像生成 Base URL"
         }
+      },
+      "logo": {
+        "builtin": "选择内置图标",
+        "label": "服务商图标",
+        "reset": "重置图标",
+        "upload": "上传图片"
       },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",

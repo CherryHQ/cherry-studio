@@ -16,6 +16,8 @@ import {
   FieldError,
   FieldLabel,
   Input,
+  MenuItem,
+  MenuList,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -35,7 +37,7 @@ import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'es-toolkit/compat'
-import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { type ChangeEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -166,7 +168,6 @@ export default function ProviderEditorDrawer({
   const [logo, setLogo] = useState<string | null>(null)
   const [stagedFile, setStagedFile] = useState<File | null>(null)
   const [logoDirty, setLogoDirty] = useState(false)
-  const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nameTouched, setNameTouched] = useState(false)
   const [baseUrlTouched, setBaseUrlTouched] = useState(false)
@@ -267,7 +268,6 @@ export default function ProviderEditorDrawer({
     setPreferredChatEndpoint(initialDefaultEndpoint)
     setInvalidCreationUrl(null)
     setLogoDirty(false)
-    setLogoPickerOpen(false)
     revokePreviewObjectUrl()
     setStagedFile(null)
   }, [open, editingProvider, duplicateSource])
@@ -522,7 +522,6 @@ export default function ProviderEditorDrawer({
       name={name}
       logo={logo}
       initialLogo={initialLogo}
-      logoPickerOpen={logoPickerOpen}
       editingProviderId={editingProvider?.id}
       avatarBackgroundColor={avatarBackgroundColor}
       avatarForegroundColor={avatarForegroundColor}
@@ -532,7 +531,6 @@ export default function ProviderEditorDrawer({
         setStagedFile(null)
         setLogo(`icon:${providerId}`)
         setLogoDirty(true)
-        setLogoPickerOpen(false)
       }}
       onReset={() => {
         revokePreviewObjectUrl()
@@ -540,7 +538,6 @@ export default function ProviderEditorDrawer({
         setLogo(null)
         setLogoDirty(true)
       }}
-      onLogoPickerOpenChange={setLogoPickerOpen}
     />
   )
 
@@ -671,8 +668,8 @@ export default function ProviderEditorDrawer({
         showCloseButton={!isSubmitting}
         size="lg"
         data-testid="provider-editor-dialog"
-        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
+        className="grid max-h-[calc(100vh-6rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
           <DialogTitle className="text-base leading-5">{title}</DialogTitle>
         </DialogHeader>
         <Scrollbar data-testid="provider-editor-scrollbar" className="min-h-0 px-6 py-2">
@@ -907,65 +904,106 @@ interface AvatarSectionProps {
   name: string
   logo: string | null
   initialLogo?: string
-  logoPickerOpen: boolean
   editingProviderId?: string
   avatarBackgroundColor?: string
   avatarForegroundColor?: string
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
   onPick: (providerId: string) => void
   onReset: () => void
-  onLogoPickerOpenChange: (open: boolean) => void
 }
 
+/**
+ * The avatar itself is the only affordance: clicking it opens a menu, and picking a
+ * built-in logo swaps that menu for the picker in place. Mirrors the user avatar in
+ * `UserPopup`, which owns the same three actions.
+ */
 function AvatarSection({
   uploadInputRef,
   name,
   logo,
   initialLogo,
-  logoPickerOpen,
   editingProviderId,
   avatarBackgroundColor,
   avatarForegroundColor,
   onUpload,
   onPick,
-  onReset,
-  onLogoPickerOpenChange
+  onReset
 }: AvatarSectionProps) {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuView, setMenuView] = useState<'menu' | 'logos'>('menu')
+
+  const closeMenu = () => {
+    setMenuOpen(false)
+    setMenuView('menu')
+  }
+
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div
-        className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50"
-        style={
-          avatarBackgroundColor && avatarForegroundColor
-            ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }
-            : undefined
-        }>
-        <ProviderAvatarPrimitive
-          providerId={editingProviderId ?? 'provider-editor-preview'}
-          providerName={name || 'Provider'}
-          logo={logo ?? undefined}
-          size={76}
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button variant="outline" onClick={() => uploadInputRef.current?.click()}>
-          <ImagePlus size={16} />
-          {t('settings.general.image_upload')}
-        </Button>
-        <Popover open={logoPickerOpen} onOpenChange={onLogoPickerOpenChange}>
-          <PopoverTrigger asChild>
-            <Button variant="outline">{t('settings.general.avatar.builtin')}</Button>
-          </PopoverTrigger>
-          <PopoverContent align="center" sideOffset={8} className="w-auto">
-            <ProviderLogoPicker onProviderClick={onPick} />
-          </PopoverContent>
-        </Popover>
-        <Button variant="outline" disabled={!logo && !initialLogo} onClick={onReset}>
-          <RotateCcw size={16} />
-          {t('settings.general.avatar.reset')}
-        </Button>
-      </div>
+    <div className="flex flex-col items-center">
+      <Popover
+        open={menuOpen}
+        onOpenChange={(open) => {
+          setMenuOpen(open)
+          if (!open) {
+            setMenuView('menu')
+          }
+        }}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('settings.provider.logo.label')}
+            className="size-19 rounded-full p-0 shadow-none transition-opacity hover:bg-transparent hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80">
+            <div
+              className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/50"
+              style={
+                avatarBackgroundColor && avatarForegroundColor
+                  ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }
+                  : undefined
+              }>
+              <ProviderAvatarPrimitive
+                providerId={editingProviderId ?? 'provider-editor-preview'}
+                providerName={name || 'Provider'}
+                logo={logo ?? undefined}
+                size={76}
+              />
+            </div>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="center"
+          sideOffset={8}
+          className={cn('w-auto', menuView === 'menu' && 'w-fit min-w-32 rounded-xl p-1.5')}>
+          {menuView === 'logos' ? (
+            <ProviderLogoPicker
+              onProviderClick={(providerId) => {
+                onPick(providerId)
+                closeMenu()
+              }}
+            />
+          ) : (
+            <MenuList>
+              <MenuItem
+                label={t('settings.provider.logo.upload')}
+                onClick={() => {
+                  uploadInputRef.current?.click()
+                  closeMenu()
+                }}
+              />
+              {/* Opens an inline sub-flow, so it deliberately keeps the popover open. */}
+              <MenuItem label={t('settings.provider.logo.builtin')} onClick={() => setMenuView('logos')} />
+              <MenuItem
+                label={t('settings.provider.logo.reset')}
+                disabled={!logo && !initialLogo}
+                onClick={() => {
+                  onReset()
+                  closeMenu()
+                }}
+              />
+            </MenuList>
+          )}
+        </PopoverContent>
+      </Popover>
       <input
         ref={uploadInputRef}
         type="file"

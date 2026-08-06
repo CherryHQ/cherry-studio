@@ -137,7 +137,9 @@ function DialogContent({
           {showCloseButton && (
             <DialogPrimitive.Close
               data-slot="dialog-close"
-              className="data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+              // size-7 with top/right-2.5 keeps the 16px glyph centered where a bare
+              // `top-4 right-4` icon used to sit, while giving the button a 28px hit area.
+              className="absolute top-2.5 right-2.5 inline-flex size-7 items-center justify-center rounded-lg opacity-70 transition-[opacity,background-color] hover:bg-accent hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
               <XIcon />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
