@@ -292,12 +292,13 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             {chevron}
           </button>
           {/* The rest of the row keeps the label button's reach — the same click, minus a second
-              stop in the tab order and a duplicate name for screen readers. */}
+              stop in the tab order and a duplicate name for screen readers. It carries the pointer
+              too: this strip does exactly what the label does, so it must not read as dead space. */}
           <button
             type="button"
             aria-hidden="true"
             tabIndex={-1}
-            className="h-full flex-1 cursor-default"
+            className="h-full flex-1 cursor-pointer"
             onClick={handleClick}
           />
         </>

@@ -1604,6 +1604,11 @@ describe('ResourceList', () => {
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
     // One type voice for the whole list; a bucket header is set apart by colour, not size or weight.
     expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
+    // The strip filling the rest of the row runs the same click as the label, so it has to look
+    // clickable too — a `cursor-default` there reads as dead space in the middle of a live row.
+    const sessionRowFiller = sessionChevron.nextElementSibling
+    expect(sessionRowFiller).toHaveAttribute('aria-hidden', 'true')
+    expect(sessionRowFiller).toHaveClass('cursor-pointer')
     expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 
