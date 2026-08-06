@@ -63,7 +63,7 @@ patchedDependencies:
   '@ai-sdk/openai@3.0.53': b2a56a32b4cf7aee1801b9a74d8098ea211135bcb2545f351f0835894c40db17
   '@ai-sdk/xai@3.0.111': 14ac373f04d53e60b277485bdcc1e590b2a2e17dfbe28575f5098c108a32977e
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
-  '@openrouter/ai-sdk-provider@2.10.0': 9769ffead640262c66842c795ce2032328769ac8e140c86f7e3a0dd81e1dca02
+  '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/markdown@3.26.1': 4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540
@@ -153,8 +153,8 @@ importers:
         specifier: 6.0.0
         version: 6.0.0
       selection-hook:
-        specifier: 2.0.2
-        version: 2.0.2
+        specifier: 2.0.3
+        version: 2.0.3
       sharp:
         specifier: 0.34.5
         version: 0.34.5
@@ -389,7 +389,7 @@ importers:
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=9769ffead640262c66842c795ce2032328769ac8e140c86f7e3a0dd81e1dca02)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1342,7 +1342,7 @@ importers:
         version: link:../ai-sdk-provider
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=9769ffead640262c66842c795ce2032328769ac8e140c86f7e3a0dd81e1dca02)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^6.0.116
         version: 6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4)
@@ -12669,8 +12669,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@2.0.2:
-    resolution: {integrity: sha512-/JfR3Sge/ytZT8feeiuJHgpe0PCJ5vwTc6Qn385ruTCZaee0/NWmMHKGaXBSD7JIwtvGYsiF88pL20NQyejEyA==}
+  selection-hook@2.0.3:
+    resolution: {integrity: sha512-wo9xqfRG9lnJWtzFCvl3XBDjV/Qfm9QG/hS8IFsWgSgjJdaJCv7oDtFGefAozpNAx5WvalSjdyLKmIOXHT0Xtw==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -16991,7 +16991,7 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=9769ffead640262c66842c795ce2032328769ac8e140c86f7e3a0dd81e1dca02)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4))(zod@4.3.4)':
     dependencies:
       ai: 6.0.143(patch_hash=1c367307b8e78efdd7f0d67c28550b983645f5fd9b9e2ee43bbf200dbd5a24ee)(zod@4.3.4)
       zod: 4.3.4
@@ -26858,7 +26858,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.0.2:
+  selection-hook@2.0.3:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4

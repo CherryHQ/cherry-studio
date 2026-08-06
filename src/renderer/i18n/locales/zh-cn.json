@@ -5783,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "新建助手",
+      "create_tag": "新建",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
       "group_filter": "按分组筛选",

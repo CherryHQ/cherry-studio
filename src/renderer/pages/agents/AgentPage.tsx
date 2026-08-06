@@ -20,7 +20,7 @@ import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -37,7 +37,6 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
-import { useModelById } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -75,6 +74,7 @@ import {
 } from './feedbackComposerLaunch'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
+import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const logger = loggerService.withContext('AgentPage')
 type AgentConversationResourceKind = 'agent'
@@ -181,6 +181,8 @@ const AgentPage = () => {
   const navigate = useNavigate()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
+  const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
@@ -266,6 +268,10 @@ const AgentPage = () => {
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
+  const initialActiveSession = useMemo(
+    () => (activeSessionId ? agentSessions.find((session) => session.id === activeSessionId) : undefined),
+    [activeSessionId, agentSessions]
+  )
   const {
     session: activeSession,
     isLoading: isActiveSessionLoading,
@@ -277,15 +283,21 @@ const AgentPage = () => {
     setPendingSession
   } = useActiveSession({
     activeSessionId,
-    setActiveSessionId
+    setActiveSessionId,
+    initialSession: initialActiveSession
   })
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
-  // Start the managed model query before agent details resolve; AgentChat shares the same SWR request.
-  useModelById(visibleAgentFromList?.model)
+  const conversationBootstrap = useAgentConversationBootstrap({
+    session: visibleSession ?? null,
+    sessionLoading: isMessageOnlyView ? isRouteSessionLoading : isActiveSessionLoading,
+    sessionSource: isMessageOnlyView && routeSession ? 'query' : isMessageOnlyView ? 'none' : activeSessionSource,
+    agentHint: visibleAgentFromList
+  })
+  const visibleAgent = conversationBootstrap.resources.agent
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -329,9 +341,6 @@ const AgentPage = () => {
   })
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
-  const isActiveTab = useIsActiveTab()
-  const currentTabId = useCurrentTabId()
-
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {
       setSessionRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
@@ -368,7 +377,6 @@ const AgentPage = () => {
   }, [currentTabId])
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
-  const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
   const tabInstanceSessionId = !isMessageOnlyView
     ? (visibleSession?.id ?? routeActiveSessionId ?? undefined)
     : undefined
@@ -1141,12 +1149,8 @@ const AgentPage = () => {
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
           centerSurface={centerSurface}
-          activeSession={visibleSession}
-          activeSessionLoading={isActiveSessionLoading}
-          activeSessionSource={activeSessionSource}
+          conversationBootstrap={conversationBootstrap}
           pane={pane}
-          lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
-          lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={shellPaneOpen}
           panePosition="left"
           onPaneCollapse={() => setShellPaneOpenManually(false)}
