@@ -37,7 +37,14 @@ export default openaiCompatible({
   // BigModel chat web_search tool (docs.bigmodel.cn/cn/guide/tools/web-search),
   // delivered by the zhipu transformRequestBody. `vendors` keeps other hosted
   // families (if any appear) from routing to a tool BigModel serves for GLM.
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['zhipu'] }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: ['glm-4', 'glm-5'],
+      vendors: ['zhipu']
+    }
+  ],
   website: {
     apiKey: 'https://open.bigmodel.cn/apikey/platform',
     docs: 'https://docs.bigmodel.cn/',

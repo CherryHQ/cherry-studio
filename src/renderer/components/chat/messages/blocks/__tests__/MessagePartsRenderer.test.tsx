@@ -143,11 +143,7 @@ vi.mock('../ImageBlock', () => ({
 vi.mock('../../tools/MessageTools', () => {
   const canRender = (toolResponse: any) => {
     const name = toolResponse?.tool?.name ?? ''
-    return (
-      name !== 'report_artifacts' &&
-      !name.endsWith('__report_artifacts') &&
-      !(toolResponse?.tool?.type === 'provider' && name === 'web_search')
-    )
+    return name !== 'report_artifacts' && !name.endsWith('__report_artifacts') && name !== 'unknown_provider_tool'
   }
 
   return {
@@ -1198,6 +1194,28 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('https://example.com')).toBeNull()
     })
 
+    it('renders DeepSeek provider webSearch parts as tools instead of reasoning-only rows', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Finding current sources', state: 'done' },
+          {
+            type: 'tool-webSearch',
+            toolCallId: 'provider-search',
+            state: 'output-available',
+            input: {},
+            output: { action: { type: 'search' } },
+            providerExecuted: true
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'webSearch' }))
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
+    })
+
     it('does not render provider ellipsis fillers or let them split live tools', () => {
       activateTurn('streaming')
       renderParts(
@@ -1587,7 +1605,7 @@ describe('MessagePartsRenderer', () => {
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
-        { ...toolPart('search', 'output-available', 'web_search'), toolType: 'provider' },
+        { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
         { type: 'text', text: 'Provider-backed final answer' }
       ] as unknown as CherryMessagePart[])
 

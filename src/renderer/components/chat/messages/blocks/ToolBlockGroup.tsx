@@ -1,5 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
@@ -95,6 +96,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.ToolSearch]: FileSearch,
   [AgentToolsType.WebFetch]: Globe,
   [AgentToolsType.WebSearch]: Globe,
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: Globe,
   [AgentToolsType.Workflow]: Workflow,
   [AgentToolsType.Write]: FileText
 }
