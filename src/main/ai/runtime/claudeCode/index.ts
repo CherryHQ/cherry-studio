@@ -1,3 +1,4 @@
+export { claudeCodeProcessManager } from './ClaudeCodeProcessManager'
 export { ClaudeCodeRuntimeDriver } from './ClaudeCodeRuntimeDriver'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
 export { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'

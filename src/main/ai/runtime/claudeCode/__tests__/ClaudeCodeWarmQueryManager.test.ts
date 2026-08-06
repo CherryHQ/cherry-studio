@@ -6,6 +6,8 @@ const {
   startupMock,
   buildWarmRequestMock,
   applicationGetMock,
+  applicationIsQuitting,
+  closeAgentRuntimeMock,
   traceModeEnabledMock,
   prepareTraceMock,
   ensureTraceIdMock
@@ -13,6 +15,8 @@ const {
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
+  applicationIsQuitting: { value: true },
+  closeAgentRuntimeMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
   prepareTraceMock: vi.fn(),
   ensureTraceIdMock: vi.fn()
@@ -23,7 +27,12 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: applicationGetMock }
+  application: {
+    get: applicationGetMock,
+    get isQuitting() {
+      return applicationIsQuitting.value
+    }
+  }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -40,13 +49,27 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const { claudeCodeProcessManager, spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
-function warmQuery() {
+function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
+  const close = vi.fn()
   return {
     query: vi.fn(),
-    close: vi.fn()
+    close,
+    [Symbol.asyncDispose]: vi.fn(async () => {
+      close()
+      await cleanup
+    })
   }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 describe('ClaudeCodeWarmQueryManager', () => {
@@ -58,8 +81,11 @@ describe('ClaudeCodeWarmQueryManager', () => {
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
+      if (name === 'AgentSessionRuntimeService') return { closeAll: closeAgentRuntimeMock }
       throw new Error(`Unexpected application.get(${name})`)
     })
+    closeAgentRuntimeMock.mockResolvedValue(undefined)
+    applicationIsQuitting.value = true
     traceModeEnabledMock.mockReturnValue(false)
   })
 
@@ -81,10 +107,102 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', resume: 'sdk-1' },
+      options: { model: 'sonnet', resume: 'sdk-1', spawnClaudeCodeProcess },
       initializeTimeoutMs: undefined
     })
     expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('preserves the host spawn wrapper on the warm startup path', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    const ignoredSpawn = vi.fn()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn } as any
+    })
+    await Promise.resolve()
+
+    expect(startupMock).toHaveBeenCalledWith({
+      options: { model: 'sonnet', spawnClaudeCodeProcess },
+      initializeTimeoutMs: undefined
+    })
+  })
+
+  it('waits for every warm cleanup in closeAll', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const firstCleanup = createDeferred<void>()
+    const secondCleanup = createDeferred<void>()
+    const firstWarm = warmQuery(firstCleanup.promise)
+    const secondWarm = warmQuery(secondCleanup.promise)
+    startupMock.mockResolvedValueOnce(firstWarm).mockResolvedValueOnce(secondWarm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    manager.prewarm({ key: 'session-2', options: { model: 'opus' } as any })
+    await Promise.resolve()
+
+    const closing = manager.closeAll()
+    let settled = false
+    void closing.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(firstWarm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+    expect(secondWarm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+    firstCleanup.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    secondCleanup.resolve()
+    await expect(closing).resolves.toBeUndefined()
+  })
+
+  it('limits a non-quitting service stop to warm entries', async () => {
+    applicationIsQuitting.value = false
+    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    try {
+      manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+      await Promise.resolve()
+
+      await expect(manager._doStop()).resolves.toBeUndefined()
+
+      expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+      expect(closeAgentRuntimeMock).not.toHaveBeenCalled()
+      expect(shutdown).not.toHaveBeenCalled()
+    } finally {
+      shutdown.mockRestore()
+    }
+  })
+
+  it('bounds a hanging warm cleanup during stop without rejecting', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery(new Promise<void>(() => {}))
+    startupMock.mockResolvedValueOnce(warm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await Promise.resolve()
+
+    const stopped = manager._doStop().then(
+      () => 'resolved' as const,
+      () => 'rejected' as const
+    )
+    let outcome: 'pending' | 'resolved' | 'rejected' = 'pending'
+    void stopped.then((result) => {
+      outcome = result
+    })
+    await Promise.resolve()
+
+    expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+    expect(outcome).toBe('pending')
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(outcome).toBe('pending')
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(stopped).resolves.toBe('resolved')
+    expect(closeAgentRuntimeMock).toHaveBeenCalledOnce()
   })
 
   it('closes a stale warm query when session options change', async () => {

@@ -11,6 +11,7 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
+import { claudeCodeProcessManager, spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -18,6 +19,7 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
+  closePromise?: Promise<void>
   usageCapture?: AgentSessionUsageCapture
   idleTimer?: ReturnType<typeof setTimeout>
 }
@@ -188,15 +190,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   closeAgentSessionWarm(sessionId: string): void {
-    try {
-      this.close(sessionId)
-    } catch (error) {
+    void this.close(sessionId).catch((error) => {
       logger.debug('Failed to close agent session warm query', { sessionId, error })
-    }
+    })
   }
 
   prewarm(request: WarmQueryRequest): void {
-    const warmOptions = stripWarmQueryOptions(request.options)
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -210,7 +210,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      this.closeEntry(existing)
+      void this.closeEntry(existing)
     }
 
     const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
@@ -229,7 +229,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
-    const warmOptions = stripWarmQueryOptions(request.options)
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -242,7 +242,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
       return undefined
     }
 
@@ -251,25 +251,34 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     return { warmQuery, usageCapture: entry.usageCapture }
   }
 
-  close(key: string): void {
+  close(key: string): Promise<void> {
     const entry = this.entries.get(key)
-    if (!entry) return
+    if (!entry) return Promise.resolve()
     this.entries.delete(key)
-    this.closeEntry(entry)
+    return this.closeEntry(entry)
   }
 
-  closeAll(): void {
+  closeAll(): Promise<void> {
     const entries = [...this.entries.values()]
     this.entries.clear()
-    for (const entry of entries) this.closeEntry(entry)
+    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
   }
 
-  protected onStop(): void {
-    this.closeAll()
+  protected onStop(): Promise<void> {
+    if (!application.isQuitting) return this.closeAll()
+    return claudeCodeProcessManager.shutdown(async () => {
+      const closings: Promise<unknown>[] = [this.closeAll()]
+      try {
+        closings.push(application.get('AgentSessionRuntimeService').closeAll())
+      } catch (error) {
+        logger.warn('Failed to start agent runtime shutdown', { error })
+      }
+      await Promise.allSettled(closings)
+    })
   }
 
-  protected onDestroy(): void {
-    this.closeAll()
+  protected onDestroy(): Promise<void> {
+    return this.closeAll()
   }
 
   private refreshIdleTimer(key: string, entry: WarmQueryEntry): void {
@@ -277,19 +286,21 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
   }
 
-  private closeEntry(entry: WarmQueryEntry): void {
+  private closeEntry(entry: WarmQueryEntry): Promise<void> {
+    if (entry.closePromise) return entry.closePromise
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
-    void entry.promise
-      .then((warmQuery) => {
-        warmQuery?.close()
+    entry.closePromise = entry.promise
+      .then(async (warmQuery) => {
+        await warmQuery?.[Symbol.asyncDispose]()
       })
       .catch((error) => {
         logger.debug('Ignoring warm query close after failed startup', { error })
       })
+    return entry.closePromise
   }
 }

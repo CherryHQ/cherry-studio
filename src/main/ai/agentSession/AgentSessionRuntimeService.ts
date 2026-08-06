@@ -40,7 +40,7 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
+import { claudeCodeProcessManager, type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -827,11 +827,19 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string): void {
+  closeSession(sessionId: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
-    this.closeEntry(entry)
+    if (!entry) return Promise.resolve()
+    const fallbackConnection = this.currentConnection(entry)
+    let closing: Promise<void>
+    try {
+      closing = this.closeEntry(entry)
+    } catch (error) {
+      logger.warn('Agent runtime entry close failed', { sessionId, error })
+      closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
+    }
     if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
+    return closing
   }
 
   /**
@@ -1098,15 +1106,32 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  protected onStop(): void {
+  protected onStop(): Promise<void> {
     this.isShuttingDown = true
-    this.closeAll()
-    toolApprovalRegistry.clear('agent-session-runtime-stop')
+    try {
+      toolApprovalRegistry.clear('agent-session-runtime-stop')
+    } catch (error) {
+      logger.warn('Failed to clear agent runtime approvals during stop', { error })
+    }
+    if (!application.isQuitting) return this.closeAll()
+    return claudeCodeProcessManager.shutdown(async () => {
+      const closings: Promise<unknown>[] = [this.closeAll()]
+      try {
+        closings.push(application.get('ClaudeCodeWarmQueryManager').closeAll())
+      } catch (error) {
+        logger.warn('Failed to start Claude warm query shutdown', { error })
+      }
+      await Promise.allSettled(closings)
+    })
   }
 
-  protected onDestroy(): void {
-    this.closeAll()
-    toolApprovalRegistry.clear('agent-session-runtime-destroy')
+  protected async onDestroy(): Promise<void> {
+    await this.closeAll()
+    try {
+      toolApprovalRegistry.clear('agent-session-runtime-destroy')
+    } catch (error) {
+      logger.warn('Failed to clear agent runtime approvals during destroy', { error })
+    }
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -1301,17 +1326,13 @@ export class AgentSessionRuntimeService extends BaseService {
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      void Promise.resolve(connection.close()).catch((error) =>
-        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-      )
+      void this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
 
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      void Promise.resolve(connection.close()).catch((error) =>
-        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-      )
+      void this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -2776,13 +2797,13 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private closeAll(): void {
-    for (const sessionId of [...this.entries.keys()]) {
-      this.closeSession(sessionId)
-    }
+  public closeAll(): Promise<void> {
+    this.isShuttingDown = true
+    const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
+    return Promise.allSettled(closings).then(() => undefined)
   }
 
-  private closeEntry(entry: AgentSessionRuntimeEntry): void {
+  private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     this.clearIdleTimer(entry)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
@@ -2816,9 +2837,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    void Promise.resolve(connection?.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
+    return this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
@@ -2844,9 +2863,19 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {
     const connection = this.closeConnection(entry)
-    void Promise.resolve(connection?.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
+    void this.closeRuntimeConnection(connection, entry.sessionId)
+  }
+
+  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
+    if (!connection) return Promise.resolve()
+    try {
+      return Promise.resolve(connection.close()).catch((error) => {
+        logger.warn('Agent runtime connection close failed', { sessionId, error })
+      })
+    } catch (error) {
+      logger.warn('Agent runtime connection close failed', { sessionId, error })
+      return Promise.resolve()
+    }
   }
 }
 

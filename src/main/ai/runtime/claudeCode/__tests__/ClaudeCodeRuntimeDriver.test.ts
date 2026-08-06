@@ -233,11 +233,17 @@ vi.mock('../streamAdapter', async (importActual) => {
 })
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
+const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
   const waiters: Array<(value: IteratorResult<T>) => void> = []
   let closed = false
+
+  const close = () => {
+    closed = true
+    while (waiters.length > 0) waiters.shift()?.({ value: undefined as T, done: true })
+  }
 
   return {
     push(item: T) {
@@ -245,11 +251,12 @@ function createAsyncQueue<T>() {
       if (waiter) waiter({ value: item, done: false })
       else items.push(item)
     },
-    close() {
-      closed = true
-      while (waiters.length > 0) waiters.shift()?.({ value: undefined as T, done: true })
-    },
+    close,
     iterable: {
+      return: vi.fn(async () => {
+        close()
+        return { value: undefined, done: true } as IteratorResult<T>
+      }),
       [Symbol.asyncIterator](): AsyncIterator<T> {
         return {
           next: () => {
@@ -262,6 +269,16 @@ function createAsyncQueue<T>() {
       }
     }
   }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 function userMessage() {
@@ -405,6 +422,66 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     void connection.close()
+  })
+
+  it('passes the host spawn wrapper to the cold SDK query path', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const ignoredSpawn = vi.fn()
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
+    void connection.close()
+  })
+
+  it('waits for the SDK query cleanup promise when closing a connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const cleanup = createDeferred<IteratorResult<void>>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(() => cleanup.promise)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    const closing = Promise.resolve(connection.close())
+    const repeatedClosing = Promise.resolve(connection.close())
+    expect(repeatedClosing).toBe(closing)
+    let settled = false
+    void closing.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(query.close).toHaveBeenCalledOnce()
+    expect(query.return).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(settled).toBe(false)
+
+    cleanup.resolve({ value: undefined, done: true })
+    await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
   })
 
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
@@ -2393,7 +2470,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // user message with its per-message resume cleared.
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined })
+    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 

@@ -246,6 +246,20 @@ When the idle timer expires, the runtime closes the entry:
 
 Service stop and destroy close all runtime entries.
 
+Application shutdown also owns the Claude Code CLI subprocess boundary. Every SDK `Options` object
+uses a host spawn wrapper that records only the `ChildProcess` handles created by this app and drops
+each handle on `exit`. The warm-query and agent-session lifecycle services start both close
+aggregates together: warm handles use their async-dispose contract, while live queries call
+`close()` and await `return()`.
+
+One process-wide shutdown timeline bounds that cooperative cleanup. It allows up to two seconds for
+the close aggregates and registered children to settle, sends `SIGTERM` only to registered children
+that are still live, waits up to one further second, then sends `SIGKILL` to the remaining registered
+handles. Repeated lifecycle calls reuse the same timeline and never repeat a signal. Cleanup,
+timeout, and signal failures are logged and absorbed so service stop always completes within roughly
+three seconds, below the application's five-second forced-exit fallback. No process-name lookup or
+machine-wide kill is used.
+
 ## Write quiesce
 
 For backup restore (#16849) the service exposes `pause(reason?): Disposable` +

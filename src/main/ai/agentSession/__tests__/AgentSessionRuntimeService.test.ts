@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
+  applicationIsQuitting: { value: true },
+  closeWarmQueries: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -64,12 +66,17 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: {
+    get: mocks.applicationGet,
+    get isQuitting() {
+      return mocks.applicationIsQuitting.value
+    }
+  }
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
-const { toolApprovalRegistry } = await import('../../runtime/claudeCode')
+const { claudeCodeProcessManager, toolApprovalRegistry } = await import('../../runtime/claudeCode')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -245,6 +252,8 @@ describe('AgentSessionRuntimeService', () => {
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
+    mocks.applicationIsQuitting.value = true
+    mocks.closeWarmQueries.mockResolvedValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -265,6 +274,7 @@ describe('AgentSessionRuntimeService', () => {
           getShared: mocks.cacheGetShared,
           deleteShared: mocks.cacheDeleteShared
         }
+      if (name === 'ClaudeCodeWarmQueryManager') return { closeAll: mocks.closeWarmQueries }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -2778,6 +2788,71 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.currentTurn).toBeUndefined()
     expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
     expect(service.inspect('session-1')).toBeUndefined()
+  })
+
+  it('waits for every graceful connection close before service stop resolves', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.beginTurn({
+        ...baseTurnInput,
+        sessionId: 'session-2',
+        topicId: 'agent-session:session-2',
+        assistantMessageId: 'assistant-2'
+      })
+      const firstClose = createDeferred<void>()
+      const secondClose = createDeferred<void>()
+      const firstConnection = { close: vi.fn(() => firstClose.promise), send: vi.fn(), events: [] }
+      const secondConnection = { close: vi.fn(() => secondClose.promise), send: vi.fn(), events: [] }
+      getEntry(service).connection = firstConnection
+      const secondEntry = (service as any).entries.get('session-2')
+      secondEntry.runtimeState.connection = { kind: 'connected', connection: secondConnection, occupancy: {} }
+
+      const stopping = service._doStop()
+      let settled = false
+      void stopping.then(() => {
+        settled = true
+      })
+      await Promise.resolve()
+
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(secondConnection.close).toHaveBeenCalledOnce()
+      expect(settled).toBe(false)
+
+      firstClose.resolve()
+      await Promise.resolve()
+      expect(settled).toBe(false)
+
+      secondClose.resolve()
+      await expect(stopping).resolves.toBeUndefined()
+      expect(mocks.closeWarmQueries).toHaveBeenCalledOnce()
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(service.inspect('session-2')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('limits a non-quitting service stop to agent runtime entries', async () => {
+    vi.useFakeTimers()
+    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
+    try {
+      mocks.applicationIsQuitting.value = false
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      getEntry(service).connection = connection
+
+      await expect(service._doStop()).resolves.toBeUndefined()
+
+      expect(connection.close).toHaveBeenCalledOnce()
+      expect(mocks.closeWarmQueries).not.toHaveBeenCalled()
+      expect(shutdown).not.toHaveBeenCalled()
+    } finally {
+      shutdown.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
