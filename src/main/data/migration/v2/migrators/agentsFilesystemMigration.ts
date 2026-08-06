@@ -1813,6 +1813,12 @@ interface CleanupPathIndexEntry {
   ownerPath: string
 }
 
+interface CleanupSourceOwnership {
+  sourceAgentId: string
+  finalAgentId: string
+  hasConflictingOwner: boolean
+}
+
 type CleanupPathAncestorIndex = Map<string, CleanupPathIndexEntry>
 
 // Ancestor walks keep overlap validation linear in path count and bounded by path depth.
@@ -1894,15 +1900,44 @@ async function clearLegacyAgentMigrationTargets(input: {
 }): Promise<void> {
   await ensureAgentStorageDirectory(input.agentsDataRoot, input.agentsDataRoot)
 
-  const targetPaths = new Map<string, { path: string; exists: boolean }>()
-  for (const { finalAgentId } of input.agents) {
+  const sourceOwnershipByPath = new Map<string, CleanupSourceOwnership>()
+  const addSourceOwner = (sourcePath: string, sourceAgentId: string, finalAgentId: string) => {
+    const key = cleanupPathIndexKey(sourcePath)
+    const ownership = sourceOwnershipByPath.get(key)
+    if (!ownership) {
+      sourceOwnershipByPath.set(key, { sourceAgentId, finalAgentId, hasConflictingOwner: false })
+    } else if (ownership.sourceAgentId !== sourceAgentId || ownership.finalAgentId !== finalAgentId) {
+      ownership.hasConflictingOwner = true
+    }
+  }
+  for (const session of input.sessions) {
+    addSourceOwner(session.sourceWorkspacePath, session.sourceAgentId, session.finalAgentId)
+  }
+  for (const agent of input.agents) {
+    addSourceOwner(
+      legacyAgentWorkspacePath(input.agentsDataRoot, agent.sourceAgentId),
+      agent.sourceAgentId,
+      agent.finalAgentId
+    )
+  }
+
+  const targetPaths = new Map<string, { path: string; exists: boolean; preserveExactSource: boolean }>()
+  for (const { sourceAgentId, finalAgentId } of input.agents) {
     const targetPath = path.resolve(agentDataDirectoryPath(input.agentsDataRoot, finalAgentId))
-    targetPaths.set(targetPath, { path: targetPath, exists: false })
+    const exactSourceOwnership = sourceOwnershipByPath.get(cleanupPathIndexKey(targetPath))
+    // Some v1 Agents already use the final v2 Agent data path as their workspace.
+    // It remains a source of truth, but only when no other Agent claims the same path.
+    const preserveExactSource =
+      exactSourceOwnership !== undefined &&
+      !exactSourceOwnership.hasConflictingOwner &&
+      exactSourceOwnership.sourceAgentId === sourceAgentId &&
+      exactSourceOwnership.finalAgentId === finalAgentId
+    targetPaths.set(targetPath, { path: targetPath, exists: false, preserveExactSource })
   }
   for (const session of input.sessions) {
     if (!session.isManagedDefault || !session.systemWorkspacePath) continue
     const targetPath = path.resolve(session.systemWorkspacePath)
-    targetPaths.set(targetPath, { path: targetPath, exists: false })
+    targetPaths.set(targetPath, { path: targetPath, exists: false, preserveExactSource: false })
   }
 
   const normalizedRoot = path.resolve(input.agentsDataRoot)
@@ -1917,6 +1952,9 @@ async function clearLegacyAgentMigrationTargets(input: {
 
   const lexicalTargets = targets.map((target) => ({ indexedPath: target.path, ownerPath: target.path }))
   const lexicalTargetIndex = createCleanupTargetAncestorIndex(lexicalTargets)
+  const preservedSourceKeys = new Set(
+    targets.filter((target) => target.preserveExactSource).map((target) => cleanupPathIndexKey(target.path))
+  )
 
   const sourcePaths = new Set(
     input.sessions
@@ -1927,17 +1965,17 @@ async function clearLegacyAgentMigrationTargets(input: {
         )
       )
   )
-  const lexicalSources = Array.from(sourcePaths, (sourcePath) => ({
-    indexedPath: sourcePath,
-    ownerPath: sourcePath
-  }))
+  const overlapSourcePaths = Array.from(sourcePaths).filter(
+    (sourcePath) => !preservedSourceKeys.has(cleanupPathIndexKey(sourcePath))
+  )
+  const lexicalSources = overlapSourcePaths.map((sourcePath) => ({ indexedPath: sourcePath, ownerPath: sourcePath }))
   const lexicalOverlapTarget = findCleanupTargetSourceOverlap(lexicalTargets, lexicalTargetIndex, lexicalSources)
   if (lexicalOverlapTarget) {
     throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${lexicalOverlapTarget}`)
   }
 
   const resolvedSources: CleanupPathIndexEntry[] = []
-  for (const sourcePath of sourcePaths) {
+  for (const sourcePath of overlapSourcePaths) {
     const resolvedSource = await realpathIfExists(sourcePath)
     if (resolvedSource) resolvedSources.push({ indexedPath: resolvedSource, ownerPath: sourcePath })
   }
@@ -1954,13 +1992,15 @@ async function clearLegacyAgentMigrationTargets(input: {
     throw new Error(`Legacy Agent migration cleanup target overlaps a legacy source: ${resolvedOverlapTarget}`)
   }
 
-  for (const target of targets) {
+  const cleanupTargets = targets.filter((target) => !target.preserveExactSource)
+  for (const target of cleanupTargets) {
     await removeTreeWithoutFollowing(target.path)
   }
 
   logger.info('Cleared stale Agent migration filesystem targets before copying', {
-    targets: targets.length,
-    removedTargets: targets.filter((target) => target.exists).length
+    targets: cleanupTargets.length,
+    removedTargets: cleanupTargets.filter((target) => target.exists).length,
+    preservedSources: targets.length - cleanupTargets.length
   })
 }
 
@@ -2041,7 +2081,7 @@ export async function stageLegacyAgentFiles(input: {
       const claimedIdentityEntries = new Set<string>()
       for (const sourcePath of orderedSources) {
         const normalizedSource = path.resolve(sourcePath)
-        if (seenSources.has(normalizedSource) || normalizedSource === path.resolve(agentDataPath)) continue
+        if (seenSources.has(normalizedSource)) continue
         seenSources.add(normalizedSource)
         const identityStats = await copyIdentityFromWorkspace(sourcePath, agentDataPath, claimedIdentityEntries)
         identityFileCount += identityStats.fileCount
