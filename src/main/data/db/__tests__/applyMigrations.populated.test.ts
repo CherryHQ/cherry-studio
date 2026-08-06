@@ -176,8 +176,69 @@ describe('applyMigrations over a populated database', () => {
     ).toThrow(/UNIQUE|constraint/i)
   })
 
-  it('moves legacy sticky session pointers into the constrained relation', () => {
+  it('backfills durable refs for existing agent-session attachments', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const fileEntryId = '77777777-7777-7777-8777-777777777777'
+    const messageId = '88888888-8888-4888-8888-888888888888'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'report', 'pdf', 12, NULL, 'delete_when_unreferenced', ?, ?, NULL)`
+      )
+      .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-attachment-migrate', 'Workspace', '/tmp/attachment-migrate', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('session-attachment-migrate', 'Session', 'workspace-attachment-migrate', 'a0', ?, ?)`
+      )
+      .run(now, now)
+
+    const filePart = {
+      type: 'file',
+      url: 'file:///old/location/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId } }
+    }
+    const missingPart = {
+      ...filePart,
+      filename: 'missing.pdf',
+      providerMetadata: { cherry: { fileEntryId: '99999999-9999-7999-8999-999999999999' } }
+    }
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-attachment-migrate', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const refs = sqlite
+      .prepare(
+        `SELECT id, file_entry_id, source_id, role
+         FROM agent_session_message_file_ref
+         ORDER BY file_entry_id`
+      )
+      .all() as Array<{ id: string; file_entry_id: string; source_id: string; role: string }>
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ file_entry_id: fileEntryId, source_id: messageId, role: 'attachment' })
+    expect(refs[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('moves legacy sticky session pointers into the constrained relation', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
     const now = Date.now()
     sqlite
       .prepare(
