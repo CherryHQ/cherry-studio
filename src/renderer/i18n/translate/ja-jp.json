@@ -279,6 +279,16 @@
         "description": "ファイルが{{limit}}のプレビュー制限を超えています。",
         "title": "プレビューに対してファイルが大きすぎます"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "ファイルパネルには有効な絶対ローカルパスが必要です。ワークディレクトリを再度選択してください。",
+          "title": "無効なワークスペースパス"
+        },
+        "load_error": {
+          "description": "作業ディレクトリが存在し、アクセス可能であることを確認してから、もう一度お試しください。",
+          "title": "ワークスペースファイルを読み込めませんでした"
+        }
+      },
       "unavailable": {
         "description": "このファイルを開けませんでした — 移動または削除された可能性があります。",
         "title": "ファイルが利用できません"
@@ -758,6 +768,13 @@
         "placeholder": "このタスク実行時にエージェントが行うべきことは？"
       },
       "resume": "再開",
+      "reuseSession": {
+        "bound": "セッションを表示",
+        "description": "すべての実行を同じセッションで続行し、新しいセッションを開始しないでください。",
+        "label": "セッションを再利用する",
+        "pending": "最初の実行を待っています",
+        "warning": "再利用されるセッションはコンテキストを蓄積し続けるため、時間とともにトークンコストが増加し、モデルのコンテキストウィンドウをオーバーフローさせる可能性があります。クリーンなセッションに再バインドするには、無効化して保存し、有効化して保存してください。"
+      },
       "run": "実行",
       "runTriggered": "タスクがトリガーされました",
       "save": "保存",
@@ -1419,6 +1436,11 @@
         "placeholder": "検索"
       }
     },
+    "compaction": {
+      "compacted": "コンテキストを圧縮しました、約{{count}}トークン節約",
+      "compacted_plain": "コンテキストが圧縮されました",
+      "compacting": "コンテキストを圧縮中…"
+    },
     "conversation": {
       "new": "新しいチャット"
     },
@@ -1484,6 +1506,13 @@
       },
       "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
+      "note_reference": {
+        "description": "メモからメモを添付",
+        "empty": "メモが見つかりませんでした",
+        "load_failed": "メモの読み込みに失敗しました",
+        "loading": "メモを読み込み中...",
+        "title": "参考注"
+      },
       "paste_text_file": "入力に貼り付け",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "一時停止",
@@ -1614,6 +1643,10 @@
           "description": "ウェブ検索を無効にする",
           "label": "ウェブ検索を無効にする"
         },
+        "route": {
+          "builtin": "モデル内蔵ツールを使用した検索",
+          "client": "{{provider}}での検索"
+        },
         "settings": "ウェブ検索設定"
       }
     },
@@ -1696,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "ターン {{number}} にジャンプ"
+      },
       "bottom": "下部に戻る",
       "close": "閉じる",
       "first": "最初のメッセージです",
@@ -3166,6 +3202,7 @@
         "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。"
       },
       "processor": "処理プロバイダ",
+      "processor_not_configured": "設定されていません",
       "rerank_disabled": "無効",
       "rerank_model": "リランクモデル",
       "reset_action": "デフォルトに戻す",
@@ -3416,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自動圧縮",
+        "context_compress_model": "圧縮モデル",
+        "context_compress_model_follow": "デフォルト",
         "context_count": "コンテキストカウント",
+        "context_management": "コンテキスト管理",
+        "context_truncate_threshold": "ツール出力の切り捨てしきい値（文字数）",
         "creative": "クリエイティブ",
         "custom_params": "カスタムパラメータ",
         "custom_params_add": "パラメータを追加",
@@ -3428,8 +3470,17 @@
           "avatar": {
             "hint": "ライブラリおよびチャット内でアシスタントを識別するために使用されます"
           },
+          "context_compress_enabled": {
+            "hint": "コンテキストウィンドウに近づくと、古いターンを自動的に要約する"
+          },
           "context_count": {
             "hint": "コンテキストとして保持される最近のメッセージ数"
+          },
+          "context_management": {
+            "hint": "このアシスタントのグローバルなコンテキスト管理設定を上書きします。offに設定するとグローバル設定を継承します"
+          },
+          "context_truncate_threshold": {
+            "hint": "この文字数を超えるツール出力はオフロードされて切り捨てられます"
           },
           "custom_params": {
             "hint": "リクエストと共に送信される追加プロバイダーパラメータ"
@@ -4274,6 +4325,7 @@
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
       "fetch_empty": "検索結果は見つかりませんでした",
+      "fetch_opaque": "モデルで検索しました",
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
@@ -5146,6 +5198,7 @@
     "reset": "リセット",
     "rotate_left": "左回転",
     "rotate_right": "右に回転",
+    "save_as": "名前を付けて保存",
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
@@ -5730,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "新しいアシスタント",
+      "create_tag": "新しい",
       "empty_text": "まだアシスタントはいません",
       "filter": "フィルターアシスタント",
       "group_filter": "グループでフィルター",
@@ -5779,12 +5833,100 @@
         "title": "デバッグ"
       },
       "description": "クリエイターのための強力なAIアシスタント",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "ダウンロード中...",
       "enterprise": {
         "title": "エンタープライズ"
       },
       "feedback": {
+        "agent": {
+          "description": "チェリーアシスタントとチャットしてフィードバックを共有してください。",
+          "title": "エージェントを使用する"
+        },
+        "agent_error": "フィードバック用のCherry Assistantを開けません。もう一度お試しください。",
         "button": "フィードバック",
+        "dialog": {
+          "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",
+          "title": "フィードバックチャンネルを選択してください"
+        },
+        "github": {
+          "description": "GitHubでバグ報告や機能要望を作成する。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "おすすめ",
+        "survey": {
+          "description": "Feishuアンケートを通じてフィードバックをお寄せください。",
+          "title": "フィードバック調査"
+        },
         "title": "フィードバック"
       },
       "label": "について",
@@ -7310,6 +7452,7 @@
       "topic_naming": {
         "auto": "トピックの自動命名",
         "label": "トピック名",
+        "model": "命名モデル",
         "prompt": "トピック命名プロンプト"
       },
       "translate_model": "翻訳モデル",
@@ -8072,6 +8215,10 @@
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
+        "client_tools_preferred": {
+          "description": "上記で設定した検索およびURL取得サービスを、モデルに組み込み検索機能がある場合でも使用します。オフにすると、モデルが処理します。",
+          "label": "設定された検索サービスを優先する"
+        },
         "compression": {
           "cutoff": {
             "limit": {

@@ -394,8 +394,7 @@ export const modelSyncClasses = {
     'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
   manageIconButton: 'size-8 rounded-lg text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   manageTabs: 'w-full gap-0',
-  manageTabsList:
-    'h-auto w-full max-w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg bg-muted/40 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+  manageTabsList: 'h-auto w-max min-w-full shrink-0 justify-start gap-1 rounded-lg bg-muted/40 p-1',
   manageTabsTrigger: 'h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2 text-xs',
   manageTabsTriggerDestructive:
     'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',

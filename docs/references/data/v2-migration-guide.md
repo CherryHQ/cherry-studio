@@ -73,7 +73,7 @@ src/main/data/migration/v2/
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
-  - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
+  - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (per-category Redux Persist export files), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
   - `paths`: `MigrationPaths` — pre-computed filesystem paths; migrators that need file paths use `ctx.paths` instead of `app.getPath()`
   - `sharedData`: `Map` for passing cross-cutting info between migrators
@@ -108,7 +108,7 @@ src/main/data/migration/v2/
 
 ## Utilities
 
-- `utils/ReduxStateReader.ts`: safe accessor for categorized Redux Persist data with dot-path lookup.
+- `utils/ReduxStateReader.ts`: safe on-demand accessor for categorized Redux Persist export files with dot-path lookup.
 - `utils/DexieFileReader.ts`: reads exported Dexie JSON tables; can stream large tables.
 - `utils/JsonStreamReader.ts`: streaming reader with batching, counting, and sampling helpers for very large arrays.
 - `utils/LegacyHomeConfigReader.ts`: synchronously reads the v1 `~/.cherrystudio/config/config.json` file and normalizes its `appDataPath` field (both the legacy string shape and the current `{ executablePath, dataPath }[]` shape) into a `Record<executablePath, dataPath> | null`. Used exclusively by `BootConfigMigrator`'s `'configfile'` source.
@@ -116,7 +116,7 @@ src/main/data/migration/v2/
 ## Window & IPC Integration
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
-  - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
+  - Owns and resets the Redux/Dexie/localStorage staging paths, validates export writes, starts the engine, and streams progress back to renderer.
   - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 

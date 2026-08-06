@@ -3,7 +3,7 @@ import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import { hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'
+import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'
 import {
   captureNoteSnapshotFileMock,
   captureUrlSnapshotFileMock,
@@ -47,8 +47,11 @@ function manyChunksText(): string {
   return Array.from({ length: 2000 }, (_, i) => `word${i}`).join(' ')
 }
 
-function lastRebuildInput(): RebuildMaterialInput {
-  return rebuildMaterialMock.mock.calls[0][1] as RebuildMaterialInput
+function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMaterialEmbeddingInput[] } {
+  const input = rebuildMaterialMock.mock.calls[0][1] as RebuildMaterialInput
+  // The contract type is Iterable (a streaming caller feeds batches lazily); the indexing job
+  // passes a plain array, but materialize either way so array assertions keep working.
+  return { ...input, embeddings: [...input.embeddings] }
 }
 
 describe('index-documents job handler', () => {

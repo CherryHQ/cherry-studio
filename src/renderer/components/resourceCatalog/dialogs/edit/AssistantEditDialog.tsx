@@ -26,6 +26,7 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -234,8 +235,8 @@ function AssistantEditDialogContent({
     [t]
   )
 
-  // Tracks the exact form snapshot that failed so the first close keeps the
-  // error visible, while a repeated close can explicitly discard that snapshot.
+  // Tracks the exact form snapshot that failed so it cannot be retried until
+  // the user changes the form.
   const failedSaveKeyRef = useRef<string | null>(null)
 
   const wasOpenRef = useRef(false)
@@ -264,11 +265,16 @@ function AssistantEditDialogContent({
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
   const changeKey = canPersist ? JSON.stringify(values) : null
+  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const persist = async () => {
     const pending = saveIntent
-    if (!pending) return
+    if (!pending || !changeKey) return
     const attemptedKey = changeKey
+
+    // A close-triggered flush does not cancel the already scheduled debounce.
+    // Keep both paths from resending an unchanged payload that already failed.
+    if (failedSaveKeyRef.current === attemptedKey) return
 
     form.clearErrors('root')
     failedSaveKeyRef.current = null
@@ -278,7 +284,8 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
-      form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      form.setError('root', { message: saveFailedMessage })
+      toast.error(saveFailedMessage)
     }
   }
 
@@ -301,12 +308,12 @@ function AssistantEditDialogContent({
       return
     }
     if (failedSaveKeyRef.current === changeKey) {
-      onOpenChange(false)
+      toast.error(saveFailedMessage)
       return
     }
     void (async () => {
       await flush()
-      if (failedSaveKeyRef.current === changeKey) return
+      if (failedSaveKeyRef.current !== null) return
       onOpenChange(false)
     })()
   }
