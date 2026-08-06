@@ -50,8 +50,8 @@ describe('permissionModeTool submenu', () => {
       <QuickPanelRow
         active={false}
         item={{
-          label: launcher!.label,
-          description: launcher!.description,
+          label: launcher.label,
+          description: launcher.description,
           isMenu: true
         }}
         onSelect={vi.fn()}
