@@ -306,6 +306,38 @@ describe('ModelSelector', () => {
     expect(resetTags).toHaveBeenCalled()
   })
 
+  it('tears down the lazy shell when the parent closes the controlled selector', async () => {
+    const resetTags = vi.fn()
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        resetTags,
+        selectedTags: ['reasoning'],
+        tagSelection: { reasoning: true } as UseModelSelectorDataResult['tagSelection']
+      })
+    )
+
+    const renderSelector = (open: boolean) => (
+      <ModelSelector
+        open={open}
+        multiple={false}
+        mountStrategy="lazy-keep"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const { rerender } = render(renderSelector(true))
+    expect(mocks.selectorShellMount).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      rerender(renderSelector(false))
+    })
+
+    expect(mocks.selectorShellUnmount).toHaveBeenCalledOnce()
+    expect(mocks.selectorShellMount).toHaveBeenCalledTimes(2)
+    expect(resetTags).toHaveBeenCalled()
+  })
+
   it('clears a single selection from the bottom option and closes the selector', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()

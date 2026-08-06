@@ -300,6 +300,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
   const hasActiveTagFilterRef = useRef(false)
+  const wasOpenRef = useRef(false)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -339,18 +340,12 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
-      // A lazy-kept filtered list still owns Radix hover-card anchors. Unmount it before
-      // the closed-state effect resets the tags and replaces those rows.
-      if (!nextOpen && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
-        setShellKey((key) => key + 1)
-      }
-
       if (openProp === undefined) {
         setInternalOpen(nextOpen)
       }
       onOpenChange?.(nextOpen)
     },
-    [mountStrategy, onOpenChange, openProp]
+    [onOpenChange, openProp]
   )
 
   const handleShortcut = useCallback(() => setOpen(true), [setOpen])
@@ -649,6 +644,16 @@ export function ModelSelector(props: ModelSelectorProps) {
       void refetchPinnedModels()
     }
   }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
+
+  // A lazy-kept filtered list still owns Radix hover-card anchors. Unmount it on the
+  // open->closed transition, before the closed-state effect resets the tags below.
+  useLayoutEffect(() => {
+    const wasOpen = wasOpenRef.current
+    wasOpenRef.current = open
+    if (wasOpen && !open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
+      setShellKey((key) => key + 1)
+    }
+  }, [mountStrategy, open])
 
   useEffect(() => {
     if (!open) {
