@@ -69,8 +69,9 @@ const DISPOSE_GRACE_MS = 500
  * a hung or non-conforming one can create a tree and then never activate, while a
  * high-churn workspace keeps appending full payloads. `destroyed` does not help
  * while the window is alive, so the queue is the only bound. Overflow disposes the
- * consumer — a late `activate` then returns false and the renderer restarts the
- * handshake, which is strictly better than growing main-process memory to hold
+ * consumer, so a late `activate` returns false; consumers treat that as recoverable
+ * and retake the handshake with a fresh snapshot (see `MAX_ACTIVATION_ATTEMPTS` in
+ * `useDirectoryTree`). Strictly better than growing main-process memory to hold
  * events for a mirror that may never exist.
  */
 const MAX_PENDING_MUTATIONS = 1000
@@ -249,10 +250,20 @@ export class DirectoryTreeManager extends BaseService {
     options: DirectoryTreeOptions | undefined
   ): Promise<CreateTreeIpcResult> {
     const key = builderKey(rootPath, options)
-    let shared = await this.acquireBuilder(key, rootPath, options)
-    if (shared.state === 'draining') {
-      shared = this.transitionToActive(shared)
-    }
+    await this.acquireBuilder(key, rootPath, options)
+    // Re-read the canonical record rather than trusting the awaited one. Every create
+    // waiting on the same in-flight acquisition receives the record as it was, and
+    // another waiter's continuation may already have replaced it — e.g. a waiter whose
+    // owner died attaches, disposes, and flips the entry to `draining`. Acting on the
+    // stale `active` copy would skip `transitionToActive`, so the armed timer finds a
+    // live consumer and returns while the entry stays `draining`; the last dispose then
+    // sees a non-`active` state, arms nothing, and the watcher survives until shutdown.
+    const canonical = this.sharedBuilders.get(key)
+    // Only `disposeAll()` removes an entry without a grace timer, and a timer cannot
+    // interleave between the microtasks resuming these waiters — so a missing entry
+    // means the manager shut down underneath us.
+    if (!canonical) throw new DirectoryTreeStoppedError()
+    const shared = canonical.state === 'draining' ? this.transitionToActive(canonical) : canonical
 
     const treeId = randomUUID()
     const snapshotRevision = 0

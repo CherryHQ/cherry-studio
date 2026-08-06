@@ -497,6 +497,53 @@ describe('useDirectoryTree', () => {
     expect(errorSpy).toHaveBeenCalledWith('Directory tree mutation stream became stale for /notes', expect.any(Error))
   })
 
+  it('retakes the handshake when main refuses activation, and publishes the fresh snapshot', async () => {
+    vi.spyOn(loggerService, 'warn').mockImplementation(() => undefined)
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-refused', revision: 0, snapshot: makeSnapshot('/notes', ['stale.md']) })
+      .mockResolvedValueOnce({ treeId: 't-retry', revision: 3, snapshot: makeSnapshot('/notes', ['fresh.md']) })
+    // Main dropped the first consumer (pending overflow) before it could activate.
+    mocks.activate.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const firstUnsub = vi.fn()
+    mocks.onMutation.mockReturnValueOnce(firstUnsub).mockReturnValue(() => {})
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-retry')
+    })
+    // The refused round is fully released, and the published tree is the new snapshot —
+    // not the stale one whose buffered events main already dropped.
+    expect(firstUnsub).toHaveBeenCalled()
+    expect(mocks.dispose).toHaveBeenCalledWith('t-refused')
+    expect(result.current.root?.hasChild('fresh.md')).toBe(true)
+    expect(result.current.root?.hasChild('stale.md')).toBe(false)
+    expect(result.current.error).toBeNull()
+    expect(mocks.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up after a bounded number of refused activations', async () => {
+    vi.spyOn(loggerService, 'warn').mockImplementation(() => undefined)
+    vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    mocks.create.mockImplementation(async () => ({
+      treeId: 't-loop',
+      revision: 0,
+      snapshot: makeSnapshot('/notes', [])
+    }))
+    mocks.activate.mockResolvedValue(false)
+    mocks.onMutation.mockReturnValue(() => {})
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toContain('refused activation 3 times')
+    })
+    // Bounded: a persistently stalled renderer must not loop on create/activate.
+    expect(mocks.create).toHaveBeenCalledTimes(3)
+    expect(result.current.root).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
   it('does not publish the snapshot when the activation replay itself gapped', async () => {
     vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.create.mockResolvedValue({ treeId: 't-gap-activate', revision: 2, snapshot: makeSnapshot('/notes', []) })

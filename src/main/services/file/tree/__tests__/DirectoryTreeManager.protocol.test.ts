@@ -232,6 +232,41 @@ describe('DirectoryTreeManager protocol', () => {
       expect(builder.listenerCount()).toBe(0)
     })
 
+    it('still tears the builder down when a dead and a live create share one acquisition', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const dead = makeSender(1)
+      const live = makeSender(2)
+      let resolveBuilder: ((b: FakeBuilder) => void) | undefined
+      createDirectoryTreeMock.mockReturnValueOnce(
+        new Promise<FakeBuilder>((resolve) => {
+          resolveBuilder = resolve
+        })
+      )
+
+      // Both wait on the same in-flight acquisition, so both receive the shared record
+      // as it was. The dead one attaches and immediately disposes, flipping the entry
+      // to `draining`; the live one must not act on its stale `active` copy.
+      const deadCreate = create(dead)
+      const liveCreate = create(live)
+      dead.destroySilently()
+      resolveBuilder?.(builder)
+
+      await expect(deadCreate).rejects.toThrow(/destroyed during creation/)
+      const created = await liveCreate
+
+      // The timer armed by the dead consumer's disposal fires with a live consumer
+      // attached and must leave the builder usable.
+      await vi.advanceTimersByTimeAsync(600)
+      expect(builder.disposeCount).toBe(0)
+
+      // The real test: the surviving consumer's own disposal has to arm a new timer.
+      // Against a record stranded in `draining` it would arm nothing and the watcher
+      // would outlive every consumer.
+      manager.dispose(created.treeId)
+      await vi.advanceTimersByTimeAsync(600)
+      expect(builder.disposeCount).toBe(1)
+    })
+
     it('drops every tree owned by a webContents when it is destroyed', async () => {
       const sender = makeSender(1)
       await create(sender)

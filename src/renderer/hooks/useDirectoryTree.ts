@@ -17,6 +17,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useDirectoryTree')
 
+/**
+ * How many `create → subscribe → activate` rounds to try before giving up.
+ *
+ * Main refuses activation when it has already dropped the consumer — today only
+ * when the pending buffer overflowed, which needs this renderer to stall between
+ * the two calls while the workspace churns. Retrying takes a fresh snapshot, so
+ * it is correct rather than hopeful; the bound is what keeps a persistently
+ * stalled renderer from looping.
+ */
+const MAX_ACTIVATION_ATTEMPTS = 3
+
 export interface UseDirectoryTreeResult {
   readonly root: TreeDirRoot | null
   readonly isLoading: boolean
@@ -165,7 +176,6 @@ export function useDirectoryTree(
 
     /** Release the stream and the main-side tree. Idempotent — every path may call it. */
     const releaseTree = (): void => {
-      released = true
       unsubscribeMutations?.()
       unsubscribeMutations = null
       if (createdTreeId) {
@@ -177,64 +187,82 @@ export function useDirectoryTree(
 
     void (async () => {
       try {
-        const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
-          rootPath: AbsoluteFilePathSchema.parse(rootPath),
-          options: optionsRef.current
-        })
-        if (cancelled) {
-          disposeTree(result.treeId)
-          return
-        }
+        for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
+          const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
+            rootPath: AbsoluteFilePathSchema.parse(rootPath),
+            options: optionsRef.current
+          })
+          if (cancelled) {
+            disposeTree(result.treeId)
+            return
+          }
 
-        createdTreeId = result.treeId
+          createdTreeId = result.treeId
 
-        const snapshotRoot = rootFromSerialized(result.snapshot)
-        const nodes = indexTree(snapshotRoot)
-        mirrorRef.current = { root: snapshotRoot, nodes, revision: result.revision }
+          const snapshotRoot = rootFromSerialized(result.snapshot)
+          const nodes = indexTree(snapshotRoot)
+          mirrorRef.current = { root: snapshotRoot, nodes, revision: result.revision }
 
-        unsubscribeMutations = ipcApi.on('file.tree.mutation', (payload) => {
-          if (payload.treeId !== result.treeId) return
-          const mirror = mirrorRef.current
-          if (!mirror) return
-          if (payload.revision <= mirror.revision) return
-          const expectedRevision = mirror.revision + 1
-          if (payload.revision !== expectedRevision) {
-            const revisionError = new Error(
-              `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
-            )
-            logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
-            // A gap is unrecoverable without a replay or a fresh snapshot, so this is
-            // terminal: tear the stream down and report once. Staying subscribed would
-            // re-gap on every later push — a new Error each time, which consumers that
-            // toast on `error` (Notes) turn into an endless stream of toasts, while the
-            // dead mirror keeps a watcher and its IPC traffic alive.
-            releaseTree()
-            setRoot(null)
-            setTreeId(null)
-            setError(revisionError)
+          unsubscribeMutations = ipcApi.on('file.tree.mutation', (payload) => {
+            if (payload.treeId !== result.treeId) return
+            const mirror = mirrorRef.current
+            if (!mirror) return
+            if (payload.revision <= mirror.revision) return
+            const expectedRevision = mirror.revision + 1
+            if (payload.revision !== expectedRevision) {
+              const revisionError = new Error(
+                `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
+              )
+              logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
+              // A gap is unrecoverable without a replay or a fresh snapshot, so this is
+              // terminal: tear the stream down and report once. Staying subscribed would
+              // re-gap on every later push — a new Error each time, which consumers that
+              // toast on `error` (Notes) turn into an endless stream of toasts, while the
+              // dead mirror keeps a watcher and its IPC traffic alive. Terminal here also
+              // means no retry: unlike a refused activation, a fresh snapshot would not
+              // tell us what the mirror missed.
+              released = true
+              releaseTree()
+              setRoot(null)
+              setTreeId(null)
+              setError(revisionError)
+              setIsLoading(false)
+              return
+            }
+            const changed = applyMutation(mirror, payload.event)
+            mirror.revision = payload.revision
+            onMutationRef.current?.(payload.event)
+            if (changed) setVersion((v) => v + 1)
+          })
+
+          const activated = await ipcApi.request('file.tree.activate', {
+            treeId: result.treeId,
+            revision: result.revision
+          })
+          // `activate` flushes the buffered mutations before it resolves, so the listener
+          // may have hit a revision gap and torn everything down while this await was
+          // pending. Publishing now would resurrect a snapshot with no mirror behind it —
+          // a tree whose `getNode()` returns null for every path it displays.
+          if (cancelled || released) return
+
+          if (activated) {
+            setRoot(snapshotRoot)
+            setTreeId(result.treeId)
             setIsLoading(false)
             return
           }
-          const changed = applyMutation(mirror, payload.event)
-          mirror.revision = payload.revision
-          onMutationRef.current?.(payload.event)
-          if (changed) setVersion((v) => v + 1)
-        })
 
-        const activated = await ipcApi.request('file.tree.activate', {
-          treeId: result.treeId,
-          revision: result.revision
-        })
-        if (!activated) throw new Error(`Failed to activate directory tree ${result.treeId}`)
-        // `activate` flushes the buffered mutations before it resolves, so the listener
-        // may have hit a revision gap and torn everything down while this await was
-        // pending. Publishing now would resurrect a snapshot with no mirror behind it —
-        // a tree whose `getNode()` returns null for every path it displays.
-        if (cancelled || released) return
-
-        setRoot(snapshotRoot)
-        setTreeId(result.treeId)
-        setIsLoading(false)
+          // Main refused the handshake — it dropped this consumer, today because the
+          // pending buffer overflowed while we were between `create` and `activate`.
+          // The snapshot we hold can never be completed, but the condition is transient,
+          // so take a fresh one instead of leaving the caller with a dead tree.
+          logger.warn(`Directory tree ${result.treeId} refused activation, retaking the snapshot`, {
+            rootPath,
+            attempt
+          })
+          releaseTree()
+        }
+        throw new Error(`Directory tree for ${rootPath} was refused activation ${MAX_ACTIVATION_ATTEMPTS} times`)
       } catch (err) {
         if (cancelled) return
         releaseTree()

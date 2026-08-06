@@ -12,6 +12,8 @@ import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } fro
 const logger = loggerService.withContext('useArtifactFileTreeModel')
 
 const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 3
+/** Handshake rounds before a lazy watcher gives up — see `useDirectoryTree`'s copy. */
+const MAX_ACTIVATION_ATTEMPTS = 3
 const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
 const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
@@ -441,37 +443,56 @@ function useLazyArtifactFileTree({
 
       void (async () => {
         try {
-          const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
-            rootPath: AbsoluteFilePathSchema.parse(dirPath),
-            options: { maxDepth: 1, includeHidden: false }
-          })
-          if (
-            watcher.disposed ||
-            requestWorkspacePath !== currentWorkspacePathRef.current ||
-            lazyDirectoryWatchersRef.current.get(dirId) !== watcher
-          ) {
-            Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
-              logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+          for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
+            const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
+              rootPath: AbsoluteFilePathSchema.parse(dirPath),
+              options: { maxDepth: 1, includeHidden: false }
             })
-            return
+            if (
+              watcher.disposed ||
+              requestWorkspacePath !== currentWorkspacePathRef.current ||
+              lazyDirectoryWatchersRef.current.get(dirId) !== watcher
+            ) {
+              Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
+                logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+              })
+              return
+            }
+
+            // Assign both before awaiting `activate`, so a concurrent
+            // `disposeLazyDirectoryWatcher` tears this watcher down completely.
+            watcher.treeId = result.treeId
+            watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
+              if (payload.treeId !== result.treeId) return
+              loadDirectoryChildren(dirId, { force: true })
+            })
+
+            // A created consumer stays pending: mutations queue main-side until it is
+            // activated. Without this the subtree would freeze at its snapshot and the
+            // queue would grow for as long as the directory stays expanded.
+            const activated = await ipcApi.request('file.tree.activate', {
+              treeId: result.treeId,
+              revision: result.revision
+            })
+            if (activated) {
+              // A refused round means events were dropped while we were unwatched, so
+              // the rendered children predate them. Nothing else re-runs this effect.
+              if (attempt > 1) loadDirectoryChildren(dirId, { force: true })
+              return
+            }
+
+            // Main dropped this consumer (pending-buffer overflow) before we activated.
+            // Release the half-installed watcher and take a fresh snapshot — leaving it
+            // would keep the expanded directory frozen with nothing to un-freeze it.
+            logger.warn(`Lazy directory watcher refused activation, retaking the snapshot: ${dirId}`, { attempt })
+            watcher.unsubscribe?.()
+            watcher.unsubscribe = undefined
+            watcher.treeId = undefined
+            Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
+              logger.warn(`Failed to dispose refused lazy directory watcher: ${dirId}`, err as Error)
+            })
           }
-
-          // Assign both before awaiting `activate`, so a concurrent
-          // `disposeLazyDirectoryWatcher` tears this watcher down completely.
-          watcher.treeId = result.treeId
-          watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
-            if (payload.treeId !== result.treeId) return
-            loadDirectoryChildren(dirId, { force: true })
-          })
-
-          // A created consumer stays pending: mutations queue main-side until it is
-          // activated. Without this the subtree would freeze at its snapshot and the
-          // queue would grow for as long as the directory stays expanded.
-          const activated = await ipcApi.request('file.tree.activate', {
-            treeId: result.treeId,
-            revision: result.revision
-          })
-          if (!activated) throw new Error(`Failed to activate lazy directory watcher: ${result.treeId}`)
+          throw new Error(`Lazy directory watcher was refused activation ${MAX_ACTIVATION_ATTEMPTS} times: ${dirId}`)
         } catch (err) {
           if (watcher.disposed || lazyDirectoryWatchersRef.current.get(dirId) !== watcher) return
           // Drops the subscription and the main-side tree too — both may already be

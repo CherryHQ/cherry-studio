@@ -1211,16 +1211,17 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-tree', 4))
   })
 
-  it('drops a lazy directory watcher whose activation fails', async () => {
-    const unsubscribe = vi.fn()
+  it('retakes a lazy directory watcher that main refuses to activate', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.treeCreate.mockResolvedValueOnce({
-      treeId: 'lazy-tree',
-      revision: 0,
-      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
-    })
-    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
-    mocks.treeOnMutation.mockImplementation(() => unsubscribe)
+    mocks.treeCreate
+      .mockResolvedValueOnce({
+        treeId: 'lazy-refused',
+        revision: 0,
+        snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+      })
+      .mockResolvedValueOnce({ treeId: 'lazy-live', revision: 0, snapshot: pathsToSnapshot('/tmp/workspace/src', []) })
+    // Workspace tree activates; the lazy watcher is refused once, then succeeds.
+    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValueOnce(false).mockResolvedValue(true)
     mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1228,8 +1229,34 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
 
-    // Both the subscription and the main-side tree are already attached at this
-    // point, so a failed activation must release them rather than leak a watcher.
+    // Nothing else re-runs this effect, so without a retry the expanded directory
+    // would stay frozen with no live watcher behind it.
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-live', 0))
+    expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-refused')
+  })
+
+  it('drops a lazy directory watcher after its retries are exhausted', async () => {
+    const unsubscribe = vi.fn()
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.treeCreate.mockResolvedValue({
+      treeId: 'lazy-tree',
+      revision: 0,
+      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+    })
+    // Workspace tree activates; every lazy attempt is refused.
+    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValue(false)
+    mocks.treeOnMutation.mockImplementation(() => unsubscribe)
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+    const workspaceCreates = mocks.treeCreate.mock.calls.length
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    // Bounded: three attempts, then give up. Each attempt already attached both a
+    // subscription and a main-side tree, so all of them must be released.
+    await waitFor(() => expect(mocks.treeCreate.mock.calls.length).toBe(workspaceCreates + 3))
     await waitFor(() => expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-tree'))
     expect(unsubscribe).toHaveBeenCalled()
   })
