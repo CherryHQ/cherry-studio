@@ -168,7 +168,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
-  const isBucketHeader = meta.getGroupHeaderKind?.(group) === 'bucket'
+  // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
+  const isBucketHeader = (meta.getGroupHeaderKind?.(group) ?? 'entity') !== 'entity'
   // An entity header stands in for the conversation it holds — but only while that row is off screen
   // (collapsed group, or trimmed away by show-more). When the row is rendered it carries the fill
   // itself, and two identical pills for one conversation read as two selections. A bucket header (a

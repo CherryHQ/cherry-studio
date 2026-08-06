@@ -1087,16 +1087,14 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
-  // See Sessions: assistants are entities, everything else here only gathers rows.
-  const getGroupHeaderKind = useCallback(
-    (group: { id: string }): ResourceListGroupHeaderKind =>
-      group.id === TOPIC_PINNED_GROUP_ID ||
-      group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
-      group.id.startsWith('topic:time:')
-        ? 'bucket'
-        : 'entity',
-    []
-  )
+  // See Sessions: assistants are entities, everything else here only gathers rows. The unlinked
+  // bucket gathers rows too, but it stands in the assistant run rather than above it, so it takes
+  // the bucket voice without the module break that would read as a section starting.
+  const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
+    if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return 'inline-bucket'
+
+    return group.id === TOPIC_PINNED_GROUP_ID || group.id.startsWith('topic:time:') ? 'bucket' : 'entity'
+  }, [])
 
   const getGroupHeaderTooltip = useCallback(
     (group: { id: string }) =>

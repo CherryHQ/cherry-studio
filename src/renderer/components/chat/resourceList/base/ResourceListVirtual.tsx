@@ -128,8 +128,9 @@ const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 /**
  * A header opens a new module when it labels a group of rows rather than naming one: section
  * headers, and bucket group headers (time ranges, pinned). Entity headers — an agent, an assistant,
- * a workdir — are rows in their own right and stay on the shared rhythm. The list's first header
- * never gets the break: there is nothing above it to separate from.
+ * a workdir — are rows in their own right and stay on the shared rhythm, and so does an
+ * `inline-bucket`, which sits among them as the fallback for rows whose owner is gone. The list's
+ * first header never gets the break: there is nothing above it to separate from.
  */
 function isModuleStartHeader<T extends ResourceListItemBase>(
   meta: ResourceListMeta<T>,
