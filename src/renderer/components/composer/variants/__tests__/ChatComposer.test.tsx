@@ -3292,6 +3292,36 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.highlightKey).toBeGreaterThan(firstHighlightKey))
   })
 
+  it('saves an edited user message in place without resending', async () => {
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old prompt' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.editingState?.onSave?.({ text: 'edited prompt', tokens: [] })
+    })
+
+    expect(editMessage).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'edited prompt' }])
+    expect(forkAndResend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
   it('exits edit mode and restores the saved draft when the topic changes', async () => {
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }

@@ -1269,6 +1269,86 @@ const ChatComposerInner = ({
     [files, selectedKnowledgeBasesInScope]
   )
 
+  /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
+  const commitEditedMessage = useCallback(
+    async (draft: ComposerSerializedDraft, resend: boolean) => {
+      if (!editingMessageForCurrentTopic) return
+      const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+      if (editSaveInFlightSessionIdRef.current === editingSessionId) return
+
+      const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+      if (!chatWrite) {
+        toast.error(t('message.error.operation_unavailable'))
+        return
+      }
+
+      if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
+        toast.error(t('message.error.operation_unavailable'))
+        return
+      }
+
+      editSaveInFlightSessionIdRef.current = editingSessionId
+      setSavingEditingSessionId(editingSessionId)
+      try {
+        const editedParts = await buildEditedMessageParts(draft)
+        if (!editedParts) return
+
+        const savedParts = isAssistantReply
+          ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
+          : editedParts
+        if (isAssistantReply || !resend) {
+          await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+        } else {
+          const editedTurnOptions = isMentionedModelSelectorLocked
+            ? undefined
+            : {
+                reasoningEffort:
+                  assistantId && speedControlModel
+                    ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                    : assistantId
+                      ? reasoningEffort
+                      : 'default',
+                fastMode: fastMode && speedControlModel?.supportsFastMode === true
+              }
+          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+        }
+        if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+          restoreSavedDraft()
+          stopEditing()
+        }
+      } catch (error) {
+        logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
+        toast.error(t('message.error.operation_unavailable'))
+      } finally {
+        if (editSaveInFlightSessionIdRef.current === editingSessionId) {
+          editSaveInFlightSessionIdRef.current = null
+          setSavingEditingSessionId((currentSessionId) =>
+            currentSessionId === editingSessionId ? null : currentSessionId
+          )
+        }
+      }
+    },
+    [
+      assistantId,
+      buildEditedMessageParts,
+      chatWrite,
+      editingMessageForCurrentTopic,
+      editingMessageForCurrentTopicRef,
+      fastMode,
+      isMentionedModelSelectorLocked,
+      reasoningEffort,
+      restoreSavedDraft,
+      speedControlModel,
+      stopEditing,
+      t
+    ]
+  )
+
+  const handleSaveEditedMessage = useCallback(
+    (draft: ComposerSerializedDraft) => commitEditedMessage(draft, false),
+    [commitEditedMessage]
+  )
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
       if (staleEditingMessage) {
@@ -1278,60 +1358,7 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        const editingSessionId = editingMessageForCurrentTopic.editingSessionId
-        if (editSaveInFlightSessionIdRef.current === editingSessionId) return
-
-        const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
-        if (!chatWrite) {
-          toast.error(t('message.error.operation_unavailable'))
-          return
-        }
-
-        if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
-          toast.error(t('message.error.operation_unavailable'))
-          return
-        }
-
-        editSaveInFlightSessionIdRef.current = editingSessionId
-        setSavingEditingSessionId(editingSessionId)
-        try {
-          const editedParts = await buildEditedMessageParts(draft)
-          if (!editedParts) return
-
-          const savedParts = isAssistantReply
-            ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
-            : editedParts
-          if (isAssistantReply) {
-            await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
-          } else {
-            const editedTurnOptions = isMentionedModelSelectorLocked
-              ? undefined
-              : {
-                  reasoningEffort:
-                    assistantId && speedControlModel
-                      ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
-                      : assistantId
-                        ? reasoningEffort
-                        : 'default',
-                  fastMode: fastMode && speedControlModel?.supportsFastMode === true
-                }
-            await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
-          }
-          if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
-            restoreSavedDraft()
-            stopEditing()
-          }
-        } catch (error) {
-          logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
-          toast.error(t('message.error.operation_unavailable'))
-        } finally {
-          if (editSaveInFlightSessionIdRef.current === editingSessionId) {
-            editSaveInFlightSessionIdRef.current = null
-            setSavingEditingSessionId((currentSessionId) =>
-              currentSessionId === editingSessionId ? null : currentSessionId
-            )
-          }
-        }
+        await commitEditedMessage(draft, true)
         return
       }
 
@@ -1388,32 +1415,25 @@ const ChatComposerInner = ({
       }
     },
     [
-      assistantId,
       buildQueuedPayload,
-      buildEditedMessageParts,
       canSteer,
-      chatWrite,
       clearCurrentDraft,
+      commitEditedMessage,
       editingMessageForCurrentTopic,
-      editingMessageForCurrentTopicRef,
       enqueueFollowup,
-      fastMode,
       files,
       handleModelSelect,
-      isMentionedModelSelectorLocked,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
-      reasoningEffort,
       selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      speedControlModel,
       setFiles,
       setSelectedKnowledgeBases,
       setText,
@@ -1539,7 +1559,10 @@ const ChatComposerInner = ({
                   messageId: editingMessageForCurrentTopic.message.id,
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,
-                  onCancel: handleCancelEditing
+                  onCancel: handleCancelEditing,
+                  // Assistant edits already save in place on send; only user edits need a save-only path.
+                  onSave:
+                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
                 }
               : undefined
           }
