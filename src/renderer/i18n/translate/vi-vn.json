@@ -3925,6 +3925,7 @@
         "title": "Xác nhận xóa"
       },
       "failed": "Xóa thất bại",
+      "generating_unavailable": "Một câu trả lời trong nhóm này vẫn đang được tạo nên chưa thể xóa.",
       "root_unavailable": "Tin nhắn vẫn đang tải và chưa thể xóa được.",
       "success": "Xóa thành công"
     },

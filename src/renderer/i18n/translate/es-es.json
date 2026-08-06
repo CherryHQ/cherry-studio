@@ -3925,6 +3925,7 @@
         "title": "Confirmación de eliminación"
       },
       "failed": "Eliminación fallida",
+      "generating_unavailable": "Una respuesta de este grupo todavía se está generando y aún no se puede eliminar.",
       "root_unavailable": "Los mensajes aún se están cargando y no se pueden eliminar todavía.",
       "success": "Eliminación exitosa"
     },

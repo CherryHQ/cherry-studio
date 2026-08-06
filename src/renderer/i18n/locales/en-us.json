@@ -3925,6 +3925,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },

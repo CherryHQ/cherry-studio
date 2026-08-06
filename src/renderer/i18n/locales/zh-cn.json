@@ -3925,6 +3925,7 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "generating_unavailable": "该分组中仍有回答正在生成，暂时无法删除。",
       "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },

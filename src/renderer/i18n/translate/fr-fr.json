@@ -3925,6 +3925,7 @@
         "title": "Confirmation de suppression"
       },
       "failed": "Échec de la suppression",
+      "generating_unavailable": "Une réponse de ce groupe est encore en cours de génération et ne peut pas encore être supprimée.",
       "root_unavailable": "Les messages sont encore en cours de chargement et ne peuvent pas encore être supprimés.",
       "success": "Suppression réussie"
     },

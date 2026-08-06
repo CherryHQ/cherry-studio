@@ -102,6 +102,28 @@ describe('MessageGroupMenuBar', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
+  it('disables group deletion while a reply in the group is still generating', () => {
+    const deleteMessageGroupWithConfirm = vi.fn()
+    mocks.actions = { deleteMessageGroupWithConfirm }
+    const transmittingMessages = [messages[0], { ...messages[1], status: 'pending' } as MessageListItem]
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={transmittingMessages}
+        selectMessageId="assistant-1"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    const deleteButton = screen.getByRole('button')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.parentElement).toHaveAttribute('data-tooltip-content', 'message.delete.generating_unavailable')
+    fireEvent.click(deleteButton)
+    expect(deleteMessageGroupWithConfirm).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['root-unavailable', 'message.delete.root_unavailable'],
     ['message-unavailable', 'message.delete.root_unavailable']

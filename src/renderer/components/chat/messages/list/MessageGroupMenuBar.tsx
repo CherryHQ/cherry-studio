@@ -36,13 +36,22 @@ const MessageGroupMenuBar: FC<Props> = ({
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
   const groupMessageIds = messages.map((message) => message.id)
+
+  const isTransmittingMessage = (m: MessageListItem) => {
+    if (m.role !== 'assistant') return false
+    return m.status === 'pending'
+  }
+
+  const hasTransmittingMessages = messages.some(isTransmittingMessage)
   const deleteAvailability = groupMessageIds
     .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
     .find((availability) => availability?.enabled === false)
-  const isDeleteDisabled = deleteAvailability?.enabled === false
-  const deleteDisabledReason = isDeleteDisabled
-    ? getMessageDeleteUnavailableText(deleteAvailability.reason, t)
-    : undefined
+  const isDeleteDisabled = hasTransmittingMessages || deleteAvailability?.enabled === false
+  const deleteDisabledReason = hasTransmittingMessages
+    ? t('message.delete.generating_unavailable')
+    : deleteAvailability?.enabled === false
+      ? getMessageDeleteUnavailableText(deleteAvailability.reason, t)
+      : undefined
 
   const handleDeleteGroup = async () => {
     if (groupMessageIds.length === 0 || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
@@ -57,11 +66,6 @@ const MessageGroupMenuBar: FC<Props> = ({
     const content = parts ? getTextFromParts(parts) : ''
     const noContent = !content || content.trim().length === 0
     return isError || noContent
-  }
-
-  const isTransmittingMessage = (m: MessageListItem) => {
-    if (m.role !== 'assistant') return false
-    return m.status === 'pending'
   }
 
   const hasFailedMessages =

@@ -3925,6 +3925,7 @@
         "title": "Confirmare ștergere"
       },
       "failed": "Ștergere eșuată",
+      "generating_unavailable": "Un răspuns din acest grup este încă în curs de generare și nu poate fi șters deocamdată.",
       "root_unavailable": "Mesajele se încarcă în continuare și nu pot fi șterse încă.",
       "success": "Ștergere reușită"
     },

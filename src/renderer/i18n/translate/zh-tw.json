@@ -3925,6 +3925,7 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
+      "generating_unavailable": "該分組中仍有回答正在生成，暫時無法刪除。",
       "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },

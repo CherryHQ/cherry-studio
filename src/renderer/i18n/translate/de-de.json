@@ -3925,6 +3925,7 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "generating_unavailable": "Eine Antwort in dieser Gruppe wird noch generiert und kann noch nicht gelöscht werden.",
       "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },

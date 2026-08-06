@@ -3925,6 +3925,7 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "generating_unavailable": "Uma resposta deste grupo ainda está a ser gerada e ainda não pode ser eliminada.",
       "root_unavailable": "As mensagens ainda estão carregando e não podem ser excluídas ainda.",
       "success": "Excluído com sucesso"
     },
