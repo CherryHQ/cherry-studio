@@ -1,36 +1,24 @@
-import {
-  buildTabInstanceMetadata,
-  getTabInstanceAppId,
-  getTabInstanceKey,
-  hasTabInstanceMetadataForApp
-} from '@renderer/utils/tabInstanceMetadata'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
- * registry can't know on its own (preferences, persisted "last used" cache).
+ * registry can't know on its own (preferences).
  */
 export interface SidebarNavContext {
   defaultPaintingProvider: string
-  /** Cross-window persistent "last focused chat topic" — drives `assistants` defaultKey. */
-  lastUsedTopicId?: string | null
-  /** Cross-window persistent "last focused agent session" — drives `agents` defaultKey. */
-  lastUsedSessionId?: string | null
 }
 
 /**
- * Apps that hold navigable sub-instances (chat→topic, agent→session) carry an
- * `instanceKey`. Sidebar click then focuses the tab whose key matches the
- * "last focused" key (`defaultKey`) instead of focusing an arbitrary tab.
- * Apps without it (files / notes / paintings / …) are plain focus-or-open.
+ * Apps that hold conversations (chat→topic, agent→session) carry a
+ * `conversationRoute`: the conversation-key↔URL mapping. Which
+ * conversation a bare entry lands on is resolved by the routes' own `beforeLoad`
+ * interceptors, not here. Apps without it (files / notes / paintings / …) are
+ * plain route entries.
  */
-export interface SidebarInstanceKey {
-  /** Extract the instance key (topicId / sessionId) from an existing tab url. */
+export interface SidebarConversationRoute {
+  /** Extract the conversation key (topicId / sessionId) from an existing tab URL. */
   keyFromUrl: (url: string) => string | undefined
-  /** The instance key to target on sidebar click (cross-window "last focused"). */
-  defaultKey: (ctx: SidebarNavContext) => string | undefined
-  /** Build the tab url for an instance key (keeps dispatch app-agnostic). */
+  /** Build the tab URL for a conversation key (keeps dispatch app-agnostic). */
   urlForKey: (key: string) => string
 }
 
@@ -39,9 +27,9 @@ interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
-  /** Focus only the exact base route instead of any sub-route owned by the app. */
+  /** Highlight the sidebar entry only on the exact base route, not on sub-routes owned by the app. */
   exactRouteFocus?: boolean
-  instanceKey?: SidebarInstanceKey
+  conversationRoute?: SidebarConversationRoute
 }
 
 function getNormalConversationSearchParamFromUrl(url: string, name: string): string | undefined {
@@ -56,7 +44,12 @@ function getNormalConversationSearchParamFromUrl(url: string, name: string): str
 
 export function isMessageOnlyConversationUrl(url: string): boolean {
   try {
-    return new URL(url, 'app://x').searchParams.get('view') === 'message'
+    const parsedUrl = new URL(url, 'app://x')
+    if (parsedUrl.searchParams.get('view') !== 'message') return false
+
+    if (parsedUrl.pathname === '/app/chat') return Boolean(parsedUrl.searchParams.get('topicId'))
+    if (parsedUrl.pathname === '/app/agents') return Boolean(parsedUrl.searchParams.get('sessionId'))
+    return false
   } catch {
     return false
   }
@@ -70,18 +63,16 @@ const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'assistants',
     routePrefix: '/app/chat',
-    instanceKey: {
+    conversationRoute: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
-      defaultKey: ({ lastUsedTopicId }) => lastUsedTopicId ?? undefined,
       urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
     }
   },
   {
     id: 'agents',
     routePrefix: '/app/agents',
-    instanceKey: {
+    conversationRoute: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
-      defaultKey: ({ lastUsedSessionId }) => lastUsedSessionId ?? undefined,
       urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
     }
   },
@@ -141,41 +132,6 @@ export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {
  */
 export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
   return url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
-}
-
-export function getSidebarAppTabInstanceKey(app: SidebarApp, tab: Pick<Tab, 'metadata' | 'url'>): string | undefined {
-  if (!app.instanceKey) return undefined
-  if (isMessageOnlyConversationUrl(tab.url)) return undefined
-  const metadataKey = getTabInstanceKey(tab, app.id)
-  if (metadataKey) return metadataKey
-  if (hasTabInstanceMetadataForApp(tab, app.id)) return undefined
-  return app.instanceKey.keyFromUrl(tab.url)
-}
-
-export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>): string {
-  if (isMessageOnlyConversationUrl(tab.url)) return tab.url
-
-  const appId = getTabInstanceAppId(tab)
-  const app = appId ? getSidebarApp(appId) : undefined
-  if (!app?.instanceKey || !tabBelongsToApp(app, tab.url)) return tab.url
-
-  const key = getSidebarAppTabInstanceKey(app, tab)
-  if (key) {
-    return app.instanceKey.urlForKey(key)
-  }
-
-  // Instance-aware pages intentionally remove the key while showing a draft.
-  // The base route is the canonical entry for that state; retaining an older
-  // query-param URL would resurrect the previous conversation after reattach.
-  if (hasTabInstanceMetadataForApp(tab, app.id)) return app.routePrefix
-
-  return tab.url
-}
-
-export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
-  if (!app.instanceKey || !key) return undefined
-  if (app.id !== 'assistants' && app.id !== 'agents') return undefined
-  return buildTabInstanceMetadata(undefined, { appId: app.id, key })
 }
 
 /**

@@ -66,7 +66,6 @@ const mocks = vi.hoisted(() => ({
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
   optionalQuickPanel: null as { isVisible: boolean; symbol: string; updateList: (items: unknown) => void } | null,
-  contextUsagePercentage: null as number | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
   derivedToolState: undefined as
@@ -451,29 +450,6 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
-  useAgentSessionContextUsage: () => ({
-    usage:
-      mocks.contextUsagePercentage === null
-        ? null
-        : {
-            categories: [],
-            totalTokens: 42,
-            maxTokens: 100,
-            rawMaxTokens: 100,
-            percentage: mocks.contextUsagePercentage,
-            gridRows: [],
-            model: 'agent/deepseek-v4-flash',
-            memoryFiles: [],
-            mcpTools: [],
-            agents: [],
-            isAutoCompactEnabled: false,
-            apiUsage: null
-          },
-    percentage: mocks.contextUsagePercentage
-  })
-}))
-
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
   useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
@@ -831,7 +807,6 @@ describe('AgentComposer', () => {
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
-    mocks.contextUsagePercentage = null
     mocks.surfaceProps = undefined
     mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
@@ -2147,11 +2122,31 @@ describe('AgentComposer', () => {
     })
   })
 
-  it('renders context usage next to the send action when cached usage exists', async () => {
-    mocks.contextUsagePercentage = 42
+  it('renders context usage for the selected Gateway model but hides a different model cache', async () => {
+    mocks.modelResult = {
+      ...model,
+      id: 'minimax::MiniMax-M3',
+      providerId: 'minimax',
+      apiModelId: 'MiniMax-M3',
+      name: 'MiniMax M3'
+    }
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      categories: [],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'minimax:MiniMax-M3',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    })
     mocks.sessionLayout = 'time'
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -2162,7 +2157,7 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const modelButton = within(leftControls).getByRole('button', { name: /MiniMax M3/ })
     const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     const sendAccessory = screen.getByTestId('composer-send-accessory')
@@ -2177,7 +2172,36 @@ describe('AgentComposer', () => {
     expect(indicator).toHaveAttribute('style', expect.stringContaining('color-mix(in oklch'))
 
     await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
-    expect(screen.getByText('agent/deepseek-v4-flash')).toBeInTheDocument()
+    expect(within(sendAccessory).getByText('MiniMax M3')).toBeInTheDocument()
+    expect(within(sendAccessory).queryByText('minimax:MiniMax-M3')).not.toBeInTheDocument()
+
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      categories: [],
+      totalTokens: 24,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 24,
+      gridRows: [],
+      model: 'openai:gpt-4o',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).queryByLabelText(/context_usage/)
+    ).not.toBeInTheDocument()
   })
 
   it('provides workspace file resources through the @ mention suggestion source', async () => {
