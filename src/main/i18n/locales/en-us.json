@@ -97,6 +97,14 @@
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "The OpenClaw binary used by Cherry Studio is incompatible with the generated configuration. Upgrade OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
+      "more_issues": "and {{count}} more issue(s)",
+      "preflight_failed": "Cherry Studio could not validate the OpenClaw configuration."
+    }
+  },
   "paintings": {
     "generate_failed": "Failed to generate image",
     "image_mix_failed": "Failed to mix images"

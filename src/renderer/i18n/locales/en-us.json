@@ -279,6 +279,16 @@
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "Invalid workspace path"
+        },
+        "load_error": {
+          "description": "Make sure the work directory still exists and is accessible, then try again.",
+          "title": "Couldn't load workspace files"
+        }
+      },
       "unavailable": {
         "description": "This file couldn't be opened — it may have been moved or deleted.",
         "title": "File unavailable"
@@ -758,6 +768,13 @@
         "placeholder": "What should the agent do when this task runs?"
       },
       "resume": "Resume",
+      "reuseSession": {
+        "bound": "View session",
+        "description": "Continue every run in the same session instead of starting a new one.",
+        "label": "Reuse session",
+        "pending": "Waiting for the first run",
+        "warning": "A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. To rebind a clean session, disable and save, then enable and save."
+      },
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
@@ -1350,6 +1367,9 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "error": {
+      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again."
+    },
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -1486,6 +1506,13 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Conversation {{Command}}",
+      "note_reference": {
+        "description": "Attach a note from Notes",
+        "empty": "No notes found",
+        "load_failed": "Failed to load notes",
+        "loading": "Loading notes...",
+        "title": "Reference Note"
+      },
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1909,7 +1936,7 @@
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
-          "label": "Export as markdown",
+          "label": "Export as Markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notes": "Export to Notes",
@@ -2492,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "AI diagnosis is temporarily unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",
@@ -3867,6 +3895,7 @@
       "pasted_text": "Pasted Text"
     },
     "backup": {
+      "cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
       "failed": "Backup failed",
       "start": {
         "success": "Backup started"
@@ -5754,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "New Assistant",
+      "create_tag": "New",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
       "group_filter": "Filter by group",
@@ -5941,12 +5971,16 @@
         "third_party": "Third-party Connections"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Third-party Apps",
+          "copy": "Copy",
+          "file": "File Export"
+        },
         "docx": "Export as Word",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -6159,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Current Path",
+          "fetchError": "Failed to load the Nutstore folder list",
           "return": "Return",
           "title": "Nutstore Storage Path"
         },
@@ -7240,7 +7275,9 @@
       "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
-        "label": "Filter models"
+        "label": "Filter models",
+        "scroll_left": "Scroll model types left",
+        "scroll_right": "Scroll model types right"
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
@@ -7351,6 +7388,7 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
+        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",

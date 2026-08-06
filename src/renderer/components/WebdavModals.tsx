@@ -26,7 +26,7 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await (backupMethod ?? backupToWebdav)({ showMessage: true, customFileName })
+      await (backupMethod ?? backupToWebdav)({ customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)

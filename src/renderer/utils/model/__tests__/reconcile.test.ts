@@ -21,7 +21,7 @@ const createModel = (capabilities: ModelCapability[] = []): Model => ({
   isHidden: false
 })
 
-const providerWith = (serverTools: Provider['serverTools']): Provider => ({ serverTools }) as Provider
+const providerWith = (serverTools: Provider['serverTools']): Provider => ({ id: 'anthropic', serverTools }) as Provider
 
 const reasoningModel = (reasoning: RuntimeReasoning): Model => ({
   ...createModel([MODEL_CAPABILITY.REASONING]),

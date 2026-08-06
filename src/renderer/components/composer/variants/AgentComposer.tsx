@@ -23,6 +23,7 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
@@ -30,17 +31,15 @@ import {
 } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModelById } from '@renderer/hooks/useModel'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -64,7 +63,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -270,10 +269,10 @@ export interface AgentComposerLaunchOptions {
 type Props = {
   agentId: string
   sessionId: string
-  sessionOverride?: AgentComposerSessionSnapshot
-  resolvedAgent?: AgentEntity
-  resolvedModel?: Model
-  resolvedWorkspaceWarning?: string | null
+  sessionOverride: AgentComposerSessionSnapshot
+  resolvedAgent: AgentEntity | undefined
+  resolvedModel: Model | undefined
+  resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   stop: () => Promise<void>
@@ -304,7 +303,6 @@ const AgentComposerRoot = ({
   resolvedAgent,
   resolvedModel,
   resolvedWorkspaceWarning,
-  externalContextControls = false,
   sendMessage,
   stop,
   onCreateEmptySession,
@@ -323,14 +321,9 @@ const AgentComposerRoot = ({
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: AgentComposerRootProps) => {
-  const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
-  const session = sessionOverride ?? loadedSession
-  const { agent: loadedAgent } = useAgent(externalContextControls || resolvedAgent ? null : agentId)
-  const agent = resolvedAgent ?? loadedAgent
-  const { model: loadedModel, isLoading: isModelLoading } = useModelById(
-    externalContextControls || resolvedModel ? null : agent?.model
-  )
-  const sessionModel = resolvedModel ?? loadedModel
+  const session = sessionOverride
+  const agent = resolvedAgent
+  const sessionModel = resolvedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const launchIdentityRef = useRef({ sessionId, draftCacheKey: launchOptions?.draftCacheKey })
   if (launchIdentityRef.current.sessionId !== sessionId) {
@@ -375,8 +368,6 @@ const AgentComposerRoot = ({
     []
   )
 
-  if (!session) return null
-
   return (
     <ComposerToolRuntimeProvider
       key={`${agentId}:${sessionId}`}
@@ -391,7 +382,7 @@ const AgentComposerRoot = ({
         key={composerInstanceKey}
         agent={agent}
         model={sessionModel}
-        modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
+        modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
@@ -452,7 +443,7 @@ interface InnerProps {
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
-  resolvedWorkspaceWarning?: string | null
+  resolvedWorkspaceWarning: string | null
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -774,9 +765,7 @@ const AgentComposerInner = ({
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
-  const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
-  const workspaceWarning =
-    resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
+  const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
@@ -1419,7 +1408,7 @@ const AgentComposerInner = ({
       {
         id: ComposerPanelSymbol.McpStatus,
         label: 'MCP',
-        icon: <Cable size={18} aria-hidden />,
+        icon: <McpLogo width={18} height={18} aria-hidden />,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
