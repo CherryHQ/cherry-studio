@@ -9,7 +9,7 @@ import {
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
@@ -220,23 +220,51 @@ function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): bool
   return vendor !== undefined && tool.vendors.includes(vendor)
 }
 
-/** Model-side eligibility for a provider-native tool, inferred from registry creator data. */
-export function isServerToolModelEligible(model: Model, tool: ServerTool): boolean {
+/** Whether the host serves this tool over the effective endpoint protocol. */
+function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: EndpointType | undefined): boolean {
+  if (!tool.endpointTypes?.length) return true
+  return endpointType !== undefined && tool.endpointTypes.includes(endpointType)
+}
+
+function resolveServerToolEndpoint(
+  model: Model,
+  provider: Pick<Provider, 'defaultChatEndpoint'>,
+  endpointType: EndpointType | undefined
+): EndpointType | undefined {
+  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+}
+
+/** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
+export function isServerToolModelEligible(
+  model: Model,
+  provider: Pick<Provider, 'id' | 'presetProviderId'>,
+  tool: ServerTool
+): boolean {
   if (isNonChatModel(model)) return false
 
-  return isRegistryServerToolModelEligible(getRawModelId(model), tool)
+  return isRegistryServerToolModelEligible(getRawModelId(model), provider.presetProviderId ?? provider.id, tool)
 }
 
 /** Effective built-in web-search availability for one provider-model pair. */
-export function isBuiltinWebSearchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
+export function isBuiltinWebSearchAvailable(
+  model: Model,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  endpointType?: EndpointType
+): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
-  if (!tool || !serverToolServesModelVendor(tool, model)) return false
+  if (
+    !tool ||
+    !serverToolServesModelVendor(tool, model) ||
+    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
+  ) {
+    return false
+  }
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
     return !isNonChatModel(model)
   }
 
-  return isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH)
+  return isServerToolModelEligible(model, provider, SERVER_TOOL.WEB_SEARCH)
 }
 
 export type WebToolRoute = 'client' | 'server' | 'none'
@@ -255,15 +283,25 @@ export interface WebToolRoutes {
 }
 
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
-export function isBuiltinWebFetchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
+export function isBuiltinWebFetchAvailable(
+  model: Model,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  endpointType?: EndpointType
+): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)
-  if (!tool || !serverToolServesModelVendor(tool, model)) return false
+  if (
+    !tool ||
+    !serverToolServesModelVendor(tool, model) ||
+    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
+  ) {
+    return false
+  }
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
     return !isNonChatModel(model)
   }
 
-  return isServerToolModelEligible(model, SERVER_TOOL.URL_CONTEXT)
+  return isServerToolModelEligible(model, provider, SERVER_TOOL.URL_CONTEXT)
 }
 
 /**
@@ -288,14 +326,17 @@ export function resolveWebToolRoutes(
     hasFunctionToolSignals?: boolean
     /** Effective reasoning effort selection for the request. */
     reasoningEffort?: string
+    /** Effective endpoint protocol selected for this request. */
+    endpointType?: EndpointType
   }
 ): WebToolRoutes {
   const supportsClientTools = isFunctionCallingModel(model)
   const clientSearchAvailable = options.webSearchEnabled && supportsClientTools && options.clientSearchAvailable
   const clientFetchAvailable = options.webSearchEnabled && supportsClientTools && options.clientFetchAvailable
   const serverSearchEligible =
-    options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider) : false
-  const serverFetchEligible = options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider) : false
+    options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider, options.endpointType) : false
+  const serverFetchEligible =
+    options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
 
   const googleToolConflict =
     options.hasFunctionToolSignals === true &&
