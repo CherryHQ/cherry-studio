@@ -82,15 +82,24 @@ At most ONE ITEM's text plus ONE BATCH of vectors is ever resident. `prepare()` 
 base's legacy rows once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists,
 counts, per-reason skip tallies (capped samples — never one message per rejected row) and each
 url/note item's reserved snapshot path, derived by point-reading that one item's rows back after
-the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text). The rowid lists are the
-one deliberately retained per-chunk structure, and their bound is verifiable: one JS number per
-chunk in a packed SMI array — measured 10.5 B/chunk at 1M chunks and 8.0 B/chunk at 10M
-(`node --expose-gc`, heap delta around building `Map<string, number[]>`). Each chunk occupies
-≥5 KB in the legacy DB (a 4 KB float32 vector at 1024 dims + ~1 KB text), so the plan is bounded
-by ~1/500 of the legacy file's size on disk: a plan reaching even 100 MB would imply a ~50 GB v1
-vector DB, and exhausting V8's 4 GB old-space would take ~400M chunks (~2 TB source) — far beyond
-what v1's one-chunk-per-embedding-call indexing could ever produce (heaviest observed corpus:
-~75k chunks ≈ 0.7 MB of plan). `execute()` re-reads
+the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text).
+
+The rowid lists are the one deliberately retained per-chunk structure, and they **do** grow linearly
+with the migration's total chunk count. Only their per-chunk cost is measured: one JS number per
+chunk in a packed SMI array — 10.5 B/chunk at 1M chunks and 8.0 B/chunk at 10M (`node --expose-gc`,
+heap delta around building `Map<string, number[]>`). What that costs against a real corpus is a
+**typical-corpus estimate, not an upper bound the code enforces** — the migrator only requires
+`dimensions` to be a positive integer, and nothing constrains `pageContent` length or a base's chunk
+count. On an ordinary corpus a chunk occupies ≥5 KB in the legacy DB (a 4 KB float32 vector at 1024
+dims + ~1 KB text), putting the plan at roughly 1/500 of the legacy file's size on disk: a 100 MB
+plan would imply a ~50 GB v1 vector DB, and exhausting V8's 4 GB old-space would take ~400M chunks
+(~2 TB source), against a heaviest observed corpus of ~75k chunks ≈ 0.7 MB of plan. A corpus of very
+low dimensions and very short chunks shifts that ratio, so the retained plan is an accepted
+trade — it buys per-item re-reads of the legacy DB instead of a second full scan — justified by v1's
+one-chunk-per-embedding-call indexing never having produced anything near that scale, not by a
+code-checked limit.
+
+`execute()` re-reads
 one item at a time: its text whole through the vector-free column projection
 (`loadTextRowsByRowids` — the content schema stores one text row per material, so the joined text
 is irreducible without a schema change), and its vectors in fixed ≤500-rowid point-read batches
