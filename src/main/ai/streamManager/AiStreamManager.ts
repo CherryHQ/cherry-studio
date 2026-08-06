@@ -17,6 +17,7 @@ import type {
   AiStreamOpenResponse
 } from '@shared/ai/transport'
 import { shouldDeferToolOutput } from '@shared/ai/transport'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -25,7 +26,7 @@ import { type UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, InProcessUsageContext } from '../types'
+import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -161,8 +162,32 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
 }
 
+/**
+ * Append this turn's compaction anchors to an accumulated snapshot.
+ *
+ * The accumulator only sees provider chunks, and anchors are injected into the
+ * broadcast branch of the tee — so without this they render live and then
+ * disappear on reload. Matched by id so repeated snapshots (and a fold's
+ * `compacting` → `done` transition) update in place instead of duplicating.
+ * `data-*` parts never reach the model, so adding them cannot perturb the
+ * prompt bytes the provider caches.
+ */
+function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
+  const anchors = exec.compactionAnchors
+  if (!anchors?.length) return message
+  const parts = [...message.parts]
+  for (const anchor of anchors) {
+    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
+    // Narrow on `type` before reading `id` — only data parts carry one.
+    const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
+    if (at >= 0) parts[at] = part
+    else parts.push(part)
+  }
+  return { ...message, parts }
+}
+
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
-  if (exec.finalMessage) return exec.finalMessage
+  if (exec.finalMessage) return withCompactionAnchors(exec.finalMessage, exec)
 
   const finalMessage = {
     id: exec.anchorMessageId ?? randomUUID(),
@@ -609,6 +634,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Which layer owns history shaping; omitted means Cherry-managed. */
+    contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -627,6 +654,7 @@ export class AiStreamManager extends BaseService {
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
@@ -1425,7 +1453,21 @@ export class AiStreamManager extends BaseService {
       rawStream = await aiService.streamText({
         ...request,
         requestOptions: { ...request.requestOptions, signal },
-        runtimeTimingSink: exec.runtimeTiming.sink
+        runtimeTimingSink: exec.runtimeTiming.sink,
+        // Compaction runs deep inside param-build / the tool loop, where the
+        // turn's chunk sink isn't reachable; hand it down as a closure (same
+        // shape as runtimeTimingSink) so the UI can show "compacting".
+        compactionSink: (anchorId, data) => {
+          // Broadcast for the live indicator…
+          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk, exec)
+          // …and record it, because the broadcast branch is NOT the accumulator
+          // branch (pipeStreamLoop tees the stream), so nothing here would
+          // otherwise reach the persisted message.
+          const anchors = (exec.compactionAnchors ??= [])
+          const at = anchors.findIndex((a) => a.id === anchorId)
+          if (at >= 0) anchors[at] = { id: anchorId, data }
+          else anchors.push({ id: anchorId, data })
+        }
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
@@ -1461,7 +1503,7 @@ export class AiStreamManager extends BaseService {
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = msg
+        exec.finalMessage = withCompactionAnchors(msg, exec)
       }
     })
 

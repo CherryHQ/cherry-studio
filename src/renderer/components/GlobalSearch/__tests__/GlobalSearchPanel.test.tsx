@@ -323,30 +323,21 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-// Instance navigation goes through the conversation-nav boundary; route it to the same
-// openTab spy so assertions keep verifying the target url.
+// Conversation navigation goes through the conversation-nav boundary; route it to the same
+// openTab spy so assertions keep verifying the target URL.
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigator: () => ({
-    openConversationTab: (appId: string, key: string, title?: string) => {
-      const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
-      const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
-      return mocks.openTab(routePrefix, {
-        forceNew: true,
-        ...(title ? { title } : {}),
-        metadata: { instanceAppId, instanceKey: key }
-      })
-    }
-  }),
   useConversationNavigation: (appId: string) => {
-    const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
-    const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
     return {
-      openConversationTab: (key: string, title?: string) =>
-        mocks.openTab(routePrefix, {
+      openConversationTab: (key: string, title?: string) => {
+        const url =
+          appId === 'agents'
+            ? `/app/agents?sessionId=${encodeURIComponent(key)}`
+            : `/app/chat?topicId=${encodeURIComponent(key)}`
+        return mocks.openTab(url, {
           forceNew: true,
-          ...(title ? { title } : {}),
-          metadata: { instanceAppId, instanceKey: key }
+          ...(title ? { title } : {})
         })
+      }
     }
   }
 }))
@@ -566,9 +557,11 @@ afterEach(() => {
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
     testOnlyClearRefreshHistory()
+    // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
+    // route prefix rather than the bare path.
     mocks.openTab.mockImplementation((route: string) => {
-      if (route === '/app/agents') return 'opened-agent-tab'
-      if (route === '/app/chat') return 'opened-chat-tab'
+      if (route.startsWith('/app/agents')) return 'opened-agent-tab'
+      if (route.startsWith('/app/chat')) return 'opened-chat-tab'
       return 'opened-route-tab'
     })
     mocks.recentItems = [
@@ -995,10 +988,7 @@ describe('GlobalSearchPanel', () => {
     await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'topic')
     await user.click(await screen.findByRole('option', { name: /Topic A/ }))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
-      forceNew: true,
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
-    })
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-1', { forceNew: true })
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.eventEmit).not.toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_TOPIC', expect.anything())
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
@@ -1627,10 +1617,7 @@ describe('GlobalSearchPanel', () => {
         body: { nodeId: 'message-leaf' }
       })
       expect(mocks.invalidateCache).toHaveBeenCalledWith(['/topics/topic-1/messages', '/topics/topic-1/tree'])
-      expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
-        forceNew: true,
-        metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
-      })
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-1', { forceNew: true })
     })
     await waitFor(() => {
       expect(mocks.eventEmit).toHaveBeenCalledWith(
@@ -1805,10 +1792,7 @@ describe('GlobalSearchPanel', () => {
         '/agent-sessions/session-1',
         '/agent-sessions/session-1/messages'
       ])
-      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
-        forceNew: true,
-        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
-      })
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-1', { forceNew: true })
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
         sessionId: 'session-1',
         messageId: 'session-message-1',
@@ -1859,10 +1843,7 @@ describe('GlobalSearchPanel', () => {
         '/agent-sessions/session-1',
         '/agent-sessions/session-1/messages'
       ])
-      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
-        forceNew: true,
-        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
-      })
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-1', { forceNew: true })
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE', {
         sessionId: 'session-1',
         messageId: 'session-message-1',

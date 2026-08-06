@@ -53,7 +53,9 @@ The migrator handles potential data inconsistencies from the old system:
 
 | Issue | Detection | Handling |
 |-------|-----------|----------|
-| **Duplicate message ID** | Same ID appears in multiple topics | Generate new UUID, update parentId refs, log warning |
+| **Duplicate message ID** | Same ID appears within or across topics | Assign globally unique IDs before tree construction, remap same-topic references to the nearest earlier occurrence, and log a warning |
+| **Forward `askId`** | A response points to a message appearing later in the source array | Treat it as unresolved and use the chronological fallback; parent edges may only target previously processed messages |
+| **Disconnected/cyclic message graph** | A migrated message is not reachable from a virtual topic root | Fail migration validation before marking the migration complete |
 | **TopicId mismatch** | `message.topicId` ≠ parent `topic.id` | Use correct parent topic.id (silent fix) |
 | **Missing blocks** | Block ID not found in `message_blocks` | Skip missing block (silent) |
 | **Invalid topic** | Topic missing required `id` field | Skip entire topic |

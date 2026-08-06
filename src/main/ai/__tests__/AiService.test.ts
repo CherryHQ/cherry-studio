@@ -27,7 +27,8 @@ const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet
+    get: mockApplicationGet,
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
 
@@ -197,28 +198,6 @@ describe('AiService', () => {
     // Default: resolve, like the real usage-record store's best-effort contract. Individual
     // tests override with mockRejectedValueOnce to exercise the failure path.
     mockRecordRequest.mockResolvedValue(undefined)
-  })
-
-  it('aborts a registered one-shot text request', async () => {
-    const service = createService()
-    let capturedSignal: AbortSignal | undefined
-    vi.spyOn(service, 'generateText').mockImplementation(
-      (request) =>
-        new Promise((_resolve, reject) => {
-          capturedSignal = request.requestOptions?.signal
-          capturedSignal?.addEventListener(
-            'abort',
-            () => reject(new DOMException('Text generation aborted', 'AbortError')),
-            { once: true }
-          )
-        })
-    )
-
-    const pending = service.runTextRequest('greeting-1', { prompt: 'hello' })
-    service.abortText('greeting-1')
-
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
-    expect(capturedSignal?.aborted).toBe(true)
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {

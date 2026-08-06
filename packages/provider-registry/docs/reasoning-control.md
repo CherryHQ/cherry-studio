@@ -57,6 +57,21 @@ type ReasoningControl =
 The model may also carry intrinsic metadata such as its default behavior and thinking-token bounds. It must not
 carry a provider format, target field name, or serialization protocol.
 
+One narrow exception exists: `reasoning.wireDialect` (`'effort' | 'budget'`). It names no format, target field, or
+protocol. It selects between two **generational variants of the same native protocol** in the cases where a vendor
+shipped a replacement parameter that the older generation rejects outright:
+
+- `google-generate-content` — Gemini 3 `thinkingConfig.thinkingLevel` vs Gemini 2.x `thinkingConfig.thinkingBudget`;
+- `anthropic-messages` — Claude 4.6+ `thinking.type=adaptive` vs Claude ≤4.5 `thinking.type=enabled` + `budget_tokens`.
+
+That split is the vendor's own API contract, so it holds identically across every provider proxying the protocol and
+therefore belongs to the model rather than the endpoint. It is inert unless the resolved format declares a
+`budgetWire` (only `gemini` and `anthropic` do), so models on OpenAI-compatible endpoints are unaffected — their
+dialect genuinely does follow the serving provider and stays in `reasoningContracts`.
+
+It cannot be inferred from `controls`: `claude-opus-4-5` exposes an effort knob (`output_config.effort`) yet still
+speaks the budget thinking dialect. Effort-capability and dialect are independent axes, so the dialect is declared.
+
 The runtime model exposes `selectableEfforts`, derived during registry enrichment. This is the only effort list the
 renderer consumes. UI helpers add `default`; they do not inspect model IDs, provider IDs, endpoint formats, or
 adapter families.
@@ -105,6 +120,7 @@ Encoders consume this result. They do not perform model/provider detection thems
 | Budget limits and model default | Model reasoning metadata | Generated model data |
 | Endpoint protocol and adapter | Provider `endpointConfigs` | Generated `providers.json` |
 | Wire encoding | Endpoint/format profile | Provider registry and main memory only |
+| Native-protocol generational dialect | `reasoning.wireDialect` (creator `reasoningFamilies`) | Generated `models.json`; **not** persisted on the runtime row |
 | Exact provider-model capability/wire exception | `ProviderModelOverride.reasoningContracts[endpoint]` | Generated `provider-models.json` |
 | User's default selection | Assistant settings | DataApi/SQLite |
 | Selection for one send | Request/queue snapshot | In-memory transport payload |
@@ -115,7 +131,8 @@ reasoning format selector.
 ## Model enrichment and `reasoning-families*`
 
 The files under `src/patterns/reasoning-families*` enrich model capabilities; they are not request-encoding
-profiles.
+profiles. They additionally compile the declared `wireDialect` onto the model (see the exception above) — still a
+model fact, not a wire: it picks a generational variant, never a format or a target field.
 
 ```text
 src/creators/*.ts reasoningFamilies
@@ -139,7 +156,8 @@ This is a pure matcher. It contains no provider serialization behavior. Given a 
 
 - infer an effort/toggle vocabulary;
 - infer a budget range independently;
-- combine the first matching vocabulary rule with the first matching budget rule.
+- combine the first matching vocabulary rule with the first matching budget rule;
+- report the first matching `wireDialect` declaration.
 
 Regular expressions are allowed only in catalog generation and custom-model enrichment in `ModelService`. The
 result is materialized as runtime model metadata before reasoning request resolution. The resolver and encoder
@@ -155,7 +173,16 @@ Request-time resolution first determines the effective endpoint, then applies th
 
 1. `ProviderModelOverride.reasoningContracts[endpoint].wire`;
 2. the provider endpoint's inline `reasoningFormat.wire`;
-3. the exhaustive global default for `reasoningFormat.type`.
+3. the exhaustive global default for `reasoningFormat.type`, resolved through `selectFormatWire(profile, dialect)`.
+
+Only step 3 consults model data, and only to choose between that format's `wire` and its optional `budgetWire`;
+steps 1 and 2 still win outright, so a provider can always override a dialect it disagrees with. A format without a
+`budgetWire` ignores the dialect entirely, which keeps step 3 a pure protocol default for every other format.
+
+Because the dialect is a catalog fact and is **not** persisted onto the runtime row, request-time resolution must
+recover it from the catalog for rows that carry no `presetModelId` — a custom row whose `apiModelId` resolves to a
+catalog entry. Dropping that lookup silently returns those rows to the newer wire and produces requests the vendor
+rejects.
 
 The matching contract's `support.controls` replaces the intrinsic model controls for that endpoint; other support
 fields override their intrinsic counterparts individually. This lets an endpoint expose a narrower effort vocabulary
@@ -335,7 +362,11 @@ normalizes them and applies the destination provider profile.
 
 ## Required invariants
 
-- Every format has one global profile.
+- Every format has one global profile, plus an optional `budgetWire` variant where the native protocol has two
+  generations. A model's `wireDialect` selects between them and never selects a format.
+- Every catalog model on a two-dialect protocol declares a `wireDialect`; siblings of the same generation with
+  identical controls must not disagree.
+- The dialect survives for catalog-backed custom rows (no `presetModelId`) via the `apiModelId` catalog lookup.
 - Endpoint contracts validate against the closed schema, and budget operations declare an explicit missing policy.
 - Generated artifacts match their TypeScript sources.
 - Every UI-visible selection produces an invocation or is intentionally omitted by the resolved profile.

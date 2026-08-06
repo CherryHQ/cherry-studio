@@ -24,13 +24,9 @@ export function PrivacyPolicyUpdateGate() {
     'app.privacy.data_collection.enabled',
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
-  const [contextualGreetingsEnabled, setContextualGreetingsEnabled] = usePreference(
-    'feature.conversation_greeting.enabled',
-    PESSIMISTIC_PREFERENCE_OPTIONS
-  )
   const [showPolicy, setShowPolicy] = useState(false)
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
-  const open = (dataCollectionEnabled || contextualGreetingsEnabled) && policyVersion !== LATEST_PRIVACY_POLICY_VERSION
+  const open = dataCollectionEnabled && policyVersion !== LATEST_PRIVACY_POLICY_VERSION
 
   const acknowledge = useCallback(async () => {
     setIsUpdatingPrivacy(true)
@@ -46,14 +42,14 @@ export function PrivacyPolicyUpdateGate() {
   const continueWithoutConsent = useCallback(async () => {
     setIsUpdatingPrivacy(true)
     try {
-      await Promise.all([setDataCollectionEnabled(false), setContextualGreetingsEnabled(false)])
+      await setDataCollectionEnabled(false)
       setShowPolicy(false)
     } catch {
       toast.error(t('privacy_policy_update.acknowledge_failed'))
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [setContextualGreetingsEnabled, setDataCollectionEnabled, t])
+  }, [setDataCollectionEnabled, t])
 
   return (
     <>

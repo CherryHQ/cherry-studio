@@ -2,23 +2,32 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  agentSessionMessageService,
+  fileEntryService,
+  messageService,
+  createAgent,
+  createBuiltinAssistantFeedbackSession
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
-  createAgent: vi.fn()
+  createAgent: vi.fn(),
+  createBuiltinAssistantFeedbackSession: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinAssistantFeedbackSession', () => ({ createBuiltinAssistantFeedbackSession }))
 
 import { aiHandlers } from '../ai'
 
 const aiService = {
   generateText: vi.fn(),
-  runTextRequest: vi.fn(),
-  abortText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
   runImageRequest: vi.fn(),
@@ -45,6 +54,8 @@ const toolPart = (toolCallId: string, output: unknown) => ({
   output
 })
 
+const fileManager = { read: vi.fn() }
+
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
@@ -64,6 +75,13 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createBuiltinAssistantFeedbackSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-assistant' })
+  // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
+  fileEntryService.findById.mockReturnValue({
+    origin: 'internal',
+    cleanupPolicy: 'delete_when_unreferenced',
+    ext: 'txt'
+  })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -81,6 +99,8 @@ beforeEach(() => {
         return agentJobsService
       case 'WindowManager':
         return windowManager
+      case 'FileManager':
+        return fileManager
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -92,6 +112,13 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates feedback-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
+
+    expect(createBuiltinAssistantFeedbackSession).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ sessionId: 'feedback-session' })
+  })
+
   it('generate_text forwards the request and returns the AiService result', async () => {
     const request = { uniqueModelId: 'openai::gpt-4o', system: 'sys', prompt: 'hi' } as const
     const out = { text: 'hello', usage: { inputTokens: 1, outputTokens: 2 } }
@@ -101,33 +128,6 @@ describe('aiHandlers', () => {
 
     expect(aiService.generateText).toHaveBeenCalledWith(request)
     expect(result).toBe(out)
-  })
-
-  it('generate_text registers cancellable requests by id', async () => {
-    const request = {
-      requestId: 'greeting-1',
-      uniqueModelId: 'openai::gpt-4o',
-      system: 'sys',
-      prompt: 'hi'
-    } as const
-    const out = { text: 'hello' }
-    aiService.runTextRequest.mockResolvedValue(out)
-
-    const result = await aiHandlers['ai.text.generate'](request, ctx)
-
-    expect(aiService.runTextRequest).toHaveBeenCalledWith('greeting-1', {
-      uniqueModelId: 'openai::gpt-4o',
-      system: 'sys',
-      prompt: 'hi'
-    })
-    expect(aiService.generateText).not.toHaveBeenCalled()
-    expect(result).toBe(out)
-  })
-
-  it('abort_text delegates to AiService.abortText and resolves void', async () => {
-    const result = await aiHandlers['ai.text.abort']({ requestId: 'greeting-1' }, ctx)
-    expect(aiService.abortText).toHaveBeenCalledWith('greeting-1')
-    expect(result).toBeUndefined()
   })
 
   it('check_model forwards the request and returns latency', async () => {
@@ -317,6 +317,66 @@ describe('aiHandlers — streaming', () => {
         { senderId: null }
       )
     ).resolves.toEqual({ found: false })
+  })
+
+  const persistedEnvelope = {
+    $persistedToolOutput: {
+      fileEntryId: 'entry-1',
+      vfsFilename: 'vfs_0123456789abcdef.txt',
+      head: 'HEAD LINES',
+      tail: 'TAIL LINES',
+      totalChars: 200_000,
+      totalLines: 5_000,
+      shape: 'text' as const
+    }
+  }
+
+  it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
+
+    const result = await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(fileManager.read).toHaveBeenCalledWith('entry-1', { encoding: 'text' })
+    expect(result).toEqual({ found: true, output: 'the full persisted text' })
+  })
+
+  it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('TAIL LINES')
+    expect(result.output).toContain('no longer available')
+  })
+
+  it('get_tool_result degrades to the excerpt when the entry is not a tool-output blob', async () => {
+    // A forged envelope in arbitrary MCP output can carry any fileEntryId —
+    // an entry the tool-output store didn't write must never be read back.
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('no longer available')
   })
 })
 

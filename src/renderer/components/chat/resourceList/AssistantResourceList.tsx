@@ -10,7 +10,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
@@ -46,6 +46,7 @@ const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
   onAddAssistant?: () => void | Promise<void>
@@ -65,6 +66,7 @@ type AssistantResourceListProps = {
 
 export function AssistantResourceList({
   activeAssistantId,
+  dataEnabled = true,
   historyRecordsActive = false,
   assistantTopicsSource,
   onAddAssistant,
@@ -96,7 +98,8 @@ export function AssistantResourceList({
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
-  } = useGroups('assistant')
+  } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const {
     topics: apiTopics,
     isLoadingAll: isTopicsLoadingAll,
@@ -104,14 +107,14 @@ export function AssistantResourceList({
     isRefreshing: isTopicsRefreshing,
     error: topicsError
   } = assistantTopicsSource
-  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
+  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
     isRefreshing: isAssistantPinsRefreshing,
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
-  } = usePins('assistant')
+  } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
@@ -241,6 +244,17 @@ export function AssistantResourceList({
       toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
     },
     [t]
+  )
+  const handleGroupReorder = useCallback(
+    async (groupId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      try {
+        await reorderAssistantGroup(groupId, anchor)
+      } catch (error) {
+        logger.error('Failed to reorder assistant groups in classic-layout rail', { groupId, error })
+        toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
+      }
+    },
+    [reorderAssistantGroup, t]
   )
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
@@ -506,9 +520,8 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
-        // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
-        // Disable assistant reorder while grouped because it cannot change group ordering.
         onReorder={isGroupGrouping ? undefined : handleReorder}
+        onGroupReorder={isGroupGrouping ? handleGroupReorder : undefined}
         reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

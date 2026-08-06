@@ -49,8 +49,8 @@ describe('ProviderSetting', () => {
     })
   })
 
-  it('renders header, authentication section, and model list', () => {
-    render(<ProviderSetting providerId="openai" />)
+  it('keeps onboarding coordination at the page boundary', () => {
+    render(<ProviderSetting providerId="openai" isOnboarding />)
 
     expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
@@ -62,11 +62,6 @@ describe('ProviderSetting', () => {
         onOpenModelHealthCheck: openHealthCheckMock
       })
     )
-  })
-
-  it('keeps onboarding coordination at the page boundary', () => {
-    render(<ProviderSetting providerId="openai" isOnboarding />)
-
     expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
       providerId: 'openai',
       isOnboarding: true

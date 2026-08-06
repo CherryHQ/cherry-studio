@@ -1,8 +1,9 @@
 import { NormalTooltip } from '@cherrystudio/ui'
-import { KnowledgeCitationHoverContent } from '@renderer/components/chat/citations/KnowledgeCitation'
-import { WebCitationHoverContent } from '@renderer/components/chat/citations/WebCitation'
 import type { Citation } from '@renderer/types/message'
 import React, { memo, useState } from 'react'
+
+import { KnowledgeCitationHoverContent } from '../../citations/KnowledgeCitation'
+import { WebCitationHoverContent } from '../../citations/WebCitation'
 
 interface CitationTooltipProps {
   children: React.ReactNode
@@ -32,7 +33,8 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
       onOpenChange={setIsOpen}
       showArrow={false}
       contentProps={{
-        className: 'rounded-[8px] border border-border bg-card p-3 text-card-foreground'
+        className:
+          'rounded-[8px] border border-border bg-card p-3 text-card-foreground dark:bg-card dark:text-card-foreground'
       }}>
       {children}
     </NormalTooltip>

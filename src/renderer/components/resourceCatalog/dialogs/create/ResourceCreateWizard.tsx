@@ -3,10 +3,15 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import {
+  resourceDialogCloseButtonClassName,
+  resourceDialogHeaderClassName,
+  resourceDialogTitleClassName
+} from '../components/EditDialogShared'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
@@ -22,18 +27,21 @@ type ResourceCreateWizardProps = {
   onSubmit: (values: ResourceCreateWizardValues) => Promise<void> | void
   modelFilter?: (model: Model) => boolean
   isSubmitting?: boolean
+  /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
+  initialName?: string
 }
 
 type StepId = 'basic' | 'persona' | 'knowledge' | 'capability'
 
-function getDefaultAvatar(kind: ResourceCreateWizardKind) {
+/** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
+export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardFormValues {
+function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
   return {
-    avatar: getDefaultAvatar(kind),
-    name: '',
+    avatar: getResourceCreateDefaultAvatar(kind),
+    name: initialName,
     description: '',
     modelId: null,
     prompt: '',
@@ -115,11 +123,12 @@ export function ResourceCreateWizard({
   onOpenChange,
   onSubmit,
   modelFilter,
-  isSubmitting = false
+  isSubmitting = false,
+  initialName
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
-  const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind) })
-  const { defaultModel } = useDefaultModel()
+  const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const { defaultModel } = useDefaultModel({ enabled: open })
   const selectableDefaultModelId =
     open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
@@ -146,13 +155,21 @@ export function ResourceCreateWizard({
     return [basic, persona, capability, knowledge]
   }, [kind, t])
 
-  useEffect(() => {
-    if (!open) return
+  // `initialName` seeds the form on open only. Reading it through an effect event keeps it out of the
+  // deps, so a caller that passes a still-live value (a search box's query, say) cannot reset a form the
+  // user is already filling in — the shared wizard has five callers and a comment would not hold them.
+  const resetForOpen = useEffectEvent(() => {
     autoSelectedDefaultModelIdRef.current = null
-    form.reset(getDefaultValues(kind))
+    form.reset(getDefaultValues(kind, initialName))
     form.clearErrors()
     setStepIndex(0)
-  }, [form, kind, open])
+  })
+
+  useEffect(() => {
+    if (!open) return
+    resetForOpen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
+  }, [kind, open])
 
   // Preference/model hydration may finish after the dialog opens. Seed only an
   // empty field, and retract only a value that this effect auto-selected if it
@@ -259,12 +276,12 @@ export function ResourceCreateWizard({
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
         size="xl"
-        className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
+        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0', resourceDialogCloseButtonClassName)}
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
-        <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
+        <div className={resourceDialogHeaderClassName}>
           <div className="min-w-0">
-            <DialogTitle className="truncate text-base">{title}</DialogTitle>
+            <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
           </div>
         </div>
 
@@ -318,7 +335,7 @@ export function ResourceCreateWizard({
                   <BasicInfoStep
                     form={form}
                     portalContainer={dialogContentElement}
-                    fallbackAvatar={getDefaultAvatar(kind)}
+                    fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={modelFilter}
                     onSettingsNavigate={closeBeforeAction}
                   />

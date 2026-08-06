@@ -1,17 +1,10 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
-import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import {
   useMessageRenderConfig,
-  useOptionalMessageListActions,
-  useOptionalMessageListUi
+  useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
-import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
-import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
-import { useMarkdownComponents } from '@renderer/components/markdown'
-import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import type { Citation } from '@renderer/types/message'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
@@ -23,13 +16,9 @@ import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
 import { HtmlArtifactPopupHost } from '../../HtmlArtifactView'
-import {
-  classifyHtmlArtifactSource,
-  remarkHtmlArtifact,
-  transformMarkdownOutsideHtmlArtifacts
-} from './plugins/remarkHtmlArtifact'
-
-export type InlineHtmlPreviewMode = 'generating' | 'ready'
+import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
+import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
+import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 
 interface Props {
   block: MarkdownSource
@@ -41,8 +30,11 @@ interface Props {
   trustedCitations?: readonly Citation[]
 }
 
+export type InlineHtmlPreviewMode = 'generating' | 'ready'
+
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+const EMPTY_CITATION_REGISTRY: ReadonlyMap<number, Citation> = new Map()
 
 const ChatMarkdown: FC<Props> = ({
   block,
@@ -53,9 +45,8 @@ const ChatMarkdown: FC<Props> = ({
   trustedCitations
 }) => {
   const { t } = useTranslation()
-  const { mathEnableSingleDollar, codeFancyBlock } = useMessageRenderConfig()
+  const { mathEnableSingleDollar } = useMessageRenderConfig()
   const actions = useOptionalMessageListActions()
-  const ui = useOptionalMessageListUi()
   const isStreaming = block.status === 'streaming'
   const hasStreamedRef = useRef(isStreaming)
   if (isStreaming) hasStreamedRef.current = true
@@ -77,11 +68,11 @@ const ChatMarkdown: FC<Props> = ({
   }, [block.status, block.content, inlineHtmlPreviewMode, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const citationRegistry = useMemo(
-    () => new Map((trustedCitations ?? []).map((citation) => [citation.number, citation])),
-    [trustedCitations]
-  )
-  const chatComponents = useMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming, citationRegistry })
+  const citationRegistry = useMemo(() => {
+    if (!trustedCitations?.length) return EMPTY_CITATION_REGISTRY
+    return new Map(trustedCitations.map((citation) => [citation.number, citation]))
+  }, [trustedCitations])
+  const chatComponents = hasStyleElement ? CHAT_MARKDOWN_COMPONENTS_WITH_STYLE : CHAT_MARKDOWN_COMPONENTS
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]
@@ -91,24 +82,13 @@ const ChatMarkdown: FC<Props> = ({
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
 
   // Only intercept schemeless markdown links as workspace files when the host can actually
-  // resolve+open them: `openArtifactFile` is the workspace-aware opener (agent sessions with
-  // an artifact pane). Surfaces without it — Home chat, Quick Assistant, the selection window —
-  // have no workspace base, so they must not intercept (dead/no-op or wrong-CWD open).
+  // resolve+open them: openArtifactFile is the workspace-aware opener (agent sessions with an
+  // artifact pane). Surfaces without it — Home chat, Quick Assistant, the selection window —
+  // must not intercept (dead/no-op or wrong-CWD open), and keep Streamdown's link hardening.
   const canOpenWorkspaceFiles = !!actions?.openArtifactFile
-
-  // Bridge the chat message list's actions/config into the domain-neutral
-  // MarkdownHost the shared markdown components read from.
-  const markdownHost = useMemo<MarkdownHost>(
-    () => ({
-      codeFancyBlock,
-      readonly: ui?.readonly,
-      saveCodeBlock: actions?.saveCodeBlock,
-      openExternalUrl: actions?.openExternalUrl,
-      copyRichContent: actions?.copyRichContent,
-      exportTableAsExcel: actions?.exportTableAsExcel,
-      notifySuccess: actions?.notifySuccess,
-      notifyError: actions?.notifyError,
-      openFilePath: actions?.openArtifactFile
+  const openFilePath = useMemo(
+    () =>
+      actions?.openArtifactFile
         ? (path: string) =>
             openFileTarget(path, {
               openArtifactFile: actions.openArtifactFile,
@@ -116,44 +96,7 @@ const ChatMarkdown: FC<Props> = ({
               onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
             })
         : undefined,
-      renderInlineFilePath: (path: string) => <ClickableFilePath path={path} />,
-      // Chat renders assistant HTML fences as an immersive inline preview; the shared CodeBlock
-      // stays chat-agnostic and asks the host to draw it. Classification picks the streaming
-      // surface (collapsed source for a full document, live artifact for a fragment) and travels
-      // down as `kind` to gate safety once complete.
-      renderHtmlArtifact: inlineHtmlPreviewMode
-        ? (html, { isStreaming: htmlStreaming, artifactId, editable, onSave }) => {
-            const streaming = htmlStreaming || inlineHtmlPreviewMode === 'generating'
-            const htmlKind = classifyHtmlArtifactSource(html)
-            // Too short to classify yet — render nothing rather than pick a surface we would
-            // have to swap out a few characters later.
-            if (streaming && htmlKind === undefined) return null
-            if (streaming && htmlKind === 'document') {
-              return (
-                <CodeBlockView
-                  language="html"
-                  editable={false}
-                  isStreaming
-                  maxHeight={MAX_COLLAPSED_CODE_HEIGHT}
-                  showToolbar={false}>
-                  {html}
-                </CodeBlockView>
-              )
-            }
-            return (
-              <MessageHtmlArtifact
-                artifactId={artifactId}
-                html={html}
-                onSave={onSave}
-                editable={editable}
-                kind={htmlKind ?? 'fragment'}
-                isStreaming={streaming}
-              />
-            )
-          }
-        : undefined
-    }),
-    [actions, ui?.readonly, codeFancyBlock, t, inlineHtmlPreviewMode]
+    [actions, t]
   )
 
   // Keep the renderer type stable when an active text tail is sealed by a
@@ -184,9 +127,14 @@ const ChatMarkdown: FC<Props> = ({
   )
 
   return (
-    <MarkdownHostContext value={markdownHost}>
+    <ChatMarkdownRenderProvider
+      blockId={block.id}
+      citationRegistry={citationRegistry}
+      inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+      isStreaming={isStreaming}
+      openFilePath={openFilePath}>
       {inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer}
-    </MarkdownHostContext>
+    </ChatMarkdownRenderProvider>
   )
 }
 

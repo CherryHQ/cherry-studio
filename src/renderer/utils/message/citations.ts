@@ -37,6 +37,7 @@ import {
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
@@ -132,6 +133,21 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     return parsed.toolPart
   }
   return null
+}
+
+/**
+ * Citation fields survive persist-time entity trimming inside the envelope's
+ * skeleton (ids/urls/titles + inline snippets), so resolve from it without
+ * fetching any blob — for both the stored `'entities'` envelope (cold load)
+ * and its deferred projection carrying `skeleton` (transport).
+ */
+function unwrapCitableOutput(output: unknown): unknown {
+  if (isPersistedToolOutput(output)) {
+    const ref = output.$persistedToolOutput
+    return ref.shape === 'entities' ? ref.skeleton : output
+  }
+  if (isDeferredToolOutput(output) && output.skeleton !== undefined) return output.skeleton
+  return output
 }
 
 function toSnippet(content: string): string {
@@ -249,7 +265,7 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
   for (const part of parts) {
     const toolName = resolveCitableToolName(part)
     if (!toolName) continue
-    const rawOutput = (part as { output?: unknown }).output
+    const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
     const output = normalizeToolOutputResponse(rawOutput)
 
     if (toolName === KB_SEARCH_TOOL_NAME) {

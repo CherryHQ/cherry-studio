@@ -7,8 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const translateMock = vi.hoisted(() => (key: string) => key)
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
@@ -200,10 +198,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 })
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [
-    key === 'chat.narrow_mode' || key === 'feature.conversation_greeting.enabled' ? false : 'none',
-    vi.fn()
-  ]
+  usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -304,7 +299,7 @@ vi.mock('../messages/agentMessageListAdapter', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: translateMock })
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
@@ -320,13 +315,26 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat locate pending message', () => {
-  const activeSessionProps = (): Pick<
-    ComponentProps<typeof AgentChat>,
-    'activeSession' | 'activeSessionLoading' | 'activeSessionSource'
-  > => ({
-    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
-    activeSessionLoading: activeSessionMocks.result.isLoading,
-    activeSessionSource: activeSessionMocks.result.session ? 'query' : 'none'
+  const createConversationBootstrap = (
+    session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
+      .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
+    sessionLoading = activeSessionMocks.result.isLoading,
+    sessionSource: ComponentProps<typeof AgentChat>['conversationBootstrap']['sessionSource'] = session
+      ? 'query'
+      : 'none'
+  ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
+    session,
+    sessionLoading,
+    sessionSource,
+    resources: {
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agentLoading: false,
+      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      modelLoading: false
+    }
+  })
+  const activeSessionProps = (): Pick<ComponentProps<typeof AgentChat>, 'conversationBootstrap'> => ({
+    conversationBootstrap: createConversationBootstrap()
   })
 
   beforeEach(() => {
@@ -389,12 +397,7 @@ describe('AgentChat locate pending message', () => {
 
   it('renders the navbar and loading center while the active session is resolving', () => {
     render(
-      <AgentChat
-        activeSession={undefined}
-        activeSessionLoading={true}
-        activeSessionSource="pending"
-        showResourceListControls
-      />
+      <AgentChat conversationBootstrap={createConversationBootstrap(null, true, 'pending')} showResourceListControls />
     )
 
     expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
@@ -507,9 +510,7 @@ describe('AgentChat locate pending message', () => {
 
     const { rerender } = render(
       <AgentChat
-        activeSession={undefined}
-        activeSessionLoading={false}
-        activeSessionSource="none"
+        conversationBootstrap={createConversationBootstrap(null, false, 'none')}
         missingAgentSelection={true}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}

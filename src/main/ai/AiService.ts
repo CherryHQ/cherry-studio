@@ -25,6 +25,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -171,6 +172,12 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
+  /**
+   * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
+   * In-process only (a closure), same as `runtimeTimingSink` — the stream
+   * manager supplies it because only it can reach the turn's chunk sink.
+   */
+  compactionSink?: CompactionSink
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -289,9 +296,6 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Cancellable one-shot text requests opt in with a renderer-generated request id.
-  // Existing callers without an id continue to use generateText directly.
-  private readonly textRequests = new Map<string, AbortController>()
   // Per-request AbortControllers for the `ai.image.generate` route, paired with the
   // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
   // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
@@ -553,24 +557,6 @@ export class AiService extends BaseService {
   }
 
   // ── Non-streaming text generation (agent.generate) ──
-
-  async runTextRequest(requestId: string, payload: AiGenerateRequest): Promise<AiGenerateResult> {
-    const controller = new AbortController()
-    this.textRequests.set(requestId, controller)
-    try {
-      return await this.generateText({
-        ...payload,
-        requestOptions: { ...payload.requestOptions, signal: controller.signal }
-      })
-    } finally {
-      this.textRequests.delete(requestId)
-    }
-  }
-
-  /** Abort the in-flight text request for `requestId`; a no-op on an unknown id. */
-  abortText(requestId: string): void {
-    this.textRequests.get(requestId)?.abort()
-  }
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,
@@ -1043,7 +1029,8 @@ export class AiService extends BaseService {
       model,
       assistant,
       extraFeatures,
-      getRepairUsagePlugins
+      getRepairUsagePlugins,
+      compactionSink: request.compactionSink
     })
     return { ...built, provider, model, assistant }
   }

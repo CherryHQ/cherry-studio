@@ -4,7 +4,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -116,6 +116,11 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             isUpgrading={upgradingTools.has(selectedCliTool)}
             installError={installError}
             onShowError={() => setShowInstallError(true)}
+            launchDisabledHint={
+              providerState.showSelectionHint
+                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
+                : undefined
+            }
           />
         )}
 
@@ -127,13 +132,6 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
           }
           onOpenChange={(open) => !open && setShowInstallError(false)}
         />
-
-        {providerState.showSelectionHint && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
-            <CircleAlert className="size-3.5 shrink-0" />
-            <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
-          </div>
-        )}
 
         {providerState.providerless ? (
           <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">

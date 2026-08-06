@@ -55,8 +55,6 @@ function renderActions(
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false
 ) {
-  const captureLocalSendScrollEligibility = vi.fn()
-  const onLocalSendStarted = vi.fn()
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
   const setMessages = vi.fn()
@@ -72,8 +70,6 @@ function renderActions(
       refresh: vi.fn(async () => []),
       cache,
       seedReservedMessages: vi.fn(async () => {}),
-      captureLocalSendScrollEligibility,
-      onLocalSendStarted,
       scrollToBottom,
       startNewContextBlocked
     })
@@ -82,8 +78,6 @@ function renderActions(
     actions: result.current.actions,
     result,
     cache,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted,
     scrollToBottom,
     regenerate
   }
@@ -138,8 +132,6 @@ describe('useChatWriteActions — clear context', () => {
         refresh: vi.fn(async () => []),
         cache,
         seedReservedMessages,
-        captureLocalSendScrollEligibility: vi.fn(),
-        onLocalSendStarted: vi.fn(),
         scrollToBottom,
         startNewContextBlocked: false
       })
@@ -403,8 +395,8 @@ describe('useChatWriteActions — edit message', () => {
 describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('marks regeneration as a local send before waiting for the stream to finish', async () => {
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted, regenerate } = renderActions('vroot', [
+  it('waits for regeneration to finish', async () => {
+    const { actions, regenerate } = renderActions('vroot', [
       uiMsg('u1', 'user', 'vroot'),
       uiMsg('a1', 'assistant', 'u1')
     ])
@@ -413,11 +405,7 @@ describe('useChatWriteActions — regenerate', () => {
 
     const request = actions.regenerate('a1')
 
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      regenerate.mock.invocationCallOrder[0]
-    )
-    expect(onLocalSendStarted).toHaveBeenCalledOnce()
+    expect(regenerate).toHaveBeenCalledOnce()
 
     finishRegenerate?.()
     await request
@@ -476,25 +464,17 @@ describe('useChatWriteActions — fork and resend', () => {
     }
   }
 
-  it('marks a successful edit-and-resend as a local send', async () => {
+  it('opens a stream after a successful edit-and-resend', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
-      'vroot',
-      [uiMsg('u1', 'user', 'vroot')],
-      cache
-    )
+    const { actions } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
       reasoningEffort: 'high',
       fastMode: true
     })
 
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(cache.createSiblingTrigger).mock.invocationCallOrder[0]
-    )
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
@@ -504,7 +484,6 @@ describe('useChatWriteActions — fork and resend', () => {
         fastMode: true
       })
     )
-    expect(onLocalSendStarted).toHaveBeenCalledOnce()
   })
 
   it('inherits the source turn options when a historical multi-model user message is edited', async () => {
@@ -530,19 +509,12 @@ describe('useChatWriteActions — fork and resend', () => {
     )
   })
 
-  it('does not mark edit-and-resend when stream open is blocked', async () => {
+  it('rejects edit-and-resend when stream open is blocked', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
-      'vroot',
-      [uiMsg('u1', 'user', 'vroot')],
-      cache
-    )
+    const { actions } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
 
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(onLocalSendStarted).not.toHaveBeenCalled()
   })
 })

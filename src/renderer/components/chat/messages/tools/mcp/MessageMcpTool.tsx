@@ -492,7 +492,7 @@ const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWi
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
       className
     ]
       .filter(Boolean)

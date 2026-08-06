@@ -44,7 +44,9 @@ export default defineCreator({
     'davinci',
     'babbage'
   ],
-  webSearch: ['gpt-4o', 'gpt-5', 'o3', 'o4'],
+  // "Web search does not support gpt-5 with minimal reasoning" (platform.openai.com
+  // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
+  webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
     {
       id: 'gpt-image-1-mini',

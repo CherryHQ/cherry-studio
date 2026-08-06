@@ -57,6 +57,10 @@ type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputT
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
+// A fresh empty array per render would cascade through trustedCitations into
+// ChatMarkdown's components map and force Streamdown to re-render (and
+// re-animate) every markdown block on each streaming tick.
+const EMPTY_CITATIONS: Citation[] = []
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
   return isComposerInputTokenKind(token.kind)
@@ -173,7 +177,7 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   return { markdown, tokens }
 }
 
-export function buildUserMessagePreview(content: string) {
+function buildUserMessageTextPreview(content: string) {
   let effectiveLineCount = 0
   const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
 
@@ -204,6 +208,57 @@ export function buildUserMessagePreview(content: string) {
   }
 }
 
+function buildComposerTokenPreviewProjection(content: string, composer: ComposerMessageSnapshot) {
+  let projectedContent = ''
+  const rawOffsets = [0]
+  let cursor = 0
+
+  const appendText = (text: string, rawStart: number) => {
+    projectedContent += text
+    for (let index = 1; index <= text.length; index += 1) {
+      rawOffsets.push(rawStart + index)
+    }
+  }
+
+  getDisplayComposerTokens(composer).forEach((token) => {
+    const offset = Math.max(0, Math.min(content.length, token.textOffset))
+    const promptText = token.promptText
+    const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+    if (promptText && !promptTextMatches) return
+
+    if (offset > cursor) {
+      appendText(content.slice(cursor, offset), cursor)
+      cursor = offset
+    }
+
+    // Count a rendered token chip as one visible character. Mapping its end
+    // back to the raw prompt boundary keeps collapsed previews from slicing
+    // through hidden composer context and exposing it as plain text.
+    projectedContent += '\uFFFC'
+    if (promptTextMatches) {
+      cursor = Math.max(cursor, offset + promptText.length)
+    }
+    rawOffsets.push(cursor)
+  })
+
+  if (cursor < content.length) {
+    appendText(content.slice(cursor), cursor)
+  }
+
+  return { content: projectedContent, rawOffsets }
+}
+
+export function buildUserMessagePreview(content: string, composer?: ComposerMessageSnapshot) {
+  if (!composer) return buildUserMessageTextPreview(content)
+
+  const projection = buildComposerTokenPreviewProjection(content, composer)
+  const preview = buildUserMessageTextPreview(projection.content)
+  if (!preview.isTruncated) return { content, isTruncated: false }
+
+  const rawEnd = projection.rawOffsets[preview.content.length] ?? content.length
+  return { content: content.slice(0, rawEnd), isTruncated: true }
+}
+
 function CollapsibleUserMessageContent({
   children,
   isCollapsible,
@@ -227,7 +282,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (
@@ -235,8 +290,9 @@ function CollapsibleUserMessageContent({
           type="button"
           aria-expanded={isExpanded}
           aria-controls={contentId}
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
-          onClick={() => withScrollAnchor(onToggle)}>
+          data-user-message-content-toggle
+          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
+          onClick={() => withScrollAnchor(onToggle, { enterReadingMode: !isExpanded })}>
           <span className="shrink-0 font-normal leading-5">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
           </span>
@@ -256,7 +312,7 @@ const MainTextBlock: React.FC<Props> = ({
   content,
   inlineHtmlPreviewMode,
   isStreaming,
-  citations = [],
+  citations = EMPTY_CITATIONS,
   citationReferences,
   messageCitations,
   toolCitationProjection,
@@ -270,7 +326,7 @@ const MainTextBlock: React.FC<Props> = ({
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
-  const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
+  const userMessagePreview = useMemo(() => buildUserMessagePreview(content, composer), [composer, content])
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
@@ -346,7 +402,7 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [citationReferences, citations, toolCitations]
   )
-  const toolCitedCitations = toolCitations?.projection.cited ?? []
+  const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
   const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
   const composerMarkdownContent = useMemo(() => {
