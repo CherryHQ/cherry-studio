@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   files: [] as FileMetadata[],
   selectedKnowledgeBases: [] as KnowledgeBase[],
   knowledgeBases: [] as KnowledgeBase[],
+  knowledgeBasesLoading: false,
   agentKnowledgeBaseIds: [] as string[],
   agentConfiguration: {} as AgentConfiguration,
   modelResult: undefined as Model | undefined,
@@ -341,7 +342,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     initialState
   }: {
     children: ReactNode
-    initialState?: { selectedKnowledgeBases?: KnowledgeBase[] }
+    initialState?: { files?: FileMetadata[]; selectedKnowledgeBases?: KnowledgeBase[] }
   }) => {
     // The real provider seeds its selection state from `initialState` before children render, which is
     // what lets a cached knowledge chip survive the surface's managed-token sync. Mirror that here or
@@ -351,6 +352,9 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     if (!seededRef.current) {
       seededRef.current = true
       mocks.selectedKnowledgeBases = initialState?.selectedKnowledgeBases ?? []
+      if ((initialState?.files?.length ?? 0) > 0 || mocks.runtimeProviderMounts > 0) {
+        mocks.files = initialState?.files ?? []
+      }
     }
     useEffect(() => {
       mocks.runtimeProviderMounts += 1
@@ -459,7 +463,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
+  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: mocks.knowledgeBasesLoading })
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -718,6 +722,7 @@ describe('AgentComposer', () => {
     mocks.files = []
     mocks.selectedKnowledgeBases = []
     mocks.knowledgeBases = []
+    mocks.knowledgeBasesLoading = false
     mocks.agentKnowledgeBaseIds = []
     mocks.agentConfiguration = {}
     mocks.modelResult = model
@@ -1980,7 +1985,7 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
 
     expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-session-draft-agent-1',
+      'agent-session-draft-session-1',
       expect.objectContaining({ text: 'history entry' }),
       expect.any(Number)
     )
@@ -2851,7 +2856,7 @@ describe('AgentComposer', () => {
       textOffset: 0
     }
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'agent-session-draft-agent-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+      key === 'agent-session-draft-session-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
     )
 
     render(
@@ -2872,13 +2877,20 @@ describe('AgentComposer', () => {
     )
 
     expect(cacheService.getCasual).toHaveBeenCalledWith('agent-feedback-draft-feedback-session')
-    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-agent-1')
+    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-session-1')
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
     expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
     expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
     expect(cacheService.setCasual).toHaveBeenCalledWith(
       'agent-feedback-draft-feedback-session',
-      { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] },
+      {
+        text: 'Use the issue-reporter skill.',
+        tokens: [issueReporterToken],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
+      },
       expect.any(Number)
     )
     await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
@@ -2949,7 +2961,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([])
     expect(cacheService.setCasual).not.toHaveBeenCalledWith(
       'agent-feedback-draft-feedback-session',
-      { text: 'Use the issue-reporter skill.', tokens: [] },
+      expect.objectContaining({ text: 'Use the issue-reporter skill.' }),
       expect.any(Number)
     )
   })
@@ -2992,11 +3004,18 @@ describe('AgentComposer', () => {
     expect(onSent).toHaveBeenCalledTimes(1)
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-feedback-draft-feedback-session',
-      { text: '', tokens: [] },
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
+      },
       expect.any(Number)
     )
     expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-session-draft-agent-1',
+      'agent-session-draft-session-1',
       expect.anything(),
       expect.anything()
     )
@@ -3027,22 +3046,34 @@ describe('AgentComposer', () => {
     expect(onSent).not.toHaveBeenCalled()
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-feedback-draft-feedback-session',
-      { text: 'Use the issue-reporter skill.', tokens: [] },
+      {
+        text: 'Use the issue-reporter skill.',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
+      },
       expect.any(Number)
     )
   })
 
-  it('drops a cached knowledge chip together with its prompt text', () => {
+  it('restores a cached knowledge chip and its prompt text', async () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
     vi.mocked(cacheService.getCasual).mockReturnValue({
-      text: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.',
+      text: promptText,
       tokens: [
         {
           ...cachedToken,
-          promptText: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+          promptText
         }
-      ]
+      ],
+      files: [],
+      knowledgeBaseIds: [knowledgeBaseOne.id],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
     })
 
     render(
@@ -3055,15 +3086,95 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.text).toBe('')
-    expect(mocks.surfaceProps?.draftTokens).toEqual([])
-    expect(mocks.selectedKnowledgeBases).toEqual([])
-    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
+    expect(mocks.surfaceProps?.text).toBe(promptText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([{ ...cachedToken, promptText }])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
       expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
     )
   })
 
-  it('excludes a knowledge chip and its prompt text from the agent draft cache', () => {
+  it('waits for knowledge bases before reconciling a cached agent knowledge token', async () => {
+    mocks.knowledgeBasesLoading = true
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'cached knowledge draft',
+      tokens: [knowledgeBaseToken(knowledgeBaseOne)],
+      files: [],
+      knowledgeBaseIds: [knowledgeBaseOne.id],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
+    })
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(cacheService.setCasual).not.toHaveBeenCalled()
+
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    mocks.knowledgeBasesLoading = false
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-session-draft-session-1',
+      expect.objectContaining({ knowledgeBaseIds: [] }),
+      expect.any(Number)
+    )
+  })
+
+  it('seeds cached files before managed file tokens reconcile', () => {
+    const cachedFileToken = {
+      id: `file:${file.fileTokenSourceId}`,
+      kind: 'file',
+      label: file.name,
+      payload: file,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'cached file draft',
+      tokens: [cachedFileToken],
+      files: [file],
+      knowledgeBaseIds: [],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedFileToken])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
+      expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
+    )
+  })
+
+  it('persists a knowledge chip and its selected id in the agent draft cache', async () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
 
     render(
@@ -3078,29 +3189,63 @@ describe('AgentComposer', () => {
 
     const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
     const cachedToken = { ...knowledgeBaseToken(knowledgeBaseOne), promptText }
+    mocks.selectedKnowledgeBases = [knowledgeBaseOne]
     act(() => {
       mocks.surfaceProps?.onTextChange(`${promptText} keep this`)
       mocks.surfaceProps?.onTokensChange?.([cachedToken])
     })
 
-    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-      'agent-session-draft-agent-1',
-      { text: 'keep this', tokens: [] },
-      expect.any(Number)
-    )
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+        'agent-session-draft-session-1',
+        {
+          text: `${promptText} keep this`,
+          tokens: [cachedToken],
+          files: [],
+          knowledgeBaseIds: [knowledgeBaseOne.id],
+          workspaceKey: 'workspace-1\0/workspace',
+          agentId: 'agent-1'
+        },
+        expect.any(Number)
+      )
+    })
   })
 
-  it('clears knowledge state on a same-agent session switch while preserving text and skills', async () => {
-    let cachedDraft: unknown = ''
-    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'agent-session-draft-agent-1' ? cachedDraft : ''
-    )
-    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
-      if (key === 'agent-session-draft-agent-1') cachedDraft = value
-    })
+  it('isolates drafts between sessions and restores knowledge when returning to a session', async () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
-    mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
-    mocks.availableSkills = [pdfSkill]
+    const cachedFileToken = {
+      id: `file:${file.fileTokenSourceId}`,
+      kind: 'file',
+      label: file.name,
+      payload: file,
+      index: 1,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const cachedDrafts = new Map<string, unknown>([
+      [
+        'agent-session-draft-session-1',
+        {
+          text: 'session one draft',
+          tokens: [knowledgeBaseToken(knowledgeBaseOne), cachedFileToken, pdfSkillToken],
+          files: [file],
+          knowledgeBaseIds: [knowledgeBaseOne.id],
+          workspaceKey: 'workspace-1\0/workspace',
+          agentId: 'agent-1'
+        }
+      ],
+      [
+        'agent-session-draft-session-2',
+        {
+          text: 'session two draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          workspaceKey: 'workspace-1\0/workspace',
+          agentId: 'agent-1'
+        }
+      ]
+    ])
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) => cachedDrafts.get(key))
 
     const view = render(
       <AgentComposer
@@ -3112,34 +3257,14 @@ describe('AgentComposer', () => {
       />
     )
 
-    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
-    view.rerender(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const knowledgePrompt =
-      'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
-    const text = `${knowledgePrompt} ${pdfSkillToken.promptText} keep this`
-    mocks.getDraft.mockReturnValue({
-      text,
-      tokens: [
-        { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt },
-        {
-          ...pdfSkillToken,
-          index: 1,
-          textOffset: knowledgePrompt.length + 1
-        }
-      ]
-    })
-    act(() => {
-      mocks.surfaceProps?.onTextChange(text)
-    })
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
+    expect(mocks.surfaceProps?.text).toBe('session one draft')
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      knowledgeBaseToken(knowledgeBaseOne),
+      cachedFileToken,
+      pdfSkillToken
+    ])
 
     view.rerender(
       <AgentComposer
@@ -3151,23 +3276,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(`${pdfSkillToken.promptText} keep this`))
-    expect(mocks.surfaceProps?.draftTokens).toEqual([{ ...pdfSkillToken, index: 0, textOffset: 0 }])
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('session two draft'))
     expect(mocks.selectedKnowledgeBases).toEqual([])
-    expect(mocks.surfaceProps?.tokens).not.toContainEqual(
-      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
-    )
-  })
-
-  it('does not restore a cached knowledge pick', () => {
-    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
-    mocks.agentKnowledgeBaseIds = [knowledgeBaseTwo.id]
-    vi.mocked(cacheService.getCasual).mockReturnValue({
-      text: 'cached',
-      tokens: [knowledgeBaseToken(knowledgeBaseOne)]
-    })
-
-    render(
+    expect(mocks.files).toEqual([])
+    view.rerender(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -3177,7 +3289,14 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.selectedKnowledgeBases).toEqual([])
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('session one draft'))
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      knowledgeBaseToken(knowledgeBaseOne),
+      cachedFileToken,
+      pdfSkillToken
+    ])
   })
 
   it('removes selected skill state when the skill token is deleted', async () => {
@@ -3915,16 +4034,22 @@ describe('AgentComposer', () => {
     )
     expect(mocks.surfaceProps?.draftTokens).toEqual([
       expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
-      expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
+      expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' }),
+      expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
     ])
     expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-session-draft-agent-1',
+      'agent-session-draft-session-1',
       {
         text: 'queued agent draft',
         tokens: [
           expect.objectContaining({ id: 'skill:pdf', kind: 'skill' }),
-          expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' })
-        ]
+          expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' }),
+          expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
+        ],
+        files: [file],
+        knowledgeBaseIds: [],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
       },
       86400000
     )
@@ -4044,7 +4169,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
+      expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
     })
 
     fireEvent.click(screen.getByText('send'))
@@ -4057,12 +4182,16 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenCalledWith([])
     expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
     expect(mocks.surfaceProps?.text).toBe('draft message')
-    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-      'agent-session-draft-agent-1',
+      'agent-session-draft-session-1',
       {
         text: 'draft message',
-        tokens: [skillToken]
+        tokens: [skillToken, fileToken],
+        files: [file],
+        knowledgeBaseIds: [],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
       },
       86400000
     )
@@ -4152,8 +4281,15 @@ describe('AgentComposer', () => {
 
   it('resets the agent-scoped draft and tool runtime after switching agents', async () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'agent-session-draft-agent-1'
-        ? { text: 'draft for agent one', tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }] }
+      key === 'agent-session-draft-session-1'
+        ? {
+            text: 'draft for agent one',
+            tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }],
+            files: [],
+            knowledgeBaseIds: [],
+            workspaceKey: 'workspace-1\0/workspace',
+            agentId: 'agent-1'
+          }
         : ''
     )
 
@@ -4326,8 +4462,15 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select agent 2'))
 
     expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-session-draft-agent-2',
-      { text: 'draft before agent', tokens: [] },
+      'agent-home-draft',
+      {
+        text: 'draft before agent',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey: '',
+        agentId: ''
+      },
       24 * 60 * 60 * 1000
     )
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')

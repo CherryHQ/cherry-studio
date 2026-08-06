@@ -37,7 +37,13 @@ export function persistFeedbackComposerLaunch(sessionId: string): FeedbackCompos
     draftCacheKey: getFeedbackDraftCacheKey(sessionId),
     initialDraft: createFeedbackComposerDraft()
   }
-  writeAgentDraftCache(launch.draftCacheKey, launch.initialDraft.text, launch.initialDraft.tokens)
+  writeAgentDraftCache(launch.draftCacheKey, {
+    ...launch.initialDraft,
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  })
   cacheService.setCasual(getFeedbackLaunchCacheKey(sessionId), launch, FEEDBACK_LAUNCH_TTL_MS)
   return launch
 }

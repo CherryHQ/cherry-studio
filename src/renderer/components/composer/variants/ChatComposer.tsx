@@ -97,6 +97,9 @@ import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
+const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
+  'file'
+] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
@@ -337,15 +340,16 @@ const ChatComposerRoot = ({
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
   const resolvedAssistantId = assistantId ?? topic?.assistantId
+  const draftCacheScopeKey = resolvedTopicId ?? resolvedScopeKey ?? ''
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  // Snapshot the global draft cache once per mount: files seed the tool provider synchronously so
+  // Snapshot the topic draft before mounting its tool provider: files seed the provider synchronously so
   // the surface's managed-token sync does not strip restored file tokens, and the same snapshot
   // feeds text/draftTokens in ChatComposerInner so files and tokens stay consistent.
-  const initialDraftRef = useRef<ChatComposerDraftCache | null>(null)
-  if (initialDraftRef.current === null) {
-    initialDraftRef.current = readChatDraftCache()
+  const initialDraftRef = useRef<{ scopeKey: string; draft: ChatComposerDraftCache } | null>(null)
+  if (initialDraftRef.current?.scopeKey !== draftCacheScopeKey) {
+    initialDraftRef.current = { scopeKey: draftCacheScopeKey, draft: readChatDraftCache(draftCacheScopeKey) }
   }
-  const initialDraft = initialDraftRef.current
+  const initialDraft = initialDraftRef.current.draft
   const initialState = useMemo(
     () => ({
       files: initialDraft.files,
@@ -361,6 +365,7 @@ const ChatComposerRoot = ({
   return (
     <MessageEditingProvider>
       <ComposerToolRuntimeProvider
+        key={draftCacheScopeKey}
         initialState={initialState}
         actions={{
           addNewTopic: () => actionsRef.current.addNewTopic(),
@@ -376,6 +381,7 @@ const ChatComposerRoot = ({
             externalContextControls={externalContextControls}
             onConversationControlsChange={onConversationControlsChange}
             initialDraft={initialDraft}
+            draftCacheScopeKey={draftCacheScopeKey}
             actionsRef={actionsRef}
             onSend={onSend}
             sendDisabled={sendDisabled}
@@ -396,6 +402,7 @@ const ChatComposerRoot = ({
 interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   scopeKey: string
   initialDraft: ChatComposerDraftCache
+  draftCacheScopeKey: string
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
@@ -411,6 +418,7 @@ const ChatComposerInner = ({
   externalContextControls = false,
   onConversationControlsChange,
   initialDraft,
+  draftCacheScopeKey,
   actionsRef,
   onSend,
   sendDisabled = false,
@@ -476,6 +484,13 @@ const ChatComposerInner = ({
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
+  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
+  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
+    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
+  )
+  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
+    initialDraft.knowledgeBaseIds.length === 0
+  )
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const knowledgeBasePanelVisible = Boolean(
@@ -644,8 +659,13 @@ const ChatComposerInner = ({
     if (!historyPreview.draft) return
 
     const visibleDraft = actionsRef.current.getDraft()
-    writeChatDraftCache(visibleDraft.text, visibleDraft.tokens, filesRef.current)
-  }, [actionsRef, exitInputHistoryPreview, filesRef])
+    writeChatDraftCache(draftCacheScopeKey, {
+      text: visibleDraft.text,
+      tokens: visibleDraft.tokens,
+      files: filesRef.current,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current
+    })
+  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       exitInputHistoryPreviewForModelChange()
@@ -820,13 +840,29 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases
   })
 
-  // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
+  useEffect(() => {
+    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
+
+    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
+    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
+    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
+    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
+    setIsKnowledgeBaseDraftHydrated(true)
+  }, [
+    initialDraft.knowledgeBaseIds,
+    isKnowledgeBaseDraftHydrated,
+    isKnowledgeBasesLoading,
+    restoreKnowledgeBaseSelection,
+    selectableKnowledgeBases
+  ])
+
+  // Single owner of the topic draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
-  // persistable change is observed through text, files, or the editor token revision. The revision
-  // covers token-only edits whose serialized text stays unchanged; knowledge selection is
-  // intentionally excluded by writeChatDraftCache.
+  // persistable change is observed through text, files, knowledge bases, or the editor token revision.
+  // The revision covers token-only edits whose serialized text stays unchanged.
   const persistedOnceRef = useRef(false)
   useEffect(() => {
+    if (!isKnowledgeBaseDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
@@ -836,8 +872,49 @@ const ChatComposerInner = ({
       return
     }
     if (editingMessage) return
-    writeChatDraftCache(text, actionsRef.current.getDraft().tokens, files)
-  }, [actionsRef, draftTokenRevision, editingMessage, files, text])
+    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
+    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
+    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
+      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
+        (id) => !selectableKnowledgeBaseIdSet.has(id)
+      )
+      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
+    }
+    const draft = actionsRef.current.getDraft()
+    writeChatDraftCache(draftCacheScopeKey, {
+      text,
+      tokens: draft.tokens,
+      files,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current
+    })
+  }, [
+    actionsRef,
+    draftCacheScopeKey,
+    draftTokenRevision,
+    editingMessage,
+    files,
+    isKnowledgeBaseDraftHydrated,
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    text
+  ])
+
+  const persistFinalDraft = useEffectEvent(() => {
+    if (editingMessage || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
+    const draft = actionsRef.current.getDraft()
+    writeChatDraftCache(draftCacheScopeKey, {
+      text: draft.text,
+      tokens: draft.tokens,
+      files: filesRef.current,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current
+    })
+  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
+  useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
     const savedDraft = savedDraftBeforeEditingRef.current
@@ -1509,7 +1586,9 @@ const ChatComposerInner = ({
           onTextChange={handleTextChange}
           tokens={tokens}
           draftTokens={draftTokens}
-          managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+          managedTokenKinds={
+            isKnowledgeBaseDraftHydrated ? CHAT_MANAGED_TOKEN_KINDS : CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
+          }
           onTokensChange={handleTokensChange}
           suggestionSources={entityReferenceSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}

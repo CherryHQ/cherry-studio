@@ -5,7 +5,6 @@ import type { ComposerSerializedToken } from '../../tokens'
 import {
   getAgentDraftCacheKey,
   getAgentDraftTokens,
-  getCacheableAgentDraft,
   getCachedSkillTokens,
   hasAgentDraftCache,
   readAgentDraftCache,
@@ -19,8 +18,6 @@ vi.mock('@data/CacheService', () => ({
     setCasual: vi.fn()
   }
 }))
-
-const base = { id: 'kb-1', name: 'Notes' }
 
 const skillToken: ComposerSerializedToken = {
   id: 'skill:review',
@@ -37,7 +34,6 @@ const knowledgeToken: ComposerSerializedToken = {
   kind: 'knowledge',
   label: 'Notes',
   promptText: 'The user attached knowledge base "Notes" (id: kb-1) — use that id with the kb_* tools.',
-  payload: base,
   index: 1,
   textOffset: 22
 }
@@ -50,58 +46,34 @@ const fileToken: ComposerSerializedToken = {
   textOffset: 0
 }
 
+const folderToken: ComposerSerializedToken = {
+  id: 'folder:/workspace/project',
+  kind: 'folder',
+  label: 'project',
+  promptText: '/workspace/project',
+  index: 3,
+  textOffset: 22
+}
+
 const linkToken: ComposerSerializedToken = {
   id: 'link-token-1',
   kind: 'link',
   label: 'example.com/docs',
   promptText: 'https://example.com/docs',
-  index: 3,
-  textOffset: 0
-}
-
-const folderToken: ComposerSerializedToken = {
-  id: 'folder:/tmp/project',
-  kind: 'folder',
-  label: 'project',
-  promptText: '/tmp/project',
   index: 4,
-  textOffset: 0
-}
-
-const referenceToken: ComposerSerializedToken = {
-  id: 'reference:session:1',
-  kind: 'reference',
-  label: 'Related session',
-  promptText: '<referenced-conversation>content</referenced-conversation>',
-  index: 5,
-  textOffset: 0
-}
-
-const quoteToken: ComposerSerializedToken = {
-  id: 'quote:1',
-  kind: 'quote',
-  label: 'Quote',
-  promptText: 'quoted text',
-  index: 6,
-  textOffset: 0
-}
-
-const promptVariableToken: ComposerSerializedToken = {
-  id: 'prompt-variable:0:city',
-  kind: 'promptVariable',
-  label: '上海',
-  promptText: '上海',
-  index: 7,
-  textOffset: 0
+  textOffset: 41
 }
 
 const legacyCommandToken: ComposerSerializedToken = {
   id: 'command:legacy',
   kind: 'command',
   label: 'Legacy command',
-  index: 8,
+  index: 5,
   textOffset: 0
 }
+
+const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/workspace/doc.pdf' } as any
+const scope = { workspaceKey: 'workspace-1\0/workspace', agentId: 'agent-1' }
 
 describe('agentDraftCache', () => {
   beforeEach(() => {
@@ -110,101 +82,96 @@ describe('agentDraftCache', () => {
     vi.mocked(cacheService.setCasual).mockReset()
   })
 
-  it('distinguishes an intentionally empty cached draft from a missing draft', () => {
+  it('keys default drafts by session and preserves the empty-cache sentinel', () => {
     vi.mocked(cacheService.hasCasual).mockReturnValue(true)
 
+    expect(getAgentDraftCacheKey('session-1')).toBe('agent-session-draft-session-1')
+    expect(getAgentDraftCacheKey('session-2')).toBe('agent-session-draft-session-2')
     expect(hasAgentDraftCache('agent-feedback-draft-session-1')).toBe(true)
-    expect(cacheService.hasCasual).toHaveBeenCalledWith('agent-feedback-draft-session-1')
   })
 
-  it('keeps every active non-file input token in the live Agent draft', () => {
+  it('keeps every active input token, including file and knowledge tokens', () => {
     expect(
-      getAgentDraftTokens([
-        skillToken,
-        knowledgeToken,
-        fileToken,
-        linkToken,
-        folderToken,
-        referenceToken,
-        quoteToken,
-        promptVariableToken,
-        legacyCommandToken
-      ])
-    ).toEqual([skillToken, knowledgeToken, linkToken, folderToken, referenceToken, quoteToken, promptVariableToken])
+      getAgentDraftTokens([skillToken, knowledgeToken, fileToken, folderToken, linkToken, legacyCommandToken])
+    ).toEqual([skillToken, knowledgeToken, fileToken, folderToken, linkToken])
   })
 
-  it('round-trips every agent-cacheable input token so its prompt text keeps its chip', () => {
-    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [
-      skillToken,
-      knowledgeToken,
-      fileToken,
-      linkToken,
-      folderToken,
-      referenceToken,
-      quoteToken,
-      promptVariableToken,
-      legacyCommandToken
-    ])
+  it('round-trips a complete same-workspace draft', () => {
+    const draft = {
+      text: 'draft text',
+      tokens: [skillToken, knowledgeToken, fileToken, folderToken, linkToken],
+      files: [file],
+      knowledgeBaseIds: ['kb-1'],
+      ...scope
+    }
+    writeAgentDraftCache(getAgentDraftCacheKey('session-1'), draft)
 
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
-    const expectedTokens = [
-      skillToken,
-      { ...linkToken, index: 2 },
-      { ...folderToken, index: 3 },
-      { ...referenceToken, index: 4 },
-      { ...quoteToken, index: 5 },
-      { ...promptVariableToken, index: 6 }
-    ]
-    expect(written).toEqual({ text: 'text', tokens: expectedTokens })
-
     vi.mocked(cacheService.getCasual).mockReturnValue(written)
-    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual(expectedTokens)
+    expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual(draft)
   })
 
-  it('drops a knowledge token together with its prompt while preserving and rebasing a skill token', () => {
-    const knowledgeFirst = { ...knowledgeToken, index: 0, textOffset: 0 }
-    const skillAfterKnowledge = {
-      ...skillToken,
-      index: 1,
-      textOffset: knowledgeToken.promptText!.length + 1
-    }
-    const text = `${knowledgeToken.promptText} ${skillToken.promptText} keep this`
-
-    expect(getCacheableAgentDraft({ text, tokens: [knowledgeFirst, skillAfterKnowledge, fileToken] })).toEqual({
-      text: `${skillToken.promptText} keep this`,
-      tokens: [{ ...skillToken, index: 0, textOffset: 0 }]
+  it('does not carry a session draft across an agent change', () => {
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'draft for agent one',
+      tokens: [skillToken],
+      files: [file],
+      knowledgeBaseIds: ['kb-1'],
+      workspaceKey: scope.workspaceKey,
+      agentId: 'agent-1'
     })
-  })
 
-  it('excises knowledge tokens on both cache writes and reads', () => {
-    const text = `${knowledgeToken.promptText} keep this`
-    const token = { ...knowledgeToken, index: 0, textOffset: 0 }
-
-    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), text, [token, skillToken])
-
-    expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-session-draft-agent-1',
-      { text: 'keep this', tokens: [{ ...skillToken, index: 0, textOffset: 0 }] },
-      expect.any(Number)
-    )
-
-    vi.mocked(cacheService.getCasual).mockReturnValue({ text, tokens: [token, skillToken] })
-    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1'))).toEqual({
-      text: 'keep this',
-      tokens: [{ ...skillToken, index: 0, textOffset: 0 }]
-    })
-  })
-
-  it('collapses a knowledge-only draft to empty', () => {
     expect(
-      getCacheableAgentDraft({
-        text: `${knowledgeToken.promptText} `,
-        tokens: [{ ...knowledgeToken, index: 0, textOffset: 0 }]
+      readAgentDraftCache(getAgentDraftCacheKey('session-1'), {
+        ...scope,
+        agentId: 'agent-2'
       })
-    ).toEqual({ text: '', tokens: [] })
+    ).toEqual({
+      text: '',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: scope.workspaceKey,
+      agentId: 'agent-2'
+    })
   })
 
-  it('keeps the skill subset separate from the persisted token set', () => {
+  it('drops workspace-bound files, folders, and skills when the workspace changes', () => {
+    const skillPrompt = skillToken.promptText!
+    const folderPrompt = folderToken.promptText!
+    const linkPrompt = linkToken.promptText!
+    const knowledgePrompt = knowledgeToken.promptText!
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: `${skillPrompt} ${folderPrompt} ${linkPrompt} ${knowledgePrompt} keep this`,
+      tokens: [
+        { ...skillToken, index: 0, textOffset: 0 },
+        { ...folderToken, index: 1, textOffset: skillPrompt.length + 1 },
+        { ...linkToken, index: 2, textOffset: skillPrompt.length + folderPrompt.length + 2 },
+        {
+          ...knowledgeToken,
+          index: 3,
+          textOffset: skillPrompt.length + folderPrompt.length + linkPrompt.length + 3
+        }
+      ],
+      files: [file],
+      knowledgeBaseIds: ['kb-1'],
+      workspaceKey: 'workspace-old\0/old',
+      agentId: 'agent-1'
+    })
+
+    expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual({
+      text: `${linkPrompt} ${knowledgePrompt} keep this`,
+      tokens: [
+        { ...linkToken, index: 0, textOffset: 0 },
+        { ...knowledgeToken, index: 1, textOffset: linkPrompt.length + 1 }
+      ],
+      files: [],
+      knowledgeBaseIds: ['kb-1'],
+      ...scope
+    })
+  })
+
+  it('keeps the skill subset available for live tool state restoration', () => {
     expect(getCachedSkillTokens([skillToken, knowledgeToken])).toEqual([skillToken])
   })
 })
