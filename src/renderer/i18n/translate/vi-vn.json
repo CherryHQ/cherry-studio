@@ -451,7 +451,6 @@
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
-        "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
         "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
@@ -4425,7 +4424,8 @@
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
     "multi_select": {
-      "label": "Đa mô hình song song (loại trừ lẫn nhau với đa trợ lý)"
+      "label": "Chọn nhiều",
+      "tooltip": "Đa mô hình song song"
     },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",
