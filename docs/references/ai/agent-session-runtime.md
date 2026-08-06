@@ -72,7 +72,7 @@ A live follow-up is a **steer**. Steering is queue-based, never an
 interrupt: the current turn is **never aborted** to apply a steer (a user
 Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. **Live turn + a driver that can steer** — calls
+1. **Open normal user turn + a driver that can steer** — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
    stashes the steer and injects it into the running turn (Claude Code
    does this via a `PreToolUse` hook, as `additionalContext` before the
@@ -80,10 +80,15 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    turn, no queue entry. If the turn ends before the steer is injected
    (it called no tool after the steer arrived), the connection emits
    `steer-undelivered` and the host queues it as the next turn.
-2. **No live turn, or the driver cannot steer** — appends the message to
-   the session entry's `pendingTurns` (recording its id in
+2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+   appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
-   and schedules the next turn.
+   and schedules it once runtime ownership returns to `idle`.
+
+A receive-only autonomous generation never accepts a redirect. Follow-ups
+remain in `pendingTurns` until terminal persistence releases runtime ownership.
+A normal turn whose stream is still `unopened` is queued for the same reason;
+steering is only valid after that turn's stream is `open`.
 
 When a steer **is** injected mid-turn, the driver emits a
 `steer-boundary` just before the model's post-steer assistant message.
@@ -96,6 +101,11 @@ across a mid-flight compaction) so the continuation carries the renderer
 listeners.
 
 ## Starting the next runtime turn
+
+A queued successor may start only after the current execution reaches
+`turn-terminal` and persistence returns the runtime to `idle`.
+`startNextTurn()` rechecks that ownership before reading or shifting the queue,
+so a premature launch has no queue, database, or stream-manager side effects.
 
 When a completed runtime turn still has queued follow-ups (or a
 `steer-undelivered` requeue), `AgentSessionRuntimeService.startNextTurn()`:
@@ -111,6 +121,11 @@ When a completed runtime turn still has queued follow-ups (or a
 The runtime connection may stay on the entry. What that means is driver
 specific: Claude Code keeps its SDK query/input queue, while another
 driver could keep a websocket or reconnect per turn.
+
+If a queued successor or steer continuation cannot save its assistant
+placeholder, the host explicitly terminates the held topic stream with
+`terminateHeldTopicStream()`. Broadcasting an error alone is insufficient:
+it does not run terminal lifecycle or evict the held stream.
 
 ## Resume token persistence
 
@@ -212,6 +227,19 @@ the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
 change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
+
+## Internal Agent continuation normalization
+
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic
+Messages format and its converted UIMessage list ends with a text-only assistant
+attachment, the gateway appends an ephemeral user continuation after conversion.
+The Agent request itself proves that Claude Code's standard loop intends another
+sample, so this normalization is independent of the target provider, endpoint,
+and model. The original assistant attachment is preserved and the caller's params
+are not mutated. The continuation is never written to the database, the SDK
+transcript's user-visible history, or the renderer. Direct Anthropic requests do
+not enter the gateway, and external gateway requests remain unchanged so their
+callers can intentionally use assistant prefill.
 
 ## Idle and shutdown
 

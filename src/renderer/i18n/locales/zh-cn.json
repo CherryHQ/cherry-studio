@@ -279,6 +279,16 @@
         "description": "文件超过 {{limit}} 预览上限。",
         "title": "文件太大，无法预览"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "文件面板需要有效的本地绝对路径，请重新选择工作目录。",
+          "title": "工作区路径无效"
+        },
+        "load_error": {
+          "description": "请确认工作目录仍然存在且可以访问，然后重试。",
+          "title": "无法加载工作区文件"
+        }
+      },
       "unavailable": {
         "description": "无法打开此文件，它可能已被移动或删除。",
         "title": "文件不可用"
@@ -438,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "折叠显示",
+        "collapse": "收起",
         "collapse_all": "全部折叠",
         "conversation": "对话",
-        "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
         "earlier": "更早",
         "expand_all": "全部展开",
         "no_workdir": "无工作目录",
-        "show_more": "展开显示",
+        "show_more": "展开更多",
+        "tasks": "任务",
         "this_week": "本周",
         "today": "今天",
         "unknown_agent": "未关联智能体",
@@ -1971,11 +1981,11 @@
         "yuque": "导出到语雀"
       },
       "group": {
-        "collapse": "折叠显示",
+        "collapse": "收起",
         "collapse_all": "全部折叠",
         "earlier": "更早",
         "expand_all": "全部展开",
-        "show_more": "展开显示",
+        "show_more": "展开更多",
         "this_week": "本周",
         "today": "今天",
         "unknown_assistant": "未关联助手",
@@ -2509,6 +2519,7 @@
       "content": "消息内容被安全系统拦截，请修改后重试",
       "context_length": "对话上下文过长，请清理历史消息或开启新对话",
       "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "free_model_unavailable": "AI 诊断暂时不可用",
       "go_to_settings": "前往设置",
       "knowledge": "知识库向量化失败",
       "mcp": "MCP 服务器连接失败，请检查服务是否已启动",
@@ -3914,7 +3925,7 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
-      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "generating_unavailable": "该分组中仍有回答正在生成，暂时无法删除。",
       "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
@@ -3999,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "删除分组消息会删除用户提问和所有助手的回答",
-        "title": "删除分组消息"
+        "content": "是否删除该分组中的所有助手回答？用户提问和后续消息将保留。",
+        "title": "删除分组回答"
       },
       "retry_failed": "重试出错的消息"
     },
@@ -4414,7 +4425,8 @@
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
-      "label": "多模型同时回答"
+      "label": "多选",
+      "tooltip": "多模型同时回答"
     },
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -5772,6 +5784,7 @@
     },
     "assistant": {
       "create_new": "新建助手",
+      "create_tag": "新建",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
       "group_filter": "按分组筛选",
@@ -5821,6 +5834,76 @@
         "title": "调试面板"
       },
       "description": "一款为创造者而生的 AI 助手",
+      "diagnostics": {
+        "actions": {
+          "cancel": "取消",
+          "close": "关闭",
+          "contact": "写邮件给支持",
+          "copy_email": "复制支持邮箱",
+          "export": "导出",
+          "exporting": "正在导出...",
+          "reveal": "打开文件位置"
+        },
+        "dialog": {
+          "description": "将最近的运行信息保存为 ZIP 压缩文件，帮助支持人员定位问题。",
+          "title": "导出诊断包"
+        },
+        "entry": {
+          "button": "导出",
+          "title": "诊断包"
+        },
+        "errors": {
+          "busy": "已有诊断包正在导出",
+          "copy_failed": "无法复制支持邮箱",
+          "destination_conflict": "所选保存位置与诊断数据冲突，请选择其他文件夹。",
+          "email_client_failed": "无法打开邮件客户端，你可以复制支持邮箱。",
+          "export_failed": "无法导出诊断包",
+          "inspect_failed": "暂时无法检查可导出的内容，请稍后重试。",
+          "reveal_failed": "无法打开文件位置"
+        },
+        "inspecting": "正在准备可导出的内容...",
+        "limit": "为控制文件大小，日志和详细记录最多收集 {{size}}，优先保留较新的内容。",
+        "mail": {
+          "body": "请协助排查此 Cherry Studio 问题。\n\n诊断包 ID：{{bundleId}}\n版本：{{version}}\n平台：{{platform}}\n时间范围：{{range}}\n文件：{{fileName}}\n\n请将 ZIP 文件作为附件添加到此邮件。诊断包仅保存在本地，没有自动上传。",
+          "subject": "Cherry Studio 诊断包 {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "我了解以上内容，并只会私下发送给支持人员。",
+          "description": "这些记录可能包含你输入的内容、文件位置、请求和回复内容，以及服务连接信息。应用不会自动隐藏或上传。请只私下发送给支持人员，不要发布到 GitHub 等公开网站。",
+          "title": "分享前请确认"
+        },
+        "range_title": "时间范围",
+        "ranges": {
+          "24h": "最近 24 小时",
+          "3d": "最近 3 天",
+          "7d": "最近 7 天"
+        },
+        "sources": {
+          "inspecting": "正在检查可用内容...",
+          "logs": {
+            "title": "运行日志"
+          },
+          "summary": "{{count}} 个文件，约 {{size}}",
+          "summary_one": "{{count}} 个文件，约 {{size}}",
+          "summary_other": "{{count}} 个文件，约 {{size}}",
+          "system": {
+            "description": "包括应用版本、系统和设备信息。最近崩溃 {{crashCount}} 次，不收集崩溃文件。",
+            "title": "应用和设备信息"
+          },
+          "traces": {
+            "title": "详细运行记录"
+          },
+          "unavailable": "这段时间内没有可导出的内容"
+        },
+        "success": {
+          "email_copied": "已复制支持邮箱",
+          "local_only": "文件只保存在你的电脑上，没有自动上传。写邮件给支持时，请手动添加这个 ZIP 文件作为附件。",
+          "summary": "文件大小 {{size}} · 收集 {{included}} 个文件 · 未收集 {{omitted}} 个文件",
+          "title": "诊断包已导出"
+        },
+        "unknown": "未知",
+        "warning": "部分诊断信息暂时不可用，导出的诊断包可能不完整。"
+      },
       "downloading": "正在下载更新...",
       "enterprise": {
         "title": "企业版"
@@ -5959,12 +6042,16 @@
         "third_party": "第三方连接"
       },
       "export_menu": {
+        "categories": {
+          "apps": "第三方应用",
+          "copy": "复制",
+          "file": "文件导出"
+        },
         "docx": "导出为 Word",
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",
         "markdown_reason": "导出为 Markdown（包含思考）",
-        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "plain_text": "复制为纯文本",
@@ -7259,7 +7346,9 @@
       "expand_all": "全部展开",
       "filter": {
         "clear": "清除模型筛选",
-        "label": "筛选模型"
+        "label": "筛选模型",
+        "scroll_left": "向左滚动模型类型",
+        "scroll_right": "向右滚动模型类型"
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",

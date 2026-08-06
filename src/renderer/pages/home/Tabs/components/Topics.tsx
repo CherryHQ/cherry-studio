@@ -11,13 +11,16 @@ import type {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
+  buildResourceListGroupDropAnchor,
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
   RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
+  type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -31,13 +34,14 @@ import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceLi
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -55,6 +59,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,
@@ -77,7 +82,7 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, Unlink, XIcon } from 'lucide-react'
+import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,7 +121,6 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
   joplin: 'data.export.menus.joplin',
   markdown: 'data.export.menus.markdown',
   markdown_reason: 'data.export.menus.markdown_reason',
-  notes: 'data.export.menus.notes',
   notion: 'data.export.menus.notion',
   obsidian: 'data.export.menus.obsidian',
   plain_text: 'data.export.menus.plain_text',
@@ -159,6 +163,13 @@ function resolveAssistantIdForTopicGroup(
   }
 
   return assistantId
+}
+
+function getAssistantGroupIdFromTopicSectionId(sectionId: string) {
+  if (!sectionId.startsWith(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX)) return null
+
+  const groupId = sectionId.slice(TOPIC_ASSISTANT_GROUP_SECTION_PREFIX.length)
+  return groupId && groupId !== 'ungrouped' ? groupId : null
 }
 
 function AssistantGroupMoreMenu({
@@ -327,6 +338,7 @@ export function Topics({
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -738,6 +750,14 @@ export function Topics({
     if (!isRightPanel) return groupedTopics
     return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
+  // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
+  const topicGroupByForDisplay = useMemo(
+    () =>
+      displayMode === 'time'
+        ? withSoleGroupLabelHidden<Topic>(topicGroupBy, filteredTopics, { ignoreGroupIds: [TOPIC_PINNED_GROUP_ID] })
+        : topicGroupBy,
+    [displayMode, filteredTopics, topicGroupBy]
+  )
   const assistantIdsWithTopics = useMemo(() => {
     const assistantIds = new Set<string>()
 
@@ -965,7 +985,7 @@ export function Topics({
                 event.stopPropagation()
                 void onNewTopic?.({ assistantId: assistantGroupId })
               }}>
-              <SquarePen className="block" />
+              <NewConversationIcon className="block" />
             </ResourceList.GroupHeaderActionButton>
           </Tooltip>
         </>
@@ -1067,6 +1087,15 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
+  // See Sessions: assistants are entities, everything else here only gathers rows. The unlinked
+  // bucket gathers rows too, but it stands in the assistant run rather than above it, so it takes
+  // the bucket voice without the module break that would read as a section starting.
+  const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
+    if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return 'inline-bucket'
+
+    return group.id === TOPIC_PINNED_GROUP_ID || group.id.startsWith('topic:time:') ? 'bucket' : 'entity'
+  }, [])
+
   const getGroupHeaderTooltip = useCallback(
     (group: { id: string }) =>
       group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
@@ -1149,10 +1178,15 @@ export function Topics({
     (group: { id: string }) => {
       if (!isAssistantDisplayMode) return false
 
+      const assistantGroupId = getAssistantGroupIdFromTopicSectionId(group.id)
+      if (assistantGroupId) {
+        return isGroupGrouping && assistantGroupById.has(assistantGroupId)
+      }
+
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       return !!assistantId && assistantById.has(assistantId)
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const canDropTopicGroup = useCallback(
@@ -1168,6 +1202,18 @@ export function Topics({
     }) => {
       if (!isAssistantDisplayMode) return false
 
+      const activeAssistantGroupId = getAssistantGroupIdFromTopicSectionId(activeGroupId)
+      const overAssistantGroupId = getAssistantGroupIdFromTopicSectionId(overGroupId)
+      if (activeAssistantGroupId || overAssistantGroupId) {
+        return (
+          isGroupGrouping &&
+          !!activeAssistantGroupId &&
+          !!overAssistantGroupId &&
+          assistantGroupById.has(activeAssistantGroupId) &&
+          assistantGroupById.has(overAssistantGroupId)
+        )
+      }
+
       const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
       const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
 
@@ -1179,7 +1225,7 @@ export function Topics({
 
       return !isGroupGrouping || (activeAssistant.groupId ?? null) === (overAssistant.groupId ?? null)
     },
-    [assistantById, isAssistantDisplayMode, isGroupGrouping]
+    [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const handleTopicReorder = useCallback(
@@ -1187,6 +1233,30 @@ export function Topics({
       if (!isAssistantDisplayMode) return
 
       if (payload.type === 'group') {
+        const activeGroupId = getAssistantGroupIdFromTopicSectionId(payload.activeGroupId)
+        const overGroupId = getAssistantGroupIdFromTopicSectionId(payload.overGroupId)
+
+        if (activeGroupId || overGroupId) {
+          if (
+            !isGroupGrouping ||
+            !activeGroupId ||
+            !overGroupId ||
+            !assistantGroupById.has(activeGroupId) ||
+            !assistantGroupById.has(overGroupId)
+          ) {
+            return
+          }
+
+          try {
+            await reorderAssistantGroup(activeGroupId, buildResourceListGroupDropAnchor(payload, overGroupId))
+          } catch (err) {
+            logger.error('Failed to reorder assistant group section', { activeGroupId, err, overGroupId })
+            toast.error(formatErrorMessageWithPrefix(err, t('assistants.reorder.error.failed')))
+          }
+
+          return
+        }
+
         const activeAssistantId = getAssistantIdFromTopicGroupId(payload.activeGroupId)
         const overAssistantId = getAssistantIdFromTopicGroupId(payload.overGroupId)
 
@@ -1257,7 +1327,18 @@ export function Topics({
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
       }
     },
-    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
+    [
+      assistantById,
+      assistantGroupById,
+      isAssistantDisplayMode,
+      isGroupGrouping,
+      moveTopic,
+      orderedAssistants,
+      refreshAssistants,
+      reorderAssistantGroup,
+      t,
+      topics
+    ]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
@@ -1269,7 +1350,7 @@ export function Topics({
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
-        groupBy={topicGroupBy}
+        groupBy={topicGroupByForDisplay}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
@@ -1280,6 +1361,7 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
+        getGroupHeaderKind={getGroupHeaderKind}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: dragReady,
@@ -1331,7 +1413,7 @@ export function Topics({
               type="button"
               command="topic.create"
               aria-label={headerCreateLabel}
-              icon={<SquarePen />}
+              icon={<NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
@@ -1698,10 +1780,9 @@ const TopicRow = memo(function TopicRow({
         <ResourceList.ItemTitle
           title={topicName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
-            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            topic.pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
             // overlay fades out and the actions (pin + delete) take over via
@@ -1739,7 +1820,7 @@ const TopicRow = memo(function TopicRow({
                 event.stopPropagation()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={13} className={cn('size-3.25!', topic.pinned && '-rotate-45')} />
+              <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

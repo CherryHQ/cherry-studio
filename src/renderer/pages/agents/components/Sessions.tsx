@@ -9,6 +9,7 @@ import {
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
+  type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -20,6 +21,7 @@ import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceLi
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
@@ -61,6 +63,7 @@ import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
@@ -98,7 +101,7 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
+import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -113,6 +116,7 @@ import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { useOptionalAgentFileNavigation } from './AgentRightPane'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
+import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
@@ -364,7 +368,6 @@ const Sessions = ({
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
@@ -408,6 +411,7 @@ const Sessions = ({
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
@@ -462,12 +466,15 @@ const Sessions = ({
   } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
-  )
+  const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
+  const sessionItems = useMemo(() => {
+    const reconciliation = reconcileSessionListItems(sessions, pinIdBySessionId, sessionItemsReconciliationRef.current)
+    sessionItemsReconciliationRef.current = reconciliation
+    return reconciliation.items
+  }, [pinIdBySessionId, sessions])
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
+  const togglePinRef = useRef(togglePin)
   const requestFileNavigation = useOptionalAgentFileNavigation()
 
   useEffect(() => {
@@ -477,6 +484,12 @@ const Sessions = ({
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
   }, [activeSessionId])
+
+  useEffect(() => {
+    togglePinRef.current = togglePin
+  }, [togglePin])
+
+  const handleToggleSessionPin = useCallback((id: string) => togglePinRef.current(id), [])
 
   const setActiveSessionId = useCallback(
     (id: string | null) => {
@@ -646,6 +659,11 @@ const Sessions = ({
       }),
     [agentById, displayMode, groupNow, t, workdirDisplay]
   )
+  // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
+  const sessionGroupByForDisplay = useMemo(
+    () => (displayMode === 'time' ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions) : sessionGroupBy),
+    [displayMode, filteredGroupedSessions, sessionGroupBy]
+  )
   const createSessionSeedIndex = useMemo(
     () => buildCreateSessionSeedIndex(filteredGroupedSessions, (session) => sessionGroupBy(session)?.id),
     [filteredGroupedSessions, sessionGroupBy]
@@ -669,7 +687,7 @@ const Sessions = ({
       }
 
       if (displayMode === 'workdir' && isSystemWorkspaceSession(session)) {
-        return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.no_workdir') }
+        return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.tasks') }
       }
 
       return {
@@ -766,7 +784,7 @@ const Sessions = ({
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessionItems.find((candidate) => candidate.id === id)
+      const session = sessionItemsRef.current.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
@@ -783,8 +801,22 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [sessionItems, t, updateSession]
+    [t, updateSession]
   )
+  const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
+    setRenamingSessionId(session.id)
+  }, [])
+  const handleRenameSessionFromDialog = useCallback(
+    (name: string) => (renamingSessionId ? handleRenameSession(renamingSessionId, name) : undefined),
+    [handleRenameSession, renamingSessionId]
+  )
+  const renamingSession = renamingSessionId
+    ? sessionItems.find((session) => session.id === renamingSessionId)
+    : undefined
+
+  useEffect(() => {
+    if (renamingSessionId && !renamingSession) setRenamingSessionId(null)
+  }, [renamingSession, renamingSessionId])
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
@@ -1533,7 +1565,7 @@ const Sessions = ({
                   event.stopPropagation()
                   requestCreateSessionFromSeed(createSessionSeed)
                 }}>
-                <SquarePen className="block" />
+                <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )}
@@ -1582,7 +1614,7 @@ const Sessions = ({
               event.stopPropagation()
               requestCreateSessionFromSeed(createSessionSeed)
             }}>
-            <SquarePen className="block" />
+            <NewConversationIcon className="block" />
           </ResourceList.GroupHeaderActionButton>
         </Tooltip>
       )
@@ -1596,14 +1628,9 @@ const Sessions = ({
 
       if (displayMode === 'workdir') {
         if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_NO_PROJECT_GROUP_ID) return null
-        if (!context.collapsed) return <FolderOpen size={13} />
-
-        return (
-          <span className="flex size-4 items-center justify-center text-muted-foreground group-focus-within/resource-list-group:text-foreground group-hover/resource-list-group:text-foreground">
-            <Folder size={13} className="block group-hover/resource-list-group:hidden" />
-            <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
-          </span>
-        )
+        // Open vs closed is the group's state, not a hover affordance — swapping it under the pointer
+        // said "expanded" about a collapsed folder. The chevron is what answers "can I open this".
+        return context.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />
       }
 
       if (displayMode !== 'agent') return undefined
@@ -1615,6 +1642,23 @@ const Sessions = ({
     },
     [agentById, assistantIconType, defaultModelId, displayMode]
   )
+  // Which headers name a task's owner (an agent, a folder) and which merely gather rows. Declared by
+  // id rather than inferred from "does this header happen to have buttons": a group that is still
+  // loading, or one that legitimately has no actions, is not thereby a bucket.
+  // "No workdir" is a state a user picks — a task deliberately left without a directory — so it is a
+  // module of its own like any other bucket. An agent that no longer exists is not a state anyone
+  // chose: that bucket stands in the agent run and keeps its rhythm.
+  const getGroupHeaderKind = useCallback((group: ResourceListGroup): ResourceListGroupHeaderKind => {
+    if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return 'inline-bucket'
+
+    return group.id === SESSION_PINNED_GROUP_ID ||
+      group.id === SESSION_NO_PROJECT_GROUP_ID ||
+      group.id === SESSION_NO_WORKDIR_GROUP_ID ||
+      group.id.startsWith('session:time:')
+      ? 'bucket'
+      : 'entity'
+  }, [])
+
   const isGroupHeaderIconVisible = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return false
@@ -1640,17 +1684,14 @@ const Sessions = ({
     [agentById, displayMode]
   )
 
+  // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about
+  // dragging fired on every hover, covering the row next to it to say something you find by trying.
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
-      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
-      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return t('agent.session.group.unknown_agent_tip')
-
-      const agentId = getAgentIdFromSessionGroupId(group.id)
-      if (!agentId || !agentById.has(agentId)) return undefined
-
-      return t('agent.session.group.drag_hint')
+      if (displayMode !== 'agent') return undefined
+      return group.id === SESSION_UNKNOWN_AGENT_GROUP_ID ? t('agent.session.group.unknown_agent_tip') : undefined
     },
-    [agentById, displayMode, t]
+    [displayMode, t]
   )
 
   const getGroupHeaderContextMenu = useCallback(
@@ -1800,7 +1841,7 @@ const Sessions = ({
       items={visibleGroupedSessions}
       status={listStatus}
       selectedId={hasActiveCenterSurface ? null : activeSessionId}
-      groupBy={sessionGroupBy}
+      groupBy={sessionGroupByForDisplay}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
@@ -1813,6 +1854,7 @@ const Sessions = ({
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
+      getGroupHeaderKind={getGroupHeaderKind}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
         groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
@@ -1845,7 +1887,7 @@ const Sessions = ({
               command={displayMode === 'agent' ? undefined : 'topic.create'}
               aria-label={headerCreateLabel}
               disabled={headerCreateDisabled}
-              icon={displayMode === 'agent' ? <Plus /> : <SquarePen />}
+              icon={displayMode === 'agent' ? <Plus /> : <NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
@@ -1882,9 +1924,10 @@ const Sessions = ({
         onDeleteSession={handleDeleteSession}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
+        onOpenRenameDialog={handleOpenRenameSessionDialog}
         onRetry={handleRetry}
         onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
-        onTogglePin={togglePin}
+        onTogglePin={handleToggleSessionPin}
         panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
         sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
@@ -1892,6 +1935,15 @@ const Sessions = ({
       {(historyLoading || isLoadingMore || hasMore) && visibleGroupedSessions.length > 0 && (
         <div className="shrink-0 px-3 py-2 text-center text-[11px] text-foreground-tertiary">{t('common.loading')}</div>
       )}
+      <EditNameDialog
+        open={!!renamingSession}
+        title={t('agent.session.edit.title')}
+        initialName={renamingSession?.name ?? ''}
+        onSubmit={handleRenameSessionFromDialog}
+        onOpenChange={(open) => {
+          if (!open) setRenamingSessionId(null)
+        }}
+      />
       <EditNameDialog
         open={!!renamingWorkspaceGroup}
         title={t('agent.session.workdir.rename.title')}
@@ -1934,6 +1986,7 @@ interface SessionListBodyProps {
   onDeleteSession: (id: string) => Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
+  onOpenRenameDialog: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin: (id: string) => void | Promise<unknown>
@@ -1954,6 +2007,7 @@ function SessionListBody({
   onDeleteSession,
   onOpenInNewTab,
   onOpenInNewWindow,
+  onOpenRenameDialog,
   onRetry,
   onSetPanePosition,
   onTogglePin,
@@ -1971,13 +2025,16 @@ function SessionListBody({
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
+        // The slot exists to line a row up under its group's icon. A pinned row is lifted out to the
+        // pinned section, where there is no such icon above it, so it indents against nothing.
         reserveLeadingIconSlot={
-          displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
+          !session.pinned && displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
         onDelete={onDeleteSession}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
+        onOpenRenameDialog={onOpenRenameDialog}
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
         onPress={setActiveSessionId}
@@ -1991,6 +2048,7 @@ function SessionListBody({
       onDeleteSession,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onOpenRenameDialog,
       onSetPanePosition,
       onTogglePin,
       panePosition,

@@ -20,6 +20,17 @@ const flushFocusTimeout = () =>
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 
+const pastePlainText = (editor: Editor, text: string) => {
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      getData: (type: string) => (type === 'text/plain' ? text : ''),
+      items: []
+    }
+  })
+  editor.view.dom.dispatchEvent(event)
+}
+
 describe('useRichEditor autoFocus', () => {
   it('focuses the end of the document on mount by default', async () => {
     const { result } = renderHook(() => useRichEditor({ initialContent: CONTENT }))
@@ -66,5 +77,20 @@ describe('useRichEditor autoFocus', () => {
 
     expect(result.current.editor.isEditable).toBe(true)
     expect(isSelectionAtEnd(result.current.editor)).toBe(false)
+  })
+})
+
+describe('useRichEditor markdown paste', () => {
+  it('renders block markdown with carriage-return line endings pasted into an existing paragraph', async () => {
+    const { result } = renderHook(() => useRichEditor({ initialContent: 'before', autoFocus: false }))
+    await act(async () => {
+      result.current.editor.commands.setTextSelection(7)
+      pastePlainText(result.current.editor, '| a | b |\r| --- | --- |\r| 1 | 2 |\r\r```ts\rconst value = 1\r```')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const nodeTypes = result.current.editor.getJSON().content?.map((node) => node.type)
+    expect(nodeTypes).toContain('table')
+    expect(nodeTypes).toContain('codeBlock')
   })
 })

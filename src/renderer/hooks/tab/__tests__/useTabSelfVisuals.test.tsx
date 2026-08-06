@@ -25,10 +25,10 @@ vi.mock('@renderer/utils/tabIcons', () => ({
 }))
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { type TabSelfMetadata, useTabSelfMetadata } from '@renderer/hooks/tab/useTabSelfMetadata'
+import { type TabSelfVisuals, useTabSelfVisuals } from '@renderer/hooks/tab/useTabSelfVisuals'
 
-function TabMetadataWriter({ children, ...metadata }: TabSelfMetadata & { children?: ReactNode }) {
-  useTabSelfMetadata(metadata)
+function TabVisualsWriter({ children, ...visuals }: TabSelfVisuals & { children?: ReactNode }) {
+  useTabSelfVisuals(visuals)
   return <>{children}</>
 }
 
@@ -39,34 +39,32 @@ afterEach(() => {
   mocks.tabs = []
 })
 
-describe('useTabSelfMetadata', () => {
-  it('syncs tab self metadata while the tab still belongs to the instance app route', async () => {
+describe('useTabSelfVisuals', () => {
+  it('stamps the tab title and icon while the tab belongs to the app route', async () => {
     mocks.tabs = [
       {
         id: 'tab-1',
         type: 'route',
         url: '/app/chat?topicId=topic-1',
-        title: 'Old title',
-        metadata: { keep: true }
+        title: 'Old title'
       }
     ]
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
+        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
       </TabIdProvider>
     )
 
     await waitFor(() =>
       expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'Topic title',
-        icon: 'icon:spark',
-        metadata: { keep: true, instanceAppId: 'assistants', instanceKey: 'topic-1' }
+        icon: 'icon:spark'
       })
     )
   })
 
-  it('does not sync stale page metadata after the tab is retargeted to another route', async () => {
+  it('does not stamp stale page visuals after the tab is retargeted to another route', async () => {
     mocks.tabs = [
       {
         id: 'tab-1',
@@ -78,7 +76,7 @@ describe('useTabSelfMetadata', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
+        <TabVisualsWriter title="Topic title" emoji="spark" appId="assistants" />
       </TabIdProvider>
     )
 
@@ -87,29 +85,47 @@ describe('useTabSelfMetadata', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
-  it('lets page-titled routes update the fixed home tab title', async () => {
+  it('preserves the stored title and icon while the bound conversation is loading', async () => {
     mocks.tabs = [
       {
-        id: 'home',
+        id: 'tab-1',
         type: 'route',
-        url: '/app/agents',
-        title: 'Agent',
-        metadata: { keep: true }
+        url: '/app/chat?topicId=topic-1',
+        title: 'Stored topic title',
+        icon: 'icon:stored'
       }
     ]
 
     render(
-      <TabIdProvider tabId="home">
-        <TabMetadataWriter title="Session title" emoji="spark" instanceAppId="agents" instanceKey="session-1" />
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter title="Chat" appId="assistants" preserveVisuals />
       </TabIdProvider>
     )
 
-    await waitFor(() =>
-      expect(mocks.updateTab).toHaveBeenCalledWith('home', {
+    await act(async () => {})
+
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
+  it('skips the update when title and icon already match', async () => {
+    mocks.tabs = [
+      {
+        id: 'tab-1',
+        type: 'route',
+        url: '/app/agents?sessionId=session-1',
         title: 'Session title',
-        icon: 'icon:spark',
-        metadata: { keep: true, instanceAppId: 'agents', instanceKey: 'session-1' }
-      })
+        icon: 'icon:spark'
+      }
+    ]
+
+    render(
+      <TabIdProvider tabId="tab-1">
+        <TabVisualsWriter title="Session title" emoji="spark" appId="agents" />
+      </TabIdProvider>
     )
+
+    await act(async () => {})
+
+    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 })

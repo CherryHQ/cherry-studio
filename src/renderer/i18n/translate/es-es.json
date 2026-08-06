@@ -279,6 +279,16 @@
         "description": "El archivo excede el límite de vista previa de {{limit}}.",
         "title": "Archivo demasiado grande para previsualizar"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "El panel de archivos requiere una ruta local absoluta válida. Por favor, seleccione el directorio de trabajo nuevamente.",
+          "title": "Ruta de espacio de trabajo no válida"
+        },
+        "load_error": {
+          "description": "Asegúrate de que el directorio de trabajo todavía existe y es accesible, e inténtalo de nuevo.",
+          "title": "No se pudieron cargar los archivos del espacio de trabajo"
+        }
+      },
       "unavailable": {
         "description": "Este archivo no pudo abrirse; es posible que haya sido movido o eliminado.",
         "title": "Archivo no disponible"
@@ -441,7 +451,6 @@
         "collapse": "Contraer visualización",
         "collapse_all": "Contraer todo",
         "conversation": "Conversaciones",
-        "drag_hint": "Arrastra para reordenar. Arrastra las tareas para ajustar los grupos mostrados y ocultos.",
         "earlier": "Anterior",
         "expand_all": "Expandir todo",
         "no_workdir": "Sin directorio de trabajo",
@@ -758,6 +767,13 @@
         "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
       },
       "resume": "Reanudar",
+      "reuseSession": {
+        "bound": "Ver sesión",
+        "description": "Continúa cada ejecución en la misma sesión en lugar de iniciar una nueva.",
+        "label": "Reutilizar sesión",
+        "pending": "Esperando la primera ejecución",
+        "warning": "Una sesión reutilizada sigue acumulando contexto, lo que aumenta el costo de tokens con el tiempo y puede desbordar la ventana de contexto del modelo. Para vincular una sesión limpia, deshabilítela y guarde, luego habilítela y guarde."
+      },
       "run": "Ejecutar",
       "runTriggered": "Tarea activada",
       "save": "Guardar",
@@ -1419,6 +1435,11 @@
         "placeholder": "Buscar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens ahorrados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Nueva conversación"
     },
@@ -1484,6 +1505,13 @@
       },
       "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
+      "note_reference": {
+        "description": "Adjunta una nota de Notas",
+        "empty": "No se encontraron notas",
+        "load_failed": "Error al cargar notas",
+        "loading": "Cargando notas...",
+        "title": "Nota de Referencia"
+      },
       "paste_text_file": "Pegar en la entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
@@ -1614,6 +1642,10 @@
           "description": "No activar la función de búsqueda web",
           "label": "Sin búsqueda web"
         },
+        "route": {
+          "builtin": "Búsquedas con la herramienta integrada del modelo",
+          "client": "Búsquedas con {{provider}}"
+        },
         "settings": "Configuración de búsqueda en red"
       }
     },
@@ -1696,6 +1728,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Saltar al turno {{number}}"
+      },
       "bottom": "Volver abajo",
       "close": "Cerrar",
       "first": "Ya es el primer mensaje",
@@ -2483,6 +2518,7 @@
       "content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
       "context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
       "deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",
+      "free_model_unavailable": "El diagnóstico de IA no está disponible temporalmente",
       "go_to_settings": "Ir a configuración",
       "knowledge": "Error en la vectorización de la base de conocimiento",
       "mcp": "Error de conexión al servidor MCP, verifica si el servicio está en ejecución",
@@ -3165,6 +3201,7 @@
         "threshold": "Umbral de similitud para filtrar fragmentos de baja relevancia. Valores más altos hacen la recuperación más estricta."
       },
       "processor": "Proveedor de Procesamiento",
+      "processor_not_configured": "No configurado",
       "rerank_disabled": "Deshabilitado",
       "rerank_model": "Modelo de Reordenamiento",
       "reset_action": "Restablecer valores predeterminados",
@@ -3415,7 +3452,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Compresión automática",
+        "context_compress_model": "Modelo de compresión",
+        "context_compress_model_follow": "Predeterminado",
         "context_count": "Recuento de contexto",
+        "context_management": "Gestión de contexto",
+        "context_truncate_threshold": "Umbral de truncamiento de salida de herramienta (caracteres)",
         "creative": "Creativo",
         "custom_params": "Parámetros personalizados",
         "custom_params_add": "Agregar parámetro",
@@ -3427,8 +3469,17 @@
           "avatar": {
             "hint": "Utilizado para identificar al asistente en la biblioteca y en los chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automáticamente los turnos anteriores al acercarse a la ventana de contexto"
+          },
           "context_count": {
             "hint": "Número de mensajes recientes conservados como contexto"
+          },
+          "context_management": {
+            "hint": "Anular la configuración global de gestión de contexto para este asistente; desactivado hereda la configuración global"
+          },
+          "context_truncate_threshold": {
+            "hint": "Las salidas de la herramienta que superen esta cantidad de caracteres se descargan y se truncan"
           },
           "custom_params": {
             "hint": "Parámetros adicionales del proveedor enviados con las solicitudes"
@@ -3873,7 +3924,7 @@
         "title": "Confirmación de eliminación"
       },
       "failed": "Eliminación fallida",
-      "first_turn_not_supported": "El primer mensaje de usuario no se puede eliminar.",
+      "generating_unavailable": "Una respuesta de este grupo todavía se está generando y aún no se puede eliminar.",
       "root_unavailable": "Los mensajes aún se están cargando y no se pueden eliminar todavía.",
       "success": "Eliminación exitosa"
     },
@@ -3958,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Eliminar el mensaje del grupo eliminará la pregunta del usuario y todas las respuestas del asistente",
-        "title": "Eliminar mensaje del grupo"
+        "content": "¿Eliminar todas las respuestas del asistente de este grupo? La pregunta del usuario y los mensajes posteriores se conservarán.",
+        "title": "Eliminar respuestas agrupadas"
       },
       "retry_failed": "Reintentar el mensaje con error"
     },
@@ -4273,6 +4324,7 @@
       "cutoff": "Truncando el contenido de búsqueda...",
       "fetch_complete": "{{count}} resultados de búsqueda",
       "fetch_empty": "No se encontraron resultados de búsqueda",
+      "fetch_opaque": "Buscado por el modelo",
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
@@ -4372,7 +4424,8 @@
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
     "multi_select": {
-      "label": "Paralelismo multi-modelo (mutuamente excluyente con multi-asistente)"
+      "label": "Selección múltiple",
+      "tooltip": "Paralelismo multi-modelo"
     },
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
@@ -5145,6 +5198,7 @@
     "reset": "Restablecer",
     "rotate_left": "Rotar a la izquierda",
     "rotate_right": "Rotar a la derecha",
+    "save_as": "Guardar como",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
@@ -5729,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Nuevo Asistente",
+      "create_tag": "Nuevo",
       "empty_text": "Aún no hay asistentes",
       "filter": "Asistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5778,12 +5833,100 @@
         "title": "Panel de depuración"
       },
       "description": "Una asistente de IA creada para los creadores",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Descargando actualización...",
       "enterprise": {
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatea con Cherry Assistant para compartir tus comentarios.",
+          "title": "Usar Agente"
+        },
+        "agent_error": "No se puede abrir Cherry Assistant para enviar comentarios. Inténtalo de nuevo.",
         "button": "Enviar feedback",
+        "dialog": {
+          "description": "Elige cómo compartir comentarios y ayúdanos a mejorar Cherry Studio.",
+          "title": "Elige un canal de retroalimentación"
+        },
+        "github": {
+          "description": "Crea un informe de error o una solicitud de funcionalidad en GitHub.",
+          "title": "Problema de GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Comparta sus comentarios a través de nuestra encuesta de Feishu.",
+          "title": "Encuesta de retroalimentación"
+        },
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
@@ -7309,6 +7452,7 @@
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
+        "model": "Modelo de Denominación",
         "prompt": "Sugerencias para nombramiento de temas"
       },
       "translate_model": "Modelo de traducción",
@@ -8071,6 +8215,10 @@
         "check": "Comprobar",
         "check_failed": "Verificación fallida",
         "check_success": "Verificación exitosa",
+        "client_tools_preferred": {
+          "description": "Utilice los servicios de búsqueda y recuperación de URL configurados anteriormente incluso cuando el modelo tenga búsqueda integrada. Cuando está desactivado, el modelo lo gestiona.",
+          "label": "Preferir servicios de búsqueda configurados"
+        },
         "compression": {
           "cutoff": {
             "limit": {

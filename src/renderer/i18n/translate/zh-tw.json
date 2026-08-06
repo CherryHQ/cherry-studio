@@ -279,6 +279,16 @@
         "description": "檔案超過 {{limit}} 預覽限制。",
         "title": "檔案太大，無法預覽"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "檔案面板需要有效的絕對本地路徑。請重新選擇工作目錄。",
+          "title": "無效的工作區路徑"
+        },
+        "load_error": {
+          "description": "請確認工作目錄仍然存在且可存取，然後再試一次。",
+          "title": "無法載入工作區檔案"
+        }
+      },
       "unavailable": {
         "description": "無法開啟此檔案，它可能已被移動或刪除。",
         "title": "檔案不可用"
@@ -441,7 +451,6 @@
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
         "conversation": "對話",
-        "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
         "earlier": "更早",
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
@@ -758,6 +767,13 @@
         "placeholder": "此任務執行時 Agent 應該做什麼？"
       },
       "resume": "恢復",
+      "reuseSession": {
+        "bound": "檢視工作階段",
+        "description": "繼續在同個工作階段中執行，而非開始新的工作階段。",
+        "label": "重複使用工作階段",
+        "pending": "等待首次執行",
+        "warning": "重複使用的工作階段會持續累積上下文，導致 token 成本隨時間增加，並可能超出模型的上下文視窗。若要重新綁定乾淨的工作階段，請先停用並儲存，然後再啟用並儲存。"
+      },
       "run": "執行",
       "runTriggered": "任務已觸發",
       "save": "儲存",
@@ -1419,6 +1435,11 @@
         "placeholder": "搜尋"
       }
     },
+    "compaction": {
+      "compacted": "上下文已壓縮，節省約 {{count}} 個標記",
+      "compacted_plain": "上下文已壓縮",
+      "compacting": "壓縮上下文中…"
+    },
     "conversation": {
       "new": "新聊天"
     },
@@ -1484,6 +1505,13 @@
       },
       "new_session": "新工作階段 {{Command}}",
       "new_topic": "新對話 {{Command}}",
+      "note_reference": {
+        "description": "從「備忘錄」附加備忘錄",
+        "empty": "未找到筆記",
+        "load_failed": "無法載入筆記",
+        "loading": "載入筆記中...",
+        "title": "參考註釋"
+      },
       "paste_text_file": "貼到輸入框",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
@@ -1614,6 +1642,10 @@
           "description": "關閉網路搜尋",
           "label": "關閉網路搜尋"
         },
+        "route": {
+          "builtin": "使用模型內建工具進行搜尋",
+          "client": "使用 {{provider}} 搜尋"
+        },
         "settings": "網路搜尋設定"
       }
     },
@@ -1696,6 +1728,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳至第 {{number}} 回合"
+      },
       "bottom": "回到底端",
       "close": "關閉",
       "first": "已經是第一條訊息",
@@ -2483,6 +2518,7 @@
       "content": "訊息內容被安全系統攔截，請修改後重試",
       "context_length": "對話內容過長，請清除歷史記錄或開啟新對話",
       "deprecated": "此模型已停用，請切換至其他模型",
+      "free_model_unavailable": "AI診斷暫時無法使用",
       "go_to_settings": "前往設定",
       "knowledge": "知識庫向量化失敗",
       "mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
@@ -3165,6 +3201,7 @@
         "threshold": "用於過濾低相關性重排片段的相似度閾值，數值越高召回越嚴格。"
       },
       "processor": "处理服务商",
+      "processor_not_configured": "未配置",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢復預設",
@@ -3415,7 +3452,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自動壓縮",
+        "context_compress_model": "壓縮模型",
+        "context_compress_model_follow": "預設",
         "context_count": "情境計數",
+        "context_management": "情境管理",
+        "context_truncate_threshold": "工具輸出截斷閾值（字元）",
         "creative": "創意",
         "custom_params": "自訂參數",
         "custom_params_add": "新增參數",
@@ -3427,8 +3469,17 @@
           "avatar": {
             "hint": "用於在圖書館和聊天中識別助理"
           },
+          "context_compress_enabled": {
+            "hint": "當接近上下文視窗限制時自動摘要較早的對話內容"
+          },
           "context_count": {
             "hint": "保留作為上下文之近期訊息數量"
+          },
+          "context_management": {
+            "hint": "覆寫此助理的全域情境管理設定；off 會繼承全域設定"
+          },
+          "context_truncate_threshold": {
+            "hint": "工具輸出超過此字元數將被卸載並截斷"
           },
           "custom_params": {
             "hint": "與請求一同發送的額外提供者參數"
@@ -3873,7 +3924,7 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
-      "first_turn_not_supported": "第一個用戶訊息無法刪除。",
+      "generating_unavailable": "該分組中仍有回答正在生成，暫時無法刪除。",
       "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },
@@ -3958,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
-        "title": "刪除分組訊息"
+        "content": "是否刪除該分組中的所有助手回答？使用者提問和後續訊息將保留。",
+        "title": "刪除分組回答"
       },
       "retry_failed": "重試出錯的訊息"
     },
@@ -4273,6 +4324,7 @@
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
       "fetch_empty": "找不到搜尋結果",
+      "fetch_opaque": "由模型搜尋",
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
@@ -4372,7 +4424,8 @@
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
-      "label": "多模型同時回答"
+      "label": "多重選擇",
+      "tooltip": "多模型同時回答"
     },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
@@ -5145,6 +5198,7 @@
     "reset": "重設",
     "rotate_left": "向左旋轉",
     "rotate_right": "向右旋轉",
+    "save_as": "另存為",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
@@ -5729,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "新建助手",
+      "create_tag": "新",
       "empty_text": "暫無助手",
       "filter": "篩選助手",
       "group_filter": "按群組篩選",
@@ -5778,12 +5833,100 @@
         "title": "除錯面板"
       },
       "description": "一款為創作者而生的強大 AI 助手",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "正在下載...",
       "enterprise": {
         "title": "企業版"
       },
       "feedback": {
+        "agent": {
+          "description": "與 Cherry Assistant 聊天以分享回饋。",
+          "title": "使用代理"
+        },
+        "agent_error": "無法開啟 Cherry Assistant 以提供意見回饋。請再試一次。",
         "button": "回饋",
+        "dialog": {
+          "description": "選擇分享回饋的方式，幫助我們讓 Cherry Studio 變得更好。",
+          "title": "選擇回饋管道"
+        },
+        "github": {
+          "description": "在 GitHub 上建立錯誤回報或功能請求。",
+          "title": "GitHub 問題"
+        },
+        "recommended": "推薦",
+        "survey": {
+          "description": "透過我們的飛書問卷分享回饋。",
+          "title": "意見調查"
+        },
         "title": "回饋"
       },
       "label": "關於與回饋",
@@ -7309,6 +7452,7 @@
       "topic_naming": {
         "auto": "對話自動重新命名",
         "label": "對話命名",
+        "model": "命名模型",
         "prompt": "對話命名提示詞"
       },
       "translate_model": "翻譯模型",
@@ -8071,6 +8215,10 @@
         "check": "檢查",
         "check_failed": "驗證失敗",
         "check_success": "驗證成功",
+        "client_tools_preferred": {
+          "description": "即使模型內建搜尋功能，仍使用上方設定的搜尋與網址擷取服務。關閉時，則由模型自行處理。",
+          "label": "偏好已設定的搜尋服務"
+        },
         "compression": {
           "cutoff": {
             "limit": {

@@ -111,12 +111,17 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
+  if (toolPartWasProviderExecuted(part)) return 'provider'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
   if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'
   return 'builtin'
+}
+
+function toolPartWasProviderExecuted(part: ToolResponsePart): boolean {
+  return 'providerExecuted' in part && part.providerExecuted === true
 }
 
 function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpTool {

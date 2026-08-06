@@ -279,6 +279,16 @@
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "Invalid workspace path"
+        },
+        "load_error": {
+          "description": "Make sure the work directory still exists and is accessible, then try again.",
+          "title": "Couldn't load workspace files"
+        }
+      },
       "unavailable": {
         "description": "This file couldn't be opened — it may have been moved or deleted.",
         "title": "File unavailable"
@@ -438,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
-        "show_more": "Expand display",
+        "show_more": "Show more",
+        "tasks": "Tasks",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unlinked Agent",
@@ -1926,7 +1936,7 @@
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
-          "label": "Export as markdown",
+          "label": "Export as Markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notes": "Export to Notes",
@@ -1971,11 +1981,11 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "show_more": "Expand display",
+        "show_more": "Show more",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
@@ -2509,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "AI diagnosis is temporarily unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",
@@ -3914,7 +3925,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
-      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
@@ -3999,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
+        "title": "Delete Group Replies"
       },
       "retry_failed": "Retry failed messages"
     },
@@ -4414,7 +4425,8 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model simultaneous responses"
+      "label": "Multi-select",
+      "tooltip": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -5772,6 +5784,7 @@
     },
     "assistant": {
       "create_new": "New Assistant",
+      "create_tag": "New",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
       "group_filter": "Filter by group",
@@ -5821,6 +5834,76 @@
         "title": "Debug"
       },
       "description": "A powerful AI assistant for producer",
+      "diagnostics": {
+        "actions": {
+          "cancel": "Cancel",
+          "close": "Close",
+          "contact": "Email support",
+          "copy_email": "Copy support email",
+          "export": "Export",
+          "exporting": "Exporting...",
+          "reveal": "Open file location"
+        },
+        "dialog": {
+          "description": "Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "Export",
+          "title": "Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "Another diagnostic bundle is already being exported",
+          "copy_failed": "Could not copy the support email",
+          "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "Could not open an email client. You can copy the support email instead.",
+          "export_failed": "Could not export the diagnostic bundle",
+          "inspect_failed": "Could not check what is available to export. Try again later.",
+          "reveal_failed": "Could not open the file location"
+        },
+        "inspecting": "Preparing the available information...",
+        "limit": "To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "I understand the information above and will share the ZIP only privately with support.",
+          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "Before you share"
+        },
+        "range_title": "Time range",
+        "ranges": {
+          "24h": "Last 24 hours",
+          "3d": "Last 3 days",
+          "7d": "Last 7 days"
+        },
+        "sources": {
+          "inspecting": "Checking what is available...",
+          "logs": {
+            "title": "App logs"
+          },
+          "summary": "{{count}} files, about {{size}}",
+          "summary_one": "{{count}} file, about {{size}}",
+          "summary_other": "{{count}} files, about {{size}}",
+          "system": {
+            "description": "Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "App and device information"
+          },
+          "traces": {
+            "title": "Detailed activity records"
+          },
+          "unavailable": "Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "Support email copied",
+          "local_only": "The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "Diagnostic bundle exported"
+        },
+        "unknown": "Unknown",
+        "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Downloading...",
       "enterprise": {
         "title": "Enterprise"
@@ -5959,12 +6042,16 @@
         "third_party": "Third-party Connections"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Third-party Apps",
+          "copy": "Copy",
+          "file": "File Export"
+        },
         "docx": "Export as Word",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -7259,7 +7346,9 @@
       "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
-        "label": "Filter models"
+        "label": "Filter models",
+        "scroll_left": "Scroll model types left",
+        "scroll_right": "Scroll model types right"
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",

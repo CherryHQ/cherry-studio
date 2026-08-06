@@ -279,6 +279,16 @@
         "description": "Datei überschreitet das {{limit}}-Vorschau-Limit.",
         "title": "Datei zu groß zur Vorschau"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Das Dateipanel erfordert einen gültigen absoluten lokalen Pfad. Bitte wählen Sie das Arbeitsverzeichnis erneut aus.",
+          "title": "Ungültiger Arbeitsbereich-Pfad"
+        },
+        "load_error": {
+          "description": "Stellen Sie sicher, dass das Arbeitsverzeichnis noch existiert und zugänglich ist, und versuchen Sie es dann erneut.",
+          "title": "Arbeitsbereichdateien konnten nicht geladen werden"
+        }
+      },
       "unavailable": {
         "description": "Diese Datei konnte nicht geöffnet werden – sie wurde möglicherweise verschoben oder gelöscht.",
         "title": "Datei nicht verfügbar"
@@ -441,7 +451,6 @@
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
-        "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
         "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
@@ -758,6 +767,13 @@
         "placeholder": "Was soll der Agent tun, wenn diese Aufgabe ausgeführt wird?"
       },
       "resume": "Fortsetzen",
+      "reuseSession": {
+        "bound": "Sitzung anzeigen",
+        "description": "Führen Sie jede Ausführung in derselben Sitzung fort, anstatt eine neue zu starten.",
+        "label": "Sitzung wiederverwenden",
+        "pending": "Warten auf den ersten Lauf",
+        "warning": "Eine wiederverwendete Sitzung sammelt kontinuierlich Kontext an, was die Token-Kosten im Laufe der Zeit erhöht und das Kontextfenster des Modells überlaufen lassen kann. Um eine saubere Sitzung neu zu binden, deaktivieren und speichern Sie, dann aktivieren und speichern Sie erneut."
+      },
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
@@ -1419,6 +1435,11 @@
         "placeholder": "Suchen"
       }
     },
+    "compaction": {
+      "compacted": "Kontext komprimiert, ~{{count}} Token gespart",
+      "compacted_plain": "Kontext komprimiert",
+      "compacting": "Kontext wird komprimiert…"
+    },
     "conversation": {
       "new": "Neuer Chat"
     },
@@ -1484,6 +1505,13 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
+      "note_reference": {
+        "description": "Eine Notiz aus Notizen anhängen",
+        "empty": "Keine Notizen gefunden",
+        "load_failed": "Notizen konnten nicht geladen werden",
+        "loading": "Notizen werden geladen...",
+        "title": "Referenzhinweis"
+      },
       "paste_text_file": "In die Eingabe einfügen",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1614,6 +1642,10 @@
           "description": "Websuchfunktion nicht aktivieren",
           "label": "Keine Websuche"
         },
+        "route": {
+          "builtin": "Suchen mit dem integrierten Tool des Modells",
+          "client": "Suchen mit {{provider}}"
+        },
         "settings": "Websuch-Einstellungen"
       }
     },
@@ -1696,6 +1728,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Springe zu Zug {{number}}"
+      },
       "bottom": "Zum Boden scrollen",
       "close": "Schließen",
       "first": "Bereits die erste Nachricht",
@@ -2483,6 +2518,7 @@
       "content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
       "context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
       "deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
+      "free_model_unavailable": "Die KI-Diagnose ist vorübergehend nicht verfügbar.",
       "go_to_settings": "Zu Einstellungen",
       "knowledge": "Vektorisierung der Wissensdatenbank fehlgeschlagen",
       "mcp": "Verbindung zum MCP-Server fehlgeschlagen, prüfen Sie ob der Dienst läuft",
@@ -3165,6 +3201,7 @@
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
       "processor": "Verarbeitungsanbieter",
+      "processor_not_configured": "Nicht konfiguriert",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -3415,7 +3452,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Automatische Komprimierung",
+        "context_compress_model": "Komprimierungsmodell",
+        "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_management": "Kontextverwaltung",
+        "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
         "custom_params": "Benutzerdefinierte Parameter",
         "custom_params_add": "Parameter hinzufügen",
@@ -3427,8 +3469,17 @@
           "avatar": {
             "hint": "Wird verwendet, um den Assistenten in der Bibliothek und in Chats zu identifizieren"
           },
+          "context_compress_enabled": {
+            "hint": "Ältere Gesprächswendungen automatisch zusammenfassen, wenn sich das Kontextfenster füllt"
+          },
           "context_count": {
             "hint": "Anzahl der kürzlichen Nachrichten, die als Kontext beibehalten werden"
+          },
+          "context_management": {
+            "hint": "Globale Kontextverwaltungseinstellungen für diesen Assistenten überschreiben; aus übernimmt die globalen Einstellungen"
+          },
+          "context_truncate_threshold": {
+            "hint": "Tool-Ausgaben, die diese Zeichenanzahl überschreiten, werden ausgelagert und abgeschnitten"
           },
           "custom_params": {
             "hint": "Zusätzliche Provider-Parameter, die mit Anfragen gesendet werden"
@@ -3873,7 +3924,7 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
-      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "generating_unavailable": "Eine Antwort in dieser Gruppe wird noch generiert und kann noch nicht gelöscht werden.",
       "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
@@ -3958,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Das Löschen einer Gruppennachricht löscht die Benutzerfrage und alle Antworten der Assistenten",
-        "title": "Gruppennachricht löschen"
+        "content": "Alle Assistentenantworten in dieser Gruppe löschen? Die Benutzerfrage und nachfolgenden Nachrichten bleiben erhalten.",
+        "title": "Gruppenantworten löschen"
       },
       "retry_failed": "Fehlgeschlagene Nachricht wiederholen"
     },
@@ -4273,6 +4324,7 @@
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
       "fetch_empty": "Keine Suchergebnisse gefunden",
+      "fetch_opaque": "Vom Modell durchsucht",
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
@@ -4372,7 +4424,8 @@
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
-      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
+      "label": "Mehrfachauswahl",
+      "tooltip": "Multi-Modell-Parallelität"
     },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
@@ -5145,6 +5198,7 @@
     "reset": "Zurücksetzen",
     "rotate_left": "Nach links drehen",
     "rotate_right": "Nach rechts drehen",
+    "save_as": "Speichern unter",
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
@@ -5729,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Neuer Assistent",
+      "create_tag": "Neu",
       "empty_text": "Noch keine Assistenten",
       "filter": "Filter-Assistenten",
       "group_filter": "Nach Gruppe filtern",
@@ -5778,12 +5833,100 @@
         "title": "Debug-Panel"
       },
       "description": "Ein KI-Assistent für Kreative",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Update wird heruntergeladen...",
       "enterprise": {
         "title": "Unternehmen"
       },
       "feedback": {
+        "agent": {
+          "description": "Chatte mit dem Cherry Assistant, um Feedback zu teilen.",
+          "title": "Verwenden Sie Agent"
+        },
+        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
+          "title": "Wählen Sie einen Feedback-Kanal"
+        },
+        "github": {
+          "description": "Erstelle einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Empfohlen",
+        "survey": {
+          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
+          "title": "Feedback-Umfrage"
+        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -7309,6 +7452,7 @@
       "topic_naming": {
         "auto": "Thema automatisch umbenennen",
         "label": "Thema-Benennung",
+        "model": "Namensmodell",
         "prompt": "Thema-Benennung-Prompt"
       },
       "translate_model": "Übersetzungsmodell",
@@ -8071,6 +8215,10 @@
         "check": "Erkennen",
         "check_failed": "Erkennung fehlgeschlagen",
         "check_success": "Erkennung erfolgreich",
+        "client_tools_preferred": {
+          "description": "Verwenden Sie die oben konfigurierten Such- und URL-Abrufdienste auch dann, wenn das Modell eine integrierte Suche hat. Wenn ausgeschaltet, übernimmt das Modell die Verarbeitung.",
+          "label": "Konfigurierte Suchdienste bevorzugen"
+        },
         "compression": {
           "cutoff": {
             "limit": {

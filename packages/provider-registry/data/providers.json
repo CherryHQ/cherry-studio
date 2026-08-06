@@ -18,6 +18,10 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
         }
       },
       "id": "cherryin",
@@ -312,7 +316,14 @@
           "official": "https://deepseek.com/"
         }
       },
-      "name": "deepseek"
+      "name": "deepseek",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -541,7 +552,7 @@
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "openrouter",
+          "adapterFamily": "anthropic",
           "baseUrl": "https://openrouter.ai/api"
         },
         "openai-chat-completions": {
@@ -609,6 +620,10 @@
       "serverTools": [
         {
           "id": "web-search",
+          "modelScope": "all-chat-models"
+        },
+        {
+          "id": "url-context",
           "modelScope": "all-chat-models"
         }
       ]
@@ -860,6 +875,13 @@
           },
           "reasoningFormat": {
             "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "reasoningFormat": {
+            "type": "openai-responses"
           }
         }
       },
@@ -1134,6 +1156,10 @@
       "serverTools": [
         {
           "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
           "modelScope": "model-dependent"
         }
       ]
@@ -2048,5 +2074,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "bba2c6cc60c9ccbf"
+  "version": "7e60b48af9eec108"
 }
