@@ -332,7 +332,9 @@ async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
     { item: 'webview_websql', path: path.join(paths.webviewSession, 'databases') }
   )
 
-  return toSizeSnapshot(await measurePaths(targets), 'estimated')
+  const measurement = await measurePaths(targets)
+  measurement.issues.push(issue('html_artifact_preview_site_data', 'inspection_failed'))
+  return toSizeSnapshot(measurement, 'estimated')
 }
 
 async function collectOrphanKnowledgeTargets(): Promise<{
@@ -908,7 +910,9 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   ])
 
   if (fileReport.outcome === 'completed') {
-    steps.push({ state: fileReport.actualDeleteCount > 0 ? 'cleared' : 'not_found' })
+    if (fileReport.actualDeleteCount > 0) steps.push({ state: 'cleared' })
+    if (fileReport.statFailedCount > 0) steps.push({ state: 'failed' })
+    else if (fileReport.actualDeleteCount === 0) steps.push({ state: 'not_found' })
   } else if (fileReport.outcome === 'partial') {
     if (fileReport.actualDeleteCount > 0) steps.push({ state: 'cleared' })
     steps.push({ state: 'failed' })

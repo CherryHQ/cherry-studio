@@ -170,6 +170,21 @@ describe('CacheCleanupService', () => {
     })
   })
 
+  it('reports site-data inspection as partial when the preview partition cannot be measured', async () => {
+    await writeTestFile(rootPath('Session', 'Partitions', 'webview', 'Local Storage', 'data.bin'), Buffer.alloc(17))
+
+    const result = await cacheCleanupService.inspect(['site_data'])
+
+    expect(result.results[0]).toMatchObject({
+      group: 'site_data',
+      size: {
+        bytes: 17,
+        accuracy: 'estimated',
+        completeness: 'partial'
+      }
+    })
+  })
+
   it('clears both the active and legacy trace directories', async () => {
     const legacyTracePath = rootPath('Home', 'trace')
     await writeTestFile(path.join(tracePath, 'active-trace'), 'active')
@@ -253,6 +268,27 @@ describe('CacheCleanupService', () => {
 
     expect(cleanup.results[0]?.status).toBe('not_found')
     await expectExisting(freshBasePath)
+  })
+
+  it('reports orphan-file stat failures instead of successful cleanup', async () => {
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      statFailedCount: 1
+    })
+
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(cleanup.results[0]?.status).toBe('failed')
+
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      actualDeleteCount: 1,
+      statFailedCount: 1
+    })
+
+    const partialCleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(partialCleanup.results[0]?.status).toBe('partial')
   })
 
   it('rechecks knowledge base ownership immediately before deleting an old orphan directory', async () => {
