@@ -707,7 +707,8 @@
         "qwen-code",
         "kimi-code",
         "qoder-cli",
-        "github-copilot-cli"
+        "github-copilot-cli",
+        "pi"
       ]
     }
   }
