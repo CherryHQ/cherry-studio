@@ -530,13 +530,18 @@ export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
 
 export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
 
+export const TO_MARKDOWN_SUPPORTED_EXTENSIONS =
+  '.doc, .docx, .docm, .ppt, .pps, .pot, .pptx, .pptm, .ppsx, .ppsm, .xls, .xlsx, .xlsm, .xlsb, .odt, .ods, .odp, .rtf, .epub, .csv, .pdf'
+
 export const toMarkdownInputSchema = z.object({
   path: z
     .string()
     .trim()
     .min(1)
     .max(4096)
-    .describe('Path to a document inside the session workspace, relative to the workspace or absolute within it.')
+    .describe(
+      `Required source path inside the session workspace, relative or absolute within it. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+    )
 })
 
 export const toMarkdownOutputSchema = z.object({
@@ -545,9 +550,11 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert a document in the session workspace to Markdown using Cherry Studio’s bundled converter. ' +
-  'The full Markdown is written to an agent-private temporary file instead of being returned in the tool result; ' +
-  'read the returned path in slices as needed. Supports office documents, spreadsheets, presentations, ebooks, CSV, and PDFs.'
+  'Convert one supported document in the session workspace to Markdown. ' +
+  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
+  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
+  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
+  'file instead of being returned; read the returned path in slices as needed.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>

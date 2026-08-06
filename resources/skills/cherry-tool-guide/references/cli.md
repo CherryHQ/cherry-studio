@@ -77,10 +77,24 @@ absolute path and character count — it deliberately does not inject the whole 
 into context. Read the returned file in slices, search it, or copy it to a user-requested
 final path with the ordinary file tools.
 
-Supported inputs include Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF
-files. Resolve ambiguous filenames before calling. The source must be a regular file
-inside the session workspace; paths that escape through `..` or symlinks are rejected.
-Temporary conversions older than 24 hours are removed when the tool runs again.
+The supported extensions are:
+
+| Family | Extensions |
+| --- | --- |
+| Word | `.doc`, `.docx`, `.docm` |
+| PowerPoint | `.ppt`, `.pps`, `.pot`, `.pptx`, `.pptm`, `.ppsx`, `.ppsm` |
+| Excel | `.xls`, `.xlsx`, `.xlsm`, `.xlsb` |
+| OpenDocument | `.odt`, `.ods`, `.odp` |
+| Other | `.rtf`, `.epub`, `.csv`, `.pdf` |
+
+The tool currently accepts one required argument: `path`, a workspace-relative path or
+an absolute path inside the workspace. It does not accept an output path, format
+override, page range, password, or OCR option. The converter detects recognizable
+formats from file contents and falls back to the extension; CSV has no signature, so it
+must use the `.csv` extension. Resolve ambiguous filenames before calling. The source
+must be a regular file inside the session workspace; paths that escape through `..` or
+symlinks are rejected. Temporary conversions older than 24 hours are removed when the
+tool runs again.
 
 If conversion fails or produces no text, report the error rather than retrying through
 `npm`, `bun x`, `npx`, direct `mise`, a remote installer, or a manually downloaded
