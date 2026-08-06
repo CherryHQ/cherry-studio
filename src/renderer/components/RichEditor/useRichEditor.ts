@@ -302,7 +302,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
-          const hasMultipleLines = text.includes('\n')
+          const hasMultipleLines = /[\r\n]/.test(text)
 
           if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
             // Inline paste inside a non-empty block: parse the markdown so markers like **bold** /

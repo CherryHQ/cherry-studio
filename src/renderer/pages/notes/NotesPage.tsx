@@ -403,7 +403,7 @@ const NotesPage: FC = () => {
 
   useEffect(() => {
     const editor = editorRef.current
-    if (!editor || !currentContent) return
+    if (!editor) return
     // 获取编辑器当前内容
     const editorMarkdown = editor.getMarkdown()
 
