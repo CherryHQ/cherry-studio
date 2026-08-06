@@ -31,12 +31,17 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
-  createAgent: (...args: unknown[]) => mockCreateAgent(...args)
+  createAgent: (...args: unknown[]) => mockCreateAgent(...args),
+  definePlugin: (plugin: unknown) => plugin
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: () => fakeProvider,
+    resolveApiKey: () => ({
+      value: 'test-key',
+      apiKeySelection: { attribution: 'unknown' }
+    }),
     getRotatedApiKey: () => 'test-key'
   }
 }))
