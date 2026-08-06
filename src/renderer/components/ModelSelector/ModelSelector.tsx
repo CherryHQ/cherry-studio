@@ -828,6 +828,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         ? {
             label: t('models.multi_select.label'),
             ariaLabel: t('models.multi_select.label'),
+            tooltip: t('models.multi_select.tooltip'),
             checked: multiSelectMode,
             placement: 'search-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,
