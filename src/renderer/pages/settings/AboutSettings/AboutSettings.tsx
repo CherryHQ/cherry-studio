@@ -46,8 +46,8 @@ import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import DiagnosticBundleDialog from './AboutSettings/DiagnosticBundleDialog'
-import { FeedbackDialog } from './FeedbackDialog'
+import { FeedbackDialog } from '../FeedbackDialog'
+import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')

@@ -20,6 +20,7 @@ import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
+import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
 import {
@@ -214,9 +215,14 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
 }
 
 export class DiagnosticBundleService {
+  private readonly inspectionMutex = new Mutex()
   private inFlightExport: Promise<ExportResult> | null = null
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
+    return this.inspectionMutex.runExclusive(() => this.performInspection(rangeName))
+  }
+
+  private async performInspection(rangeName: DiagnosticRange): Promise<InspectResult> {
     const range = toTimeRange(rangeName, Date.now())
     const collection = await collectDiagnosticSources(range, { includeLogs: true, includeTraces: true })
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)

@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -53,7 +54,7 @@ vi.mock('../../FeedbackDialog', () => ({
   FeedbackDialog: () => null
 }))
 
-import AboutSettings from '../../AboutSettings'
+import { AboutSettings } from '..'
 
 describe('AboutSettings diagnostics entry', () => {
   beforeEach(() => {
@@ -65,6 +66,7 @@ describe('AboutSettings diagnostics entry', () => {
   })
 
   it('places diagnostics next to the debug panel and opens the export dialog', async () => {
+    const user = userEvent.setup()
     render(<AboutSettings />)
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('app.get_info'))
 
@@ -73,7 +75,7 @@ describe('AboutSettings diagnostics entry', () => {
     const buttons = screen.getAllByRole('button')
     expect(buttons.indexOf(debug)).toBe(buttons.indexOf(diagnostics) + 1)
 
-    fireEvent.click(diagnostics)
+    await user.click(diagnostics)
     expect(screen.getByText('diagnostic-dialog-open')).toBeInTheDocument()
   })
 })

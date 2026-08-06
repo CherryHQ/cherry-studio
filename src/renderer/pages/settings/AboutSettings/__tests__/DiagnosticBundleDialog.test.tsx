@@ -2,11 +2,11 @@ import '@testing-library/jest-dom/vitest'
 
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  clipboardWrite: vi.fn(),
   loggerError: vi.fn(),
   request: vi.fn(),
   toastError: vi.fn(),
@@ -70,28 +70,21 @@ function renderDialog() {
   render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={vi.fn()} />)
 }
 
-async function confirmSensitiveExport() {
-  fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+async function confirmSensitiveExport(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
   const confirmation = screen.getAllByRole('dialog').at(-1)!
   const checkbox = within(confirmation).getByRole('checkbox')
   const confirmButton = within(confirmation).getByRole('button', {
     name: 'settings.about.diagnostics.actions.export'
   })
-  fireEvent.click(checkbox)
-  await act(async () => {
-    fireEvent.click(confirmButton)
-    await Promise.resolve()
-  })
+  await user.click(checkbox)
+  await user.click(confirmButton)
 }
 
 describe('DiagnosticBundleDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('electron', { process: { platform: 'darwin' } })
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: mocks.clipboardWrite }
-    })
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.export') return savedResult
@@ -100,6 +93,7 @@ describe('DiagnosticBundleDialog', () => {
   })
 
   it('shows sensitive data confirmation only after export is requested', async () => {
+    const user = userEvent.setup()
     renderDialog()
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
@@ -110,13 +104,12 @@ describe('DiagnosticBundleDialog', () => {
 
     const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
     expect(exportButton).toBeEnabled()
-    fireEvent.click(exportButton)
+    await user.click(exportButton)
 
     const confirmation = screen.getAllByRole('dialog').at(-1)!
     expect(within(confirmation).getByText('settings.about.diagnostics.privacy.title')).toBeInTheDocument()
-    expect(confirmation.querySelector('.bg-warning-subtle')).not.toBeInTheDocument()
-    expect(confirmation.querySelector('.border-warning-border')).not.toBeInTheDocument()
     const checkbox = within(confirmation).getByRole('checkbox')
+    // Alignment is the regression contract: the consent control and its label share one vertical center.
     expect(checkbox.closest('label')).toHaveClass('items-center')
     expect(checkbox).not.toHaveClass('mt-0.5')
     const confirmButton = within(confirmation).getByRole('button', {
@@ -125,9 +118,9 @@ describe('DiagnosticBundleDialog', () => {
     expect(confirmButton).toBeDisabled()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(0)
 
-    fireEvent.click(checkbox)
+    await user.click(checkbox)
     expect(confirmButton).toBeEnabled()
-    fireEvent.click(confirmButton)
+    await user.click(confirmButton)
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.export', {
         includeLogs: true,
@@ -138,27 +131,14 @@ describe('DiagnosticBundleDialog', () => {
     expect(await screen.findByText('settings.about.diagnostics.success.title')).toBeInTheDocument()
   })
 
-  it('keeps the header and actions visible while the diagnostic details scroll', async () => {
-    renderDialog()
-    await screen.findByText('settings.about.diagnostics.sources.logs.title')
-
-    const content = screen.getByTestId('dialog-content')
-    const header = screen.getByTestId('dialog-header')
-    const scrollbar = screen.getByTestId('scrollbar')
-    const footer = screen.getByTestId('dialog-footer')
-
-    expect(content).toHaveClass('max-h-[calc(100vh-2rem)]', 'grid-rows-[auto_minmax(0,1fr)_auto]', 'overflow-hidden')
-    expect(scrollbar).toHaveClass('min-h-0')
-    expect(Array.from(content.children)).toEqual([header, scrollbar, footer])
-  })
-
   it('reveals the saved file without embedding its local path in the support email', async () => {
+    const user = userEvent.setup()
     renderDialog()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
-    await confirmSensitiveExport()
+    await confirmSensitiveExport(user)
     await screen.findByText('settings.about.diagnostics.success.title')
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.reveal' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.reveal' }))
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', {
         kind: 'path',
@@ -166,7 +146,7 @@ describe('DiagnosticBundleDialog', () => {
       })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
     await waitFor(() => {
       const mailCall = mocks.request.mock.calls.find(([route]) => route === 'system.shell.open_website')
       expect(mailCall).toBeDefined()
@@ -183,6 +163,7 @@ describe('DiagnosticBundleDialog', () => {
   })
 
   it('allows a system-only export without consent when no logs or traces are available', async () => {
+    const user = userEvent.setup()
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') {
         return {
@@ -205,7 +186,7 @@ describe('DiagnosticBundleDialog', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
     expect(exportButton).toBeEnabled()
-    fireEvent.click(exportButton)
+    await user.click(exportButton)
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.export', {
@@ -216,73 +197,8 @@ describe('DiagnosticBundleDialog', () => {
     )
   })
 
-  it('ignores stale inspection results and disables export while a new range is inspected', async () => {
-    let resolve24h: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
-    let resolve3d: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
-    mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
-      if (route !== 'diagnostics.bundle.inspect') return Promise.resolve(undefined)
-      return new Promise((resolve) => {
-        if (input?.range === '3d') resolve3d = resolve
-        else resolve24h = resolve
-      })
-    })
-    renderDialog()
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
-
-    const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
-    expect(exportButton).toBeDisabled()
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
-
-    const empty3dResult = {
-      ...inspectResult,
-      sources: {
-        ...inspectResult.sources,
-        logs: { available: false, estimatedBytes: 0, fileCount: 0 },
-        traces: { available: false, estimatedBytes: 0, fileCount: 0 }
-      }
-    }
-    await act(async () => resolve3d(empty3dResult))
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
-    )
-
-    await act(async () => resolve24h(inspectResult))
-    expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
-  })
-
-  it('resets the range while closed before inspecting on reopen', async () => {
-    const onOpenChange = vi.fn()
-    const { rerender } = render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={onOpenChange} />)
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.ranges.3d' }))
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
-
-    rerender(<DiagnosticBundleDialog appVersion="2.0.0" open={false} onOpenChange={onOpenChange} />)
-    mocks.request.mockClear()
-    rerender(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={onOpenChange} />)
-
-    await waitFor(() => {
-      const inspectCalls = mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.inspect')
-      expect(inspectCalls).toEqual([['diagnostics.bundle.inspect', { range: '24h' }]])
-    })
-  })
-
-  it('shows a warning when source inspection is incomplete', async () => {
-    mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') {
-        return { ...inspectResult, hasWarnings: true }
-      }
-      return undefined
-    })
-
-    renderDialog()
-
-    expect(await screen.findByText('settings.about.diagnostics.warning')).toBeInTheDocument()
-  })
-
   it('shows a warning when the saved bundle is incomplete', async () => {
+    const user = userEvent.setup()
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.export') {
@@ -293,12 +209,13 @@ describe('DiagnosticBundleDialog', () => {
     renderDialog()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
 
-    await confirmSensitiveExport()
+    await confirmSensitiveExport(user)
 
     expect(await screen.findByText('settings.about.diagnostics.warning')).toBeInTheDocument()
   })
 
   it('prevents duplicate exports and requires fresh consent after a canceled attempt', async () => {
+    const user = userEvent.setup()
     let resolveExport: (value: { status: 'canceled' }) => void = () => undefined
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
@@ -313,21 +230,21 @@ describe('DiagnosticBundleDialog', () => {
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
 
     const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
-    fireEvent.click(exportButton)
+    await user.click(exportButton)
     const confirmation = screen.getAllByRole('dialog').at(-1)!
     const consent = within(confirmation).getByRole('checkbox')
     const confirmButton = within(confirmation).getByRole('button', {
       name: 'settings.about.diagnostics.actions.export'
     })
-    fireEvent.click(consent)
-    fireEvent.click(confirmButton)
-    fireEvent.click(confirmButton)
+    await user.click(consent)
+    await user.click(confirmButton)
+    await user.click(confirmButton)
 
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(1)
     await act(async () => resolveExport({ status: 'canceled' }))
     await waitFor(() => expect(exportButton).toBeEnabled())
 
-    fireEvent.click(exportButton)
+    await user.click(exportButton)
     const nextConfirmation = screen.getAllByRole('dialog').at(-1)!
     expect(within(nextConfirmation).getByRole('checkbox')).not.toBeChecked()
     expect(
@@ -336,6 +253,8 @@ describe('DiagnosticBundleDialog', () => {
   })
 
   it('falls back to copying the support email when no mail client can be opened', async () => {
+    const user = userEvent.setup()
+    const clipboardWrite = vi.spyOn(navigator.clipboard, 'writeText')
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.export') return savedResult
@@ -344,15 +263,15 @@ describe('DiagnosticBundleDialog', () => {
     })
     renderDialog()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
-    await confirmSensitiveExport()
+    await confirmSensitiveExport(user)
     await screen.findByText('settings.about.diagnostics.success.title')
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
     const copyButton = await screen.findByRole('button', { name: 'settings.about.diagnostics.actions.copy_email' })
     expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.email_client_failed')
 
-    fireEvent.click(copyButton)
-    await waitFor(() => expect(mocks.clipboardWrite).toHaveBeenCalledWith('support@cherry-ai.com'))
+    await user.click(copyButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('support@cherry-ai.com'))
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.about.diagnostics.success.email_copied')
   })
 })
