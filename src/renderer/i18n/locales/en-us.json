@@ -448,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
-        "show_more": "Expand display",
+        "show_more": "Show more",
+        "tasks": "Tasks",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unlinked Agent",
@@ -1976,11 +1976,11 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "show_more": "Expand display",
+        "show_more": "Show more",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
