@@ -15,7 +15,7 @@ CREATE INDEX `asmfr_source_id_idx` ON `agent_session_message_file_ref` (`source_
 CREATE UNIQUE INDEX `asmfr_unique_idx` ON `agent_session_message_file_ref` (`file_entry_id`,`source_id`,`role`);--> statement-breakpoint
 INSERT INTO `agent_session_message_file_ref` (`id`, `file_entry_id`, `source_id`, `role`, `created_at`, `updated_at`)
 SELECT
-	lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),
+	lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random() % 4) + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),
 	json_extract(part.value, '$.providerMetadata.cherry.fileEntryId'),
 	message.id,
 	'attachment',
