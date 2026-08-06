@@ -33,8 +33,14 @@ const webSearchTool = tool({
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
-  execute: async ({ query }, options) =>
-    markTrustedLocalToolTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
+  execute: async ({ query }, options) => {
+    if (typeof query !== 'string' || !query.trim()) {
+      return webLookupModelOutput([])
+    }
+    return markTrustedLocalToolTerminalFailure(
+      await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
+    )
+  },
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
