@@ -61,15 +61,18 @@ vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
   default: ({
     initialContent,
     placeholder,
-    onMarkdownChange
+    onMarkdownChange,
+    enableImageInsertion
   }: {
     initialContent?: string
     placeholder?: string
     onMarkdownChange?: (markdown: string) => void
+    enableImageInsertion?: boolean
   }) => (
     <textarea
       defaultValue={initialContent}
       placeholder={placeholder}
+      data-images-enabled={enableImageInsertion ?? true}
       onChange={(event) => onMarkdownChange?.(event.target.value)}
     />
   )
@@ -550,6 +553,7 @@ describe('AddKnowledgeItemDialog', () => {
 
       expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toBeInTheDocument()
       expect(screen.getByPlaceholderText('在此输入笔记内容…')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveAttribute('data-images-enabled', 'false')
       // The picker list is gone, so a stale pick cannot ride along with the draft.
       expect(screen.queryByText('Meeting notes')).not.toBeInTheDocument()
     })
@@ -571,6 +575,19 @@ describe('AddKnowledgeItemDialog', () => {
       // Whitespace-only input is not a body.
       fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '   ' } })
       expect(addButton).toBeDisabled()
+    })
+
+    it('rejects a whitespace-only title even with a real body', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      // The title becomes the item's `source`, which the schema requires to be non-empty
+      // *after* trimming — so spaces must not pass the gate.
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: '   ' } })
+
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     })
 
     it('submits the draft as a single note item with a trimmed title', async () => {
@@ -614,6 +631,27 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
+    })
+
+    it('keeps the panel open and the draft intact when the submit fails', async () => {
+      setPendingAddSource('note')
+      mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '# Ideas\n\nbody' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('添加数据源失败: create failed')
+      // The draft is the only copy of what the user just wrote, so a failure must not
+      // close the dialog or clear the form.
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toHaveValue('Ideas')
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveValue('# Ideas\n\nbody')
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
     it('keeps the draft when switching modes back and forth', () => {

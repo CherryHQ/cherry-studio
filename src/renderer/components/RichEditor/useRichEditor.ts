@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
-import { pickInlinePasteContent } from './helpers/markdownPaste'
+import { pickInlinePasteContent, stripImageNodes } from './helpers/markdownPaste'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -39,6 +39,8 @@ export interface UseRichEditorOptions {
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -92,6 +94,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     editable = true,
     autoFocus = true,
     enableSpellCheck = false,
+    enableImageInsertion = true,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -257,10 +260,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         },
         onColumnActionClick: ({ colIndex, position }) => {
           showTableActionMenu('column', colIndex, position)
-        }
+        },
+        enableImageInsertion
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion]
   )
 
   const editor = useEditor({
@@ -286,8 +290,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Handle image paste
         const items = Array.from(event.clipboardData?.items || [])
         const imageItem = items.find((item) => item.type.startsWith('image/'))
+        const clipboardText = event.clipboardData?.getData('text/plain') ?? ''
+        const clipboardHtml = !enableImageInsertion ? event.clipboardData?.getData('text/html') : ''
+        const hasHtmlImage = clipboardHtml
+          ? new DOMParser().parseFromString(clipboardHtml, 'text/html').querySelector('img') !== null
+          : false
 
-        if (imageItem) {
+        if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
@@ -296,9 +305,30 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
+        if (!enableImageInsertion && (imageItem || hasHtmlImage) && !clipboardText) {
+          return true
+        }
+
         // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
-        const text = event.clipboardData?.getData('text/plain') ?? ''
+        const text = clipboardText
         if (text) {
+          if (!enableImageInsertion) {
+            const parsed = editor.markdown?.parse(text)
+            if (parsed) {
+              const sanitized = stripImageNodes(parsed)
+              if (sanitized.removedImages) {
+                const inline = pickInlinePasteContent(sanitized.doc)
+                if (inline) {
+                  editor.commands.insertContent(inline)
+                } else if (sanitized.doc.content?.length) {
+                  editor.commands.insertContent(sanitized.doc.content)
+                }
+                onPaste?.(text)
+                return true
+              }
+            }
+          }
+
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''

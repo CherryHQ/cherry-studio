@@ -1,7 +1,5 @@
 import { Input, Label } from '@cherrystudio/ui'
 import RichEditor from '@renderer/components/RichEditor/RichEditor'
-import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { NoteDraft } from '../types'
@@ -17,20 +15,15 @@ const TOOLBAR_WRAP =
 interface NoteCreateContentProps {
   draft: NoteDraft
   onTitleChange: (title: string) => void
-  // Kept separate from `onTitleChange` so neither handler has to close over the
-  // draft: RichEditor builds its editor once (no deps array on `useEditor`), so a
-  // `{ ...draft }` spread inside the change handler could serialize a stale title.
+  // One handler per field so neither closes over the draft: the parent applies each
+  // functionally, and both stay referentially stable for the editor's lifetime. A single
+  // `{ ...draft, ...patch }` handler would have to be rebuilt on every keystroke to avoid
+  // serializing a stale title.
   onContentChange: (content: string) => void
 }
 
 const NoteCreateContent = ({ draft, onTitleChange, onContentChange }: NoteCreateContentProps) => {
   const { t } = useTranslation()
-
-  // A knowledge note is stored as text and chunked for embedding, so an image command
-  // would produce an asset the indexer cannot read. Matches what NotesEditor drops.
-  const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
-    commandAPI.unregisterCommand('image')
-  }, [])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
@@ -40,6 +33,9 @@ const NoteCreateContent = ({ draft, onTitleChange, onContentChange }: NoteCreate
         </Label>
         <Input
           id="knowledge-note-title-input"
+          // The title is required and reads first, so it takes the initial focus instead of
+          // the body (RichEditor would otherwise grab it via its default `autoFocus`).
+          autoFocus
           value={draft.title}
           onChange={(event) => onTitleChange(event.target.value)}
           placeholder={t('knowledge.data_source.add_dialog.note.create.title_placeholder')}
@@ -52,9 +48,10 @@ const NoteCreateContent = ({ draft, onTitleChange, onContentChange }: NoteCreate
         <RichEditor
           initialContent={draft.content}
           onMarkdownChange={onContentChange}
-          onCommandsReady={handleCommandsReady}
           placeholder={t('knowledge.data_source.add_dialog.note.create.content_placeholder')}
           className={`min-h-0 flex-1 ${TOOLBAR_WRAP}`}
+          autoFocus={false}
+          enableImageInsertion={false}
           showToolbar
           isFullWidth
         />

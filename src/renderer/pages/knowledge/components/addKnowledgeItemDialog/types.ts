@@ -7,7 +7,10 @@ export interface NoteItem {
   externalPath: string
 }
 
-/** `import` picks existing Notes files; `create` writes a new note inline. */
+/**
+ * `import` picks existing Notes files; `create` drafts a knowledge note inside the dialog
+ * (the draft is indexed straight into the base and never written to the Notes module).
+ */
 export type NoteSourceMode = 'import' | 'create'
 
 export interface NoteDraft {

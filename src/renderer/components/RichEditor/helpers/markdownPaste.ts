@@ -1,5 +1,27 @@
 import type { JSONContent } from '@tiptap/core'
 
+const IMAGE_NODE_TYPES = new Set(['image', 'imagePlaceholder'])
+
+export function stripImageNodes(doc: JSONContent): { doc: JSONContent; removedImages: boolean } {
+  let removedImages = false
+
+  const stripNode = (node: JSONContent): JSONContent | null => {
+    if (node.type && IMAGE_NODE_TYPES.has(node.type)) {
+      removedImages = true
+      return null
+    }
+
+    if (!node.content) return node
+
+    return {
+      ...node,
+      content: node.content.map(stripNode).filter((child): child is JSONContent => child !== null)
+    }
+  }
+
+  return { doc: stripNode(doc) ?? { type: 'doc', content: [] }, removedImages }
+}
+
 /**
  * Pick the inline content of a single-paragraph markdown parse.
  *

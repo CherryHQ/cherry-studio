@@ -461,13 +461,18 @@ export interface CommandFilterOptions {
   query?: string
   category?: CommandCategory
   maxResults?: number
+  enableImageInsertion?: boolean
 }
 
 // Filter commands based on search query and category
 export function filterCommands(options: CommandFilterOptions = {}): Command[] {
-  const { query = '', category } = options
+  const { query = '', category, enableImageInsertion = true } = options
 
   let filtered = getAllCommands()
+
+  if (!enableImageInsertion) {
+    filtered = filtered.filter((cmd) => cmd.id !== 'image')
+  }
 
   // Filter by category if specified
   if (category) {
@@ -663,6 +668,25 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
         const element = component.element
         element.remove()
         component.destroy()
+      }
+    }
+  }
+}
+
+export const createCommandSuggestion = (
+  options: { enableImageInsertion?: boolean } = {}
+): Omit<SuggestionOptions<Command, MentionNodeAttrs>, 'editor'> => {
+  const { enableImageInsertion = true } = options
+  if (enableImageInsertion) return commandSuggestion
+
+  return {
+    ...commandSuggestion,
+    items: ({ query }: { query: string }) => {
+      try {
+        return filterCommands({ query, enableImageInsertion })
+      } catch (error) {
+        logger.error('Error filtering commands:', error as Error)
+        return []
       }
     }
   }

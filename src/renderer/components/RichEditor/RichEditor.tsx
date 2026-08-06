@@ -168,7 +168,8 @@ const RichEditor = ({
   isFullWidth = false,
   fontFamily = 'default',
   fontSize = 16,
-  enableSpellCheck = false
+  enableSpellCheck = false,
+  enableImageInsertion = true
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
@@ -182,6 +183,7 @@ const RichEditor = ({
     editable,
     autoFocus,
     enableSpellCheck,
+    enableImageInsertion,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
       const iconMap: Record<string, React.ReactNode> = {
@@ -613,6 +615,7 @@ const RichEditor = ({
           formattingState={formattingState}
           onCommand={handleCommand}
           scrollContainer={scrollContainerRef}
+          enableImageInsertion={enableImageInsertion}
         />
       )}
       <Scrollbar

@@ -54,6 +54,8 @@ export interface RichEditorProps {
   fontSize?: number
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
 }
 
 export interface ToolbarItem {
@@ -231,6 +233,8 @@ export interface ToolbarProps {
   onCommand: (command: FormattingCommand) => void
   /** Scroll container reference to prevent scrolling when dialogs open */
   scrollContainer?: React.RefObject<HTMLDivElement | null>
+  /** Whether image insertion controls are enabled */
+  enableImageInsertion?: boolean
 }
 
 // Command System Types for Slash Commands

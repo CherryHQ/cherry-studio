@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { Selection } from '@tiptap/pm/state'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
@@ -30,6 +30,40 @@ const pastePlainText = (editor: Editor, text: string) => {
   })
   editor.view.dom.dispatchEvent(event)
 }
+
+const pasteImage = (editor: Editor, text = '') => {
+  const file = new File([new Uint8Array([137, 80, 78, 71])], 'pasted.png', { type: 'image/png' })
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      getData: (type: string) => (type === 'text/plain' ? text : ''),
+      items: [{ type: file.type, getAsFile: () => file }]
+    }
+  })
+  editor.view.dom.dispatchEvent(event)
+}
+
+const typeText = (editor: Editor, text: string) => {
+  for (const character of text) {
+    const { from, to } = editor.state.selection
+    let handled = false
+    editor.view.someProp('handleTextInput', (handler) => {
+      handled =
+        handler(editor.view, from, to, character, () => editor.state.tr.insertText(character, from, to)) === true
+      return handled
+    })
+    if (!handled) {
+      editor.view.dispatch(editor.state.tr.insertText(character, from, to))
+    }
+  }
+}
+
+beforeEach(() => {
+  Object.assign(window.api.file, {
+    createInternalEntry: vi.fn(),
+    getPhysicalPath: vi.fn()
+  })
+})
 
 describe('useRichEditor autoFocus', () => {
   it('focuses the end of the document on mount by default', async () => {
@@ -92,5 +126,55 @@ describe('useRichEditor markdown paste', () => {
     const nodeTypes = result.current.editor.getJSON().content?.map((node) => node.type)
     expect(nodeTypes).toContain('table')
     expect(nodeTypes).toContain('codeBlock')
+  })
+
+  it('keeps clipboard images out without losing accompanying text when images are disabled', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      pasteImage(result.current.editor)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
+    expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
+
+    await act(async () => {
+      pasteImage(result.current.editor, 'clipboard text')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
+    expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
+    expect(result.current.editor.getText()).toBe('clipboard text')
+  })
+
+  it('does not turn pasted markdown image syntax into an image when images are disabled', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      pastePlainText(result.current.editor, '![alt](https://example.com/image.png)')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
+  })
+
+  it('keeps typed markdown image syntax as text when image insertion is disabled', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      typeText(result.current.editor, '![alt](https://example.com/image.png)')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
+    expect(result.current.editor.getText()).toBe('![alt](https://example.com/image.png)')
   })
 })
