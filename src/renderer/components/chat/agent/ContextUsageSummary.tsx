@@ -31,6 +31,8 @@ interface ContextUsageSummaryProps {
   color?: string
   className?: string
   isCompacting?: boolean
+  /** Optional user-facing model name. Defaults to the raw runtime model id for diagnostic views. */
+  modelName?: string
   /** Show the per-category breakdown. Off for the composer, which only reports the total. */
   showCategories?: boolean
 }
@@ -41,6 +43,7 @@ export function ContextUsageSummary({
   color,
   className,
   isCompacting = false,
+  modelName,
   showCategories = true
 }: ContextUsageSummaryProps) {
   const { t } = useTranslation()
@@ -66,7 +69,7 @@ export function ContextUsageSummary({
             <span className="shrink-0">
               {usage.totalTokens.toLocaleString()} / {usage.maxTokens.toLocaleString()} ({normalizedPercentage}%)
             </span>
-            <span className="min-w-0 truncate">{usage.model}</span>
+            <span className="min-w-0 truncate">{modelName || usage.model}</span>
           </div>
           {visibleCategories.length > 0 && (
             <div className="space-y-1 border-border-subtle border-t pt-2">
