@@ -1,116 +1,97 @@
 /**
  * BuiltinAgentProvisioner
  *
- * Provisions built-in agent workspaces by copying template files
- * (agent.json, .claude/skills/, .claude/plugins.json) from bundled
- * resources into the agent's working directory.
- *
- * The Claude Agent SDK auto-discovers skills from .claude/skills/ and
- * plugins from .claude/plugins.json, so no programmatic injection is needed.
+ * Loads built-in agent definitions and initializes persona/memory files in
+ * persistent agent data directories. Bundled skills stay in the read-only app
+ * resources directory and are injected as a local Claude plugin.
  */
-import { application } from '@application'
+import { createHash } from 'node:crypto'
+
 import { loggerService } from '@logger'
-import { getAppLanguage } from '@main/i18n'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import fs from 'fs'
 import path from 'path'
 
+import {
+  type BuiltinAgentDefinition,
+  getBuiltinAgentTemplateDirectory,
+  loadBuiltinAgentDefinition
+} from './builtinAgentDefinition'
+
 const logger = loggerService.withContext('BuiltinAgentProvisioner')
 
-/** Resolve a localized field: string passes through; locale-keyed object resolves by current language. */
-function resolveLocalizedField(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  if (typeof value !== 'object' || value === null) return undefined
+/**
+ * SHA-256 hashes of Cherry Assistant SOUL.md revisions that must be upgraded.
+ * These earlier revisions baked identity/role text into the persona file; the
+ * current bundle keeps SOUL.md to personality/tone only. Because provisioning
+ * never overwrites a non-empty SOUL.md, installs made against these revisions
+ * would otherwise keep the stale stock persona forever. The migration below
+ * replaces a SOUL.md ONLY when its exact bytes match one of these known stock
+ * blobs — any user edit changes the hash and is preserved untouched.
+ *
+ * Add a new hash here only when a bundled revision contains product-owned role
+ * or policy that must not remain in the user-owned persona file. Compute with:
+ *   `shasum -a 256 resources/builtin-agents/cherry-assistant/SOUL.md`
+ */
+const LEGACY_STOCK_SOUL_SHA256_BY_SIZE: ReadonlyMap<number, ReadonlySet<string>> = new Map([
+  // v2.0.0-rc.5 — restrictive "identity/grounding/working-principles" persona.
+  [3600, new Set(['61ad24c3bb6bb1032c3664e847988b0f13a429a3d0e5d5048c74a65f6b35faa9'])],
+  // Interim "restore normal agent capabilities" persona (PR #17870, pre-release).
+  [321, new Set(['6aeb1da6822e43670bed8a683ecc22194a1517b9c377988c1f77d48d872618e8'])]
+])
 
-  const map = value as Record<string, string>
-  const lang = getAppLanguage()
-  const prefix = lang.split('-')[0]
-  const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
-
-  return map[lang] || (prefixKey && map[prefixKey]) || map['en-US'] || Object.values(map)[0]
+function sha256(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
 }
 
-const ROLE_TO_TEMPLATE: Record<string, string> = {
-  assistant: 'cherry-assistant',
-  'skill-creator': 'skill-creator'
-}
+export function getBuiltinAgentPluginDirectory(builtinRole: string): string | undefined {
+  const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
+  if (!templateDir) return undefined
 
-function getTemplateDir(builtinRole: string): string | undefined {
-  const templateName = ROLE_TO_TEMPLATE[builtinRole]
-  if (!templateName) {
-    logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
+  // Claude Code runs out of process and cannot resolve Electron's virtual app.asar paths.
+  const pluginDirectory = toAsarUnpackedPath(path.join(templateDir, '.claude'))
+  const manifestPath = path.join(pluginDirectory, '.claude-plugin', 'plugin.json')
+  if (!fs.existsSync(manifestPath)) {
+    logger.error('Builtin agent plugin manifest not found', { builtinRole, manifestPath })
     return undefined
   }
 
-  return path.join(application.getPath('feature.agents.builtin'), templateName)
+  return pluginDirectory
 }
 
 /**
- * Recursively copy a directory, creating target dirs as needed.
+ * Recursively copy files that do not already exist, creating target dirs as needed.
  */
-function copyDirSync(src: string, dest: string): void {
+function copyMissingDirSync(src: string, dest: string): void {
   fs.mkdirSync(dest, { recursive: true })
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
     if (entry.isDirectory()) {
-      copyDirSync(srcPath, destPath)
-    } else {
+      copyMissingDirSync(srcPath, destPath)
+    } else if (!fs.existsSync(destPath)) {
       fs.copyFileSync(srcPath, destPath)
     }
   }
 }
 
-// No `description` here: the builtin agent's display/search description is owned by i18n
-// (`agent.builtin.cherry_assistant.description`), not the bundle — a bundle copy would be a
-// drift-prone second source of truth.
-export interface BuiltinAgentConfig {
-  name?: string
-  instructions?: string
-  configuration?: Record<string, unknown>
-}
-
-export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentConfig | undefined {
-  const templateDir = getTemplateDir(builtinRole)
-  if (!templateDir) return undefined
-
-  const agentJsonPath = path.join(templateDir, 'agent.json')
-  if (!fs.existsSync(agentJsonPath)) {
-    logger.error('Builtin agent definition not found', { agentJsonPath, builtinRole })
-    return undefined
-  }
-
-  try {
-    const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-    return {
-      name: agentConfig.name,
-      instructions: resolveLocalizedField(agentConfig.instructions),
-      configuration: agentConfig.configuration
-    } as BuiltinAgentConfig
-  } catch (error) {
-    logger.error('Failed to load builtin agent definition', {
-      builtinRole,
-      agentJsonPath,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return undefined
-  }
-}
+export { loadBuiltinAgentDefinition } from './builtinAgentDefinition'
 
 /**
- * Provision a built-in agent's workspace with template files.
+ * Initialize a built-in agent's persistent data directory.
  *
- * Writes .claude/skills/ and .claude/plugins.json to the agent's
- * working directory so the SDK can auto-discover them.
+ * Session workspaces remain independent project directories and are never
+ * modified by this function. Bundled skills are loaded from the app-owned plugin directory.
  *
- * @param workspacePath - The agent session's workspace directory
- * @param builtinRole - The built-in role identifier ('assistant' or 'skill-creator')
+ * @param agentDataPath - The agent's persistent identity and memory directory
+ * @param builtinRole - The built-in role identifier (currently only 'assistant')
  * @returns The parsed agent.json config, or undefined if not found
  */
 export async function provisionBuiltinAgent(
-  workspacePath: string,
+  agentDataPath: string,
   builtinRole: string
-): Promise<BuiltinAgentConfig | undefined> {
-  const templateDir = getTemplateDir(builtinRole)
+): Promise<BuiltinAgentDefinition | undefined> {
+  const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
   if (!templateDir) return undefined
 
   if (!fs.existsSync(templateDir)) {
@@ -118,34 +99,54 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 
-  try {
-    // Copy .claude/ directory (skills + plugins.json)
-    const srcClaudeDir = path.join(templateDir, '.claude')
-    const destClaudeDir = path.join(workspacePath, '.claude')
+  const definition = loadBuiltinAgentDefinition(builtinRole)
+  if (!definition) return undefined
 
-    if (fs.existsSync(srcClaudeDir)) {
-      copyDirSync(srcClaudeDir, destClaudeDir)
-      logger.info('Provisioned .claude/ directory for builtin agent', {
-        builtinRole,
-        workspacePath,
-        destClaudeDir
-      })
+  try {
+    // Populate missing or zero-byte persona placeholders on first provision.
+    // Never overwrite a non-empty file — the user may have customized their persona.
+    // SOUL.md additionally migrates known stale stock content (see below); any other
+    // non-empty content is treated as user-owned and left intact.
+    for (const soulFile of ['SOUL.md', 'USER.md']) {
+      const srcFile = path.join(templateDir, soulFile)
+      const destFile = path.join(agentDataPath, soulFile)
+      if (!fs.existsSync(srcFile)) continue
+
+      const destStat = fs.existsSync(destFile) ? fs.lstatSync(destFile) : undefined
+      const shouldInitialize = !destStat || (destStat.isFile() && destStat.size === 0)
+      if (shouldInitialize) {
+        fs.copyFileSync(srcFile, destFile)
+        continue
+      }
+
+      // Surgical stock migration (SOUL.md only): replace a non-empty SOUL.md whose exact
+      // bytes match a historical bundled blob. A user edit changes the hash, so customized
+      // souls are never touched.
+      if (soulFile === 'SOUL.md' && destStat?.isFile() && !destStat.isSymbolicLink()) {
+        // SOUL.md is user-editable and may be large. Check the exact stock byte size before
+        // reading it so normal/custom personas do not pay a synchronous full-file hash per build.
+        const candidateHashes = LEGACY_STOCK_SOUL_SHA256_BY_SIZE.get(destStat.size)
+        const destHash = candidateHashes ? sha256(fs.readFileSync(destFile)) : undefined
+        if (destHash && candidateHashes?.has(destHash)) {
+          fs.copyFileSync(srcFile, destFile)
+          logger.info('Migrated stale bundled SOUL.md to the current stock persona', { agentDataPath, destHash })
+        }
+      }
     }
 
-    return loadBuiltinAgentDefinition(builtinRole)
+    const srcMemoryDir = path.join(templateDir, 'memory')
+    const destMemoryDir = path.join(agentDataPath, 'memory')
+    if (fs.existsSync(srcMemoryDir)) {
+      copyMissingDirSync(srcMemoryDir, destMemoryDir)
+    }
+
+    return definition
   } catch (error) {
-    logger.error('Failed to provision builtin agent workspace', {
+    logger.error('Failed to provision builtin agent data', {
       builtinRole,
-      workspacePath,
+      agentDataPath,
       error: error instanceof Error ? error.message : String(error)
     })
     return undefined
   }
-}
-
-/**
- * Check if a workspace has already been provisioned (has .claude/skills/).
- */
-export function isProvisioned(workspacePath: string): boolean {
-  return fs.existsSync(path.join(workspacePath, '.claude', 'skills'))
 }

@@ -198,11 +198,6 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
-      "local_greetings": {
-        "plan": "Tell me the outcome you want, and I’ll help make a plan.",
-        "progress": "What task can I help you move forward today?",
-        "research": "Need help researching, planning, or drafting something?"
-      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -240,6 +235,7 @@
           "discard_and_continue": "Discard and continue",
           "title": "Discard unsaved changes?"
         },
+        "metadata_pending": "The file was saved, but its metadata is still being recovered. Do not retry this save.",
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "Unsaved",
@@ -282,6 +278,16 @@
       "too_large": {
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "Invalid workspace path"
+        },
+        "load_error": {
+          "description": "Make sure the work directory still exists and is accessible, then try again.",
+          "title": "Couldn't load workspace files"
+        }
       },
       "unavailable": {
         "description": "This file couldn't be opened — it may have been moved or deleted.",
@@ -442,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
-        "show_more": "Expand display",
+        "show_more": "Show more",
+        "tasks": "Tasks",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unlinked Agent",
@@ -762,6 +768,13 @@
         "placeholder": "What should the agent do when this task runs?"
       },
       "resume": "Resume",
+      "reuseSession": {
+        "bound": "View session",
+        "description": "Continue every run in the same session instead of starting a new one.",
+        "label": "Reuse session",
+        "pending": "Waiting for the first run",
+        "warning": "A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. To rebind a clean session, disable and save, then enable and save."
+      },
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
@@ -1354,6 +1367,9 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "error": {
+      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again."
+    },
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -1420,6 +1436,11 @@
         "placeholder": "Search"
       }
     },
+    "compaction": {
+      "compacted": "Context compacted, ~{{count}} tokens saved",
+      "compacted_plain": "Context compacted",
+      "compacting": "Compacting context…"
+    },
     "conversation": {
       "new": "New Chat"
     },
@@ -1442,11 +1463,6 @@
       "view_full_content": "View Full Content"
     },
     "home": {
-      "local_greetings": {
-        "casual": "What’s on your mind today?",
-        "explore": "What would you like to explore together?",
-        "play": "Up for a quick chat, a curious question, or a game?"
-      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {
@@ -1490,6 +1506,13 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Conversation {{Command}}",
+      "note_reference": {
+        "description": "Attach a note from Notes",
+        "empty": "No notes found",
+        "load_failed": "Failed to load notes",
+        "loading": "Loading notes...",
+        "title": "Reference Note"
+      },
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1604,7 +1627,6 @@
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
-      "url_context": "URL Context",
       "web_search": {
         "builtin": {
           "disabled_content": "The current model does not support web search",
@@ -1621,13 +1643,16 @@
           "description": "Do not enable web search",
           "label": "Disable Web Search"
         },
+        "route": {
+          "builtin": "Searches with the model's built-in tool",
+          "client": "Searches with {{provider}}"
+        },
         "settings": "Web Search Settings"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "url_context": "Gemini does not support using url context and function calling simultaneously"
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously"
       }
     },
     "message": {
@@ -1704,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Jump to turn {{number}}"
+      },
       "bottom": "Back to bottom",
       "close": "Close",
       "first": "Already at the first message",
@@ -1908,7 +1936,7 @@
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
-          "label": "Export as markdown",
+          "label": "Export as Markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notes": "Export to Notes",
@@ -1953,11 +1981,11 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "show_more": "Expand display",
+        "show_more": "Show more",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
@@ -2491,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "AI diagnosis is temporarily unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",
@@ -3173,6 +3202,7 @@
         "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
       "processor": "Processing Provider",
+      "processor_not_configured": "Not configured",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -3372,7 +3402,7 @@
             "label": "Small model"
           }
         },
-        "model_config": "Model configuration",
+        "model_config": "Model",
         "section": {
           "advanced": {
             "desc": "Max turns and environment variables",
@@ -3423,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-compress",
+        "context_compress_model": "Compression model",
+        "context_compress_model_follow": "Default",
         "context_count": "Context count",
+        "context_management": "Context management",
+        "context_truncate_threshold": "Tool-output truncation threshold (chars)",
         "creative": "Creative",
         "custom_params": "Custom parameters",
         "custom_params_add": "Add parameter",
@@ -3435,8 +3470,17 @@
           "avatar": {
             "hint": "Used to identify the assistant in the library and chats"
           },
+          "context_compress_enabled": {
+            "hint": "Summarize older turns automatically when nearing the context window"
+          },
           "context_count": {
             "hint": "Number of recent messages kept as context"
+          },
+          "context_management": {
+            "hint": "Override global context-management settings for this assistant; off inherits the global settings"
+          },
+          "context_truncate_threshold": {
+            "hint": "Tool outputs beyond this many characters are offloaded and truncated"
           },
           "custom_params": {
             "hint": "Extra provider parameters sent with requests"
@@ -3851,6 +3895,7 @@
       "pasted_text": "Pasted Text"
     },
     "backup": {
+      "cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
       "failed": "Backup failed",
       "start": {
         "success": "Backup started"
@@ -3880,7 +3925,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
-      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
@@ -3965,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
+        "title": "Delete Group Replies"
       },
       "retry_failed": "Retry failed messages"
     },
@@ -4280,6 +4325,7 @@
       "cutoff": "Truncating search content...",
       "fetch_complete": "{{count}} search result(s)",
       "fetch_empty": "No search results found",
+      "fetch_opaque": "Searched by the model",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
@@ -4379,7 +4425,8 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model simultaneous responses"
+      "label": "Multi-select",
+      "tooltip": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -4513,7 +4560,8 @@
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
     "save_failure": {
-      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
+      "metadata_pending": "The note was saved, but its file metadata is still being recovered. Do not retry this save."
     },
     "search": {
       "both": "Name+Content",
@@ -5151,6 +5199,7 @@
     "reset": "Reset",
     "rotate_left": "Rotate Left",
     "rotate_right": "Rotate Right",
+    "save_as": "Save As",
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
@@ -5207,7 +5256,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Local Models",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5735,6 +5784,7 @@
     },
     "assistant": {
       "create_new": "New Assistant",
+      "create_tag": "New",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
       "group_filter": "Filter by group",
@@ -5784,12 +5834,100 @@
         "title": "Debug"
       },
       "description": "A powerful AI assistant for producer",
+      "diagnostics": {
+        "actions": {
+          "cancel": "Cancel",
+          "close": "Close",
+          "contact": "Email support",
+          "copy_email": "Copy support email",
+          "export": "Export",
+          "exporting": "Exporting...",
+          "reveal": "Open file location"
+        },
+        "dialog": {
+          "description": "Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "Export",
+          "title": "Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "Another diagnostic bundle is already being exported",
+          "copy_failed": "Could not copy the support email",
+          "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "Could not open an email client. You can copy the support email instead.",
+          "export_failed": "Could not export the diagnostic bundle",
+          "inspect_failed": "Could not check what is available to export. Try again later.",
+          "reveal_failed": "Could not open the file location"
+        },
+        "inspecting": "Preparing the available information...",
+        "limit": "To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "I understand the information above and will share the ZIP only privately with support.",
+          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "Before you share"
+        },
+        "range_title": "Time range",
+        "ranges": {
+          "24h": "Last 24 hours",
+          "3d": "Last 3 days",
+          "7d": "Last 7 days"
+        },
+        "sources": {
+          "inspecting": "Checking what is available...",
+          "logs": {
+            "title": "App logs"
+          },
+          "summary": "{{count}} files, about {{size}}",
+          "summary_one": "{{count}} file, about {{size}}",
+          "summary_other": "{{count}} files, about {{size}}",
+          "system": {
+            "description": "Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "App and device information"
+          },
+          "traces": {
+            "title": "Detailed activity records"
+          },
+          "unavailable": "Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "Support email copied",
+          "local_only": "The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "Diagnostic bundle exported"
+        },
+        "unknown": "Unknown",
+        "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Downloading...",
       "enterprise": {
         "title": "Enterprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Chat with Cherry Assistant to share feedback.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Choose how to share feedback and help us make Cherry Studio better.",
+          "title": "Choose a feedback channel"
+        },
+        "github": {
+          "description": "Create a bug report or feature request on GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Recommended",
+        "survey": {
+          "description": "Share feedback through our Feishu survey.",
+          "title": "Feedback survey"
+        },
         "title": "Feedback"
       },
       "label": "About & Feedback",
@@ -5904,12 +6042,16 @@
         "third_party": "Third-party Connections"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Third-party Apps",
+          "copy": "Copy",
+          "file": "File Export"
+        },
         "docx": "Export as Word",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -6122,6 +6264,7 @@
         },
         "pathSelector": {
           "currentPath": "Current Path",
+          "fetchError": "Failed to load the Nutstore folder list",
           "return": "Return",
           "title": "Nutstore Storage Path"
         },
@@ -6786,6 +6929,7 @@
         "allStatuses": "All statuses",
         "allTypes": "All types",
         "builtinOnly": "Built-in only",
+        "label": "Filter",
         "status": "Filter by status",
         "type": "Filter by type"
       },
@@ -6852,6 +6996,9 @@
         "loadError": "Get prompts Error",
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
+      },
+      "protocolInstall": {
+        "title": "Install MCP"
       },
       "protocolInstallWarning": {
         "command": "Startup command",
@@ -7199,7 +7346,9 @@
       "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
-        "label": "Filter models"
+        "label": "Filter models",
+        "scroll_left": "Scroll model types left",
+        "scroll_right": "Scroll model types right"
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
@@ -7310,6 +7459,7 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
+        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -7372,10 +7522,6 @@
       "prevent_sleep_when_busy": "Keep the system awake while tasks are running"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Local rotating Chat and Agent greetings are generated on your device and remain available while this option is off. The displayed greeting is included as untrusted context in your first message so your selected model can understand brief replies; developer traces may record it. Enable this option to contact IPInfo for a coarse country or region; if unavailable, the app uses the app-language region as a labeled fallback. The country or region hint, your name, app language, local date and time, time zone, Chat or Agent mode, the base fallback greeting, and the previous greeting are sent to the fixed built-in CherryAI Qwen model for contextual enhancement. Disabled by default.",
-        "title": "AI-enhanced contextual greetings"
-      },
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
     },
@@ -8076,6 +8222,10 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
+        "client_tools_preferred": {
+          "description": "Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "Prefer configured search services"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8102,7 +8252,7 @@
           "save_failed": "Save failed",
           "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
-        "fetch_urls_provider": "Default URL fetch provider",
+        "fetch_urls_provider": "URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {

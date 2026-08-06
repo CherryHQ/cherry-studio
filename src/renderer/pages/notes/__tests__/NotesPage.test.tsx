@@ -225,6 +225,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     isSaving: mocks.sessionIsSaving,
     conflict: false,
     saveError: mocks.sessionSaveError,
+    metadataRecoveryPending: false,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
@@ -444,6 +445,26 @@ describe('NotesPage print payloads', () => {
       expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('does not retain stale rich editor content when the ready draft becomes empty', async () => {
+    mocks.settings.defaultEditMode = 'preview'
+    mocks.mountedEditor = 'rich'
+    mocks.sessionDraft = 'previous note content'
+    mocks.richEditorContent = mocks.sessionDraft
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.sessionDraft = ''
+    rerender(<NotesPage />)
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('print.export_pdf', expect.anything())
   })
 
   it('routes the app.print command through the current source editor content', async () => {

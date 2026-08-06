@@ -1,3 +1,4 @@
+import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
@@ -38,7 +39,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
+  const [persistedFilterMode, setPersistedFilterMode] = usePersistCache('settings.provider.filter_mode')
+  const [filterModeOverride, setFilterModeOverride] = useState<ProviderFilterMode | undefined>(filterModeHint)
+  const filterMode = filterModeOverride ?? persistedFilterMode
   const [searchText, setSearchText] = useState('')
   const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
@@ -72,8 +75,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
-    setFilterMode(filterModeHint)
+    setFilterModeOverride(filterModeHint)
   }, [filterModeHint])
+
+  const handleFilterChange = useCallback(
+    (mode: ProviderFilterMode) => {
+      setFilterModeOverride(undefined)
+      setPersistedFilterMode(mode)
+    },
+    [setPersistedFilterMode]
+  )
 
   useEffect(() => {
     if (!selectedProviderId) return
@@ -261,22 +272,15 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
   const addProviderButton = (
-    <div className={providerListClasses.addWrap}>
-      <button
-        type="button"
-        aria-label={t('settings.provider.add.button_title')}
-        disabled={dragging}
-        onClick={startAdd}
-        className={providerListClasses.addButton}>
-        <span aria-hidden className={providerListClasses.addButtonLeadingSpacer} />
-        <span className={providerListClasses.addButtonContent}>
-          <span className={providerListClasses.addButtonIconSlot}>
-            <Plus size={14} strokeWidth={2.5} />
-          </span>
-          <span>{t('settings.provider.add.button_title')}</span>
-        </span>
-      </button>
-    </div>
+    <button
+      type="button"
+      aria-label={t('settings.provider.add.button_title')}
+      disabled={dragging}
+      onClick={startAdd}
+      className={providerListClasses.addButton}>
+      <Plus size={14} strokeWidth={2.5} />
+      <span>{t('settings.provider.add.button_title')}</span>
+    </button>
   )
 
   return (
@@ -291,7 +295,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
             triggerIconSize={12}
-            onFilterChange={setFilterMode}
+            onFilterChange={handleFilterChange}
           />
         }
       />
@@ -307,9 +311,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         onReorderError={handleReorderError}
-        addButton={addProviderButton}
         renderItem={renderProviderItem}
       />
+      <div className={providerListClasses.addFooter}>{addProviderButton}</div>
       <ProviderEditorDrawer
         open={editorOpen}
         mode={editorMode}

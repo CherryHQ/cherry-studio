@@ -198,11 +198,6 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "local_greetings": {
-        "plan": "告诉我你想达成的结果，我来帮你制定计划。",
-        "progress": "今天有什么任务需要我帮你推进？",
-        "research": "需要我帮你调研、规划，还是起草内容？"
-      },
       "welcome_title": "今天想做点什么？"
     },
     "icon": {
@@ -240,6 +235,7 @@
           "discard_and_continue": "放弃并继续",
           "title": "放弃未保存的修改？"
         },
+        "metadata_pending": "文件已保存，但文件元数据仍在恢复中。请勿重试本次保存。",
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
@@ -282,6 +278,16 @@
       "too_large": {
         "description": "文件超过 {{limit}} 预览上限。",
         "title": "文件太大，无法预览"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "文件面板需要有效的本地绝对路径，请重新选择工作目录。",
+          "title": "工作区路径无效"
+        },
+        "load_error": {
+          "description": "请确认工作目录仍然存在且可以访问，然后重试。",
+          "title": "无法加载工作区文件"
+        }
       },
       "unavailable": {
         "description": "无法打开此文件，它可能已被移动或删除。",
@@ -442,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "折叠显示",
+        "collapse": "收起",
         "collapse_all": "全部折叠",
         "conversation": "对话",
-        "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
         "earlier": "更早",
         "expand_all": "全部展开",
         "no_workdir": "无工作目录",
-        "show_more": "展开显示",
+        "show_more": "展开更多",
+        "tasks": "任务",
         "this_week": "本周",
         "today": "今天",
         "unknown_agent": "未关联智能体",
@@ -762,6 +768,13 @@
         "placeholder": "此任务运行时智能体应该做什么？"
       },
       "resume": "恢复",
+      "reuseSession": {
+        "bound": "查看会话",
+        "description": "每次执行都在同一个会话中继续，而不是新建会话。",
+        "label": "复用会话",
+        "pending": "等待首次执行",
+        "warning": "复用会话会持续累积上下文，长期运行会推高 token 消耗，并可能超出模型的上下文窗口。如需重新绑定一个干净的会话，请先关闭并保存，再开启并保存。"
+      },
       "run": "运行",
       "runTriggered": "任务已触发",
       "save": "保存",
@@ -1354,6 +1367,9 @@
       "label": "确定要备份数据吗？"
     },
     "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "error": {
+      "active_data_writers": "当前有对话或智能体正在运行，请等待其结束后重试。"
+    },
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
@@ -1420,6 +1436,11 @@
         "placeholder": "搜索"
       }
     },
+    "compaction": {
+      "compacted": "已压缩上下文，节省约 {{count}} tokens",
+      "compacted_plain": "已压缩上下文",
+      "compacting": "正在压缩上下文…"
+    },
     "conversation": {
       "new": "新对话"
     },
@@ -1442,11 +1463,6 @@
       "view_full_content": "查看完整内容"
     },
     "home": {
-      "local_greetings": {
-        "casual": "今天有什么想聊聊的吗？",
-        "explore": "今天想一起探索点什么？",
-        "play": "想来个轻松的话题，还是玩个小游戏？"
-      },
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
@@ -1490,6 +1506,13 @@
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新对话 {{Command}}",
+      "note_reference": {
+        "description": "从笔记中添加附件",
+        "empty": "未找到笔记",
+        "load_failed": "笔记加载失败",
+        "loading": "正在加载笔记...",
+        "title": "引用笔记"
+      },
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
@@ -1604,7 +1627,6 @@
         "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
-      "url_context": "网页上下文",
       "web_search": {
         "builtin": {
           "disabled_content": "当前模型不支持网络搜索功能",
@@ -1621,13 +1643,16 @@
           "description": "不启用网络搜索功能",
           "label": "不使用网络"
         },
+        "route": {
+          "builtin": "使用模型内置搜索",
+          "client": "使用 {{provider}} 搜索"
+        },
         "settings": "网络搜索设置"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
-        "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
+        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用"
       }
     },
     "message": {
@@ -1704,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳转到第 {{number}} 轮对话"
+      },
       "bottom": "回到底部",
       "close": "关闭",
       "first": "已经是第一条消息",
@@ -1953,11 +1981,11 @@
         "yuque": "导出到语雀"
       },
       "group": {
-        "collapse": "折叠显示",
+        "collapse": "收起",
         "collapse_all": "全部折叠",
         "earlier": "更早",
         "expand_all": "全部展开",
-        "show_more": "展开显示",
+        "show_more": "展开更多",
         "this_week": "本周",
         "today": "今天",
         "unknown_assistant": "未关联助手",
@@ -2491,6 +2519,7 @@
       "content": "消息内容被安全系统拦截，请修改后重试",
       "context_length": "对话上下文过长，请清理历史消息或开启新对话",
       "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "free_model_unavailable": "AI 诊断暂时不可用",
       "go_to_settings": "前往设置",
       "knowledge": "知识库向量化失败",
       "mcp": "MCP 服务器连接失败，请检查服务是否已启动",
@@ -3173,6 +3202,7 @@
         "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
       "processor": "处理服务商",
+      "processor_not_configured": "未配置",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -3372,7 +3402,7 @@
             "label": "Small 模型"
           }
         },
-        "model_config": "模型配置",
+        "model_config": "模型",
         "section": {
           "advanced": {
             "desc": "最大轮次与环境变量",
@@ -3423,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "自动压缩",
+        "context_compress_model": "压缩模型",
+        "context_compress_model_follow": "默认",
         "context_count": "上下文数",
+        "context_management": "上下文管理",
+        "context_truncate_threshold": "工具输出截断阈值(字符)",
         "creative": "创意",
         "custom_params": "自定义参数",
         "custom_params_add": "添加参数",
@@ -3435,8 +3470,17 @@
           "avatar": {
             "hint": "用于在资源库和对话中识别助手"
           },
+          "context_compress_enabled": {
+            "hint": "接近上下文窗口上限时自动摘要较早的对话"
+          },
           "context_count": {
             "hint": "保留为上下文的最近消息数量"
+          },
+          "context_management": {
+            "hint": "开启后此助手使用自定义的上下文管理设置,关闭时跟随全局设置"
+          },
+          "context_truncate_threshold": {
+            "hint": "超过该字符数的工具输出会被转存并截断"
           },
           "custom_params": {
             "hint": "随请求发送给模型服务商的额外参数"
@@ -3851,6 +3895,7 @@
       "pasted_text": "剪切板文件"
     },
     "backup": {
+      "cleanup_failed": "备份已完成，但旧备份清理失败。",
       "failed": "备份失败",
       "start": {
         "success": "开始备份"
@@ -3880,7 +3925,7 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
-      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "generating_unavailable": "该分组中仍有回答正在生成，暂时无法删除。",
       "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
@@ -3965,8 +4010,8 @@
     },
     "group": {
       "delete": {
-        "content": "删除分组消息会删除用户提问和所有助手的回答",
-        "title": "删除分组消息"
+        "content": "是否删除该分组中的所有助手回答？用户提问和后续消息将保留。",
+        "title": "删除分组回答"
       },
       "retry_failed": "重试出错的消息"
     },
@@ -4280,6 +4325,7 @@
       "cutoff": "正在截断搜索内容...",
       "fetch_complete": "{{count}} 个搜索结果",
       "fetch_empty": "未找到搜索结果",
+      "fetch_opaque": "已由模型完成搜索",
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
@@ -4379,7 +4425,8 @@
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
-      "label": "多模型同时回答"
+      "label": "多选",
+      "tooltip": "多模型同时回答"
     },
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -4513,7 +4560,8 @@
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
     "save_failure": {
-      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
+      "metadata_pending": "笔记已保存，但文件元数据仍在恢复中。请勿重试本次保存。"
     },
     "search": {
       "both": "名称+内容",
@@ -5151,6 +5199,7 @@
     "reset": "重置",
     "rotate_left": "向左旋转",
     "rotate_right": "向右旋转",
+    "save_as": "另存为",
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
@@ -5207,7 +5256,7 @@
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "本地模型",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5735,6 +5784,7 @@
     },
     "assistant": {
       "create_new": "新建助手",
+      "create_tag": "新建",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
       "group_filter": "按分组筛选",
@@ -5784,12 +5834,100 @@
         "title": "调试面板"
       },
       "description": "一款为创造者而生的 AI 助手",
+      "diagnostics": {
+        "actions": {
+          "cancel": "取消",
+          "close": "关闭",
+          "contact": "写邮件给支持",
+          "copy_email": "复制支持邮箱",
+          "export": "导出",
+          "exporting": "正在导出...",
+          "reveal": "打开文件位置"
+        },
+        "dialog": {
+          "description": "将最近的运行信息保存为 ZIP 压缩文件，帮助支持人员定位问题。",
+          "title": "导出诊断包"
+        },
+        "entry": {
+          "button": "导出",
+          "title": "诊断包"
+        },
+        "errors": {
+          "busy": "已有诊断包正在导出",
+          "copy_failed": "无法复制支持邮箱",
+          "destination_conflict": "所选保存位置与诊断数据冲突，请选择其他文件夹。",
+          "email_client_failed": "无法打开邮件客户端，你可以复制支持邮箱。",
+          "export_failed": "无法导出诊断包",
+          "inspect_failed": "暂时无法检查可导出的内容，请稍后重试。",
+          "reveal_failed": "无法打开文件位置"
+        },
+        "inspecting": "正在准备可导出的内容...",
+        "limit": "为控制文件大小，日志和详细记录最多收集 {{size}}，优先保留较新的内容。",
+        "mail": {
+          "body": "请协助排查此 Cherry Studio 问题。\n\n诊断包 ID：{{bundleId}}\n版本：{{version}}\n平台：{{platform}}\n时间范围：{{range}}\n文件：{{fileName}}\n\n请将 ZIP 文件作为附件添加到此邮件。诊断包仅保存在本地，没有自动上传。",
+          "subject": "Cherry Studio 诊断包 {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "我了解以上内容，并只会私下发送给支持人员。",
+          "description": "这些记录可能包含你输入的内容、文件位置、请求和回复内容，以及服务连接信息。应用不会自动隐藏或上传。请只私下发送给支持人员，不要发布到 GitHub 等公开网站。",
+          "title": "分享前请确认"
+        },
+        "range_title": "时间范围",
+        "ranges": {
+          "24h": "最近 24 小时",
+          "3d": "最近 3 天",
+          "7d": "最近 7 天"
+        },
+        "sources": {
+          "inspecting": "正在检查可用内容...",
+          "logs": {
+            "title": "运行日志"
+          },
+          "summary": "{{count}} 个文件，约 {{size}}",
+          "summary_one": "{{count}} 个文件，约 {{size}}",
+          "summary_other": "{{count}} 个文件，约 {{size}}",
+          "system": {
+            "description": "包括应用版本、系统和设备信息。最近崩溃 {{crashCount}} 次，不收集崩溃文件。",
+            "title": "应用和设备信息"
+          },
+          "traces": {
+            "title": "详细运行记录"
+          },
+          "unavailable": "这段时间内没有可导出的内容"
+        },
+        "success": {
+          "email_copied": "已复制支持邮箱",
+          "local_only": "文件只保存在你的电脑上，没有自动上传。写邮件给支持时，请手动添加这个 ZIP 文件作为附件。",
+          "summary": "文件大小 {{size}} · 收集 {{included}} 个文件 · 未收集 {{omitted}} 个文件",
+          "title": "诊断包已导出"
+        },
+        "unknown": "未知",
+        "warning": "部分诊断信息暂时不可用，导出的诊断包可能不完整。"
+      },
       "downloading": "正在下载更新...",
       "enterprise": {
         "title": "企业版"
       },
       "feedback": {
+        "agent": {
+          "description": "通过与 Cherry Assistant 对话反馈问题。",
+          "title": "使用 Agent 提交"
+        },
+        "agent_error": "无法为反馈打开 Cherry Assistant，请重试。",
         "button": "反馈",
+        "dialog": {
+          "description": "选择一种方式反馈问题，帮助我们把 Cherry Studio 做得更好。",
+          "title": "选择反馈方式"
+        },
+        "github": {
+          "description": "前往 GitHub 创建 Bug 报告或功能建议。",
+          "title": "GitHub Issue"
+        },
+        "recommended": "推荐",
+        "survey": {
+          "description": "通过飞书问卷提交反馈。",
+          "title": "反馈问卷"
+        },
         "title": "意见反馈"
       },
       "label": "关于我们",
@@ -5904,12 +6042,16 @@
         "third_party": "第三方连接"
       },
       "export_menu": {
+        "categories": {
+          "apps": "第三方应用",
+          "copy": "复制",
+          "file": "文件导出"
+        },
         "docx": "导出为 Word",
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",
         "markdown_reason": "导出为 Markdown（包含思考）",
-        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "plain_text": "复制为纯文本",
@@ -6122,6 +6264,7 @@
         },
         "pathSelector": {
           "currentPath": "当前路径",
+          "fetchError": "获取坚果云文件夹列表失败",
           "return": "返回",
           "title": "坚果云存储路径"
         },
@@ -6786,6 +6929,7 @@
         "allStatuses": "全部状态",
         "allTypes": "全部类型",
         "builtinOnly": "仅内置",
+        "label": "筛选",
         "status": "按状态筛选",
         "type": "按类型筛选"
       },
@@ -6852,6 +6996,9 @@
         "loadError": "获取提示失败",
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
+      },
+      "protocolInstall": {
+        "title": "安装 MCP"
       },
       "protocolInstallWarning": {
         "command": "启动命令",
@@ -7199,7 +7346,9 @@
       "expand_all": "全部展开",
       "filter": {
         "clear": "清除模型筛选",
-        "label": "筛选模型"
+        "label": "筛选模型",
+        "scroll_left": "向左滚动模型类型",
+        "scroll_right": "向右滚动模型类型"
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",
@@ -7310,6 +7459,7 @@
       "topic_naming": {
         "auto": "对话自动重命名",
         "label": "对话命名",
+        "model": "命名模型",
         "prompt": "对话命名提示词"
       },
       "translate_model": "翻译模型",
@@ -7372,10 +7522,6 @@
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Chat 和 Agent 的本地动态问候语会在您的设备上生成，关闭此选项时仍可使用。当前显示的问候语会作为不可信上下文随第一条消息发送，让您选择的模型能理解“好”等简短回复；开发者模式的追踪记录可能会保存该内容。开启后，Cherry Studio 会联系 IPInfo 检测粗略的国家或地区；若不可用，则明确标注并使用从应用语言推导的地区作为后备信息。国家或地区提示、您的姓名、应用语言、本地日期和时间、时区、Chat 或 Agent 模式、基础后备问候语及上一条问候语会发送给固定的内置 CherryAI Qwen 模型进行情境增强。此选项默认关闭。",
-        "title": "AI 增强的情境问候语"
-      },
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },
@@ -8076,6 +8222,10 @@
         "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
+        "client_tools_preferred": {
+          "description": "即使模型自带联网搜索，也优先使用上方配置的搜索与网页读取服务；关闭后由模型内置搜索处理。",
+          "label": "优先使用已配置的搜索服务"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8102,7 +8252,7 @@
           "save_failed": "保存失败",
           "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
-        "fetch_urls_provider": "默认 URL 获取服务商",
+        "fetch_urls_provider": "URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {

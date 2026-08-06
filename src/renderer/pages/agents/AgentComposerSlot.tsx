@@ -1,7 +1,7 @@
 import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
-import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
+import AgentComposer, { type AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
@@ -18,12 +18,12 @@ interface AgentComposerSlotProps {
   session: AgentSessionEntity
   sessionId: string
   sendMessage: AgentChatRuntimeState['sendMessage']
-  captureLocalSendScrollEligibility: AgentChatRuntimeState['captureLocalSendScrollEligibility']
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
   composerContext: ComposerContextValue
+  composerLaunchOptions?: AgentComposerLaunchOptions
 }
 
 function AgentComposerSlot({
@@ -35,12 +35,12 @@ function AgentComposerSlot({
   session,
   sessionId,
   sendMessage,
-  captureLocalSendScrollEligibility,
   stop,
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
-  composerContext
+  composerContext,
+  composerLaunchOptions
 }: AgentComposerSlotProps) {
   const rightPanelState = useOptionalRightPanelState()
   const compactWhenSingleLine = Boolean(
@@ -57,12 +57,12 @@ function AgentComposerSlot({
         resolvedWorkspaceWarning={workspaceWarning ?? null}
         externalContextControls
         sendMessage={sendMessage}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
+        launchOptions={composerLaunchOptions}
       />
     ) : undefined
 

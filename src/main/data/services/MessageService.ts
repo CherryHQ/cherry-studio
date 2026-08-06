@@ -16,7 +16,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
+import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ActiveNodeStrategy,
@@ -25,6 +25,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
   type BranchMessagesResponse,
@@ -133,6 +134,7 @@ function rowToMessage(row: MessageRow): Message {
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     messageSnapshot: parseJson(row.messageSnapshot),
     stats: parseJson(row.stats),
+    compactionSummary: row.compactionSummary ?? null,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -206,17 +208,26 @@ function extractPreview(message: Message): string {
   return ''
 }
 
-function extractChatMessageFileEntryIds(data: MessageData | null | undefined): string[] {
-  const ids: string[] = []
+type ChatMessageFileRefEntry = { fileEntryId: string; role: (typeof chatMessageRoles)[number] }
+
+function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatMessageFileRefEntry[] {
+  const refs: ChatMessageFileRefEntry[] = []
   const seen = new Set<string>()
-  for (const part of data?.parts ?? []) {
-    if (part.type !== 'file') continue
-    const fileEntryId = readCherryMeta(part)?.fileEntryId
-    if (!fileEntryId || seen.has(fileEntryId)) continue
-    seen.add(fileEntryId)
-    ids.push(fileEntryId)
+  const add = (fileEntryId: string | undefined, role: ChatMessageFileRefEntry['role']) => {
+    if (!fileEntryId) return
+    const key = `${role}:${fileEntryId}`
+    if (seen.has(key)) return
+    seen.add(key)
+    refs.push({ fileEntryId, role })
   }
-  return ids
+  for (const part of data?.parts ?? []) {
+    if (part.type === 'file') {
+      add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
+      for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
+    }
+  }
+  return refs
 }
 
 function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<string> {
@@ -236,22 +247,25 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
 function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
-  const fileEntryIds = extractChatMessageFileEntryIds(data)
-  if (fileEntryIds.length === 0) return
+  const refs = extractChatMessageFileRefs(data)
+  if (refs.length === 0) return
 
-  const existingIds = selectExistingFileEntryIdsTx(tx, fileEntryIds)
+  const existingIds = selectExistingFileEntryIdsTx(
+    tx,
+    refs.map((r) => r.fileEntryId)
+  )
   const now = Date.now()
   const rows: Array<typeof chatMessageFileRefTable.$inferInsert> = []
-  for (const fileEntryId of fileEntryIds) {
+  for (const { fileEntryId, role } of refs) {
     if (!existingIds.has(fileEntryId)) continue
-    rows.push({ fileEntryId, sourceId: messageId, role: 'attachment', createdAt: now, updatedAt: now })
+    rows.push({ fileEntryId, sourceId: messageId, role, createdAt: now, updatedAt: now })
   }
 
-  if (rows.length !== fileEntryIds.length) {
+  if (rows.length !== refs.length) {
     logger.warn('Dropped chat message file refs without matching file_entry', {
       messageId,
-      dropped: fileEntryIds.length - rows.length,
-      total: fileEntryIds.length
+      dropped: refs.length - rows.length,
+      total: refs.length
     })
   }
 
@@ -792,6 +806,14 @@ export class MessageService {
     db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
   }
 
+  /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
+  setCompactionSummary(id: string, summary: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id)).run()
+    })
+    logger.info('Set message compactionSummary', { id, length: summary.length })
+  }
+
   search(query: MessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
@@ -1263,7 +1285,7 @@ export class MessageService {
   }
 
   /**
-   * Internal AI-runtime finalizer. Content/status and runtime timing are
+   * Internal AI-runtime finalizer. Content/status and runtime stats are
    * message-owned; the merge preserves the existing record-owned usage
    * projection and never accepts usage/cost from this caller.
    */
@@ -1297,6 +1319,29 @@ export class MessageService {
     const finalized = this.getById(id)
     if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
     return finalized
+  }
+
+  /**
+   * Provisional `tool_output` file ref written at offload time, before the
+   * assistant turn finalizes. Protects a freshly-created
+   * `delete_when_unreferenced` blob from the entry-cleanup reaper during turns
+   * longer than the 1h create grace; `finalizeAssistantMessage`'s ref replace
+   * later converges the set to the final parts. Returns false (no-op) when the
+   * message row doesn't exist — a FK violation would not be absorbed by the
+   * conflict clause — or when the ref is already present.
+   */
+  addToolOutputFileRef(messageId: string, fileEntryId: string): boolean {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.id, messageId)).get()
+      if (!row) return false
+      const now = Date.now()
+      const result = tx
+        .insert(chatMessageFileRefTable)
+        .values({ fileEntryId, sourceId: messageId, role: 'tool_output', createdAt: now, updatedAt: now })
+        .onConflictDoNothing()
+        .run()
+      return result.changes > 0
+    })
   }
 
   /**
@@ -1361,6 +1406,102 @@ export class MessageService {
   }
 
   /**
+   * Delete the complete assistant reply group containing `id`, preserving descendants.
+   *
+   * Group membership is resolved from the database inside the write transaction so the
+   * renderer cannot accidentally omit hidden or newly-created siblings. A zero group id
+   * represents an ungrouped reply and therefore deletes only the requested message.
+   */
+  deleteReplyGroup(id: string): DeleteMessageResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [target] = tx
+        .select({
+          id: messageTable.id,
+          parentId: messageTable.parentId,
+          topicId: messageTable.topicId,
+          role: messageTable.role,
+          status: messageTable.status,
+          siblingsGroupId: messageTable.siblingsGroupId
+        })
+        .from(messageTable)
+        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
+
+      if (!target) throw DataApiErrorFactory.notFound('Message', id)
+      if (!target.parentId || target.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation(
+          'delete message group',
+          'only an assistant reply can identify a reply group'
+        )
+      }
+
+      const targets =
+        target.siblingsGroupId === 0
+          ? [target]
+          : tx
+              .select({
+                id: messageTable.id,
+                parentId: messageTable.parentId,
+                topicId: messageTable.topicId,
+                role: messageTable.role,
+                status: messageTable.status,
+                siblingsGroupId: messageTable.siblingsGroupId
+              })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.parentId, target.parentId),
+                  eq(messageTable.topicId, target.topicId),
+                  eq(messageTable.role, 'assistant'),
+                  eq(messageTable.siblingsGroupId, target.siblingsGroupId),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+              .all()
+
+      if (targets.some((message) => message.status === 'pending')) {
+        throw DataApiErrorFactory.invalidOperation('delete message group', 'a reply in the group is still generating')
+      }
+
+      const targetIds = targets.map((message) => message.id)
+
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, target.topicId)).limit(1).all()
+      if (!topic) throw DataApiErrorFactory.notFound('Topic', target.topicId)
+
+      const reparentedIds = this.reparentChildrenTx(tx, targets)
+      let newActiveNodeId: string | null | undefined
+
+      if (topic.activeNodeId && targetIds.includes(topic.activeNodeId)) {
+        newActiveNodeId = this.resolveActiveNodeFallbackTx(tx, target.parentId)
+      }
+
+      tx.delete(messageTable).where(inArray(messageTable.id, targetIds)).run()
+
+      if (newActiveNodeId !== undefined) {
+        const topicService = getDataService('TopicService')
+        if (newActiveNodeId === null) {
+          topicService.clearActiveNodeTx(tx, target.topicId)
+        } else {
+          topicService.setActiveNodeTx(tx, target.topicId, newActiveNodeId, { assumeValid: true })
+        }
+      }
+
+      return {
+        deletedIds: targetIds,
+        reparentedIds: reparentedIds.length > 0 ? reparentedIds : undefined,
+        newActiveNodeId
+      }
+    })
+
+    logger.info('Deleted assistant reply group with reparenting', {
+      count: result.deletedIds.length,
+      reparentedCount: result.reparentedIds?.length ?? 0
+    })
+    return result
+  }
+
+  /**
    * Delete a message (hard delete)
    *
    * Supports two modes:
@@ -1407,7 +1548,6 @@ export class MessageService {
     if (message.role === 'root' || message.parentId === null) {
       throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
     }
-
     // Get all descendant IDs before transaction (for cascade delete)
     let descendantIds: string[] = []
     if (cascade) {
@@ -1420,22 +1560,8 @@ export class MessageService {
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
 
-      // The 'parent' fallback for activeNodeId is the deleted message's parent — but the
-      // virtual root is never a valid active node. Deleting a first-turn message (whose
-      // parent is the root) must clear activeNodeId, not point it at the root. The parent
-      // is always an ancestor (never in deletedIds), so it survives the delete below.
-      let parentFallback: string | null = message.parentId
-      let parentIsRoot = false
-      if (parentFallback) {
-        const [parent] = tx
-          .select({ role: messageTable.role })
-          .from(messageTable)
-          .where(eq(messageTable.id, parentFallback))
-          .limit(1)
-          .all()
-        parentIsRoot = parent?.role === 'root'
-        if (!parent || parentIsRoot) parentFallback = null
-      }
+      // The virtual root is structural and never a valid active node.
+      const parentFallback = this.resolveActiveNodeFallbackTx(tx, message.parentId)
 
       if (cascade) {
         deletedIds = [id, ...descendantIds]
@@ -1454,45 +1580,7 @@ export class MessageService {
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
         // Splice this node out: reparent its children onto its parent (their grandparent).
-        // siblingsGroupId is relative to the parent, so a moved child's group id could
-        // collide with an unrelated group already under the destination parent and be
-        // mis-rendered as the same multi-response set. Rebase each distinct non-zero moved
-        // group to a fresh id above any group already present at the destination; group 0
-        // (no group) carries over unchanged.
-        const children = tx
-          .select({ id: messageTable.id, siblingsGroupId: messageTable.siblingsGroupId })
-          .from(messageTable)
-          .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
-          .all()
-
-        reparentedIds = children.map((c) => c.id)
-
-        if (reparentedIds.length > 0) {
-          const newParentId = message.parentId
-          const destRows = newParentId
-            ? tx
-                .select({ g: messageTable.siblingsGroupId })
-                .from(messageTable)
-                .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
-                .all()
-            : []
-          let nextGroupId = Math.max(0, ...destRows.map((r) => r.g), ...children.map((c) => c.siblingsGroupId)) + 1
-          const remap = new Map<number, number>()
-          for (const c of children) {
-            if (c.siblingsGroupId !== 0 && !remap.has(c.siblingsGroupId)) {
-              remap.set(c.siblingsGroupId, nextGroupId++)
-            }
-          }
-          for (const c of children) {
-            tx.update(messageTable)
-              .set({
-                parentId: newParentId,
-                siblingsGroupId: c.siblingsGroupId === 0 ? 0 : remap.get(c.siblingsGroupId)!
-              })
-              .where(eq(messageTable.id, c.id))
-              .run()
-          }
-        }
+        reparentedIds = this.reparentChildrenTx(tx, [message])
 
         deletedIds = [id]
 
@@ -1529,6 +1617,68 @@ export class MessageService {
         newActiveNodeId
       }
     })
+  }
+
+  private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
+    if (!parentId) return null
+
+    const [parent] = tx
+      .select({ role: messageTable.role })
+      .from(messageTable)
+      .where(and(eq(messageTable.id, parentId), isNull(messageTable.deletedAt)))
+      .limit(1)
+      .all()
+
+    return !parent || parent.role === 'root' ? null : parentId
+  }
+
+  private reparentChildrenTx(tx: DbOrTx, targets: Array<Pick<MessageRow, 'id' | 'parentId'>>): string[] {
+    const targetIds = targets.map((target) => target.id)
+    const newParentId = targets[0]?.parentId ?? null
+    const children = tx
+      .select({
+        id: messageTable.id,
+        parentId: messageTable.parentId,
+        siblingsGroupId: messageTable.siblingsGroupId
+      })
+      .from(messageTable)
+      .where(and(inArray(messageTable.parentId, targetIds), isNull(messageTable.deletedAt)))
+      .all()
+
+    if (children.length === 0) return []
+
+    // siblingsGroupId is relative to the parent. Rebase each moved non-zero group
+    // to a fresh id so groups from different deleted replies cannot collide with
+    // each other or with an unrelated group already under the destination parent.
+    const destRows = newParentId
+      ? tx
+          .select({ g: messageTable.siblingsGroupId })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
+          .all()
+      : []
+    let nextGroupId =
+      Math.max(0, ...destRows.map((row) => row.g), ...children.map((child) => child.siblingsGroupId)) + 1
+    const remap = new Map<string, number>()
+
+    for (const child of children) {
+      if (child.siblingsGroupId === 0) continue
+      const sourceGroup = `${child.parentId}:${child.siblingsGroupId}`
+      if (!remap.has(sourceGroup)) remap.set(sourceGroup, nextGroupId++)
+    }
+
+    for (const child of children) {
+      const sourceGroup = `${child.parentId}:${child.siblingsGroupId}`
+      tx.update(messageTable)
+        .set({
+          parentId: newParentId,
+          siblingsGroupId: child.siblingsGroupId === 0 ? 0 : remap.get(sourceGroup)!
+        })
+        .where(eq(messageTable.id, child.id))
+        .run()
+    }
+
+    return children.map((child) => child.id)
   }
 
   /**
@@ -1718,6 +1868,10 @@ export class MessageService {
       copiedActiveNodeId = copiedMessage.id
     }
 
+    // File refs are NOT re-derived here: the sole caller (TopicService.duplicate)
+    // copies the source rows' refs verbatim by source-id map afterwards
+    // (role-preserving, so `tool_output` refs ride along) — deriving them here
+    // too would collide on the (entry, source, role) unique index.
     return { copiedMessageIds, copiedActiveNodeId }
   }
 

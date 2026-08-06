@@ -5,7 +5,12 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { MessageListRuntime, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import {
+  createOverlayRefreshHandoff,
+  useMessageStreamingLayers
+} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -14,7 +19,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import {
   useTopicAwaitingApproval,
@@ -31,7 +35,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useStableMessagePartsLayers } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -53,15 +56,11 @@ interface UseChatRuntimeStateParams {
   uiMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
-  /** Returns the greeting currently visible on an empty conversation, if any. */
-  getGreetingContext?: () => string | undefined
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -107,13 +106,11 @@ export function useChatRuntimeState({
   uiMessages,
   refresh,
   activeNodeId,
-  rootId,
   messagesCacheMutate,
   assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId,
-  getGreetingContext
+  getBranchDraftAnchorId
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -129,11 +126,11 @@ export function useChatRuntimeState({
       }
     }
   }, [])
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
-  }, [])
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
+  }, [])
+  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
+    dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
@@ -190,42 +187,18 @@ export function useChatRuntimeState({
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
-  // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
-  // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
-  // torn-down turn's live card would otherwise override the finalized DB row.
-  // Refresh-then-reset off the status edge; branch bookkeeping stays in
-  // `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
-  useTopicOverlayHandoffOnTerminal(topic.id, async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  })
+  // Deterministic overlay→DB handoff at terminal (see hook docs); branch
+  // bookkeeping stays in `handleExecutionFinish`.
+  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay))
 
-  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
+  const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,
     overlay,
+    executions: branchActiveExecutions,
+    liveAssistants,
     translationOverlay
-  )
+  })
   const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
-  const liveMessageIdCandidates = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...branchActiveExecutions.flatMap((execution) =>
-            execution.anchorMessageId ? [execution.anchorMessageId] : []
-          ),
-          ...liveAssistants.map((message) => message.id)
-        ])
-      ),
-    [branchActiveExecutions, liveAssistants]
-  )
-  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
-  const streamingLayers = useMemo<MessageStreamingLayers>(
-    () => ({ historyPartsByMessageId, liveMessageIds }),
-    [historyPartsByMessageId, liveMessageIds]
-  )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -279,19 +252,15 @@ export function useChatRuntimeState({
       const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
       return { topicId: topic.id, parentAnchorId }
     },
-    buildStreamRequest: ({ text, options }, conversation) => {
-      const greetingContext = !isHistoryLoading && messages.length === 0 ? getGreetingContext?.() : undefined
-      return {
-        trigger: 'submit-message',
-        topicId: conversation.topicId,
-        parentAnchorId: conversation.parentAnchorId ?? undefined,
-        userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-        mentionedModelIds: options?.mentionedModels,
-        ...(greetingContext ? { greetingContext } : {}),
-        reasoningEffort: options?.reasoningEffort,
-        ...(options?.fastMode ? { fastMode: true } : {})
-      }
-    },
+    buildStreamRequest: ({ text, options }, conversation) => ({
+      trigger: 'submit-message',
+      topicId: conversation.topicId,
+      parentAnchorId: conversation.parentAnchorId ?? undefined,
+      userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
+      mentionedModelIds: options?.mentionedModels,
+      reasoningEffort: options?.reasoningEffort,
+      ...(options?.fastMode ? { fastMode: true } : {})
+    }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
@@ -389,15 +358,12 @@ export function useChatRuntimeState({
     topic,
     uiMessages: messages,
     activeNodeId,
-    rootId,
     regenerate,
     setMessages,
     stop,
     refresh,
     cache,
     seedReservedMessages,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted: turnController.markLocalSendStarted,
     scrollToBottom,
     startNewContextBlocked:
       isHistoryLoading ||
@@ -430,9 +396,8 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,
-    captureLocalSendScrollEligibility,
+    locateMessage,
     sendMessage,
-    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

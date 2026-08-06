@@ -235,14 +235,26 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
+  // A load-all source must refresh every loaded page once the chain is complete,
+  // but it should fetch only the new page while the chain is growing. SWR
+  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
+  // would re-fetch every previous page. Disable both growth-time behaviors;
+  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
+  // complete. Progressive pagination retains SWR's first-page revalidation.
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts?.enabled
+    enabled: opts?.enabled,
+    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
+
+  useEffect(() => {
+    setRevalidateAllPages(loadAll && isFullyLoaded)
+  }, [loadAll, isFullyLoaded])
 
   // Auto-paginate to completion when the caller wants the full list. The
   // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
@@ -494,12 +506,14 @@ export function useActiveTopic({
   passive = false
 }: UseActiveTopicOptions) {
   // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
-  // without waiting for the full topic history to paginate in. The rail keeps its own
-  // loadAll source; this hook only needs the one active row.
-  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
-    passive || !activeTopicId ? undefined : activeTopicId
-  )
+  // loadAll `/topics` list. The entry route chooses the id without waiting for topic
+  // history pagination; this hook then loads only that active row while the rail keeps
+  // its own loadAll source.
+  const {
+    topic: apiActiveTopic,
+    isLoading: isActiveTopicQueryLoading,
+    error
+  } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
       activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
@@ -570,5 +584,5 @@ export function useActiveTopic({
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.
   const isLoading = !activeTopic && isActiveTopicQueryLoading
-  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, error, topicSource }
 }

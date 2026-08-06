@@ -38,6 +38,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,
+  ResourceListGroupHeaderKind,
   ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
@@ -66,7 +67,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-foreground',
         className
       )}
       {...props}
@@ -161,17 +162,17 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
           command ? 'w-full shrink' : 'flex-1',
           className
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left font-normal text-[13px] text-foreground leading-5">
           {label}
         </span>
-        {command && <CommandHint command={command} />}
+        {command && <CommandHint command={command} className="font-normal text-muted-foreground text-xs" />}
       </Button>
       {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground">{actions}</div>}
     </div>
@@ -212,7 +213,7 @@ function GroupHeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-muted-foreground! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-muted-foreground! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3.5! [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -396,7 +397,7 @@ function Item<T extends ResourceListItemBase>({
         'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-        rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-foreground',
+        rowState.active && !rowState.selected && 'bg-sidebar-accent text-foreground',
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
@@ -483,7 +484,11 @@ function RenameField<T extends ResourceListItemBase>({
       ref={setInputRef}
       defaultValue={getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-foreground shadow-none focus-visible:ring-0',
+        // Renaming always happens on the selected row, so it carries the selected weight — otherwise
+        // the title visibly thins out the moment the input takes over.
+        // `md:text-sm` on the shared Input wins over a plain `text-[13px]`, so the responsive variant
+        // has to be restated — otherwise the title grows a size the moment editing starts.
+        'h-6 flex-1 border-none bg-transparent px-0 font-medium text-[13px] text-foreground leading-5 shadow-none focus-visible:ring-0 md:text-[13px]',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -521,7 +526,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-muted-foreground leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-foreground leading-5 group-data-[selected=true]:font-medium',
         className
       )}
       {...props}
@@ -547,7 +552,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:outline-none',
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}

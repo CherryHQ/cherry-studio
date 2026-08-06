@@ -87,6 +87,10 @@
       "message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
       "title": "Repor os dados da aplicação"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",
     "pdf_files": "Arquivos PDF",
@@ -96,6 +100,14 @@
     "save_file": "Salvar Arquivo",
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "O binário do OpenClaw utilizado pelo Cherry Studio é incompatível com a configuração gerada. Atualize o OpenClaw.{{details}}",
+      "external_config_invalid": "O OpenClaw rejeitou uma configuração fora da secção de fornecedores gerida pelo Cherry Studio. Corrija essa configuração ou atualize o OpenClaw.{{details}}",
+      "more_issues": "e mais {{count}} problema(s)",
+      "preflight_failed": "O Cherry Studio não conseguiu validar a configuração do OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Falha ao gerar imagem",

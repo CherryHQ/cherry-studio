@@ -622,7 +622,7 @@ describe('FilesPage file operations', () => {
         filters: [{ name: 'files.all', extensions: ['*'] }]
       })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
-        items: [{ source: 'path', path: '/tmp/import-from-button.md' }]
+        items: [{ source: 'path', path: '/tmp/import-from-button.md', cleanupPolicy: 'manual' }]
       })
       expect(refetchStats).toHaveBeenCalled()
     })
@@ -958,7 +958,7 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
-        items: [{ source: 'path', path: '/tmp/import.md' }]
+        items: [{ source: 'path', path: '/tmp/import.md', cleanupPolicy: 'manual' }]
       })
       expect(refetchStats).toHaveBeenCalled()
     })

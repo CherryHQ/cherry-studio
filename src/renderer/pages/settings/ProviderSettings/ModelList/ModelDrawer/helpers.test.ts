@@ -62,14 +62,14 @@ describe('model drawer classification helpers', () => {
 
   it('switches between editable model types without disabling independent capabilities', () => {
     const classification = getInitialModelClassification(
-      makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.WEB_SEARCH] })
+      makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.FUNCTION_CALL] })
     )
     classification.primaryType = 'rerank'
     classification.capabilities.add(MODEL_CAPABILITY.REASONING)
 
     expect(buildModelCapabilities([MODEL_CAPABILITY.EMBEDDING], classification)).toEqual([
       MODEL_CAPABILITY.RERANK,
-      MODEL_CAPABILITY.WEB_SEARCH,
+      MODEL_CAPABILITY.FUNCTION_CALL,
       MODEL_CAPABILITY.REASONING
     ])
   })

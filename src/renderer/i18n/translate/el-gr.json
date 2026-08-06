@@ -147,8 +147,8 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
-      "background_running_other": "[to be translated]:{{count}} background tasks running"
+      "background_running_one": "{{count}} εργασία παρασκηνίου σε εκτέλεση",
+      "background_running_other": "{{count}} εργασίες παρασκηνίου σε εκτέλεση"
     },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
@@ -235,6 +235,7 @@
           "discard_and_continue": "Απόρριψη και συνέχεια",
           "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
         },
+        "metadata_pending": "Το αρχείο αποθηκεύτηκε, αλλά τα μεταδεδομένα του εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτήν την αποθήκευση.",
         "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
         "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
         "unsaved": "Μη αποθηκευμένο",
@@ -277,6 +278,16 @@
       "too_large": {
         "description": "Το αρχείο υπερβαίνει το όριο προεπισκόπησης των {{limit}}.",
         "title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Το πλαίσιο αρχείων απαιτεί έγκυρη απόλυτη τοπική διαδρομή. Παρακαλώ επιλέξτε ξανά τον κατάλογο εργασίας.",
+          "title": "Μη έγκυρη διαδρομή χώρου εργασίας"
+        },
+        "load_error": {
+          "description": "Βεβαιωθείτε ότι ο φάκελος εργασίας υπάρχει ακόμα και είναι προσβάσιμος, στη συνέχεια προσπαθήστε ξανά.",
+          "title": "Δεν ήταν δυνατή η φόρτωση των αρχείων του χώρου εργασίας"
+        }
       },
       "unavailable": {
         "description": "Αυτό το αρχείο δεν μπόρεσε να ανοίξει — ενδέχεται να έχει μετακινηθεί ή διαγραφεί.",
@@ -325,25 +336,25 @@
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
         "no_subagents": "Καμία υπο-αντιπροσωπεία",
-        "shell_tasks": "[to be translated]:Background commands",
+        "shell_tasks": "Εντολές παρασκηνίου",
         "subagents": "Υπο-πράκτορες",
-        "workflows": "[to be translated]:Workflows"
+        "workflows": "Ροές εργασίας"
       },
       "status": {
         "activity": "Δραστηριότητα",
         "agent": "Πράκτορας",
         "context": "Συμφραζόμενα",
         "no_tasks": "Κανένα ενεργό καθήκον",
-        "run_task_live_one": "[to be translated]:{{count}} live",
-        "run_task_live_other": "[to be translated]:{{count}} live",
-        "run_tasks": "[to be translated]:Subtasks",
+        "run_task_live_one": "{{count}} ζωντανά",
+        "run_task_live_other": "{{count}} ζωντανά",
+        "run_tasks": "Υποεργασίες",
         "selected_tool": "Επιλεγμένο εργαλείο",
-        "stop_run_task": "[to be translated]:Stop task",
-        "stop_run_task_failed": "[to be translated]:Failed to stop task",
+        "stop_run_task": "Διακοπή εργασίας",
+        "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
         "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
         "tasks": "Εργασίες",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
-        "tool_uses_other": "[to be translated]:{{count}} tool calls",
+        "tool_uses_one": "{{count}} κλήση εργαλείου",
+        "tool_uses_other": "{{count}} κλήσεις εργαλείων",
         "tools_active": "Ενεργός",
         "tools_done": "Έγινε",
         "tools_failed": "Απέτυχε",
@@ -440,7 +451,6 @@
         "collapse": "Σύμπτυξη προβολής",
         "collapse_all": "Σύμπτυξη όλων",
         "conversation": "Συζητήσεις",
-        "drag_hint": "Σύρετε για αναδιάταξη. Σύρετε εργασίες για να προσαρμόσετε τις ομάδες προβολής και απόκρυψης.",
         "earlier": "Νωρίτερα",
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
@@ -757,6 +767,13 @@
         "placeholder": "Τι πρέπει να κάνει ο πράκτορας όταν εκτελείται αυτή η εργασία;"
       },
       "resume": "Συνέχιση",
+      "reuseSession": {
+        "bound": "Προβολή συνεδρίας",
+        "description": "Συνεχίστε κάθε εκτέλεση στην ίδια συνεδρία αντί να ξεκινάτε νέα.",
+        "label": "Επαναχρησιμοποίηση συνεδρίας",
+        "pending": "Αναμονή για την πρώτη εκτέλεση",
+        "warning": "Μια επαναχρησιμοποιούμενη συνεδρία συσσωρεύει συνεχώς πλαίσιο, το οποίο αυξάνει το κόστος των tokens με την πάροδο του χρόνου και μπορεί να υπερχειλίσει το παράθυρο πλαισίου του μοντέλου. Για να επανασυνδέσετε μια καθαρή συνεδρία, απενεργοποιήστε και αποθηκεύστε, στη συνέχεια ενεργοποιήστε και αποθηκεύστε."
+      },
       "run": "Εκτέλεση",
       "runTriggered": "Η εργασία ενεργοποιήθηκε",
       "save": "Αποθήκευση",
@@ -1349,6 +1366,9 @@
       "label": "Είστε σίγουροι ότι θέλετε να αντιγράψετε τα δεδομένα;"
     },
     "content": "Αντιγράφετε όλα τα δεδομένα, συμπεριλαμβανομένων των εγγραφών συζήτησης, των ρυθμίσεων, της βάσης γνώσεων και όλων των δεδομένων. Παρακαλούμε σημειώστε ότι η διαδικασία αντιγράφου μπορεί να χρειαστεί λίγο χρόνο. Ευχαριστούμε για την υπομονή.",
+    "error": {
+      "active_data_writers": "Μια συνομιλία ή ένας πράκτορας εξακολουθεί να εκτελείται. Περιμένετε να ολοκληρωθεί και δοκιμάστε ξανά."
+    },
     "progress": {
       "completed": "Η αντιγραφή ασφαλείας ολοκληρώθηκε",
       "compressing": "Συμπίεση αρχείων...",
@@ -1415,6 +1435,11 @@
         "placeholder": "Αναζήτηση"
       }
     },
+    "compaction": {
+      "compacted": "Περιεχόμενο συμπυκνωμένο, ~{{count}} tokens εξοικονομήθηκαν",
+      "compacted_plain": "Συμπιεσμένο πλαίσιο",
+      "compacting": "Συμπίεση περιεχομένου…"
+    },
     "conversation": {
       "new": "Νέα Συνομιλία"
     },
@@ -1480,6 +1505,13 @@
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
+      "note_reference": {
+        "description": "Επισυνάψτε μια σημείωση από τις Σημειώσεις",
+        "empty": "Δεν βρέθηκαν σημειώσεις",
+        "load_failed": "Αποτυχία φόρτωσης σημειώσεων",
+        "loading": "Φόρτωση σημειώσεων...",
+        "title": "Σημείωση Αναφοράς"
+      },
       "paste_text_file": "Επικόλληση στην είσοδο",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Παύση",
@@ -1594,7 +1626,6 @@
         "image_or_document": "Μεταφόρτωση εικόνας ή εγγράφου",
         "upload_from_local": "Μεταφόρτωση αρχείου από τον υπολογιστή..."
       },
-      "url_context": "Περιεχόμενο ιστοσελίδας",
       "web_search": {
         "builtin": {
           "disabled_content": "Η τρέχουσα έκδοση του μοντέλου δεν υποστηρίζει τη δυνατότητα διαδικτυακής αναζήτησης",
@@ -1611,13 +1642,16 @@
           "description": "Να μην ενεργοποιηθεί η δυνατότητα διαδικτυακής αναζήτησης",
           "label": "Χωρίς διαδίκτυο"
         },
+        "route": {
+          "builtin": "Αναζητήσεις με το ενσωματωμένο εργαλείο του μοντέλου",
+          "client": "Αναζητήσεις με {{provider}}"
+        },
         "settings": "Ρυθμίσεις αναζήτησης στο διαδίκτυο"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων",
-        "url_context": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση πλοήγησης στον ιστό και κλήσης συναρτήσεων"
+        "gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων"
       }
     },
     "message": {
@@ -1694,6 +1728,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Μετάβαση στη στροφή {{number}}"
+      },
       "bottom": "Επιστροφή στο κάτω μέρος",
       "close": "Κλείσιμο",
       "first": "Ήδη το πρώτο μήνυμα",
@@ -2481,6 +2518,7 @@
       "content": "Το περιεχόμενο αποκλείστηκε από το σύστημα ασφαλείας, τροποποιήστε και δοκιμάστε ξανά",
       "context_length": "Η συνομιλία είναι πολύ μεγάλη, παρακαλώ καθαρίστε το ιστορικό ή ξεκινήστε μια νέα συνομιλία",
       "deprecated": "Αυτό το μοντέλο έχει αποσυρθεί· παρακαλούμε μεταβείτε σε άλλο μοντέλο",
+      "free_model_unavailable": "Η διάγνωση AI είναι προσωρινά μη διαθέσιμη",
       "go_to_settings": "Μετάβαση στις ρυθμίσεις",
       "knowledge": "Αποτυχία διανυσματοποίησης βάσης γνώσεων",
       "mcp": "Αποτυχία σύνδεσης με τον διακομιστή MCP, ελέγξτε αν η υπηρεσία εκτελείται",
@@ -2585,6 +2623,10 @@
     "user": "Χρήστης"
   },
   "file_preview": {
+    "directory": {
+      "description": "Επιλέξτε ένα αρχείο σε αυτόν τον φάκελο για να το προεπισκοπήσετε.",
+      "title": "Αυτός είναι ένας φάκελος"
+    },
     "html": {
       "empty": {
         "description": "Αυτό το αρχείο HTML δεν έχει περιεχόμενο.",
@@ -2650,6 +2692,10 @@
         "description": "Αρχεία κειμένου μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
         "title": "Το αρχείο είναι πολύ μεγάλο"
       }
+    },
+    "unavailable": {
+      "description": "Το αρχείο μπορεί να έχει μετακινηθεί, διαγραφεί ή να μην είναι προσβάσιμο.",
+      "title": "Το αρχείο δεν είναι διαθέσιμο"
     },
     "unsupported": {
       "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
@@ -3057,6 +3103,7 @@
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
+        "copying": "Αντιγραφή {{percent}}%",
         "embedding": "Ενσωμάτωση",
         "error": "Σφάλμα",
         "pending": "Αναμονή",
@@ -3154,6 +3201,7 @@
         "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη."
       },
       "processor": "Πάροχος Επεξεργασίας",
+      "processor_not_configured": "Δεν έχει ρυθμιστεί",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -3353,7 +3401,7 @@
             "label": "Μικρό μοντέλο (προαιρετικό)"
           }
         },
-        "model_config": "Διαμόρφωση μοντέλου",
+        "model_config": "Μοντέλο",
         "section": {
           "advanced": {
             "desc": "Όρια εκτέλεσης και παράμετροι χρόνου εκτέλεσης",
@@ -3404,7 +3452,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Αυτόματη συμπίεση",
+        "context_compress_model": "Μοντέλο συμπίεσης",
+        "context_compress_model_follow": "Προεπιλογή",
         "context_count": "Καταμέτρηση πλαισίου",
+        "context_management": "Διαχείριση περιεχομένου",
+        "context_truncate_threshold": "Όριο περικοπής εξόδου εργαλείου (χαρακτήρες)",
         "creative": "Δημιουργικό",
         "custom_params": "Προσαρμοσμένες παράμετροι",
         "custom_params_add": "Προσθήκη παραμέτρου",
@@ -3416,8 +3469,17 @@
           "avatar": {
             "hint": "Χρησιμοποιείται για την αναγνώριση του βοηθού στη βιβλιοθήκη και στις συνομιλίες"
           },
+          "context_compress_enabled": {
+            "hint": "Αυτόματη σύνοψη παλαιότερων στροφών όταν πλησιάζει το παράθυρο περιβάλλοντος"
+          },
           "context_count": {
             "hint": "Αριθμός πρόσφατων μηνυμάτων που διατηρούνται ως συμφραζόμενα"
+          },
+          "context_management": {
+            "hint": "Απενεργοποίηση των καθολικών ρυθμίσεων διαχείρισης περιβάλλοντος για αυτόν τον βοηθό· το off κληρονομεί τις καθολικές ρυθμίσεις"
+          },
+          "context_truncate_threshold": {
+            "hint": "Τα αποτελέσματα εργαλείων πέρα από αυτούς τους χαρακτήρες εκφορτώνονται και περικόπτονται"
           },
           "custom_params": {
             "hint": "Επιπλέον παράμετροι παρόχου που αποστέλλονται με τα αιτήματα"
@@ -3832,6 +3894,7 @@
       "pasted_text": "Κείμενο στο πινάκιδα"
     },
     "backup": {
+      "cleanup_failed": "Η δημιουργία αντιγράφου ασφαλείας ολοκληρώθηκε, αλλά δεν ήταν δυνατή η εκκαθάριση των παλιών αντιγράφων ασφαλείας.",
       "failed": "Η αντιγραφή ασφαλείας απέτυχε",
       "start": {
         "success": "Η αρχή της αντιγραφής ασφαλείας ήταν επιτυχής"
@@ -3847,8 +3910,9 @@
       }
     },
     "citation": "{{count}} αναφορές",
+    "citation_source": "Πηγή παραπομπής {{number}}",
     "citations": "Περιεχόμενα αναφοράς",
-    "conversation_reset": "[to be translated]:Previous conversation history could not be found — continuing in a new conversation",
+    "conversation_reset": "Δεν ήταν δυνατή η εύρεση του ιστορικού προηγούμενης συνομιλίας — συνέχεια σε νέα συνομιλία",
     "copied": "Αντιγράφηκε",
     "copy": {
       "failed": "Η αντιγραφή απέτυχε",
@@ -3860,7 +3924,7 @@
         "title": "Επιβεβαίωση Διαγραφής"
       },
       "failed": "Η διαγραφή απέτυχε",
-      "first_turn_not_supported": "Το πρώτο μήνυμα χρήστη δεν μπορεί να διαγραφεί.",
+      "generating_unavailable": "Μια απάντηση σε αυτήν την ομάδα δημιουργείται ακόμη και δεν μπορεί να διαγραφεί προς το παρόν.",
       "root_unavailable": "Τα μηνύματα εξακολουθούν να φορτώνονται και δεν μπορούν ακόμα να διαγραφούν.",
       "success": "Η διαγραφή ήταν επιτυχής"
     },
@@ -3945,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Η διαγραφή της ομάδας θα διαγράψει τις ερωτήσεις των χρηστών και όλες τις απαντήσεις του αστρόναυτη",
-        "title": "Διαγραφή ομάδας"
+        "content": "Να διαγραφούν όλες οι απαντήσεις του βοηθού σε αυτή την ομάδα; Η ερώτηση του χρήστη και τα επόμενα μηνύματα θα διατηρηθούν.",
+        "title": "Διαγραφή ομαδοποιημένων απαντήσεων"
       },
       "retry_failed": "Αποτυχημένο μήνυμα επανάληψης"
     },
@@ -4130,7 +4194,7 @@
         "write": "Αποθήκευση",
         "writing": "Αποθήκευση"
       },
-      "agent_background": "[to be translated]:Running in background",
+      "agent_background": "Εκτέλεση στο παρασκήνιο",
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
@@ -4162,7 +4226,7 @@
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
         "webSearch": "Αναζήτηση στον Ιστό",
-        "workflow": "[to be translated]:Workflow",
+        "workflow": "Ροή εργασίας",
         "write": "Γράψε"
       },
       "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
@@ -4222,13 +4286,13 @@
         "result_other": "{{count}} αποτελέσματα"
       },
       "workflow": {
-        "orchestrating": "[to be translated]:Orchestrating workflow",
-        "run_id": "[to be translated]:Run ID",
-        "script": "[to be translated]:Workflow script",
-        "script_path": "[to be translated]:Script path",
-        "started": "[to be translated]:Started workflow",
-        "summary": "[to be translated]:Summary",
-        "workflow": "[to be translated]:workflow"
+        "orchestrating": "Οργάνωση ροής εργασιών",
+        "run_id": "Αναγνωριστικό Εκτέλεσης",
+        "script": "Σενάριο ροής εργασίας",
+        "script_path": "Διαδρομή σεναρίου",
+        "started": "Ξεκίνησε η ροή εργασίας",
+        "summary": "Περίληψη",
+        "workflow": "ροή εργασίας"
       }
     },
     "topic": {
@@ -4260,6 +4324,7 @@
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
       "fetch_empty": "Δεν βρέθηκαν αποτελέσματα αναζήτησης",
+      "fetch_opaque": "Αναζητήθηκε από το μοντέλο",
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
@@ -4359,7 +4424,8 @@
     "invalid_model": "Μη έγκυρο μοντέλο",
     "json_parse_error": "Μη έγκυρη μορφή JSON",
     "multi_select": {
-      "label": "Παράλληλη λειτουργία πολλών μοντέλων (αμοιβαία αποκλειόμενη με πολλούς βοηθούς)"
+      "label": "Πολλαπλή επιλογή",
+      "tooltip": "Παράλληλη λειτουργία πολλών μοντέλων"
     },
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
@@ -4493,7 +4559,8 @@
     "save_blocked_load_failed": "Η αποθήκευση μπλοκαρίστηκε επειδή η σημείωση απέτυχε να φορτωθεί",
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
     "save_failure": {
-      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί."
+      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί.",
+      "metadata_pending": "Η σημείωση αποθηκεύτηκε, αλλά τα μεταδεδομένα αρχείου της εξακολουθούν να ανακτώνται. Μην επαναλάβετε αυτή την αποθήκευση."
     },
     "search": {
       "both": "Όνομα + Περιεχόμενο",
@@ -5131,6 +5198,7 @@
     "reset": "Επαναφορά",
     "rotate_left": "Περιστροφή Αριστερά",
     "rotate_right": "Περιστροφή Δεξιά",
+    "save_as": "Αποθήκευση Ως",
     "source": "Προβολή πηγαίου κώδικα",
     "zoom_in": "Μεγέθυνση",
     "zoom_out": "συρρίκνωση"
@@ -5187,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Τοπικά μοντέλα",
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5215,6 +5283,7 @@
     "ppio": "PPIO Piao Yun",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "Σιδηρική Παρουσία",
     "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",
@@ -5714,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Νέος Βοηθός",
+      "create_tag": "Νέο",
       "empty_text": "Κανένας βοηθός ακόμα",
       "filter": "Φίλτρο βοηθών",
       "group_filter": "Φιλτράρισμα κατά ομάδα",
@@ -5763,12 +5833,100 @@
         "title": "Πίνακας Αποσφαλμάτωσης"
       },
       "description": "Ένα AI ασιστάντα που έχει σχεδιαστεί για δημιουργούς",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Λήψη ενημερώσεων...",
       "enterprise": {
         "title": "Επιχείρηση"
       },
       "feedback": {
+        "agent": {
+          "description": "Συνομιλήστε με την Βοηθό Cherry για να μοιραστείτε τα σχόλιά σας.",
+          "title": "Χρησιμοποίησε Πράκτορα"
+        },
+        "agent_error": "Αδυναμία ανοίγματος του Cherry Assistant για σχόλια. Παρακαλώ προσπαθήστε ξανά.",
         "button": "Σχόλια και Παρατηρήσεις",
+        "dialog": {
+          "description": "Επιλέξτε πώς θέλετε να μοιραστείτε τα σχόλιά σας και να μας βοηθήσετε να κάνουμε το Cherry Studio καλύτερο.",
+          "title": "Επιλέξτε ένα κανάλι ανατροφοδότησης"
+        },
+        "github": {
+          "description": "Δημιουργήστε μια αναφορά σφάλματος ή αίτημα για νέο χαρακτηριστικό στο GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Συνιστάται",
+        "survey": {
+          "description": "Μοιραστείτε τα σχόλιά σας μέσω της έρευνάς μας στο Feishu.",
+          "title": "Έρευνα ανατροφοδότησης"
+        },
         "title": "Αποστολή σχολίων"
       },
       "label": "Περί μας",
@@ -6101,6 +6259,7 @@
         },
         "pathSelector": {
           "currentPath": "Τρέχουσα διαδρομή",
+          "fetchError": "Αποτυχία φόρτωσης της λίστας φακέλων Nutstore",
           "return": "Πίσω",
           "title": "Διαδρομή αποθήκευσης Jotunn Cloud"
         },
@@ -6765,6 +6924,7 @@
         "allStatuses": "Όλες οι καταστάσεις",
         "allTypes": "Όλοι οι τύποι",
         "builtinOnly": "Ενσωματωμένο μόνο",
+        "label": "Φίλτρο",
         "status": "Φιλτράρισμα κατά κατάσταση",
         "type": "Φιλτράρισμα κατά τύπο"
       },
@@ -6831,6 +6991,9 @@
         "loadError": "Αποτυχία λήψης υπόδειξης",
         "noPromptsAvailable": "Δεν υπάρχουν διαθέσιμες υποδείξεις",
         "requiredField": "Υποχρεωτικό πεδίο"
+      },
+      "protocolInstall": {
+        "title": "Εγκατάσταση MCP"
       },
       "protocolInstallWarning": {
         "command": "Εντολή εκκίνησης",
@@ -7289,6 +7452,7 @@
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
         "label": "Ονομασία θέματος",
+        "model": "Μοντέλο Ονομασίας",
         "prompt": "Προσδιορισμός προκαθορισμένου θέματος"
       },
       "translate_model": "Μοντέλο μετάφρασης",
@@ -7351,10 +7515,6 @@
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
     },
     "privacy": {
-      "contextual_greetings": {
-        "description": "Όταν ενεργοποιηθεί, το Cherry Studio επικοινωνεί με το IPInfo για να εντοπίσει κατά προσέγγιση τη χώρα ή την περιοχή και στέλνει αυτό το αποτέλεσμα μαζί με το όνομά σας, τη γλώσσα της εφαρμογής, την τοπική ημερομηνία και ώρα και τη ζώνη ώρας στο ενσωματωμένο μοντέλο CherryAI για τη δημιουργία χαιρετισμών. Είναι απενεργοποιημένο από προεπιλογή.",
-        "title": "Χαιρετισμοί βάσει περιβάλλοντος που δημιουργούνται από AI"
-      },
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
     },
@@ -7703,6 +7863,13 @@
         "usage_title": "Χρήση",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Άνοιγμα Token Factory",
+          "description": "Ισοδυναμεί με πίστωση API 10 USD ημερησίως: περίπου 10M–111M tokens εισόδου/εξόδου με τις τρέχουσες τιμές, ανάλογα με το μοντέλο και τον τύπο token. Η πίστωση επαναφέρεται καθημερινά· προς το παρόν δεν υποστηρίζονται ανανεώσεις υπολοίπου.",
+          "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
+        }
+      },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "reorder_failed": "Αποτυχία αναδιάταξης παρόχων",
@@ -7746,13 +7913,6 @@
           "toggle_client_email_visibility": "Εναλλαγή ορατότητας email του πελάτη",
           "toggle_private_key_visibility": "Εναλλαγή ορατότητας ιδιωτικού κλειδιού",
           "toggle_project_id_visibility": "Εναλλαγή ορατότητας αναγνωριστικού έργου"
-        }
-      },
-      "radeon_cloud": {
-        "benefits": {
-          "cta": "Άνοιγμα Token Factory",
-          "description": "Ισοδυναμεί με πίστωση API 10 USD ημερησίως: περίπου 10M–111M tokens εισόδου/εξόδου με τις τρέχουσες τιμές, ανάλογα με το μοντέλο και τον τύπο token. Η πίστωση επαναφέρεται καθημερινά· προς το παρόν δεν υποστηρίζονται ανανεώσεις υπολοίπου.",
-          "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
         }
       }
     },
@@ -8055,6 +8215,10 @@
         "check": "Έλεγχος",
         "check_failed": "Αποτυχία επαλήθευσης",
         "check_success": "Επιτυχής επαλήθευση",
+        "client_tools_preferred": {
+          "description": "Χρησιμοποιήστε τις υπηρεσίες αναζήτησης και λήψης URL που έχουν ρυθμιστεί παραπάνω ακόμα και όταν το μοντέλο έχει ενσωματωμένη αναζήτηση. Όταν είναι απενεργοποιημένο, το μοντέλο το χειρίζεται.",
+          "label": "Προτίμηση διαμορφωμένων υπηρεσιών αναζήτησης"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -8081,7 +8245,7 @@
           "save_failed": "Η αποθήκευση απέτυχε",
           "zhipu_sync_failed": "Αποτυχία συγχρονισμού του κλειδιού API του Zhipu με την Αναζήτηση Ιστού. Παρακαλώ αποθηκεύστε ξανά το κλειδί ή ελέγξτε τις ρυθμίσεις Αναζήτησης Ιστού."
         },
-        "fetch_urls_provider": "Προεπιλεγμένος πάροχος λήψης διευθύνσεων URL",
+        "fetch_urls_provider": "Πάροχος λήψης διευθύνσεων URL",
         "free": "Δωρεάν",
         "is_default": "Προεπιλογή",
         "local_provider": {

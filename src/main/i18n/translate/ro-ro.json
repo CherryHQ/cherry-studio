@@ -87,6 +87,10 @@
       "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
       "title": "Resetarea datelor aplicației"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",
     "pdf_files": "Fișiere PDF",
@@ -96,6 +100,14 @@
     "save_file": "Salvează fișier",
     "select_folder": "Selectează folderul",
     "word_document": "Document Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizați OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectați configurația respectivă sau actualizați OpenClaw.{{details}}",
+      "more_issues": "și alte {{count}} probleme",
+      "preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Nu s-a putut genera imaginea",

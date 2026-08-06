@@ -127,6 +127,7 @@ Release notes are for **end users**, not developers. Exclude anything users don'
 
 1. **`package.json`**: Update the `"version"` field to the new version.
 2. **`electron-builder.yml`**: Replace the content under `releaseInfo.releaseNotes: |` with the generated notes. Preserve the 4-space YAML indentation for the block scalar content.
+3. **Built-in knowledge**: Run `pnpm build:builtin-knowledge` after updating the version. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand.
 
 ### Step 5: Present for Review
 
@@ -144,7 +145,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 1. Create and push the release branch:
    ```bash
    git checkout -b release/v{version}
-   git add package.json electron-builder.yml
+   git add package.json electron-builder.yml resources/builtin-agents/cherry-assistant/product-manifest.json
    git commit -m "chore: release v{version}"
    git push -u origin release/v{version}
    ```
@@ -157,19 +158,19 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
      - A review checklist:
        - [ ] Review generated release notes in `electron-builder.yml`
        - [ ] Verify version bump in `package.json`
+       - [ ] Verify generated product manifest uses the release version
        - [ ] CI passes
        - [ ] Merge to trigger release build
 3. Report the PR URL and next steps.
 
 ## CI Trigger Chain
 
-Creating a PR from `release/v*` to `main` automatically triggers:
-- **`release.yml`**: Builds on macOS, Windows, Linux and creates a draft GitHub Release.
-- **`ci.yml`**: Runs lint, typecheck, and tests.
+- Creating a PR from `release/v*` to `main` triggers **`ci.yml`** for lint, typecheck, generated-artifact checks, and tests.
+- Merging that PR triggers **`release.yml`**, which builds on macOS, Windows, and Linux and creates a draft GitHub Release.
 
 ## Constraints
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
-- Never modify files other than `package.json` and `electron-builder.yml`.
+- Never modify files other than `package.json`, `electron-builder.yml`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
 - Never push directly to `main`.
 - Always show the generated release notes to the user before creating the branch/PR (unless running in CI with no interactive user).

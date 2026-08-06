@@ -1,5 +1,4 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
-import { validateConversationGreeting } from '@shared/ai/conversationGreeting'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -19,7 +18,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -42,8 +41,8 @@ import { defineRoute } from '../define'
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
- * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
- * are deliberately absent. Outputs reuse the canonical entity schemas
+ * `AbortSignal`, `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe),
+ * and main-internal `contextOwner` are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
  * AI SDK / transport types (usage, stream responses) — the router never parses
  * `output`, and these are built by trusted main, so a field mirror buys nothing
@@ -72,6 +71,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
@@ -79,8 +84,6 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 /** Edit-save patch: form fields only — pause/resume are separate commands, so no `enabled` here. */
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
-
-const ConversationGreetingContextSchema = z.string().transform(validateConversationGreeting).pipe(z.string().min(1))
 
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
@@ -125,7 +128,12 @@ const aiImagePayloadSchema = z.strictObject({
   paramValues: imageParamsSchema,
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional()
+  mask: z.string().optional(),
+  // Required: the calling business feature decides the cleanup intent for the
+  // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
+  // It does not reach the job path's input / mask copies: those are transport
+  // scratch owned by the job, pinned to `delete_when_unreferenced`.
+  cleanupPolicy: CleanupPolicySchema
 })
 
 export const aiRequestSchemas = {
@@ -133,16 +141,11 @@ export const aiRequestSchemas = {
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
-      requestId: z.string().min(1).optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
-  }),
-  'ai.text.abort': defineRoute({
-    input: z.strictObject({ requestId: z.string().min(1) }),
-    output: z.void()
   }),
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiBaseRequestShape, values: z.array(z.string()) }),
@@ -183,8 +186,7 @@ export const aiRequestSchemas = {
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
     // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
-    // pass-through (main persists it), so its items use `z.custom`; `greetingContext` is submit-only
-    // ephemeral context.
+    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
@@ -195,14 +197,12 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          greetingContext: ConversationGreetingContextSchema.optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
-          greetingContext: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         })
@@ -253,6 +253,10 @@ export const aiRequestSchemas = {
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
+  }),
+  'ai.agent.feedback_session.create': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),

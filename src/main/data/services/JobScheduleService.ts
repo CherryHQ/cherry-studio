@@ -79,7 +79,16 @@ export class JobScheduleService {
   }
 
   getById(id: string): JobScheduleSnapshot | null {
-    const [row] = this.getDb().select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.getDb(), id)
+  }
+
+  /**
+   * Transactional read — lets a caller inside `withWriteTx` do an atomic
+   * read-modify-write on a schedule row (e.g. merging into `metadata`, which
+   * `updateTx` replaces wholesale).
+   */
+  getByIdTx(tx: DbOrTx, id: string): JobScheduleSnapshot | null {
+    const [row] = tx.select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
     return row ? this.rowToSnapshot(row) : null
   }
 

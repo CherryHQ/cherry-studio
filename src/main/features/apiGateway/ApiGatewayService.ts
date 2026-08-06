@@ -197,9 +197,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
+  /** Process-local proof that the request came from a Cherry-launched SDK subprocess. */
+  isInternalAgentRequest(headers: Headers): boolean {
+    return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
+  }
+
   /** Validate the process-local proof, then capture the reserved continuation or active turn. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
-    if (headers.get(INTERNAL_USAGE_TOKEN_HEADER) !== this.internalUsageToken) return undefined
+    if (!this.isInternalAgentRequest(headers)) return undefined
     const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
     if (!sessionId) return undefined
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)

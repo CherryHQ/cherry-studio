@@ -224,6 +224,7 @@ export default function ModelListSyncDrawer({
       </div>
 
       <ModelSyncPreviewPanel
+        provider={provider}
         modelGroups={filteredGroups}
         localModelIds={localModelIds}
         removableModelIds={removableModelIdSet}

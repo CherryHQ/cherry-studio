@@ -215,8 +215,7 @@ const KnowledgeItemRow = ({
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
           'group/row rounded-md px-2.5 py-1.5 transition-colors',
-          canActivate &&
-            'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
           selected ? 'bg-muted' : 'hover:bg-muted'

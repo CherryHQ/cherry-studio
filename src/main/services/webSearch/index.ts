@@ -1,5 +1,6 @@
 export {
   getProviderById,
+  getProviderForCapability,
   getProviderOverrides,
   getResolvedConfig,
   getRuntimeConfig,

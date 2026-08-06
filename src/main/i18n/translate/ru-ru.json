@@ -87,6 +87,10 @@
       "message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
       "title": "Сброс данных приложения"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Файлы HTML",
     "open_file": "Открыть файл",
     "pdf_files": "Файлы PDF",
@@ -96,6 +100,14 @@
     "save_file": "Сохранить файл",
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
+      "more_issues": "и ещё проблем: {{count}}",
+      "preflight_failed": "Cherry Studio не удалось проверить конфигурацию OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Не удалось сгенерировать изображение",

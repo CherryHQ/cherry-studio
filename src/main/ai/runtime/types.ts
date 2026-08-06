@@ -74,11 +74,6 @@ export interface AgentRuntimeConnectInput {
 
 export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
-  /**
-   * Exact greeting displayed before the first user message. Runtimes add it as untrusted user
-   * context and must not persist it as a session message or reuse it for later turns.
-   */
-  greetingContext?: string
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
@@ -195,10 +190,10 @@ export interface AgentRuntimeConnection {
   redirect?(input: AgentRuntimeUserInput): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
-   * Live-appliable facts (tool policy) are patched in place FIRST — even mid-turn, so a security
-   * tighten is never deferred behind a rebuild a live turn postpones — then the rebuild signature
-   * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
-   * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
+   * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
+   * permission-mode changes: those stay frozen for an active turn and apply at the next turn
+   * boundary. Serialized per connection, concurrent push/pull reconciles queue instead of
+   * interleaving SDK and snapshot writes.
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same

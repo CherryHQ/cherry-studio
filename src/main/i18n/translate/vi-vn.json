@@ -87,6 +87,10 @@
       "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
       "title": "Đặt lại dữ liệu ứng dụng"
     },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",
     "pdf_files": "Tệp PDF",
@@ -96,6 +100,14 @@
     "save_file": "Lưu Tệp",
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Tệp nhị phân OpenClaw mà Cherry Studio đang sử dụng không tương thích với cấu hình đã tạo. Hãy nâng cấp OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw đã từ chối cấu hình nằm ngoài phần nhà cung cấp do Cherry Studio quản lý. Hãy sửa cấu hình đó hoặc nâng cấp OpenClaw.{{details}}",
+      "more_issues": "và {{count}} vấn đề khác",
+      "preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Không thể tạo hình ảnh",
