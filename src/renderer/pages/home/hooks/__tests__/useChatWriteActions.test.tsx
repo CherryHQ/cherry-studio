@@ -33,6 +33,7 @@ function makeCache() {
     rollbackBranch: vi.fn(async () => {}),
     clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
+    deleteMessageGroupTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
     createMessageTrigger: vi.fn(async () => ({})),
@@ -259,31 +260,30 @@ describe('useChatWriteActions — first-turn delete', () => {
   // vroot → u1(user) → a1(assistant). rootId = 'vroot'.
   const tree = () => [uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')]
 
-  it('reports first-turn deletion availability from the authoritative root id', () => {
+  it('treats the first turn like any other loaded message', () => {
     const { actions } = renderActions('vroot', tree())
 
-    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: false, reason: 'first-turn' })
+    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: true })
     expect(actions.getMessageDeleteAvailability('a1')).toEqual({ enabled: true })
   })
 
-  it('rejects direct first-turn deletion before any write', async () => {
+  it('splices a first-turn message onto the virtual root without cascading', async () => {
     const cache = makeCache()
     const { actions } = renderActions('vroot', tree(), cache)
 
-    await expect(actions.deleteMessage('u1')).rejects.toThrow()
+    await actions.deleteMessage('u1')
 
-    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'u1' }, query: { cascade: false } })
+    expect(invalidateMessages).toHaveBeenCalledWith(['u1'])
   })
 
-  it('rejects a multi-select plan containing a first-turn user before deleting its assistant first', async () => {
+  it('accepts a multi-select plan containing the first turn', async () => {
     const cache = makeCache()
     const { actions } = renderActions('vroot', tree(), cache)
 
-    await expect(actions.deleteMessage('a1', { selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow()
+    await actions.deleteMessage('a1', { selectedMessageIds: ['u1', 'a1'] })
 
-    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
   })
 
   it('splices a deeper (non-first-turn) message', async () => {
@@ -302,38 +302,38 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
   })
 
-  it('rejects group deletion when the parent message is outside the loaded page', async () => {
+  it('rejects group deletion when any reply is outside the loaded page', async () => {
     const cache = makeCache()
     const { actions } = renderActions('vroot', [uiMsg('a1', 'assistant', 'u1')], cache)
 
-    expect(actions.getMessageDeleteAvailability('u1')).toEqual({
+    expect(actions.getMessageDeleteAvailability('missing')).toEqual({
       enabled: false,
       reason: 'message-unavailable'
     })
-    await expect(actions.deleteMessageGroup('u1')).rejects.toThrow()
+    await expect(actions.deleteMessageGroup(['a1', 'missing'])).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageGroupTrigger).not.toHaveBeenCalled()
   })
 
-  it('deleteMessageGroup on a first-turn group (parent = rootId) clears the topic', async () => {
+  it('splices multi-model replies without deleting their user-message parent', async () => {
     const cache = makeCache()
-    vi.mocked(cache.clearTopicMessagesTrigger).mockResolvedValueOnce({ deletedIds: ['u1', 'a1'] })
-    const { actions } = renderActions('vroot', tree(), cache)
-    await actions.deleteMessageGroup('vroot')
-    expect(cache.clearTopicMessagesTrigger).toHaveBeenCalledWith({ params: { topicId: 't1' } })
+    vi.mocked(cache.deleteMessageGroupTrigger).mockResolvedValueOnce({ deletedIds: ['a1', 'a2'] })
+    const messages = [...tree(), uiMsg('a2', 'assistant', 'u1')]
+    const { actions } = renderActions('vroot', messages, cache)
+
+    await actions.deleteMessageGroup(['a1', 'a2'])
+
+    expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ query: { ids: 'a1,a2' } })
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
-    expect(invalidateMessages).toHaveBeenCalledWith(['u1', 'a1'])
+    expect(invalidateMessages).toHaveBeenCalledWith(['a1', 'a2'])
   })
 
-  it.each([
-    [null, 'a1'],
-    ['vroot', 'u1']
-  ])('rejects unavailable message group deletion (rootId: %s, id: %s)', async (rootId, id) => {
-    const { actions, cache } = renderActions(rootId, tree())
+  it('rejects message group deletion before the root is available', async () => {
+    const { actions, cache } = renderActions(null, tree())
 
-    await expect(actions.deleteMessageGroup(id)).rejects.toThrow()
+    await expect(actions.deleteMessageGroup(['a1'])).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageGroupTrigger).not.toHaveBeenCalled()
   })
 })
 

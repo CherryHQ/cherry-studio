@@ -1773,6 +1773,22 @@ describe('MessageService', () => {
       expect(rows.filter((r) => r.parentId === null).map((r) => r.id)).toEqual(['vroot-topic-1'])
     })
 
+    it('deletes a multi-model reply group while preserving its parent and descendants', async () => {
+      await seedMultiModelTree()
+
+      const result = messageService.deleteReplyGroup(['m-a1', 'm-a2'])
+
+      expect(result.deletedIds).toEqual(['m-a1', 'm-a2'])
+      expect(result.reparentedIds).toEqual(['m-follow'])
+
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      expect(byId.has('m-root')).toBe(true)
+      expect(byId.has('m-a1')).toBe(false)
+      expect(byId.has('m-a2')).toBe(false)
+      expect(byId.get('m-follow')?.parentId).toBe('m-root')
+    })
+
     it('non-cascade delete reparents children to the real parent (linear splice)', async () => {
       await seedMultiModelTree()
 

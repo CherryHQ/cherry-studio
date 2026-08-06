@@ -1406,6 +1406,88 @@ export class MessageService {
   }
 
   /**
+   * Delete one rendered group of assistant replies while preserving its descendants.
+   *
+   * Every target must be a live assistant message under the same parent. Their direct
+   * children are reparented to that shared parent before the replies are removed, so
+   * deleting a multi-model response group has the same splice semantics as deleting a
+   * single message. The whole operation commits atomically.
+   */
+  deleteReplyGroup(ids: string[]): DeleteMessageResponse {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return { deletedIds: [] }
+
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const targets = tx
+        .select({
+          id: messageTable.id,
+          parentId: messageTable.parentId,
+          topicId: messageTable.topicId,
+          role: messageTable.role
+        })
+        .from(messageTable)
+        .where(and(inArray(messageTable.id, uniqueIds), isNull(messageTable.deletedAt)))
+        .all()
+
+      if (targets.length !== uniqueIds.length) {
+        const foundIds = new Set(targets.map((target) => target.id))
+        const missingId = uniqueIds.find((id) => !foundIds.has(id)) ?? uniqueIds[0]
+        throw DataApiErrorFactory.notFound('Message', missingId)
+      }
+
+      const first = targets[0]
+      if (!first.parentId || targets.some((target) => target.role !== 'assistant')) {
+        throw DataApiErrorFactory.invalidOperation(
+          'delete message group',
+          'only sibling assistant replies can be deleted'
+        )
+      }
+      if (targets.some((target) => target.parentId !== first.parentId || target.topicId !== first.topicId)) {
+        throw DataApiErrorFactory.invalidOperation('delete message group', 'messages must share one parent')
+      }
+
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, first.topicId)).limit(1).all()
+      if (!topic) throw DataApiErrorFactory.notFound('Topic', first.topicId)
+
+      const reparentedIds = this.reparentChildrenTx(tx, targets)
+      let newActiveNodeId: string | null | undefined
+
+      if (topic.activeNodeId && uniqueIds.includes(topic.activeNodeId)) {
+        const [parent] = tx
+          .select({ role: messageTable.role })
+          .from(messageTable)
+          .where(eq(messageTable.id, first.parentId))
+          .limit(1)
+          .all()
+        newActiveNodeId = !parent || parent.role === 'root' ? null : first.parentId
+      }
+
+      tx.delete(messageTable).where(inArray(messageTable.id, uniqueIds)).run()
+
+      if (newActiveNodeId !== undefined) {
+        const topicService = getDataService('TopicService')
+        if (newActiveNodeId === null) {
+          topicService.clearActiveNodeTx(tx, first.topicId)
+        } else {
+          topicService.setActiveNodeTx(tx, first.topicId, newActiveNodeId, { assumeValid: true })
+        }
+      }
+
+      return {
+        deletedIds: uniqueIds,
+        reparentedIds: reparentedIds.length > 0 ? reparentedIds : undefined,
+        newActiveNodeId
+      }
+    })
+
+    logger.info('Deleted assistant reply group with reparenting', {
+      count: result.deletedIds.length,
+      reparentedCount: result.reparentedIds?.length ?? 0
+    })
+    return result
+  }
+
+  /**
    * Delete a message (hard delete)
    *
    * Supports two modes:
@@ -1499,45 +1581,7 @@ export class MessageService {
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
         // Splice this node out: reparent its children onto its parent (their grandparent).
-        // siblingsGroupId is relative to the parent, so a moved child's group id could
-        // collide with an unrelated group already under the destination parent and be
-        // mis-rendered as the same multi-response set. Rebase each distinct non-zero moved
-        // group to a fresh id above any group already present at the destination; group 0
-        // (no group) carries over unchanged.
-        const children = tx
-          .select({ id: messageTable.id, siblingsGroupId: messageTable.siblingsGroupId })
-          .from(messageTable)
-          .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
-          .all()
-
-        reparentedIds = children.map((c) => c.id)
-
-        if (reparentedIds.length > 0) {
-          const newParentId = message.parentId
-          const destRows = newParentId
-            ? tx
-                .select({ g: messageTable.siblingsGroupId })
-                .from(messageTable)
-                .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
-                .all()
-            : []
-          let nextGroupId = Math.max(0, ...destRows.map((r) => r.g), ...children.map((c) => c.siblingsGroupId)) + 1
-          const remap = new Map<number, number>()
-          for (const c of children) {
-            if (c.siblingsGroupId !== 0 && !remap.has(c.siblingsGroupId)) {
-              remap.set(c.siblingsGroupId, nextGroupId++)
-            }
-          }
-          for (const c of children) {
-            tx.update(messageTable)
-              .set({
-                parentId: newParentId,
-                siblingsGroupId: c.siblingsGroupId === 0 ? 0 : remap.get(c.siblingsGroupId)!
-              })
-              .where(eq(messageTable.id, c.id))
-              .run()
-          }
-        }
+        reparentedIds = this.reparentChildrenTx(tx, [message])
 
         deletedIds = [id]
 
@@ -1574,6 +1618,55 @@ export class MessageService {
         newActiveNodeId
       }
     })
+  }
+
+  private reparentChildrenTx(tx: DbOrTx, targets: Array<Pick<MessageRow, 'id' | 'parentId'>>): string[] {
+    const targetIds = targets.map((target) => target.id)
+    const newParentId = targets[0]?.parentId ?? null
+    const children = tx
+      .select({
+        id: messageTable.id,
+        parentId: messageTable.parentId,
+        siblingsGroupId: messageTable.siblingsGroupId
+      })
+      .from(messageTable)
+      .where(and(inArray(messageTable.parentId, targetIds), isNull(messageTable.deletedAt)))
+      .all()
+
+    if (children.length === 0) return []
+
+    // siblingsGroupId is relative to the parent. Rebase each moved non-zero group
+    // to a fresh id so groups from different deleted replies cannot collide with
+    // each other or with an unrelated group already under the destination parent.
+    const destRows = newParentId
+      ? tx
+          .select({ g: messageTable.siblingsGroupId })
+          .from(messageTable)
+          .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
+          .all()
+      : []
+    let nextGroupId =
+      Math.max(0, ...destRows.map((row) => row.g), ...children.map((child) => child.siblingsGroupId)) + 1
+    const remap = new Map<string, number>()
+
+    for (const child of children) {
+      if (child.siblingsGroupId === 0) continue
+      const sourceGroup = `${child.parentId}:${child.siblingsGroupId}`
+      if (!remap.has(sourceGroup)) remap.set(sourceGroup, nextGroupId++)
+    }
+
+    for (const child of children) {
+      const sourceGroup = `${child.parentId}:${child.siblingsGroupId}`
+      tx.update(messageTable)
+        .set({
+          parentId: newParentId,
+          siblingsGroupId: child.siblingsGroupId === 0 ? 0 : remap.get(sourceGroup)!
+        })
+        .where(eq(messageTable.id, child.id))
+        .run()
+    }
+
+    return children.map((child) => child.id)
   }
 
   /**

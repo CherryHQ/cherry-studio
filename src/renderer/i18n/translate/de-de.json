@@ -3925,7 +3925,6 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
-      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
       "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
@@ -4010,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Das Löschen einer Gruppennachricht löscht die Benutzerfrage und alle Antworten der Assistenten",
-        "title": "Gruppennachricht löschen"
+        "content": "Alle Assistentenantworten in dieser Gruppe löschen? Die Benutzerfrage und nachfolgenden Nachrichten bleiben erhalten.",
+        "title": "Gruppenantworten löschen"
       },
       "retry_failed": "Fehlgeschlagene Nachricht wiederholen"
     },

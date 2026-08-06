@@ -3925,7 +3925,6 @@
         "title": "Confirmación de eliminación"
       },
       "failed": "Eliminación fallida",
-      "first_turn_not_supported": "El primer mensaje de usuario no se puede eliminar.",
       "root_unavailable": "Los mensajes aún se están cargando y no se pueden eliminar todavía.",
       "success": "Eliminación exitosa"
     },
@@ -4010,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Eliminar el mensaje del grupo eliminará la pregunta del usuario y todas las respuestas del asistente",
-        "title": "Eliminar mensaje del grupo"
+        "content": "¿Eliminar todas las respuestas del asistente de este grupo? La pregunta del usuario y los mensajes posteriores se conservarán.",
+        "title": "Eliminar respuestas agrupadas"
       },
       "retry_failed": "Reintentar el mensaje con error"
     },

@@ -3925,7 +3925,6 @@
         "title": "Confirmation de suppression"
       },
       "failed": "Échec de la suppression",
-      "first_turn_not_supported": "Le premier message de l'utilisateur ne peut pas être supprimé.",
       "root_unavailable": "Les messages sont encore en cours de chargement et ne peuvent pas encore être supprimés.",
       "success": "Suppression réussie"
     },
@@ -4010,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "La suppression du groupe de messages supprimera les questions des utilisateurs et toutes les réponses des assistants",
-        "title": "Supprimer le groupe de messages"
+        "content": "Supprimer toutes les réponses de l’assistant de ce groupe ? La question de l’utilisateur et les messages suivants seront conservés.",
+        "title": "Supprimer les réponses groupées"
       },
       "retry_failed": "message d'erreur de nouvelle tentative"
     },

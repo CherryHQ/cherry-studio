@@ -90,6 +90,22 @@ export interface DeleteMessageResponse {
   newActiveNodeId?: string | null
 }
 
+const DeleteMessagesIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+/** Query for deleting one rendered group of assistant replies. */
+export const DeleteMessagesQuerySchema = z.strictObject({
+  ids: DeleteMessagesIdsQueryValueSchema
+})
+export type DeleteMessagesQuery = z.input<typeof DeleteMessagesQuerySchema>
+
 /**
  * Response for "clear all messages" — deletes every content message of a topic
  * (the virtual root's whole subtree) in one transaction, keeping the content-less
@@ -166,9 +182,25 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * Organized by domain responsibility:
  * - /topics/:id/tree - Tree visualization
  * - /topics/:id/messages - Branch messages for conversation
+ * - /messages - Assistant reply group operations
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  /**
+   * Delete an explicit group of sibling assistant replies.
+   *
+   * The replies are spliced out atomically: each reply's direct children are
+   * reparented to the shared user-message parent before the replies are deleted.
+   *
+   * @example DELETE /messages?ids=reply_1,reply_2
+   */
+  '/messages': {
+    DELETE: {
+      query: DeleteMessagesQuery
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1

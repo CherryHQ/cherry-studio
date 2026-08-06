@@ -166,6 +166,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
+  const { trigger: deleteMessageGroupTrigger } = useMutation('DELETE', '/messages', {
+    refresh: branchCachePaths
+  })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
@@ -190,6 +193,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,
+    deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,

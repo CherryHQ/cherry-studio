@@ -20,7 +20,7 @@ export interface DeleteMessageOptions {
 
 export type MessageDeleteAvailability =
   | { enabled: true }
-  | { enabled: false; reason: 'first-turn' | 'root-unavailable' | 'message-unavailable' }
+  | { enabled: false; reason: 'root-unavailable' | 'message-unavailable' }
 
 /** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
@@ -45,7 +45,7 @@ export interface ChatWriteActions {
   resend: (messageId?: string) => Promise<void>
   getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
-  deleteMessageGroup: (id: string) => Promise<void>
+  deleteMessageGroup: (messageIds: readonly string[]) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>

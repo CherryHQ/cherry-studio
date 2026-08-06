@@ -51,6 +51,14 @@ const messages = [
     topicId: 'topic-1',
     createdAt: '2026-01-01T00:00:00.000Z',
     status: 'success'
+  } as MessageListItem,
+  {
+    id: 'assistant-2',
+    parentId: 'user-1',
+    role: 'assistant',
+    topicId: 'topic-1',
+    createdAt: '2026-01-01T00:00:01.000Z',
+    status: 'success'
   } as MessageListItem
 ]
 
@@ -75,7 +83,7 @@ describe('MessageGroupMenuBar', () => {
 
     fireEvent.click(screen.getByRole('button'))
 
-    expect(deleteMessageGroupWithConfirm).toHaveBeenCalledWith('user-1')
+    expect(deleteMessageGroupWithConfirm).toHaveBeenCalledWith(['assistant-1', 'assistant-2'])
   })
 
   it('does not expose group deletion when only direct delete capability exists', () => {
@@ -95,7 +103,6 @@ describe('MessageGroupMenuBar', () => {
   })
 
   it.each([
-    ['first-turn', 'message.delete.first_turn_not_supported'],
     ['root-unavailable', 'message.delete.root_unavailable'],
     ['message-unavailable', 'message.delete.root_unavailable']
   ] as const)('disables group deletion for %s', (reason, tooltip) => {

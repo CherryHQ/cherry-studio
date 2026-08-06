@@ -12,6 +12,7 @@ import {
   BranchMessagesQuerySchema,
   CreateMessageSchema,
   DeleteMessageQuerySchema,
+  DeleteMessagesQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
   TreeQuerySchema,
@@ -21,6 +22,13 @@ import type { HandlersFor } from '@shared/data/api/types'
 import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages': {
+    DELETE: async ({ query }) => {
+      const parsed = DeleteMessagesQuerySchema.parse(query)
+      return messageService.deleteReplyGroup(parsed.ids)
+    }
+  },
+
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
       const q = TreeQuerySchema.parse(query ?? {})

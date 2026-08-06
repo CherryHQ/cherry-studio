@@ -123,6 +123,7 @@ export function useChatWriteActions(params: Params): Result {
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,
+    deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
@@ -197,10 +198,6 @@ export function useChatWriteActions(params: Params): Result {
   ])
   const canStartNewContext = Boolean(activeNodeId) && !startNewContextBlocked && !isStartingNewContext
 
-  // A message is a "first turn" iff its parent IS the topic's virtual root. The authoritative
-  // rootId keeps this pagination-independent; deletion stays unavailable until that id is known.
-  const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
-
   const handleClearTopicMessages = useCallback(async () => {
     await clearBranchCache()
     try {
@@ -218,17 +215,16 @@ export function useChatWriteActions(params: Params): Result {
       if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
       const message = uiMessages.find((item) => item.id === id)
       if (!message) return { enabled: false, reason: 'message-unavailable' }
-      return message.role === 'user' && isFirstTurnId(message.metadata?.parentId)
-        ? { enabled: false, reason: 'first-turn' }
-        : { enabled: true }
+      return { enabled: true }
     },
-    [isFirstTurnId, rootId, uiMessages]
+    [rootId, uiMessages]
   )
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
     async (id, options) => {
-      // A first-turn user message anchors the conversation branch. Reject both direct deletion
-      // and any multi-select plan containing it before the first optimistic or persistent write.
+      // Reject unloaded targets before the first optimistic or persistent write. First-turn
+      // messages follow the same splice path as every other message; the backend reparents their
+      // children onto the topic's virtual root.
       const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
         return !getMessageDeleteAvailability(messageId).enabled
       })
@@ -252,37 +248,26 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
-    async (id: string) => {
-      // `id` is the group's askId (shared parent). For a first-turn group it is the virtual
-      // root, which cannot be deleted — deleting that group means clearing the topic.
-      if (isFirstTurnId(id)) {
-        await handleClearTopicMessages()
-        return
-      }
-      if (!getMessageDeleteAvailability(id).enabled) {
+    async (messageIds) => {
+      const uniqueMessageIds = Array.from(new Set(messageIds))
+      if (
+        uniqueMessageIds.length === 0 ||
+        uniqueMessageIds.some((messageId) => !getMessageDeleteAvailability(messageId).enabled)
+      ) {
         throw new Error('Message group deletion is unavailable')
       }
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
+      const deletedSet = new Set(uniqueMessageIds)
+      await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
       try {
-        const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+        const result = await deleteMessageGroupTrigger({ query: { ids: uniqueMessageIds.join(',') } })
         invalidateCachedMessageUiStates(result.deletedIds)
-        const deletedSet = new Set(result.deletedIds)
-        await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
-        logger.info('Deleted message group', { id, count: result.deletedIds.length })
+        logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
         await rollbackBranch()
         throw err
       }
     },
-    [
-      branchWithoutIds,
-      deleteMessageTrigger,
-      getMessageDeleteAvailability,
-      handleClearTopicMessages,
-      isFirstTurnId,
-      rollbackBranch,
-      seedOptimisticBranch
-    ]
+    [branchWithoutIds, deleteMessageGroupTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
