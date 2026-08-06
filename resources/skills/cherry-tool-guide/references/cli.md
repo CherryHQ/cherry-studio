@@ -64,6 +64,30 @@ Before installing anything:
 3. **`mcp__cherry-tools__cli_install`** — install using the recipe from search (or one
    translated from trusted docs). Approval runs here.
 
+## Read or convert documents
+
+Use `mcp__cherry-tools__to_markdown` when an agent needs the structured contents of an
+arbitrary workspace document. This is distinct from knowledge-base tools, which search
+documents already indexed by Cherry.
+
+Pass the workspace-relative path (or an absolute path inside the workspace). Cherry
+converts the source with its bundled document converter and writes the complete result
+to an agent-private temporary Markdown file. The tool result contains only that file's
+absolute path and character count — it deliberately does not inject the whole document
+into context. Read the returned file in slices, search it, or copy it to a user-requested
+final path with the ordinary file tools.
+
+Supported inputs include Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF
+files. Resolve ambiguous filenames before calling. The source must be a regular file
+inside the session workspace; paths that escape through `..` or symlinks are rejected.
+Temporary conversions older than 24 hours are removed when the tool runs again.
+
+If conversion fails or produces no text, report the error rather than retrying through
+`npm`, `bun x`, `npx`, direct `mise`, a remote installer, or a manually downloaded
+binary. In particular, upstream currently publishes no Windows ARM64 native binding.
+Scanned or image-only PDFs require OCR, which this converter does not provide; do not
+present an empty conversion as success.
+
 ## Don't reach around the managed environment
 
 **Do not** substitute `npm install -g`, `pipx install`, `cargo install`, `brew install`,

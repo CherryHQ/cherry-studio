@@ -526,6 +526,32 @@ export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
 
+// ── to_markdown ──────────────────────────────────────────────────
+
+export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
+
+export const toMarkdownInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe('Path to a document inside the session workspace, relative to the workspace or absolute within it.')
+})
+
+export const toMarkdownOutputSchema = z.object({
+  path: z.string().describe('Absolute path to the temporary Markdown file. Read this file in slices as needed.'),
+  chars: z.number().int().nonnegative().describe('Number of characters written to the Markdown file.')
+})
+
+export const TO_MARKDOWN_DESCRIPTION =
+  'Convert a document in the session workspace to Markdown using Cherry Studio’s bundled converter. ' +
+  'The full Markdown is written to an agent-private temporary file instead of being returned in the tool result; ' +
+  'read the returned path in slices as needed. Supports office documents, spreadsheets, presentations, ebooks, CSV, and PDFs.'
+
+export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
+
 // ── report_artifacts ─────────────────────────────────────────────
 
 export const REPORT_ARTIFACTS_TOOL_NAME = 'report_artifacts'
