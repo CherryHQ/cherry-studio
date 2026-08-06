@@ -47,6 +47,7 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -54,7 +55,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
-import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
+import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -93,6 +94,15 @@ const logger = loggerService.withContext('AgentRightPane')
 
 const FLOW_TAB_PREFIX = 'flow:'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+const BLANK_BROWSER_URL = 'about:blank'
+
+/** HTML artifacts open in the browser pane instead of the file preview. */
+function toBrowsableHtmlUrl(filePath: string): string | null {
+  const extension = getFilePreviewExtension(filePath)
+  if (extension !== 'html' && extension !== 'htm') return null
+  const absolutePath = AbsoluteFilePathSchema.safeParse(filePath)
+  return absolutePath.success ? toSafeFileUrl(absolutePath.data, extension) : null
+}
 
 function containsFile(root: TreeDirRoot | null): boolean {
   let found = false
@@ -157,7 +167,7 @@ interface AgentRightPaneMeta {
 interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
-  previewUrl: string | null
+  browserUrl: string | null
 }
 
 interface AgentRightPaneFileState {
@@ -189,7 +199,6 @@ interface AgentRightPanelScope {
   browserTitle: string
   developerMode: boolean
   hasSystemWorkspaceFiles: boolean
-  hasBrowserPreview: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
   meta: AgentRightPaneMeta
@@ -255,6 +264,7 @@ interface AgentRightPaneActionsProviderProps {
   sessionId?: string
   workspacePath?: string
   replaceFlowTab: (input: AgentToolFlowOpenInput) => void
+  openBrowserUrl: (url: string) => void
   closeFilePreview: () => void
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
   selectFile: (file: string | null) => void
@@ -270,6 +280,7 @@ function AgentRightPaneActionsProvider({
   sessionId,
   workspacePath,
   replaceFlowTab,
+  openBrowserUrl,
   closeFilePreview,
   requestFileSelection,
   selectFile,
@@ -304,6 +315,12 @@ function AgentRightPaneActionsProvider({
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
+      if (htmlUrl) {
+        openBrowserUrl(htmlUrl)
+        panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+        return
+      }
       panelActions.tryOpen('files', { userInitiated: true })
 
       if (!selection) {
@@ -323,7 +340,7 @@ function AgentRightPaneActionsProvider({
           requestFileSelection(selection)
         })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+    [canOpenArtifactFile, openBrowserUrl, panelActions, requestFileSelection, workspacePath]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -381,7 +398,7 @@ function AgentRightPaneStateProvider({
     sessionId,
     tab: null
   }))
-  const [retainedPreview, setRetainedPreview] = useState<{ sessionId?: string; url: string | null }>(() => ({
+  const [browserUrlState, setBrowserUrlState] = useState<{ sessionId?: string; url: string | null }>(() => ({
     sessionId,
     url: null
   }))
@@ -402,12 +419,13 @@ function AgentRightPaneStateProvider({
     () => findLatestAgentPreviewUrl(messages, partsByMessageId),
     [messages, partsByMessageId]
   )
-  const previewUrl = detectedPreviewUrl ?? (retainedPreview.sessionId === sessionId ? retainedPreview.url : null)
+  // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
+  const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
   const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, previewUrl }),
-    [messages, partsByMessageId, previewUrl]
+    () => ({ messages, partsByMessageId, browserUrl }),
+    [browserUrl, messages, partsByMessageId]
   )
-  const hasBrowserPreview = Boolean(sessionId && previewUrl)
+  const openBrowserUrl = useCallback((url: string) => setBrowserUrlState({ sessionId, url }), [sessionId])
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
@@ -432,7 +450,7 @@ function AgentRightPaneStateProvider({
   }, [sessionId])
 
   useEffect(() => {
-    setRetainedPreview((current) => {
+    setBrowserUrlState((current) => {
       if (current.sessionId !== sessionId) return { sessionId, url: detectedPreviewUrl }
       if (!detectedPreviewUrl || current.url === detectedPreviewUrl) return current
       return { sessionId, url: detectedPreviewUrl }
@@ -585,7 +603,6 @@ function AgentRightPaneStateProvider({
     () => ({
       browserTitle: t('agent.right_pane.tabs.browser'),
       developerMode: enableDeveloperMode,
-      hasBrowserPreview,
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
@@ -594,7 +611,7 @@ function AgentRightPaneStateProvider({
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasBrowserPreview, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
   )
 
   return (
@@ -616,6 +633,7 @@ function AgentRightPaneStateProvider({
                 sessionId={sessionId}
                 workspacePath={workspacePath}
                 replaceFlowTab={replaceFlowTab}
+                openBrowserUrl={openBrowserUrl}
                 closeFilePreview={closeFilePreview}
                 requestFileSelection={requestFileSelection}
                 selectFile={selectFile}
@@ -706,7 +724,6 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
 
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
-  const previewUrl = runtime.previewUrl
   const target = useMemo(
     () => ({
       id: `agent-browser:${scope.meta.sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),
@@ -715,11 +732,9 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
     [scope.browserTitle, scope.meta.sessionId, scope.meta.sessionName]
   )
 
-  if (!previewUrl) return null
-
   return (
     <WebviewBrowser
-      initialUrl={previewUrl}
+      initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
       target={target}
       isHostActive={active}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
@@ -1143,7 +1158,7 @@ const AGENT_BROWSER_PANE_CAPABILITY = {
     id: BROWSER_PANE_ID,
     instanceKey: `session:${scope.meta.sessionId ?? ''}:browser`,
     title: scope.browserTitle,
-    readiness: scope.hasBrowserPreview && scope.meta.conversationState !== 'unavailable' ? 'ready' : 'unavailable',
+    readiness: scope.meta.sessionId && scope.meta.conversationState !== 'unavailable' ? 'ready' : 'unavailable',
     headerMode: 'content',
     canMaximize: true
   })

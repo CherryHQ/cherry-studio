@@ -552,7 +552,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeInTheDocument()
     expect(screen.getByTestId('status-shortcut-preview')).toBeInTheDocument()
 
     const statusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
@@ -574,6 +574,38 @@ describe('AgentRightPane', () => {
     fireEvent.click(activeStatusShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('opens a blank browser when no preview URL has been reported', () => {
+    render(
+      <TestAgentRightPane sessionId="session-a" sessionName="Frontend task" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
+  })
+
+  it('opens an HTML artifact in the browser instead of the file preview', () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'index.html'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton path="index.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/index.html')
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 
   it('offers a session-scoped browser after a shell tool reports a local preview URL', () => {
