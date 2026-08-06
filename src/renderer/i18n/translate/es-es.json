@@ -6360,6 +6360,23 @@
         "token_placeholder": "Por favor ingrese el token de Siyuan Notas"
       },
       "title": "Configuración de datos",
+      "v1_remigration": {
+        "acknowledgement": "Entiendo el riesgo y quiero continuar.",
+        "back": "Atrás",
+        "backup_acknowledgement": "He realizado una copia de seguridad de mis datos",
+        "backup_button": "Crear una copia de seguridad completa ahora",
+        "backup_message": "Haz una copia de seguridad de todos los datos actuales antes de continuar. Al continuar, tus datos v2 actuales se eliminarán permanentemente y esta acción no se puede deshacer.",
+        "button": "Repetir migración",
+        "confirm": "Repetir migración",
+        "confirm_countdown": "Repetir migración ({{seconds}} s)",
+        "dialog_title": "Repetir la migración de datos de v1",
+        "error": "No se pudo volver a iniciar la migración de datos de v1",
+        "final_confirmation": "Confirma que quieres eliminar los datos v2 actuales y repetir la migración de datos de v1.",
+        "final_message": "Tus datos v2 actuales se eliminarán permanentemente. Esta acción no se puede deshacer.",
+        "final_retained": "Tus datos v1 originales se conservarán y se importarán de nuevo después de reiniciar.",
+        "next": "Siguiente",
+        "title": "Repetir la migración de datos de v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sincronización automática",

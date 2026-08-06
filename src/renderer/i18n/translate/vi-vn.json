@@ -6360,6 +6360,23 @@
         "token_placeholder": "Vui lòng nhập mã thông báo Siyuan Note"
       },
       "title": "Cài đặt dữ liệu",
+      "v1_remigration": {
+        "acknowledgement": "Tôi hiểu rủi ro và muốn tiếp tục.",
+        "back": "Quay lại",
+        "backup_acknowledgement": "Tôi đã sao lưu dữ liệu",
+        "backup_button": "Sao lưu toàn bộ dữ liệu ngay",
+        "backup_message": "Hãy sao lưu toàn bộ dữ liệu hiện tại trước khi tiếp tục. Nếu tiếp tục, dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
+        "button": "Chạy lại quá trình di chuyển",
+        "confirm": "Chạy lại quá trình di chuyển",
+        "confirm_countdown": "Chạy lại quá trình di chuyển ({{seconds}} giây)",
+        "dialog_title": "Chạy lại quá trình di chuyển dữ liệu v1",
+        "error": "Không thể chạy lại quá trình di chuyển dữ liệu v1",
+        "final_confirmation": "Xác nhận rằng bạn muốn xóa dữ liệu v2 hiện tại và chạy lại quá trình di chuyển dữ liệu v1.",
+        "final_message": "Dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác.",
+        "final_retained": "Dữ liệu v1 gốc sẽ được giữ lại và nhập lại sau khi khởi động lại.",
+        "next": "Tiếp theo",
+        "title": "Chạy lại quá trình di chuyển dữ liệu v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sao lưu tự động",

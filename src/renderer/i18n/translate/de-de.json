@@ -6360,6 +6360,23 @@
         "token_placeholder": "Bitte SiYuan-Token eingeben"
       },
       "title": "Dateneinstellungen",
+      "v1_remigration": {
+        "acknowledgement": "Ich verstehe das Risiko und möchte fortfahren.",
+        "back": "Zurück",
+        "backup_acknowledgement": "Ich habe meine Daten gesichert",
+        "backup_button": "Jetzt vollständige Sicherung erstellen",
+        "backup_message": "Sichern Sie alle aktuellen Daten, bevor Sie fortfahren. Beim Fortfahren werden Ihre aktuellen v2-Daten dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "button": "Migration erneut ausführen",
+        "confirm": "Migration erneut ausführen",
+        "confirm_countdown": "Migration erneut ausführen ({{seconds}} s)",
+        "dialog_title": "v1-Datenmigration erneut ausführen",
+        "error": "Die erneute v1-Datenmigration konnte nicht gestartet werden",
+        "final_confirmation": "Möchten Sie die aktuellen v2-Daten wirklich löschen und die v1-Datenmigration erneut ausführen?",
+        "final_message": "Ihre aktuellen v2-Daten werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "final_retained": "Ihre ursprünglichen v1-Daten bleiben erhalten und werden nach dem Neustart erneut importiert.",
+        "next": "Weiter",
+        "title": "v1-Datenmigration erneut ausführen"
+      },
       "webdav": {
         "autoSync": {
           "label": "Automatisches Backup",

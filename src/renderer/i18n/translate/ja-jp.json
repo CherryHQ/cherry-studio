@@ -6360,6 +6360,23 @@
         "token_placeholder": "思源ノートトークンを入力してください"
       },
       "title": "データ設定",
+      "v1_remigration": {
+        "acknowledgement": "リスクを理解したうえで続行します。",
+        "back": "戻る",
+        "backup_acknowledgement": "データをバックアップしました",
+        "backup_button": "今すぐ完全バックアップ",
+        "backup_message": "続行する前に、現在のすべてのデータをバックアップしてください。続行すると、現在の v2 データは完全に削除され、この操作は元に戻せません。",
+        "button": "再移行",
+        "confirm": "再移行",
+        "confirm_countdown": "再移行（残り{{seconds}}秒）",
+        "dialog_title": "v1 データを再移行",
+        "error": "v1 データの再移行を開始できませんでした",
+        "final_confirmation": "現在の v2 データを削除し、v1 データを再移行しますか？",
+        "final_message": "現在の v2 データは完全に削除されます。この操作は元に戻せません。",
+        "final_retained": "元の v1 データは保持され、再起動後に再度インポートされます。",
+        "next": "次へ",
+        "title": "v1 データを再移行"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動バックアップ",

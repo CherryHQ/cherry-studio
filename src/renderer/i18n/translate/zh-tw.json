@@ -6360,6 +6360,23 @@
         "token_placeholder": "請輸入思源筆記權杖"
       },
       "title": "資料",
+      "v1_remigration": {
+        "acknowledgement": "我已了解風險並願意繼續。",
+        "back": "上一步",
+        "backup_acknowledgement": "我已備份資料",
+        "backup_button": "立即完整備份",
+        "backup_message": "請先完整備份目前資料。繼續操作將永久刪除目前的 v2 資料，此操作無法復原。",
+        "button": "重新遷移",
+        "confirm": "重新遷移",
+        "confirm_countdown": "重新遷移（{{seconds}} 秒）",
+        "dialog_title": "重新遷移 v1 資料",
+        "error": "重新遷移 v1 資料啟動失敗",
+        "final_confirmation": "確認刪除目前的 v2 資料並重新遷移 v1 資料？",
+        "final_message": "目前的 v2 資料將被永久刪除，此操作無法復原。",
+        "final_retained": "原始 v1 資料會保留，並在重新啟動後再次匯入。",
+        "next": "下一步",
+        "title": "重新遷移 v1 資料"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動備份",

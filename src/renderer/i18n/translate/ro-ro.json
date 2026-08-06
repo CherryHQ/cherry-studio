@@ -6360,6 +6360,23 @@
         "token_placeholder": "Te rugăm să introduci tokenul SiYuan Note"
       },
       "title": "Setări date",
+      "v1_remigration": {
+        "acknowledgement": "Înțeleg riscul și doresc să continui.",
+        "back": "Înapoi",
+        "backup_acknowledgement": "Am făcut o copie de siguranță a datelor",
+        "backup_button": "Creează acum o copie de siguranță completă",
+        "backup_message": "Creează o copie de siguranță a tuturor datelor curente înainte de a continua. Dacă continui, datele v2 curente vor fi șterse definitiv, iar această acțiune nu poate fi anulată.",
+        "button": "Rulează din nou migrarea",
+        "confirm": "Rulează din nou migrarea",
+        "confirm_countdown": "Rulează din nou migrarea ({{seconds}} s)",
+        "dialog_title": "Rulează din nou migrarea datelor v1",
+        "error": "Migrarea datelor v1 nu a putut fi pornită din nou",
+        "final_confirmation": "Confirmă că dorești să ștergi datele v2 curente și să rulezi din nou migrarea datelor v1.",
+        "final_message": "Datele v2 curente vor fi șterse definitiv. Această acțiune nu poate fi anulată.",
+        "final_retained": "Datele v1 originale vor fi păstrate și importate din nou după repornire.",
+        "next": "Următorul",
+        "title": "Rulează din nou migrarea datelor v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Backup automat",

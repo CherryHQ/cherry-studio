@@ -6360,6 +6360,23 @@
         "token_placeholder": "Введите токен CherryNote"
       },
       "title": "Paramètres des données",
+      "v1_remigration": {
+        "acknowledgement": "Je comprends le risque et souhaite continuer.",
+        "back": "Retour",
+        "backup_acknowledgement": "J’ai sauvegardé mes données",
+        "backup_button": "Créer une sauvegarde complète maintenant",
+        "backup_message": "Sauvegardez toutes vos données actuelles avant de continuer. Si vous continuez, vos données v2 actuelles seront définitivement supprimées. Cette action est irréversible.",
+        "button": "Relancer la migration",
+        "confirm": "Relancer la migration",
+        "confirm_countdown": "Relancer la migration ({{seconds}} s)",
+        "dialog_title": "Relancer la migration des données v1",
+        "error": "Impossible de relancer la migration des données v1",
+        "final_confirmation": "Confirmez que vous souhaitez supprimer les données v2 actuelles et relancer la migration des données v1.",
+        "final_message": "Vos données v2 actuelles seront définitivement supprimées. Cette action est irréversible.",
+        "final_retained": "Vos données v1 d’origine seront conservées et réimportées après le redémarrage.",
+        "next": "Suivant",
+        "title": "Relancer la migration des données v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Synchronisation automatique",
