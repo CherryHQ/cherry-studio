@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
+import { defaultLanguage, resolveAppLanguage } from '@shared/utils/languages'
 import { app } from 'electron'
 
 // Main process owns an independent, statically-imported locale catalog (this
@@ -11,6 +11,7 @@ import { app } from 'electron'
 import EnUs from './locales/en-us.json'
 import ZhCn from './locales/zh-cn.json'
 // Machine translation
+import arYE from './translate/ar-ye.json'
 import deDE from './translate/de-de.json'
 import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
@@ -24,6 +25,7 @@ import ZhTw from './translate/zh-tw.json'
 
 const locales = Object.fromEntries(
   [
+    ['ar-YE', arYE],
     ['en-US', EnUs],
     ['zh-CN', ZhCn],
     ['zh-TW', ZhTw],
@@ -50,7 +52,7 @@ export const getAppLanguage = (): LanguageVarious => {
     return language
   }
 
-  return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
+  return resolveAppLanguage(appLocale)
 }
 
 export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<string, any> => {

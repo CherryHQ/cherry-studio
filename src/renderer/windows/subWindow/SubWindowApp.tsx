@@ -1,6 +1,7 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { LanguageDirectionProvider } from '@renderer/components/LanguageDirectionProvider'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
@@ -24,20 +25,22 @@ function SubWindowApp(): React.ReactElement {
     // The boundary must stay the ANCESTOR of every provider so a provider throwing
     // during render falls back instead of white-screening.
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
-      <ThemeProvider>
-        <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
-                <SubWindowRuntime />
-                <PopupHost />
-                <ToastHost />
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
-        </CodeStyleProvider>
-      </ThemeProvider>
+      <LanguageDirectionProvider>
+        <ThemeProvider>
+          <CodeStyleProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                  <SubWindowAppShell />
+                  <SubWindowRuntime />
+                  <PopupHost />
+                  <ToastHost />
+                </TabsProvider>
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </CodeStyleProvider>
+        </ThemeProvider>
+      </LanguageDirectionProvider>
     </ErrorBoundary>
   )
 }

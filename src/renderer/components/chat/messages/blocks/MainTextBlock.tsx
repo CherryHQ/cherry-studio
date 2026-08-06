@@ -432,9 +432,9 @@ const MainTextBlock: React.FC<Props> = ({
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <span key={createUniqueModelId(m.provider, m.id)} className="text-primary">
+            <bdi key={createUniqueModelId(m.provider, m.id)} className="text-primary">
               {'@' + m.name}
-            </span>
+            </bdi>
           ))}
         </Flex>
       )}
@@ -451,7 +451,7 @@ const MainTextBlock: React.FC<Props> = ({
               trustedCitations={trustedCitations}
             />
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
-            <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+            <p dir="auto" className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
                 ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
                 : userDisplayContent}

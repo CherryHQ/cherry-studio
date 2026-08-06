@@ -254,7 +254,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
     <BodyContainer>
       <ResponseBlock title="Code">
         {highlighted ? (
-          <Highlighted className="markdown" dangerouslySetInnerHTML={{ __html: highlighted }} />
+          <Highlighted dir="ltr" className="markdown" dangerouslySetInnerHTML={{ __html: highlighted }} />
         ) : (
           <CodeBlock>{code}</CodeBlock>
         )}

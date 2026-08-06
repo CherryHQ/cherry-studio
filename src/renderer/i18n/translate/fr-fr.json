@@ -5971,12 +5971,16 @@
         "third_party": "Connexion tierce"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Exporter au format Word",
         "image": "Exporter en tant qu'image",
         "joplin": "Exporter vers Joplin",
         "markdown": "Exporter au format Markdown",
         "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
-        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "plain_text": "Copier en texte brut",
@@ -7271,7 +7275,9 @@
       "expand_all": "Tout développer",
       "filter": {
         "clear": "Effacer le filtre des modèles",
-        "label": "Filtrer les modèles"
+        "label": "Filtrer les modèles",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",

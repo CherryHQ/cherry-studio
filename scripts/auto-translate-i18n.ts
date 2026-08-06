@@ -154,7 +154,8 @@ const languageMap = {
   'pt-pt': 'Portuguese',
   'de-de': 'German',
   'ro-ro': 'Romanian',
-  'vi-vn': 'Vietnamese'
+  'vi-vn': 'Vietnamese',
+  'ar-ye': 'Arabic'
 }
 
 const PROMPT = `

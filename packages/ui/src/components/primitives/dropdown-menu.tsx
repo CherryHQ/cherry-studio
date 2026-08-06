@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { DirectionalIcon } from './directional-icon'
 import { usePortalContainer } from './portal-container'
 
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
@@ -184,7 +185,9 @@ function DropdownMenuSubTrigger({
       )}
       {...props}>
       {children}
-      <ChevronRightIcon className="ml-auto size-4" />
+      <DirectionalIcon className="ms-auto size-4">
+        <ChevronRightIcon className="size-4" />
+      </DirectionalIcon>
     </DropdownMenuPrimitive.SubTrigger>
   )
 }

@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { LanguageDirectionProvider } from '@renderer/components/LanguageDirectionProvider'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -79,15 +80,17 @@ function MainApp(): React.ReactElement {
     // The boundary must stay the ANCESTOR of every provider so a provider throwing
     // during render (e.g. reading preferences) falls back instead of white-screening.
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
-      <ThemeProvider>
-        <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <MainWindowContent />
-            </CommandProvider>
-          </CommandContextKeyProvider>
-        </CodeStyleProvider>
-      </ThemeProvider>
+      <LanguageDirectionProvider>
+        <ThemeProvider>
+          <CodeStyleProvider>
+            <CommandContextKeyProvider>
+              <CommandProvider>
+                <MainWindowContent />
+              </CommandProvider>
+            </CommandContextKeyProvider>
+          </CodeStyleProvider>
+        </ThemeProvider>
+      </LanguageDirectionProvider>
     </ErrorBoundary>
   )
 }

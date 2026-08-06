@@ -5971,12 +5971,16 @@
         "third_party": "Conexiuni terțe"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Exportă ca Word",
         "image": "Exportă ca imagine",
         "joplin": "Exportă în Joplin",
         "markdown": "Exportă ca Markdown",
         "markdown_reason": "Exportă ca Markdown (cu raționament)",
-        "notes": "Exportă în Notițe",
         "notion": "Exportă în Notion",
         "obsidian": "Exportă în Obsidian",
         "plain_text": "Copiază ca text simplu",
@@ -7271,7 +7275,9 @@
       "expand_all": "Extinde tot",
       "filter": {
         "clear": "Șterge filtrul de modele",
-        "label": "Filtrează modelele"
+        "label": "Filtrează modelele",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",

@@ -299,8 +299,11 @@
   margin: 1em 0;
   padding: 0.75em 1em;
   background-color: var(--markdown-content-background);
-  border-left: 2px solid var(--primary);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-inline-start: 2px solid var(--primary);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--radius-md);
+  border-end-end-radius: var(--radius-md);
   color: var(--muted-foreground);
   font-style: normal;
 }
@@ -319,7 +322,7 @@
   padding: 0.8em 1em;
   background: var(--markdown-content-background);
   border: 0.5px solid var(--markdown-border-color);
-  border-left-width: 3px;
+  border-inline-start-width: 3px;
   border-radius: var(--radius-lg);
   color: var(--markdown-foreground, var(--foreground));
   font-style: normal;
@@ -337,7 +340,7 @@
 }
 
 .markdown .markdown-alert-note {
-  border-left-color: var(--info);
+  border-inline-start-color: var(--info);
 }
 
 .markdown .markdown-alert-note .markdown-alert-title {
@@ -345,7 +348,7 @@
 }
 
 .markdown .markdown-alert-tip {
-  border-left-color: var(--success);
+  border-inline-start-color: var(--success);
 }
 
 .markdown .markdown-alert-tip .markdown-alert-title {
@@ -353,7 +356,7 @@
 }
 
 .markdown .markdown-alert-important {
-  border-left-color: var(--primary);
+  border-inline-start-color: var(--primary);
 }
 
 .markdown .markdown-alert-important .markdown-alert-title {
@@ -361,7 +364,7 @@
 }
 
 .markdown .markdown-alert-warning {
-  border-left-color: var(--warning);
+  border-inline-start-color: var(--warning);
 }
 
 .markdown .markdown-alert-warning .markdown-alert-title {
@@ -369,7 +372,7 @@
 }
 
 .markdown .markdown-alert-caution {
-  border-left-color: var(--destructive);
+  border-inline-start-color: var(--destructive);
 }
 
 .markdown .markdown-alert-caution .markdown-alert-title {
@@ -393,7 +396,7 @@
 .markdown td {
   padding: 0.65em 0.75em;
   overflow-wrap: anywhere;
-  border-right: 0.5px solid var(--markdown-border-color);
+  border-inline-end: 0.5px solid var(--markdown-border-color);
   border-bottom: 0.5px solid var(--markdown-border-color);
   text-align: start;
   vertical-align: top;
@@ -401,7 +404,7 @@
 
 .markdown th:last-child,
 .markdown td:last-child {
-  border-right: none;
+  border-inline-end: none;
 }
 
 .markdown tr:last-child td {

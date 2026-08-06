@@ -20,6 +20,11 @@ describe('main i18n', () => {
       expect(getAppLanguage()).toBe('en-US')
     })
 
+    it('maps an Arabic system locale to the supported Arabic catalog', () => {
+      vi.mocked(app.getLocale).mockReturnValueOnce('ar-SA')
+      expect(getAppLanguage()).toBe('ar-YE')
+    })
+
     it('falls back to the default language when the system locale is not in the catalog', () => {
       // No preference set and 'ko-KR' has no catalog → resolves to the default,
       // not the raw system locale.
@@ -39,6 +44,11 @@ describe('main i18n', () => {
     it('selects the catalog from the preference language', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file')).toBe('Save File')
+    })
+
+    it('resolves Arabic translations', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ar-YE')
+      expect(t('dialog.save_file')).toBe('حفظ الملف')
     })
 
     it('interpolates {{var}} placeholders', () => {

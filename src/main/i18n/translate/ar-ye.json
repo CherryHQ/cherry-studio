@@ -1,0 +1,131 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "[to be translated]:Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
+    "session": {
+      "workspace_status": {
+        "inaccessible": "مسار مساحة العمل غير قابل للوصول: {{path}}",
+        "missing": "مسار مساحة العمل غير موجود: {{path}}",
+        "not_directory": "مسار مساحة العمل ليس مجلدًا"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "[to be translated]:OpenAI-, Anthropic- and Gemini-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)",
+      "language_switcher_label": "[to be translated]:Documentation language",
+      "operations": {
+        "chat_completions": "[to be translated]:Create a chat completion. Request and response bodies follow the OpenAI Chat Completions format; set `stream: true` for incremental output.",
+        "count_tokens": "[to be translated]:Estimate how many input tokens a set of Anthropic-format messages uses.",
+        "generate_content": "[to be translated]:Generate content through Gemini's `generateContent` method. Request and response bodies follow the Gemini API format; `streamGenerateContent` is served on the same path.",
+        "get_knowledge_base": "[to be translated]:Fetch a single knowledge base by ID.",
+        "health": "[to be translated]:Service health, current time and version. No authentication required.",
+        "info": "[to be translated]:API name, version and the main endpoints. No authentication required.",
+        "list_knowledge_bases": "[to be translated]:List the knowledge bases available in this Cherry Studio instance.",
+        "list_models": "[to be translated]:List the models available through this gateway, in the OpenAI models format.",
+        "messages": "[to be translated]:Create a message. Request and response bodies follow the Anthropic Messages format; set `stream: true` for incremental output.",
+        "responses": "[to be translated]:Create a response. Request and response bodies follow the OpenAI Responses format.",
+        "search_knowledge_bases": "[to be translated]:Search one or more knowledge bases and return the matching document chunks."
+      },
+      "tags": {
+        "anthropic": "[to be translated]:Anthropic-compatible endpoints. Point an Anthropic SDK at this gateway's base URL to use them.",
+        "cherry": "[to be translated]:Cherry Studio's own endpoints: knowledge bases, service info and health check.",
+        "gemini": "[to be translated]:Gemini-compatible endpoints, served under `/v1beta` like the upstream API.",
+        "openai": "[to be translated]:OpenAI-compatible endpoints. Point an OpenAI SDK at this gateway's base URL to use them."
+      }
+    }
+  },
+  "appMenu": {
+    "about": "حول",
+    "close": "إغلاق النافذة",
+    "copy": "نسخ",
+    "cut": "قص",
+    "delete": "حذف",
+    "documentation": "التوثيق",
+    "edit": "تعديل",
+    "feedback": "الملاحظات",
+    "file": "ملف",
+    "forceReload": "فرض إعادة التحميل",
+    "front": "جلب الكل للمقدمة",
+    "help": "مساعدة",
+    "hide": "إخفاء",
+    "hideOthers": "إخفاء الآخرين",
+    "minimize": "تصغير",
+    "paste": "لصق",
+    "quit": "إنهاء",
+    "redo": "إعادة",
+    "releases": "الإصدارات",
+    "reload": "إعادة تحميل",
+    "resetZoom": "الحجم الفعلي",
+    "selectAll": "تحديد الكل",
+    "services": "الخدمات",
+    "toggleDevTools": "تبديل أدوات المطور",
+    "toggleFullscreen": "تبديل ملء الشاشة",
+    "undo": "تراجع",
+    "unhide": "إظهار الكل",
+    "view": "عرض",
+    "website": "الموقع الإلكتروني",
+    "window": "نافذة",
+    "zoom": "تكبير/تصغير",
+    "zoomIn": "تكبير",
+    "zoomOut": "تصغير"
+  },
+  "common": {
+    "copy": "نسخ",
+    "cut": "قص",
+    "inspect": "افحص",
+    "paste": "الصق"
+  },
+  "dialog": {
+    "all_files": "كل الملفات",
+    "data_reset": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Reset and Restart",
+      "message": "[to be translated]:This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+      "title": "[to be translated]:Reset App Data"
+    },
+    "html_files": "ملفات HTML",
+    "open_file": "افتح ملفاً",
+    "pdf_files": "ملفات PDF",
+    "png_image": "صورة PNG",
+    "save_as_html": "حفظ كـ HTML",
+    "save_as_pdf": "حفظ كـ PDF",
+    "save_file": "حفظ الملف",
+    "select_folder": "اختر مجلداً",
+    "word_document": "مستند Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "[to be translated]:The OpenClaw binary used by Cherry Studio is incompatible with the generated configuration. Upgrade OpenClaw.{{details}}",
+      "external_config_invalid": "[to be translated]:OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
+      "more_issues": "[to be translated]:and {{count}} more issue(s)",
+      "preflight_failed": "[to be translated]:Cherry Studio could not validate the OpenClaw configuration."
+    }
+  },
+  "paintings": {
+    "generate_failed": "فشل توليد الصورة",
+    "image_mix_failed": "فشل دمج الصور"
+  },
+  "selection": {
+    "name": "مساعد التحديد"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "يمكنك إغلاق هذه الصفحة والعودة إلى Cherry Studio",
+          "title": "نجحت المصادقة"
+        }
+      }
+    },
+    "title": "الإعدادات"
+  },
+  "tray": {
+    "quit": "إنهاء",
+    "show_quick_assistant": "المساعد السريع",
+    "show_window": "إظهار النافذة"
+  }
+}

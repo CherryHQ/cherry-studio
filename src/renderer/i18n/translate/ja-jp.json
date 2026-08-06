@@ -5971,12 +5971,16 @@
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Wordとしてエクスポート",
         "image": "画像としてエクスポート",
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
-        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -7271,7 +7275,9 @@
       "expand_all": "すべて展開",
       "filter": {
         "clear": "モデルフィルターをクリア",
-        "label": "モデルをフィルター"
+        "label": "モデルをフィルター",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",

@@ -34,6 +34,14 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Copy')
   })
 
+  it('lazy-loads the Arabic pack', async () => {
+    await i18n.changeLanguage('ar-YE')
+
+    expect(i18n.language).toBe('ar-YE')
+    expect(i18n.hasResourceBundle('ar-YE', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('نسخ')
+  })
+
   it('falls back to en-US for a non-catalog language without throwing', async () => {
     await expect(i18n.changeLanguage('en-GB')).resolves.toBeTypeOf('function')
 

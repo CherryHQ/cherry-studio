@@ -1,10 +1,13 @@
 import { preferenceService } from '@data/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { prepareWindow } from '../prepareWindow'
 
-const { initI18nMock } = vi.hoisted(() => ({ initI18nMock: vi.fn(async () => {}) }))
-vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
+const { i18nState, initI18nMock } = vi.hoisted(() => ({
+  i18nState: { language: 'zh-CN', resolvedLanguage: 'zh-CN' },
+  initI18nMock: vi.fn(async () => {})
+}))
+vi.mock('@renderer/i18n/resolver', () => ({ default: i18nState, initI18n: initI18nMock }))
 
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
 vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
@@ -12,6 +15,13 @@ vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControl
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    i18nState.language = 'zh-CN'
+    i18nState.resolvedLanguage = 'zh-CN'
+  })
+
+  afterEach(() => {
+    document.documentElement.removeAttribute('dir')
+    document.documentElement.removeAttribute('lang')
   })
 
   it("warms the full preference cache and initializes i18n for preference: 'all'", async () => {
@@ -20,6 +30,8 @@ describe('prepareWindow', () => {
     expect(preferenceService.preloadAll).toHaveBeenCalledTimes(1)
     expect(preferenceService.preload).not.toHaveBeenCalled()
     expect(initI18nMock).toHaveBeenCalledTimes(1)
+    expect(document.documentElement).toHaveAttribute('lang', 'zh-CN')
+    expect(document.documentElement).toHaveAttribute('dir', 'ltr')
   })
 
   it('preloads exactly the given keys for a key-list preference', async () => {
@@ -28,6 +40,17 @@ describe('prepareWindow', () => {
     expect(preferenceService.preload).toHaveBeenCalledExactlyOnceWith(['ui.theme_mode', 'app.language'])
     expect(preferenceService.preloadAll).not.toHaveBeenCalled()
     expect(initI18nMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies the resolved RTL language before the preparation promise resolves', async () => {
+    i18nState.language = 'ar-YE'
+    i18nState.resolvedLanguage = 'ar-YE'
+
+    await prepareWindow({ preference: ['app.language'] })
+
+    // The locale id is the `<html lang>` tag verbatim; stylesheets reach it via :lang(ar).
+    expect(document.documentElement).toHaveAttribute('lang', 'ar-YE')
+    expect(document.documentElement).toHaveAttribute('dir', 'rtl')
   })
 
   it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {

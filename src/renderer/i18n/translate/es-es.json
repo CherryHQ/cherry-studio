@@ -5971,12 +5971,16 @@
         "third_party": "Conexiones de terceros"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Exportar a Word",
         "image": "Exportar como imagen",
         "joplin": "Exportar a Joplin",
         "markdown": "Exportar a Markdown",
         "markdown_reason": "Exportar a Markdown (con pensamiento incluido)",
-        "notes": "Exportar a notas",
         "notion": "Exportar a Notion",
         "obsidian": "Exportar a Obsidian",
         "plain_text": "Copiar como texto plano",
@@ -7271,7 +7275,9 @@
       "expand_all": "Expandir todo",
       "filter": {
         "clear": "Borrar filtro de modelos",
-        "label": "Filtrar modelos"
+        "label": "Filtrar modelos",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Deshabilitar este grupo",
       "group_enable": "Habilitar este grupo",

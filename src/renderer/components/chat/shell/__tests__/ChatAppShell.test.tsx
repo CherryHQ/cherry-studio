@@ -793,9 +793,10 @@ describe('ChatAppShell', () => {
 
     expect(pane).toHaveClass('overflow-visible')
     expect(paneContent).toHaveClass('overflow-hidden')
-    expect(handle).toHaveClass('left-full', 'w-2')
-    expect(handle).not.toHaveClass('right-0')
-    expect(handle?.firstElementChild).toHaveClass('left-0')
+    // Logical insets, so the handle stays on the pane's trailing edge in RTL too.
+    expect(handle).toHaveClass('start-full', 'w-2')
+    expect(handle).not.toHaveClass('end-0')
+    expect(handle?.firstElementChild).toHaveClass('start-0')
   })
 
   it('keeps the resize handle below history overlays', () => {

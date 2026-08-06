@@ -65,6 +65,7 @@ export enum ThemeMode {
 
 /** 有限的UI语言 */
 export type LanguageVarious =
+  | 'ar-YE'
   | 'zh-CN'
   | 'zh-TW'
   | 'de-DE'

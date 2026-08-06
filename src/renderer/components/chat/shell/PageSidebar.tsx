@@ -1,3 +1,4 @@
+import { useDirection } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
@@ -34,6 +35,7 @@ export function PageSidebar({
   onResizingChange
 }: PageSidebarProps) {
   const { t } = useTranslation()
+  const direction = useDirection()
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
   const resolvedWidth = width ?? paneWidth
 
@@ -75,10 +77,11 @@ export function PageSidebar({
               min: RESOURCE_LIST_PANE_MIN_WIDTH,
               max: RESOURCE_LIST_PANE_MAX_WIDTH,
               label: t('common.resize_panel'),
-              onResize: setPaneWidth
+              onResize: setPaneWidth,
+              handleEdge: direction === 'rtl' ? 'left' : 'right'
             })}
-            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
+            className="group/resource-list-resize-handle absolute start-full top-0 bottom-0 z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
+            <div className="absolute start-0 top-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>
       )}

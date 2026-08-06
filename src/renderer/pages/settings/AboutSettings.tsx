@@ -313,7 +313,7 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <Divider className="my-3" />
-          <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
+          <Scrollbar className="max-h-96 overflow-x-hidden pe-2">
             <ReleaseNotes content={releaseNotesText} />
           </Scrollbar>
         </SettingGroup>

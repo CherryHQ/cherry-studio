@@ -38,9 +38,9 @@ describe('getVerticalSplitterProps', () => {
     expect(onResize).toHaveBeenLastCalledWith(400)
   })
 
-  it('inverts the arrow direction for a left-edge handle (ArrowLeft grows)', () => {
+  it('uses ArrowLeft to grow a left-edge handle', () => {
     const onResize = vi.fn()
-    const props = make({ onResize, invert: true })
+    const props = make({ onResize, handleEdge: 'left' })
 
     press(props, 'ArrowLeft')
     expect(onResize).toHaveBeenLastCalledWith(216)
