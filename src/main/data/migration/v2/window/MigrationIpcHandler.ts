@@ -288,6 +288,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         throw error
       }
 
+      // Update progress to error stage so the renderer shows the error UI.
+      // Do NOT re-throw — the progress update already communicates the failure,
+      // and re-throwing causes an unhandled promise rejection in the renderer.
       updateProgress({
         stage: 'error',
         overallProgress: currentProgress.overallProgress,
@@ -296,7 +299,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         error: errorMessage
       })
 
-      throw error
+      // Return a failure result instead of throwing, so the IPC invoke resolves
+      // gracefully and the renderer can display the error.
+      return { success: false, migratorResults: [], totalDuration: 0, error: errorMessage } satisfies MigrationResult
     } finally {
       if (runPromise && inFlightMigration === runPromise) {
         inFlightMigration = null
