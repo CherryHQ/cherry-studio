@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const ipcRequest = vi.hoisted(() => vi.fn((_channel: string, _payload?: unknown) => Promise.resolve(undefined)))
+const ipcRequest = vi.hoisted(() =>
+  vi.fn<(channel: string, payload?: unknown) => Promise<undefined>>(() => Promise.resolve(undefined))
+)
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequest }
