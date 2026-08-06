@@ -65,7 +65,13 @@ describe('Cherry Assistant guide', () => {
     expect(guide).toContain('必须在同一轮调用 `mcp__assistant__navigate`')
     expect(guide).toContain('不得声称已经生成入口或已经打开页面')
     expect(instructions).not.toMatch(/\/(?:app|settings)\//)
-    expect(agent.accessible_paths).toEqual(['#{PROJECT_ROOT}'])
+    expect(agent.accessible_paths).toEqual([
+      '#{PROJECT_ROOT}',
+      '#{USER_HOME}/Library/Application Support/CherryStudio/prerelease-adoption.status.json',
+      '#{USER_HOME}/Library/Application Support/CherryStudio/prerelease-adoption.pending.json',
+      '#{USER_HOME}/AppData/Roaming/CherryStudio/prerelease-adoption.status.json',
+      '#{USER_HOME}/AppData/Roaming/CherryStudio/prerelease-adoption.pending.json'
+    ])
   })
 
   it('keeps the assistant lively and patient without forcing humor', () => {

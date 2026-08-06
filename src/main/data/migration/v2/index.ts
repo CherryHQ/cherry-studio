@@ -40,6 +40,9 @@ export {
 // Migrators
 export { getAllMigrators } from './migrators/migratorRegistry'
 
+// Pre-release (v2.0.0-alpha/beta) adoption — deleted with ./prerelease/
+export { type PrereleaseAdoptionResult, runPrereleaseAdoption } from './prerelease/prereleaseAdoption'
+
 // Window management
 export {
   registerMigrationIpcHandlers,

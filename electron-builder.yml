@@ -83,6 +83,10 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+  # Frozen alpha/beta chain, replayed to adopt a pre-release database. Ships with
+  # data/migration/v2/prerelease/ and is deleted together with it.
+  - from: "migrations/sqlite-drizzle-legacy"
+    to: "migrations/sqlite-drizzle-legacy"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
