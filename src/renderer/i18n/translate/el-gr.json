@@ -279,6 +279,16 @@
         "description": "Το αρχείο υπερβαίνει το όριο προεπισκόπησης των {{limit}}.",
         "title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Το πλαίσιο αρχείων απαιτεί έγκυρη απόλυτη τοπική διαδρομή. Παρακαλώ επιλέξτε ξανά τον κατάλογο εργασίας.",
+          "title": "Μη έγκυρη διαδρομή χώρου εργασίας"
+        },
+        "load_error": {
+          "description": "Βεβαιωθείτε ότι ο φάκελος εργασίας υπάρχει ακόμα και είναι προσβάσιμος, στη συνέχεια προσπαθήστε ξανά.",
+          "title": "Δεν ήταν δυνατή η φόρτωση των αρχείων του χώρου εργασίας"
+        }
+      },
       "unavailable": {
         "description": "Αυτό το αρχείο δεν μπόρεσε να ανοίξει — ενδέχεται να έχει μετακινηθεί ή διαγραφεί.",
         "title": "Αρχείο μη διαθέσιμο"
@@ -758,6 +768,13 @@
         "placeholder": "Τι πρέπει να κάνει ο πράκτορας όταν εκτελείται αυτή η εργασία;"
       },
       "resume": "Συνέχιση",
+      "reuseSession": {
+        "bound": "Προβολή συνεδρίας",
+        "description": "Συνεχίστε κάθε εκτέλεση στην ίδια συνεδρία αντί να ξεκινάτε νέα.",
+        "label": "Επαναχρησιμοποίηση συνεδρίας",
+        "pending": "Αναμονή για την πρώτη εκτέλεση",
+        "warning": "Μια επαναχρησιμοποιούμενη συνεδρία συσσωρεύει συνεχώς πλαίσιο, το οποίο αυξάνει το κόστος των tokens με την πάροδο του χρόνου και μπορεί να υπερχειλίσει το παράθυρο πλαισίου του μοντέλου. Για να επανασυνδέσετε μια καθαρή συνεδρία, απενεργοποιήστε και αποθηκεύστε, στη συνέχεια ενεργοποιήστε και αποθηκεύστε."
+      },
       "run": "Εκτέλεση",
       "runTriggered": "Η εργασία ενεργοποιήθηκε",
       "save": "Αποθήκευση",
@@ -1419,6 +1436,11 @@
         "placeholder": "Αναζήτηση"
       }
     },
+    "compaction": {
+      "compacted": "Περιεχόμενο συμπυκνωμένο, ~{{count}} tokens εξοικονομήθηκαν",
+      "compacted_plain": "Συμπιεσμένο πλαίσιο",
+      "compacting": "Συμπίεση περιεχομένου…"
+    },
     "conversation": {
       "new": "Νέα Συνομιλία"
     },
@@ -1484,6 +1506,13 @@
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
+      "note_reference": {
+        "description": "Επισυνάψτε μια σημείωση από τις Σημειώσεις",
+        "empty": "Δεν βρέθηκαν σημειώσεις",
+        "load_failed": "Αποτυχία φόρτωσης σημειώσεων",
+        "loading": "Φόρτωση σημειώσεων...",
+        "title": "Σημείωση Αναφοράς"
+      },
       "paste_text_file": "Επικόλληση στην είσοδο",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Παύση",
@@ -1614,6 +1643,10 @@
           "description": "Να μην ενεργοποιηθεί η δυνατότητα διαδικτυακής αναζήτησης",
           "label": "Χωρίς διαδίκτυο"
         },
+        "route": {
+          "builtin": "Αναζητήσεις με το ενσωματωμένο εργαλείο του μοντέλου",
+          "client": "Αναζητήσεις με {{provider}}"
+        },
         "settings": "Ρυθμίσεις αναζήτησης στο διαδίκτυο"
       }
     },
@@ -1696,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Μετάβαση στη στροφή {{number}}"
+      },
       "bottom": "Επιστροφή στο κάτω μέρος",
       "close": "Κλείσιμο",
       "first": "Ήδη το πρώτο μήνυμα",
@@ -3166,6 +3202,7 @@
         "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη."
       },
       "processor": "Πάροχος Επεξεργασίας",
+      "processor_not_configured": "Δεν έχει ρυθμιστεί",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -3416,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Αυτόματη συμπίεση",
+        "context_compress_model": "Μοντέλο συμπίεσης",
+        "context_compress_model_follow": "Προεπιλογή",
         "context_count": "Καταμέτρηση πλαισίου",
+        "context_management": "Διαχείριση περιεχομένου",
+        "context_truncate_threshold": "Όριο περικοπής εξόδου εργαλείου (χαρακτήρες)",
         "creative": "Δημιουργικό",
         "custom_params": "Προσαρμοσμένες παράμετροι",
         "custom_params_add": "Προσθήκη παραμέτρου",
@@ -3428,8 +3470,17 @@
           "avatar": {
             "hint": "Χρησιμοποιείται για την αναγνώριση του βοηθού στη βιβλιοθήκη και στις συνομιλίες"
           },
+          "context_compress_enabled": {
+            "hint": "Αυτόματη σύνοψη παλαιότερων στροφών όταν πλησιάζει το παράθυρο περιβάλλοντος"
+          },
           "context_count": {
             "hint": "Αριθμός πρόσφατων μηνυμάτων που διατηρούνται ως συμφραζόμενα"
+          },
+          "context_management": {
+            "hint": "Απενεργοποίηση των καθολικών ρυθμίσεων διαχείρισης περιβάλλοντος για αυτόν τον βοηθό· το off κληρονομεί τις καθολικές ρυθμίσεις"
+          },
+          "context_truncate_threshold": {
+            "hint": "Τα αποτελέσματα εργαλείων πέρα από αυτούς τους χαρακτήρες εκφορτώνονται και περικόπτονται"
           },
           "custom_params": {
             "hint": "Επιπλέον παράμετροι παρόχου που αποστέλλονται με τα αιτήματα"
@@ -4274,6 +4325,7 @@
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
       "fetch_empty": "Δεν βρέθηκαν αποτελέσματα αναζήτησης",
+      "fetch_opaque": "Αναζητήθηκε από το μοντέλο",
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
@@ -5146,6 +5198,7 @@
     "reset": "Επαναφορά",
     "rotate_left": "Περιστροφή Αριστερά",
     "rotate_right": "Περιστροφή Δεξιά",
+    "save_as": "Αποθήκευση Ως",
     "source": "Προβολή πηγαίου κώδικα",
     "zoom_in": "Μεγέθυνση",
     "zoom_out": "συρρίκνωση"
@@ -5730,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Νέος Βοηθός",
+      "create_tag": "Νέο",
       "empty_text": "Κανένας βοηθός ακόμα",
       "filter": "Φίλτρο βοηθών",
       "group_filter": "Φιλτράρισμα κατά ομάδα",
@@ -5779,12 +5833,100 @@
         "title": "Πίνακας Αποσφαλμάτωσης"
       },
       "description": "Ένα AI ασιστάντα που έχει σχεδιαστεί για δημιουργούς",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Λήψη ενημερώσεων...",
       "enterprise": {
         "title": "Επιχείρηση"
       },
       "feedback": {
+        "agent": {
+          "description": "Συνομιλήστε με την Βοηθό Cherry για να μοιραστείτε τα σχόλιά σας.",
+          "title": "Χρησιμοποίησε Πράκτορα"
+        },
+        "agent_error": "Αδυναμία ανοίγματος του Cherry Assistant για σχόλια. Παρακαλώ προσπαθήστε ξανά.",
         "button": "Σχόλια και Παρατηρήσεις",
+        "dialog": {
+          "description": "Επιλέξτε πώς θέλετε να μοιραστείτε τα σχόλιά σας και να μας βοηθήσετε να κάνουμε το Cherry Studio καλύτερο.",
+          "title": "Επιλέξτε ένα κανάλι ανατροφοδότησης"
+        },
+        "github": {
+          "description": "Δημιουργήστε μια αναφορά σφάλματος ή αίτημα για νέο χαρακτηριστικό στο GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Συνιστάται",
+        "survey": {
+          "description": "Μοιραστείτε τα σχόλιά σας μέσω της έρευνάς μας στο Feishu.",
+          "title": "Έρευνα ανατροφοδότησης"
+        },
         "title": "Αποστολή σχολίων"
       },
       "label": "Περί μας",
@@ -7310,6 +7452,7 @@
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",
         "label": "Ονομασία θέματος",
+        "model": "Μοντέλο Ονομασίας",
         "prompt": "Προσδιορισμός προκαθορισμένου θέματος"
       },
       "translate_model": "Μοντέλο μετάφρασης",
@@ -8072,6 +8215,10 @@
         "check": "Έλεγχος",
         "check_failed": "Αποτυχία επαλήθευσης",
         "check_success": "Επιτυχής επαλήθευση",
+        "client_tools_preferred": {
+          "description": "Χρησιμοποιήστε τις υπηρεσίες αναζήτησης και λήψης URL που έχουν ρυθμιστεί παραπάνω ακόμα και όταν το μοντέλο έχει ενσωματωμένη αναζήτηση. Όταν είναι απενεργοποιημένο, το μοντέλο το χειρίζεται.",
+          "label": "Προτίμηση διαμορφωμένων υπηρεσιών αναζήτησης"
+        },
         "compression": {
           "cutoff": {
             "limit": {

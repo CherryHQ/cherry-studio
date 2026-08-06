@@ -279,6 +279,16 @@
         "description": "O arquivo excede o limite de pré-visualização de {{limit}}.",
         "title": "Arquivo muito grande para pré-visualizar"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "O painel de arquivos requer um caminho local absoluto válido. Por favor, selecione o diretório de trabalho novamente.",
+          "title": "Caminho do espaço de trabalho inválido"
+        },
+        "load_error": {
+          "description": "Certifique-se de que o diretório de trabalho ainda existe e está acessível, depois tente novamente.",
+          "title": "Não foi possível carregar os arquivos do espaço de trabalho"
+        }
+      },
       "unavailable": {
         "description": "Este arquivo não pôde ser aberto — pode ter sido movido ou excluído.",
         "title": "Arquivo indisponível"
@@ -758,6 +768,13 @@
         "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
       },
       "resume": "Retomar",
+      "reuseSession": {
+        "bound": "Ver sessão",
+        "description": "Continue cada execução na mesma sessão em vez de iniciar uma nova.",
+        "label": "Reutilizar sessão",
+        "pending": "Esperando a primeira execução",
+        "warning": "Uma sessão reutilizada continua acumulando contexto, o que aumenta o custo de tokens ao longo do tempo e pode transbordar a janela de contexto do modelo. Para vincular uma sessão limpa, desative e salve, depois ative e salve."
+      },
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
@@ -1419,6 +1436,11 @@
         "placeholder": "Pesquisar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens economizados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Novo Chat"
     },
@@ -1484,6 +1506,13 @@
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
+      "note_reference": {
+        "description": "Anexe uma nota do Notes",
+        "empty": "Nenhuma nota encontrada",
+        "load_failed": "Falha ao carregar notas",
+        "loading": "Carregando notas...",
+        "title": "Nota de Referência"
+      },
       "paste_text_file": "Cole na entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
@@ -1614,6 +1643,10 @@
           "description": "Não ativar a função de busca na web",
           "label": "Sem busca na web"
         },
+        "route": {
+          "builtin": "Pesquisas com a ferramenta integrada do modelo",
+          "client": "Pesquisas com {{provider}}"
+        },
         "settings": "Configurações de Pesquisa na Web"
       }
     },
@@ -1696,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Ir para a jogada {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -3166,6 +3202,7 @@
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
       "processor": "Processador de Provedor",
+      "processor_not_configured": "Não configurado",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3416,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-comprimir",
+        "context_compress_model": "Modelo de compressão",
+        "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_management": "Gestão de contexto",
+        "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
         "custom_params_add": "Adicionar parâmetro",
@@ -3428,8 +3470,17 @@
           "avatar": {
             "hint": "Usado para identificar o assistente na biblioteca e nos chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automaticamente as conversas anteriores ao aproximar-se da janela de contexto"
+          },
           "context_count": {
             "hint": "Número de mensagens recentes mantidas como contexto"
+          },
+          "context_management": {
+            "hint": "Substituir as configurações globais de gerenciamento de contexto para este assistente; desativado herda as configurações globais"
+          },
+          "context_truncate_threshold": {
+            "hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas"
           },
           "custom_params": {
             "hint": "Parâmetros extras do provedor enviados com as solicitações"
@@ -4274,6 +4325,7 @@
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
       "fetch_empty": "Nenhum resultado de pesquisa encontrado",
+      "fetch_opaque": "Pesquisado pelo modelo",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -5146,6 +5198,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Salvar Como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -5730,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Novo Assistente",
+      "create_tag": "Novo",
       "empty_text": "Nenhum assistente ainda",
       "filter": "Assistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5779,12 +5833,100 @@
         "title": "Painel de Depuração"
       },
       "description": "Um assistente de IA criado para criadores",
+      "diagnostics": {
+        "actions": {
+          "cancel": "[to be translated]:Cancel",
+          "close": "[to be translated]:Close",
+          "contact": "[to be translated]:Email support",
+          "copy_email": "[to be translated]:Copy support email",
+          "export": "[to be translated]:Export",
+          "exporting": "[to be translated]:Exporting...",
+          "reveal": "[to be translated]:Open file location"
+        },
+        "dialog": {
+          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
+          "title": "[to be translated]:Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "[to be translated]:Export",
+          "title": "[to be translated]:Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
+          "copy_failed": "[to be translated]:Could not copy the support email",
+          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
+          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
+          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
+          "reveal_failed": "[to be translated]:Could not open the file location"
+        },
+        "inspecting": "[to be translated]:Preparing the available information...",
+        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
+          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "[to be translated]:Before you share"
+        },
+        "range_title": "[to be translated]:Time range",
+        "ranges": {
+          "24h": "[to be translated]:Last 24 hours",
+          "3d": "[to be translated]:Last 3 days",
+          "7d": "[to be translated]:Last 7 days"
+        },
+        "sources": {
+          "inspecting": "[to be translated]:Checking what is available...",
+          "logs": {
+            "title": "[to be translated]:App logs"
+          },
+          "summary": "[to be translated]:{{count}} files, about {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "system": {
+            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "[to be translated]:App and device information"
+          },
+          "traces": {
+            "title": "[to be translated]:Detailed activity records"
+          },
+          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "[to be translated]:Support email copied",
+          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "[to be translated]:Diagnostic bundle exported"
+        },
+        "unknown": "[to be translated]:Unknown",
+        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Baixando atualizações...",
       "enterprise": {
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Converse com o Assistente Cherry para compartilhar comentários.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Escolha como compartilhar feedback e ajude-nos a melhorar o Cherry Studio.",
+          "title": "Escolha um canal de feedback"
+        },
+        "github": {
+          "description": "Criar um relatório de bug ou solicitação de recurso no GitHub.",
+          "title": "Issue do GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Compartilhe feedback através da nossa pesquisa Feishu.",
+          "title": "Pesquisa de feedback"
+        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -7310,6 +7452,7 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
+        "model": "Modelo de Nomenclatura",
         "prompt": "Prompt de nomenclatura de tópicos"
       },
       "translate_model": "Modelo de tradução",
@@ -8072,6 +8215,10 @@
         "check": "Verificar",
         "check_failed": "Falha na verificação",
         "check_success": "Verificação bem-sucedida",
+        "client_tools_preferred": {
+          "description": "Use os serviços de pesquisa e busca de URL configurados acima mesmo quando o modelo possui pesquisa integrada. Quando desativado, o modelo lida com isso.",
+          "label": "Serviços de pesquisa configurados preferidos"
+        },
         "compression": {
           "cutoff": {
             "limit": {

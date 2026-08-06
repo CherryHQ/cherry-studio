@@ -5175,6 +5175,16 @@
       "ownedBy": "black-forest-labs"
     },
     {
+      "capabilities": ["video-generation"],
+      "family": "flux",
+      "id": "flux-3-video",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Flux 3",
+      "outputModalities": ["video"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "flux-dev",
       "inputModalities": ["text"],
@@ -18492,7 +18502,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "id": "solar-pro-3",
       "inputModalities": ["text"],
       "metadata": {},
@@ -21017,5 +21027,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "1d6b730d3fd11b20"
+  "version": "a5c5026cf6f7d1af"
 }

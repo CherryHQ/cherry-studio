@@ -87,6 +87,56 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ])
   })
 
+  it('gemini tool-schema compatibility follows the OpenAI Chat wire across adapter families', () => {
+    const scopes = [
+      makeScope({
+        provider: { id: 'custom' },
+        model: { id: 'custom::gemini-3-5-flash-lite' },
+        endpointType: 'openai-chat-completions',
+        aiSdkProviderId: 'openai-compatible'
+      }),
+      makeScope({
+        provider: { id: 'openai' },
+        model: { id: 'openai::gemini-3-5-flash-lite' },
+        endpointType: 'openai-chat-completions',
+        aiSdkProviderId: 'openai-chat'
+      }),
+      makeScope({
+        provider: { id: 'aihubmix' },
+        model: { id: 'aihubmix::gemini-2.5-flash' },
+        endpointType: 'openai-chat-completions',
+        aiSdkProviderId: 'aihubmix'
+      })
+    ]
+
+    for (const scope of scopes) {
+      expect(activeNames(scope)).toContain('gemini-tool-schema-compatibility')
+    }
+  })
+
+  it('gemini tool-schema compatibility stays off native Google and non-Gemini wires', () => {
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'gemini' },
+          model: { id: 'gemini::gemini-3-5-flash-lite' },
+          endpointType: 'google-generate-content',
+          aiSdkProviderId: 'google'
+        })
+      )
+    ).not.toContain('gemini-tool-schema-compatibility')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'custom' },
+          model: { id: 'custom::gpt-5.4' },
+          endpointType: 'openai-chat-completions',
+          aiSdkProviderId: 'openai-compatible'
+        })
+      )
+    ).not.toContain('gemini-tool-schema-compatibility')
+  })
+
   it('reasoning-extraction activates only for the openai-chat wire', () => {
     expect(
       activeNames(

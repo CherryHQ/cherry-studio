@@ -30,12 +30,24 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
+import {
+  BadgeQuestionMark,
+  Briefcase,
+  Bug,
+  Building2,
+  FileArchive,
+  Github,
+  Globe,
+  Mail,
+  MessageSquareText,
+  Rss
+} from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FeedbackDialog } from './FeedbackDialog'
+import { FeedbackDialog } from '../FeedbackDialog'
+import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -44,6 +56,7 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -370,12 +383,24 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          icon={<FileArchive className="size-4.5" />}
+          title={t('settings.about.diagnostics.entry.title')}
+          actionLabel={t('settings.about.diagnostics.entry.button')}
+          onAction={() => setIsDiagnosticDialogOpen(true)}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
       </SettingGroup>
+      <DiagnosticBundleDialog
+        appVersion={version}
+        open={isDiagnosticDialogOpen}
+        onOpenChange={setIsDiagnosticDialogOpen}
+      />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )
