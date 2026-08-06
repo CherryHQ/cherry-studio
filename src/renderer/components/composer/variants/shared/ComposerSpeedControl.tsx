@@ -7,9 +7,6 @@ import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { type ReactNode, useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const WHEEL_STEP_THRESHOLD = 40
-const WHEEL_IDLE_RESET_MS = 120
-
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
   'default',
   'none',
@@ -34,21 +31,32 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
-function normalizeWheelDelta(event: WheelEvent): number {
-  if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return event.deltaY
-  return Math.sign(event.deltaY) * WHEEL_STEP_THRESHOLD
+const WHEEL_STEP_THRESHOLD = 40
+const WHEEL_IDLE_RESET_MS = 120
+
+interface ComposerSpeedControlProps {
+  model: Model
+  reasoningEffort: ThinkingOption
+  fastMode: boolean
+  onReasoningEffortChange: (effort: ThinkingOption) => void
+  onFastModeChange: (enabled: boolean) => void
 }
 
 interface WheelStepControlProps {
   children: ReactNode
   className?: string
-  value: number
   min: number
   max: number
+  value: number
   onValueChange: (value: number) => void
 }
 
-function WheelStepControl({ children, className, value, min, max, onValueChange }: WheelStepControlProps) {
+function normalizeWheelDelta(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return event.deltaY
+  return Math.sign(event.deltaY) * WHEEL_STEP_THRESHOLD
+}
+
+function WheelStepControl({ children, className, min, max, value, onValueChange }: WheelStepControlProps) {
   const wheelTargetRef = useRef<HTMLDivElement>(null)
   const wheelDeltaRef = useRef(0)
   const wheelIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -107,14 +115,6 @@ export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOpt
   const reasoningOptions = deriveThinkingOptions(model) ?? []
 
   return reasoningOptions.includes(effort) ? effort : 'default'
-}
-
-interface ComposerSpeedControlProps {
-  model: Model
-  reasoningEffort: ThinkingOption
-  fastMode: boolean
-  onReasoningEffortChange: (effort: ThinkingOption) => void
-  onFastModeChange: (enabled: boolean) => void
 }
 
 export function ComposerSpeedControl({
