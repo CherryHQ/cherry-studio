@@ -1350,6 +1350,9 @@
       "label": "¿Está seguro de que desea realizar una copia de seguridad de los datos?"
     },
     "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
+    "error": {
+      "active_data_writers": "Una conversación o agente aún está en ejecución. Espere a que termine, luego inténtelo de nuevo."
+    },
     "progress": {
       "completed": "Copia de seguridad completada",
       "compressing": "Comprimiendo archivos...",
@@ -1595,7 +1598,6 @@
         "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
-      "url_context": "Contexto de la página web",
       "web_search": {
         "builtin": {
           "disabled_content": "La búsqueda web no es compatible con este modelo actualmente",
@@ -1617,8 +1619,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
-        "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
+        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones"
       }
     },
     "message": {
@@ -2482,6 +2483,7 @@
       "content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
       "context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
       "deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",
+      "free_model_unavailable": "El diagnóstico de IA no está disponible temporalmente",
       "go_to_settings": "Ir a configuración",
       "knowledge": "Error en la vectorización de la base de conocimiento",
       "mcp": "Error de conexión al servidor MCP, verifica si el servicio está en ejecución",
@@ -3842,6 +3844,7 @@
       "pasted_text": "Archivo del portapapeles"
     },
     "backup": {
+      "cleanup_failed": "La copia de seguridad se completó, pero no se pudieron limpiar las copias antiguas.",
       "failed": "Backup fallido",
       "start": {
         "success": "Inicio de backup"
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Ruta actual",
+          "fetchError": "Error al cargar la lista de carpetas de Nutstore",
           "return": "Volver",
           "title": "Ruta de almacenamiento de Nutstore"
         },

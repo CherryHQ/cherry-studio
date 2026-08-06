@@ -384,9 +384,11 @@ describe('ModelSelector', () => {
     const { rerender } = render(
       <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
     )
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }))
 
     rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
+    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
     await waitFor(() => expect(refetchModels).toHaveBeenCalledOnce())
     expect(refetchProviders).toHaveBeenCalledOnce()
     expect(refetchPinnedModels).toHaveBeenCalledOnce()

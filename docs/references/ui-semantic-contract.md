@@ -128,14 +128,30 @@ selectors without duplicating the token grammar.
 
 The maintained application shell currently includes:
 
-- `app.sidebar`, `app.tab-bar`, and `app.content`.
+- `app.sidebar`, `app.tab-bar`, `app.content`, and `app.search`;
+- `app.detached-window` for the detached route window root;
+- `quick-assistant.view`, `selection.toolbar`, and `selection.action` for auxiliary windows and surfaces;
+- `file-preview.view` for the shared file preview boundary.
+
+The maintained feature surfaces currently include:
+
+- `agent.view`;
+- `files.view`, `files.navigation`, and `files.content`;
+- `knowledge.view`, `knowledge.navigation`, and `knowledge.content`;
+- `notes.view`, `notes.navigation`, and `notes.editor`;
+- `translate.view`, `translate.input`, and `translate.output`;
+- `paintings.view`;
+- `code.view`, `code.navigation`, and `code.content`;
+- `mini-apps.view`.
 
 The maintained chat surface currently includes:
 
 - `chat.view`, `chat.topic-list`, `chat.topic-list.action.create`, `chat.message-list`, `chat.message`, and
   `chat.message.group`;
 - `chat.composer`, `chat.composer.action.send`, and `chat.composer.action.pause`;
-- `part:message-content`, `part:composer-input`, and `part:composer-actions`.
+- `part:conversation-navigation`, `part:conversation-main`, and `part:conversation-inspector`;
+- `part:message-content`, `part:message-actions`, `part:message-reasoning`, and `part:code-block`;
+- `part:composer-input` and `part:composer-actions`.
 
 The maintained settings surface currently includes:
 

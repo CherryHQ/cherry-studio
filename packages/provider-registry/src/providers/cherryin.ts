@@ -1,6 +1,23 @@
 import { defineProvider } from './types'
 import { modeWire } from './wires'
 
+const claudeWebToolModels = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+const geminiWebToolModels = [
+  'gemini-2',
+  'gemini-3',
+  'gemini-flash-latest',
+  'gemini-pro-latest',
+  'gemini-flash-lite-latest'
+]
+const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
+
 const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
   off: 'disabled',
   auto: 'enabled',
@@ -22,12 +39,35 @@ export default defineProvider({
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net'
     },
+    'openai-responses': {
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net'
+    },
     'openai-chat-completions': {
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net',
       reasoningFormat: { type: 'openai-chat' }
     }
   },
+  // Gateway-mapped delivery: `resolveToolCapability` falls back to the vendor
+  // segment of the model provider id (`cherryin.gemini` → google's factory), so
+  // only vendors owning a native tool factory are servable — a deepseek/glm/kimi
+  // model would resolve no factory and inject nothing.
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
+      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      vendors: ['anthropic', 'gemini', 'openai']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels],
+      vendors: ['anthropic', 'gemini']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://open.cherryin.ai/console/token',

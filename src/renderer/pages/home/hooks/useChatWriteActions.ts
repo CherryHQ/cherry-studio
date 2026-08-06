@@ -88,8 +88,6 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
-  captureLocalSendScrollEligibility: () => void
-  onLocalSendStarted: () => void
   scrollToBottom: () => void
   startNewContextBlocked: boolean
   assistant?: Assistant
@@ -114,8 +112,6 @@ export function useChatWriteActions(params: Params): Result {
     refresh,
     cache,
     seedReservedMessages,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted,
     scrollToBottom,
     startNewContextBlocked,
     assistant
@@ -321,8 +317,6 @@ export function useChatWriteActions(params: Params): Result {
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
-      captureLocalSendScrollEligibility()
-
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -358,15 +352,13 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         }
       })
-      onLocalSendStarted()
       await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages, captureLocalSendScrollEligibility, onLocalSendStarted]
+    [regenerate, capabilityBody, uiMessages, setMessages]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts, turnOptions) => {
-      captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const sourceMessage = uiMessages.find((message) => message.id === messageId)
       const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
@@ -412,20 +404,9 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      onLocalSendStarted()
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [
-      createSiblingTrigger,
-      captureLocalSendScrollEligibility,
-      seedReservedMessages,
-      refresh,
-      setMessages,
-      topic.id,
-      topic.assistantId,
-      uiMessages,
-      onLocalSendStarted
-    ]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(

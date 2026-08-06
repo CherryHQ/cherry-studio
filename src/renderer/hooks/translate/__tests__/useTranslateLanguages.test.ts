@@ -1,5 +1,5 @@
 import { toast } from '@renderer/services/toast'
-import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +30,12 @@ describe('useTranslateLanguages', () => {
     expect(result.current.languages).toHaveLength(2)
     expect(result.current.getLabel('en-us')).toBe('🇺🇸 t(languages.english)')
     expect(result.current.getLanguage('zh-cn')?.langCode).toBe('zh-cn')
+  })
+
+  it('forwards the disabled state to the languages query', () => {
+    renderHook(() => useTranslateLanguages({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/translate/languages', { enabled: false })
   })
 
   it('toasts a user-visible load error exactly once across re-renders', () => {

@@ -1,4 +1,5 @@
-import { MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -47,5 +48,17 @@ describe('useModelTagFilter', () => {
 
     expect(result.current.selectedTags).toEqual([])
     expect(result.current.tagFilter(makeModel())).toBe(true)
+  })
+
+  it('routes web-search tags through provider server-tool availability', () => {
+    const { result } = renderHook(() => useModelTagFilter())
+    const provider = {
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' }]
+    } as Provider
+
+    act(() => result.current.toggleTag(SERVER_TOOL.WEB_SEARCH))
+
+    expect(result.current.tagFilter(makeModel(), provider)).toBe(true)
+    expect(result.current.tagFilter(makeModel(), { ...provider, serverTools: [] })).toBe(false)
   })
 })

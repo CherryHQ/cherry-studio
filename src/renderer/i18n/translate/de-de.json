@@ -1350,6 +1350,9 @@
       "label": "Möchten Sie wirklich eine Datensicherung durchführen?"
     },
     "content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
+    "error": {
+      "active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut."
+    },
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
@@ -1595,7 +1598,6 @@
         "image_or_document": "Bild oder Dokument hochladen",
         "upload_from_local": "Lokale Datei hochladen..."
       },
-      "url_context": "Webseiten-Kontext",
       "web_search": {
         "builtin": {
           "disabled_content": "Aktuelles Modell unterstützt keine Websuche",
@@ -1617,8 +1619,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
-        "url_context": "Gemini unterstützt nicht die gleichzeitige Verwendung von Webseiten-Kontext und Funktionsaufrufen"
+        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen"
       }
     },
     "message": {
@@ -2482,6 +2483,7 @@
       "content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
       "context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
       "deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
+      "free_model_unavailable": "Die KI-Diagnose ist vorübergehend nicht verfügbar.",
       "go_to_settings": "Zu Einstellungen",
       "knowledge": "Vektorisierung der Wissensdatenbank fehlgeschlagen",
       "mcp": "Verbindung zum MCP-Server fehlgeschlagen, prüfen Sie ob der Dienst läuft",
@@ -3842,6 +3844,7 @@
       "pasted_text": "Datei aus Zwischenablage"
     },
     "backup": {
+      "cleanup_failed": "Die Sicherung wurde abgeschlossen, aber alte Sicherungen konnten nicht bereinigt werden.",
       "failed": "Backup fehlgeschlagen",
       "start": {
         "success": "Backup gestartet"
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Aktueller Pfad",
+          "fetchError": "Fehler beim Laden der Nutstore-Ordnerliste",
           "return": "Zurück",
           "title": "Nutstore-Speicherpfad"
         },

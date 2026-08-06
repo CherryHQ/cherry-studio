@@ -22,6 +22,7 @@ declare module '@main/core/job/jobRegistry' {
       agentId: string
       prompt: string
       workspace: AgentTaskInput['workspace']
+      reuseRevision: number
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
@@ -34,12 +35,7 @@ const logger = loggerService.withContext('agentTaskJobHandler')
 const RECENT_TERMINAL_WINDOW = 3
 
 export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
-  /**
-   * 'retry': non-terminal jobs from a previous run are re-pended on startup
-   * so the recovered job dispatches against the latest agent configuration.
-   * This matches the legacy poll-loop semantics where a task missed by a
-   * crash was simply picked up on the next 60s tick.
-   */
+  /** Preserve the existing at-least-once recovery contract; reuse mode inherits its crash-replay limitation. */
   recovery: 'retry',
 
   /**

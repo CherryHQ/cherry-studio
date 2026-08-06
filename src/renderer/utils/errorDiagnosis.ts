@@ -1,10 +1,10 @@
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
+import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
-import { readDefaultModel } from '@renderer/utils/model'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
 
@@ -20,35 +20,12 @@ export interface DiagnosisContext {
   modelId?: string
 }
 
-async function getCherryAiDefaultFreeModel(): Promise<Model | undefined> {
-  try {
-    const models = await ipcApi.request('ai.provider.model.list', { providerId: CHERRYAI_PROVIDER_ID })
-    const defaultModel = models.find((model) => model.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-    // listModels returns Partial<Model>; the diagnosis flow only needs `.id`,
-    // which the IPC always populates. Cast through the known-complete subset.
-    return defaultModel?.id ? (defaultModel as Model) : undefined
-  } catch {
-    logger.warn('Failed to fetch the default CherryAI free model')
-    return undefined
+async function getCherryAiDefaultFreeModel(): Promise<Model> {
+  const model = await dataApiService.get(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
+  if (!model) {
+    throw new Error(`Diagnosis model not found: ${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
   }
-}
-
-async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
-  const defaultModel = await readDefaultModel()
-  const models: Model[] = []
-
-  // CherryAI default free model as primary diagnosis model
-  const cherryModel = await getCherryAiDefaultFreeModel()
-  if (cherryModel) {
-    models.push(cherryModel)
-  }
-
-  // User's default model as fallback (skip if same as failing model)
-  if (defaultModel && defaultModel.id !== context?.modelId && !models.some((m) => m.id === defaultModel.id)) {
-    models.push(defaultModel)
-  }
-
-  return models
+  return model
 }
 
 function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
@@ -271,27 +248,17 @@ Output: {"summary":"OpenAI account balance is exhausted","category":"quota","exp
 
   const content = JSON.stringify(errorInfo)
 
-  const modelsToTry = await buildModelsToTry(context)
-  let lastError: Error | null = null
-
-  for (const model of modelsToTry) {
-    try {
-      const response = await fetchGenerate({ prompt, content, model })
-      if (!response) {
-        logger.warn(`Empty response from model ${model.id}, trying next`)
-        lastError = new Error(`Empty response from model: ${model.id}`)
-        continue
-      }
-      return parseResponse(response)
-    } catch (err) {
-      logger.warn(`Diagnosis failed with model ${model.id}`, err as Error)
-      lastError = err as Error
-      continue
+  try {
+    const model = await getCherryAiDefaultFreeModel()
+    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
+    if (!response) {
+      throw new Error(`Empty response from model: ${model.id}`)
     }
+    return parseResponse(response)
+  } catch (error) {
+    logger.error('Free diagnosis model unavailable', error as Error)
+    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
-
-  logger.error('All diagnosis models failed', lastError)
-  throw lastError || new Error('All diagnosis models failed')
 }
 
 /**
@@ -302,18 +269,12 @@ export async function classifyErrorByAI(error: SerializedError, language: string
   const prompt = `You are an error diagnosis assistant for Cherry Studio. Summarize this error in one sentence (max 30 words) in ${language}. Return ONLY the summary text, no JSON, no markdown, no quotes.`
   const content = `Error: ${error.name}: ${error.message}`
 
-  const modelsToTry = await buildModelsToTry()
-
-  for (const model of modelsToTry) {
-    try {
-      const response = await fetchGenerate({ prompt, content, model })
-      if (response?.trim()) {
-        return response.trim()
-      }
-    } catch {
-      continue
-    }
+  try {
+    const model = await getCherryAiDefaultFreeModel()
+    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
+    return response?.trim() || ''
+  } catch (error) {
+    logger.warn('Free diagnosis model unavailable for error classification', error as Error)
+    return ''
   }
-
-  return ''
 }

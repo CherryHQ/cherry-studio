@@ -50,13 +50,15 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
-  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
 
-type MessageListUiStaticValue = Pick<MessageListState, 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'>
+type MessageListUiStaticValue = Pick<
+  MessageListState,
+  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus' | 'externalCodeEditors'
+>
 
 type MessageListUiSelectorsValue = Pick<
   MessageListState,
@@ -100,7 +102,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
-      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
@@ -117,7 +118,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
-      state.localSendGeneration,
       state.streamingLayers
     ]
   )
@@ -126,9 +126,10 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
+      translationLanguagesStatus: state.translationLanguagesStatus,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(
@@ -187,6 +188,11 @@ const useRequiredContext = <T,>(context: Context<T | null>, name: string): T => 
 
 export const useOptionalMessageListActions = (): MessageListActions | undefined => {
   return use(MessageListActionsContext) ?? undefined
+}
+
+/** Topic id of the surrounding message list; undefined in embeds without one. */
+export const useOptionalMessageListTopicId = (): string | undefined => {
+  return use(MessageListDataContext)?.topic.id
 }
 
 /**

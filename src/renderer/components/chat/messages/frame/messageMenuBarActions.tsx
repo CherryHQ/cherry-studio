@@ -70,6 +70,7 @@ export interface MessageMenuBarActionContext {
   isSelectedForContext: boolean
   isEditable: boolean
   translateLanguages: TranslateLanguage[]
+  translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getTranslationLanguageLabel?: (language: TranslateLanguage, withEmoji?: boolean) => string | undefined
   startEditingMessage?: (messageId: string) => void
   onSelectContext?: (messageId: string) => void
@@ -98,6 +99,7 @@ export type MessageMenuBarTranslationItem =
   | {
       key: string
       label: string
+      enabled?: boolean
       onSelect: () => void | Promise<void>
     }
   | {
@@ -332,7 +334,9 @@ registerToolbarAction({
   label: ({ t }) => t('chat.translate'),
   icon: ({ isTranslating }) => (isTranslating ? <CirclePause size={15} /> : <Languages size={15} />),
   availability: (context) => {
-    const canTranslate = !!context.actions.translateMessage && context.translateLanguages.length > 0
+    const canTranslate =
+      !!context.actions.translateMessage &&
+      (context.translateLanguages.length > 0 || !!context.actions.requestTranslationLanguages)
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
@@ -464,12 +468,21 @@ registerAction({
       id: 'save.file',
       commandId: 'message.saveFile',
       label: ({ t }) => t('chat.save.file.title'),
+      order: 10,
       availability: ({ actions }) => !!actions.saveTextFile
+    },
+    {
+      id: 'save.notes',
+      commandId: 'message.exportNotes',
+      label: ({ t }) => t('notes.save'),
+      order: 20,
+      availability: ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
     },
     {
       id: 'save.knowledge',
       commandId: 'message.saveKnowledge',
       label: ({ t }) => t('chat.save.knowledge.title'),
+      order: 30,
       availability: ({ actions }) => !!actions.saveToKnowledge
     }
   ]
@@ -484,27 +497,19 @@ registerAction({
   surface: 'menu',
   children: [
     {
-      id: 'export.copy-plain-text',
-      commandId: 'message.copyPlainText',
-      label: ({ t }) => t('chat.topics.copy.plain_text'),
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.plain_text && !!actions.copyText
-    },
-    {
-      id: 'export.copy-image',
-      commandId: 'message.copyImage',
-      label: ({ t }) => t('chat.topics.copy.image'),
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.copyImage
-    },
-    {
       id: 'export.image',
       commandId: 'message.exportImage',
       label: ({ t }) => t('chat.topics.export.image'),
+      group: 'file',
+      order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
     },
     {
       id: 'export.markdown',
       commandId: 'message.exportMarkdown',
       label: ({ t }) => t('chat.topics.export.md.label'),
+      group: 'file',
+      order: 20,
       availability: ({ actions, menuConfig }) =>
         menuConfig.exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
     },
@@ -512,6 +517,8 @@ registerAction({
       id: 'export.markdown-reason',
       commandId: 'message.exportMarkdownReason',
       label: ({ t }) => t('chat.topics.export.md.reason'),
+      group: 'file',
+      order: 30,
       availability: ({ actions, menuConfig }) =>
         menuConfig.exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
     },
@@ -519,37 +526,65 @@ registerAction({
       id: 'export.word',
       commandId: 'message.exportWord',
       label: ({ t }) => t('chat.topics.export.word'),
+      group: 'file',
+      order: 40,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.docx && !!actions.exportToWord
     },
     {
       id: 'export.notion',
       commandId: 'message.exportNotion',
       label: ({ t }) => t('chat.topics.export.notion'),
+      group: 'external',
+      order: 50,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.notion && !!actions.exportToNotion
     },
     {
       id: 'export.yuque',
       commandId: 'message.exportYuque',
       label: ({ t }) => t('chat.topics.export.yuque'),
+      group: 'external',
+      order: 60,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.yuque && !!actions.exportToYuque
     },
     {
       id: 'export.obsidian',
       commandId: 'message.exportObsidian',
       label: ({ t }) => t('chat.topics.export.obsidian'),
+      group: 'external',
+      order: 70,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.obsidian && !!actions.exportToObsidian
     },
     {
       id: 'export.joplin',
       commandId: 'message.exportJoplin',
       label: ({ t }) => t('chat.topics.export.joplin'),
+      group: 'external',
+      order: 80,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.joplin && !!actions.exportToJoplin
     },
     {
       id: 'export.siyuan',
       commandId: 'message.exportSiyuan',
       label: ({ t }) => t('chat.topics.export.siyuan'),
+      group: 'external',
+      order: 90,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
+    },
+    {
+      id: 'export.copy-plain-text',
+      commandId: 'message.copyPlainText',
+      label: ({ t }) => t('chat.topics.copy.plain_text'),
+      group: 'copy',
+      order: 100,
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.plain_text && !!actions.copyText
+    },
+    {
+      id: 'export.copy-image',
+      commandId: 'message.copyImage',
+      label: ({ t }) => t('chat.topics.copy.image'),
+      group: 'copy',
+      order: 110,
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.copyImage
     }
   ]
 })
@@ -573,6 +608,24 @@ export function resolveMessageMenuBarTranslationItems(
         }
       }))
     : []
+
+  if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
+    const retryTranslationLanguages = actions.retryTranslationLanguages
+    if (context.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
+      items.push({
+        key: 'translate-retry',
+        label: t('common.retry'),
+        onSelect: () => retryTranslationLanguages()
+      })
+    } else {
+      items.push({
+        key: 'translate-loading',
+        label: t('common.loading'),
+        enabled: false,
+        onSelect: () => undefined
+      })
+    }
+  }
 
   if (!hasTranslationBlocks) return items
 

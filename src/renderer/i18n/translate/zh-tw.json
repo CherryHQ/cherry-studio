@@ -1350,6 +1350,9 @@
       "label": "確定要備份資料嗎？"
     },
     "content": "備份全部資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待",
+    "error": {
+      "active_data_writers": "仍有對話或代理程式正在執行。請等待其完成後再試一次。"
+    },
     "progress": {
       "completed": "備份完成",
       "compressing": "壓縮檔案...",
@@ -1595,7 +1598,6 @@
         "image_or_document": "上傳圖片或檔案",
         "upload_from_local": "上傳本機檔案..."
       },
-      "url_context": "網頁上下文",
       "web_search": {
         "builtin": {
           "disabled_content": "目前模型不支援網路搜尋功能",
@@ -1617,8 +1619,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫",
-        "url_context": "Gemini 不支援同時使用網頁內容與函式呼叫"
+        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫"
       }
     },
     "message": {
@@ -2482,6 +2483,7 @@
       "content": "訊息內容被安全系統攔截，請修改後重試",
       "context_length": "對話內容過長，請清除歷史記錄或開啟新對話",
       "deprecated": "此模型已停用，請切換至其他模型",
+      "free_model_unavailable": "AI診斷暫時無法使用",
       "go_to_settings": "前往設定",
       "knowledge": "知識庫向量化失敗",
       "mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
@@ -3842,6 +3844,7 @@
       "pasted_text": "剪貼簿檔案"
     },
     "backup": {
+      "cleanup_failed": "備份已完成，但無法清理舊備份。",
       "failed": "備份失敗",
       "start": {
         "success": "開始備份"
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "目前路徑",
+          "fetchError": "無法載入 Nutstore 資料夾清單",
           "return": "上一層",
           "title": "堅果雲儲存路徑"
         },

@@ -5,7 +5,8 @@ import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
-  defaultModel: undefined as Model | undefined
+  defaultModel: undefined as Model | undefined,
+  useDefaultModel: vi.fn()
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -26,7 +27,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel })
+  useDefaultModel: (options?: { enabled?: boolean }) => {
+    modelHook.useDefaultModel(options)
+    return { defaultModel: modelHook.defaultModel }
+  }
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -40,15 +44,17 @@ vi.mock('../steps/BasicInfoStep', async () => {
       form
     }: {
       form: {
-        control: ReactHookForm.Control<{ modelId: string | null }>
+        control: ReactHookForm.Control<{ modelId: string | null; name: string }>
         setValue: (name: string, value: unknown) => void
       }
     }) => {
       const modelId = useWatch({ control: form.control, name: 'modelId' })
+      const name = useWatch({ control: form.control, name: 'name' })
 
       return (
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
+          <div data-testid="name">{name || 'empty'}</div>
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
             fill name
           </button>
@@ -88,9 +94,16 @@ const CANCEL = 'common.cancel'
 afterEach(() => {
   cleanup()
   modelHook.defaultModel = undefined
+  modelHook.useDefaultModel.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
+  it('does not activate the default-model query while closed', () => {
+    render(<ResourceCreateWizard kind="assistant" open={false} onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(modelHook.useDefaultModel).toHaveBeenCalledWith({ enabled: false })
+  })
+
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
@@ -122,6 +135,26 @@ describe('ResourceCreateWizard', () => {
       knowledgeBaseIds: [],
       skillIds: []
     })
+  })
+
+  it('seeds the name from initialName so a caller-supplied name clears the first step', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    modelHook.defaultModel = makeModel()
+
+    render(
+      <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} initialName="测试助手" />
+    )
+
+    expect(await screen.findByTestId('name')).toHaveTextContent('测试助手')
+    // Name + default model are both set, so the first step is already cleared.
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: '测试助手' }))
   })
 
   it('does not prefill a default model rejected by the wizard model filter', async () => {

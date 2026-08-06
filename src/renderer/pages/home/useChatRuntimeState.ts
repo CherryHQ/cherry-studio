@@ -10,6 +10,7 @@ import {
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -125,11 +126,11 @@ export function useChatRuntimeState({
       }
     }
   }, [])
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
-  }, [])
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
+  }, [])
+  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
+    dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
@@ -411,8 +412,6 @@ export function useChatRuntimeState({
     refresh,
     cache,
     seedReservedMessages,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted: turnController.markLocalSendStarted,
     scrollToBottom,
     startNewContextBlocked:
       isHistoryLoading ||
@@ -442,9 +441,8 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,
-    captureLocalSendScrollEligibility,
+    locateMessage,
     sendMessage,
-    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

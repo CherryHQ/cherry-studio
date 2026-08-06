@@ -1350,6 +1350,9 @@
       "label": "Ești sigur că vrei să faci backup la date?"
     },
     "content": "Se face backup la toate datele, inclusiv istoricul chat-ului, setările și baza de cunoștințe. Te rugăm să reții că procesul de backup poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "error": {
+      "active_data_writers": "O conversație sau un agent este încă în execuție. Așteptați să se termine, apoi încercați din nou."
+    },
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
@@ -1595,7 +1598,6 @@
         "image_or_document": "Încarcă imagine sau fișier document",
         "upload_from_local": "Încarcă fișier local..."
       },
-      "url_context": "Context URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Modelul curent nu acceptă căutarea web",
@@ -1617,8 +1619,7 @@
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
-        "url_context": "Gemini nu acceptă utilizarea simultană a contextului URL și a apelării funcțiilor"
+        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor"
       }
     },
     "message": {
@@ -2482,6 +2483,7 @@
       "content": "Conținut blocat de sistemul de securitate, modificați și reîncercați",
       "context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
       "deprecated": "Acest model a fost retras, te rugăm să treci la alt model",
+      "free_model_unavailable": "Diagnosticul AI este temporar indisponibil",
       "go_to_settings": "Mergi la setări",
       "knowledge": "Vectorizarea bazei de cunoștințe a eșuat",
       "mcp": "Conexiunea la serverul MCP a eșuat, verificați dacă serviciul rulează",
@@ -3842,6 +3844,7 @@
       "pasted_text": "Text lipit"
     },
     "backup": {
+      "cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",
       "failed": "Backup eșuat",
       "start": {
         "success": "Backup început"
@@ -6114,6 +6117,7 @@
         },
         "pathSelector": {
           "currentPath": "Cale curentă",
+          "fetchError": "Nu s-a putut încărca lista de foldere Nutstore",
           "return": "Înapoi",
           "title": "Cale stocare Nutstore"
         },
