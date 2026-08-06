@@ -4242,7 +4242,10 @@
         "generating": "我在整理回复",
         "preparing": "正在准备回复",
         "thinking": "让我认真想一想",
-        "usingTools": "继续推进任务"
+        "usingTools": "继续推进任务",
+        "stalled": "智能体似乎卡住了",
+        "stalled.tool": "工具调用时间过长",
+        "stalled.no_progress": "未检测到进展"
       },
       "preview": "预览",
       "processed": "已处理",

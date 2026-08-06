@@ -14,7 +14,8 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenResponse
+  AiStreamOpenResponse,
+  StallReason
 } from '@shared/ai/transport'
 import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -911,14 +912,62 @@ export class AiStreamManager extends BaseService {
     const hasPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     const pendingApprovalFlipped = hadPendingApprovals !== hasPendingApprovals
 
+    // ── Stall detection tracking ──────────────────────────────────────
+    const now = Date.now()
+    let stallStateChanged = false
+
+    // Track tool call lifecycle for stall detection
+    if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') {
+      if (chunk.toolCallId && chunk.toolCallId !== exec.activeToolCallId) {
+        exec.activeToolCallId = chunk.toolCallId
+        exec.toolCallStartedAt = now
+        // New tool started — clear tool_stall if it was active
+        if (exec.stalled && exec.stalledReason === 'tool_stall') {
+          exec.stalled = false
+          exec.stalledReason = undefined
+          stallStateChanged = true
+        }
+      }
+    } else if (
+      chunk.type === 'tool-output-available' ||
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      if (chunk.toolCallId === exec.activeToolCallId) {
+        exec.activeToolCallId = undefined
+        exec.toolCallStartedAt = undefined
+        // Tool completed — clear stall if it was caused by this tool
+        if (exec.stalled) {
+          exec.stalled = false
+          exec.stalledReason = undefined
+          stallStateChanged = true
+        }
+      }
+    }
+
+    // Track text content progress
+    if (chunk.type === 'text-delta') {
+      exec.lastTextContentAt = now
+      // Text arrived — clear progress stall if it was active
+      if (exec.stalled && exec.stalledReason === 'no_progress') {
+        exec.stalled = false
+        exec.stalledReason = undefined
+        stallStateChanged = true
+      }
+    }
+
     // First chunk promotes `pending` → `streaming`; that broadcast already
     // carries the anchors captured above, so only a mid-stream flip needs its
-    // own rebroadcast.
+    // own rebroadcast. Stall state is orthogonal to approval state, so it
+    // always broadcasts independently when changed.
     if (stream.status === 'pending') {
       stream.status = 'streaming'
       stream.lifecycle.onPromotedToStreaming(stream)
     } else if (pendingApprovalFlipped) {
       stream.lifecycle.onApprovalPendingChanged(stream)
+    }
+    if (stallStateChanged) {
+      stream.lifecycle.onStallChanged(stream)
     }
 
     const sourceModelId = modelId
@@ -979,6 +1028,8 @@ export class AiStreamManager extends BaseService {
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
+    exec.stalled = false
+    exec.stalledReason = undefined
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
       exec.runtimeTiming.closeOpenSpans()
@@ -1036,6 +1087,8 @@ export class AiStreamManager extends BaseService {
     // `resolveTerminalStatus`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
+    exec.stalled = false
+    exec.stalledReason = undefined
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
 
@@ -1072,6 +1125,8 @@ export class AiStreamManager extends BaseService {
 
     exec.status = 'error'
     exec.error = error
+    exec.stalled = false
+    exec.stalledReason = undefined
     endRootSpan(exec, 'error', error)
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
@@ -1489,6 +1544,49 @@ export class AiStreamManager extends BaseService {
     // thinkingMs measurement (see withReasoningTimingMetadata).
     const stream = withReasoningTimingMetadata(idleStream)
 
+    // ── Stall detection timer ────────────────────────────────────────
+    // Periodically checks for tool-stall (2 min) and progress-stall (5 min)
+    // conditions. Runs every 30s while the stream is live; cleared on terminal.
+    const TOOL_STALL_MS = 2 * 60 * 1000
+    const PROGRESS_STALL_MS = 5 * 60 * 1000
+    const STALL_CHECK_INTERVAL_MS = 30_000
+    const stallTimer = setInterval(() => {
+      if (signal.aborted || exec.status !== 'streaming') return
+      const now = Date.now()
+      let newStalled = false
+      let newReason: StallReason | undefined
+
+      // Check tool stall: a single tool call active for too long
+      if (exec.activeToolCallId && exec.toolCallStartedAt) {
+        const toolElapsed = now - exec.toolCallStartedAt
+        if (toolElapsed >= TOOL_STALL_MS) {
+          newStalled = true
+          newReason = 'tool_stall'
+        }
+      }
+
+      // Check progress stall: no text content for too long while streaming
+      if (!newStalled && exec.lastTextContentAt) {
+        const progressElapsed = now - exec.lastTextContentAt
+        if (progressElapsed >= PROGRESS_STALL_MS) {
+          newStalled = true
+          newReason = 'no_progress'
+        }
+      }
+
+      // Update stall state and broadcast if changed
+      if (newStalled !== exec.stalled || newReason !== exec.stalledReason) {
+        exec.stalled = newStalled
+        exec.stalledReason = newReason
+        const streamEntry = this.activeStreams.get(topicId)
+        if (streamEntry) {
+          streamEntry.lifecycle.onStallChanged(streamEntry)
+        }
+      }
+    }, STALL_CHECK_INTERVAL_MS)
+    // Clear timer on any exit path
+    signal.addEventListener('abort', () => clearInterval(stallTimer), { once: true })
+
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
     // `getToolInvocation` throws and silently halts the accumulator.
@@ -1511,6 +1609,10 @@ export class AiStreamManager extends BaseService {
         exec.finalMessage = withCompactionAnchors(msg, exec)
       }
     })
+
+    // Stall timer is cleared here for the normal-completion path; the signal
+    // abort listener handles the abort path.
+    clearInterval(stallTimer)
 
     exec.timings.completedAt = result.broadcastCompletedAt
 

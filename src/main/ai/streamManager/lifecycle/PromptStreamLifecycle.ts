@@ -5,6 +5,7 @@ export const promptStreamLifecycle: StreamLifecycle = {
   onCreated() {},
   onPromotedToStreaming() {},
   onApprovalPendingChanged() {},
+  onStallChanged() {},
   onTerminal() {},
   canAttach() {
     return false

@@ -35,6 +35,7 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { StallReason } from '@shared/ai/transport'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -1342,6 +1343,8 @@ interface MessagePartsRendererContentProps extends Props {
   isStreamLive: boolean
   isTranslationOverlayActive: boolean
   messageParts: CherryMessagePart[]
+  stalled: boolean
+  stalledReason: StallReason | undefined
 }
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
@@ -1350,7 +1353,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   isStreamLive,
   isTranslationOverlayActive,
   message,
-  messageParts
+  messageParts,
+  stalled,
+  stalledReason
 }: MessagePartsRendererContentProps) {
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
@@ -1459,7 +1464,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+          <PlaceholderBlock
+            isProcessing={true}
+            createdAt={message.createdAt}
+            status={placeholderStatus}
+            stalled={stalled}
+            stalledReason={stalledReason}
+          />
         </AnimatedBlockWrapper>
       )
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
@@ -1498,7 +1509,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
-  const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
+  const { status: topicStreamStatus, stalled, stalledReason } = useTopicStreamStatus(message.topicId)
   const topicTurnState = classifyTurn(topicStreamStatus)
   const isProcessing = useIsActiveTurnTarget(message)
   const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
@@ -1516,6 +1527,8 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       isTranslationOverlayActive={isTranslationOverlayActive}
       message={message}
       messageParts={messageParts}
+      stalled={stalled}
+      stalledReason={stalledReason}
     />
   )
 }

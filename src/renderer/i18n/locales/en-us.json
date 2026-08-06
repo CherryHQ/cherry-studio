@@ -4242,7 +4242,10 @@
         "generating": "Writing up a reply",
         "preparing": "Preparing response",
         "thinking": "Let me think this through",
-        "usingTools": "Making progress"
+        "usingTools": "Making progress",
+        "stalled": "Agent appears stuck",
+        "stalled.tool": "Tool call taking longer than expected",
+        "stalled.no_progress": "No progress detected"
       },
       "preview": "Preview",
       "processed": "Processed",

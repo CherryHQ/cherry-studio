@@ -41,6 +41,7 @@ export type {
   AiToolResultResponse,
   ApprovalDecision,
   ComposerQueuedMessagePayload,
+  StallReason,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
