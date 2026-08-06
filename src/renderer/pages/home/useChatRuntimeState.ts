@@ -148,7 +148,13 @@ export function useChatRuntimeState({
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged topic.id, and the fresh [] literals would defeat React's
+  // setState bail-out and force a full chat-runtime re-render per tab switch.
+  const branchLiveResetTopicIdRef = useRef(topic.id)
   useEffect(() => {
+    if (branchLiveResetTopicIdRef.current === topic.id) return
+    branchLiveResetTopicIdRef.current = topic.id
     finishedBranchExecutionIdsRef.current.clear()
     runtimeBranchLiveStatePublishedRef.current = false
     setBranchLiveMessages([])

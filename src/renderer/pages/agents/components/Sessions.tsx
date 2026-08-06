@@ -449,7 +449,13 @@ const Sessions = ({
         ? sessionExpansionWorkdir
         : sessionExpansionTime
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged filter, and the fresh [] would wipe the user's expansion state
+  // and force a re-render on every tab switch.
+  const rightPanelExpansionFilterRef = useRef(agentIdFilter)
   useEffect(() => {
+    if (rightPanelExpansionFilterRef.current === agentIdFilter) return
+    rightPanelExpansionFilterRef.current = agentIdFilter
     if (isRightPanel) setRightPanelSessionExpansion([])
   }, [agentIdFilter, isRightPanel])
 
