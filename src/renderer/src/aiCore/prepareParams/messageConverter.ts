@@ -277,10 +277,13 @@ async function convertMessageToAssistantModelMessage(
     }
   }
 
-  // 当 parts 为空但有图片时，添加占位文本
-  // 这对于图片生成模型的继续对话很重要，因为助手消息可能只包含生成的图片
-  if (parts.length === 0 && imageBlocks.length > 0) {
-    parts.push({ type: 'text', text: '[Image]' })
+  // 当 parts 为空时补占位文本，避免发送空的 assistant 消息（content: []）。
+  // 某些 API（如 Gemini、Anthropic）会拒绝空的 assistant 消息并返回 HTTP 400；
+  // 这类空消息常见于只含工具调用/引用块、或被中断/为空的助手轮（见 #16195）。
+  // 这里保留该轮并补占位，而不是丢弃消息——丢弃会产生相邻的 user 消息，
+  // 破坏 Anthropic 等要求的角色交替。有图片时沿用 '[Image]'（图片生成模型续聊）。
+  if (parts.length === 0) {
+    parts.push({ type: 'text', text: imageBlocks.length > 0 ? '[Image]' : '...' })
   }
 
   return {
