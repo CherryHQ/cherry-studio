@@ -43,6 +43,8 @@ export interface SelectModelPopupParams {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: string[]
+  /** Optional custom description for the empty state */
+  emptyDescription?: React.ReactNode
 }
 
 interface Props extends SelectModelPopupParams {
@@ -56,6 +58,7 @@ const SelectModelPopupView: React.FC<Props> = ({
   showTagFilter = true,
   showPinnedModels = true,
   prioritizedProviderIds = [],
+  emptyDescription,
   resolve
 }) => {
   const { t } = useTranslation()
@@ -492,7 +495,7 @@ const SelectModelPopupView: React.FC<Props> = ({
         </ListContainer>
       ) : (
         <EmptyState>
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />
         </EmptyState>
       )}
     </Modal>
