@@ -59,6 +59,7 @@ describe('importService.importConversations', () => {
 
   it('persists assistant, topics, and messages via DataApi, all linked to the created assistant id', async () => {
     const calls: { path: string; body: any; returnedId: string }[] = []
+    const onProgress = vi.fn()
     let seq = 0
     const nextId = (prefix: string) => `${prefix}_${++seq}`
 
@@ -68,13 +69,19 @@ describe('importService.importConversations', () => {
       return path === '/assistants' ? { id: returnedId, name: 'ChatGPT Import', emoji: '🤖' } : { id: returnedId }
     })
 
-    const response = await importService.importConversations(chatgptExport())
+    const response = await importService.importConversations(chatgptExport(), undefined, onProgress)
 
     expect(response.success).toBe(true)
     expect(response.assistant?.id).toBe('asst_1')
     expect(response.topicsCount).toBe(2)
     // 2 turns in "Greeting" + 1 in "Solo"
     expect(response.messagesCount).toBe(3)
+
+    const progressValues = onProgress.mock.calls.map(([progress]) => progress)
+    expect(progressValues[0]).toBe(0)
+    expect(progressValues.at(-1)).toBe(100)
+    expect(progressValues.some((progress) => progress > 20 && progress < 100)).toBe(true)
+    expect(progressValues.every((progress, index) => index === 0 || progress >= progressValues[index - 1])).toBe(true)
 
     // Assistant created exactly once.
     const assistantCalls = calls.filter((c) => c.path === '/assistants')

@@ -1,13 +1,4 @@
-import {
-  Alert,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Spinner
-} from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { importService } from '@renderer/services/import'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
@@ -67,6 +58,7 @@ const IMPORT_CONFIG = {
 const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
   const { t } = useTranslation()
   const config = IMPORT_CONFIG[source]
   const translations = config.translations
@@ -86,12 +78,13 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
       }
 
       setImporting(true)
+      setImportProgress(0)
 
       // Parse file content
       const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
 
       // Import conversations
-      const result = await importService.importConversations(fileContent, source)
+      const result = await importService.importConversations(fileContent, source, setImportProgress)
 
       if (result.success) {
         toast.success(
@@ -111,6 +104,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
     } finally {
       setSelecting(false)
       setImporting(false)
+      setImportProgress(0)
     }
   }
 
@@ -127,9 +121,28 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
         <DialogHeader>
           <DialogTitle>{t(translations.title)}</DialogTitle>
         </DialogHeader>
-        {!selecting && !importing && (
-          <div className="flex w-full flex-col gap-3">
-            <div>{t(translations.description)}</div>
+        <div className="flex w-full flex-col gap-3">
+          <div>{t(translations.description)}</div>
+          {importing ? (
+            <div className="flex flex-col gap-2 py-2">
+              <div className="flex items-center justify-between gap-3 text-muted-foreground text-sm">
+                <span>{t(translations.importing)}</span>
+                <span className="tabular-nums">{importProgress}%</span>
+              </div>
+              <div
+                className="h-2 w-full overflow-hidden rounded-full bg-secondary"
+                role="progressbar"
+                aria-label={t(translations.importing)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={importProgress}>
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${importProgress}%` }}
+                />
+              </div>
+            </div>
+          ) : (
             <Alert
               message={t(translations.helpTitle)}
               description={
@@ -142,18 +155,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
               type="info"
               showIcon
             />
-          </div>
-        )}
-        {selecting && (
-          <div className="flex justify-center py-10">
-            <Spinner text={t(translations.selecting)} />
-          </div>
-        )}
-        {importing && (
-          <div className="flex justify-center py-5">
-            <Spinner text={t(translations.importing)} />
-          </div>
-        )}
+          )}
+        </div>
         <DialogFooter>
           <Button variant="outline" disabled={selecting || importing} onClick={onCancel}>
             {t('common.cancel')}

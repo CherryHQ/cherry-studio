@@ -10,6 +10,8 @@ import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportRes
 
 const logger = loggerService.withContext('ImportService')
 
+type ImportProgressCallback = (percent: number) => void
+
 // Every conversation importer the service registers on construction. Add new
 // importers here as they are implemented.
 const availableImporters = [new ChatgptImporter(), new AnthropicImporter()]
@@ -60,9 +62,14 @@ class ImportService {
    * Import conversations from file content
    * Automatically detects the format and uses the appropriate importer
    */
-  async importConversations(fileContent: string, importerName?: string): Promise<ImportResponse> {
+  async importConversations(
+    fileContent: string,
+    importerName?: string,
+    onProgress?: ImportProgressCallback
+  ): Promise<ImportResponse> {
     try {
       logger.info('Starting import...')
+      onProgress?.(0)
 
       // Parse JSON first to validate format
       let importer: ConversationImporter | null = null
@@ -103,6 +110,7 @@ class ImportService {
           })
         }
       }
+      onProgress?.(5)
 
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
       const dto: CreateAssistantDto = {
@@ -112,9 +120,12 @@ class ImportService {
         emoji: importer.emoji
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })
+      onProgress?.(10)
 
       const result = await importer.parse(fileContent)
-      const messagesCount = await this.persistImport(result, assistant)
+      onProgress?.(20)
+      const messagesCount = await this.persistImport(result, assistant, onProgress)
+      onProgress?.(100)
 
       logger.info(`Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`)
 
@@ -187,14 +198,25 @@ class ImportService {
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string }
+    assistant: { id: string; name: string; emoji: string },
+    onProgress?: ImportProgressCallback
   ): Promise<number> {
     const { conversations } = result
+    const totalSteps = conversations.reduce((count, conversation) => {
+      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
+      return count + 1 + conversation.messages.length + (activeSourceId ? 1 : 0)
+    }, 0)
+    let completedSteps = 0
+    const completeStep = () => {
+      completedSteps++
+      onProgress?.(20 + Math.floor((completedSteps / totalSteps) * 79))
+    }
 
     for (const conversation of conversations) {
       const createdTopic = await dataApiService.post('/topics', {
         body: { name: conversation.name, assistantId: assistant.id }
       })
+      completeStep()
 
       const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
       for (const message of conversation.messages) {
@@ -235,6 +257,7 @@ class ImportService {
           createdIds.set(message.sourceId, created.id)
           pendingSourceIds.delete(message.sourceId)
           createdInPass++
+          completeStep()
         }
 
         if (createdInPass === 0) {
@@ -247,6 +270,7 @@ class ImportService {
       if (activeNodeId) {
         await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
       }
+      if (activeSourceId) completeStep()
     }
 
     const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
