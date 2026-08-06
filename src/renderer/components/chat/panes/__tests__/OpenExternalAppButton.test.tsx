@@ -1,5 +1,7 @@
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,11 +17,8 @@ const mocks = vi.hoisted(() => ({
     path: string
     executable?: string
   }>,
-  lastUsedTarget: null as 'vscode' | 'cursor' | 'zed' | 'wt' | 'file_manager' | null,
-  setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
-  windowOpen: vi.fn(),
   openExternalApp: vi.fn()
 }))
 
@@ -90,10 +89,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [mocks.lastUsedTarget, mocks.setLastUsedTarget]
-}))
-
 vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
@@ -160,10 +155,13 @@ const windowsTerminalApp = {
 }
 
 describe('OpenExternalAppButton', () => {
+  let user: ReturnType<typeof userEvent.setup>
+
   beforeEach(() => {
+    user = userEvent.setup()
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     mocks.externalApps = []
-    mocks.lastUsedTarget = null
     mocks.openPath.mockResolvedValue(undefined)
     mocks.showInFolder.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
@@ -172,14 +170,8 @@ describe('OpenExternalAppButton', () => {
         file: { openPath: mocks.openPath, showInFolder: mocks.showInFolder }
       }
     })
-    Object.defineProperty(window, 'open', {
-      configurable: true,
-      value: mocks.windowOpen
-    })
     mocks.openExternalApp.mockReset()
-    mocks.openExternalApp.mockImplementation(async (app: { id: string }, workdir: string) => {
-      window.open(`editor://${app.id}${workdir}`)
-    })
+    mocks.openExternalApp.mockResolvedValue(undefined)
   })
 
   it('opens the workspace in the file manager when no code editor is available', async () => {
@@ -187,10 +179,10 @@ describe('OpenExternalAppButton', () => {
 
     const button = screen.getByRole('button', { name: 'Open in Finder' })
 
-    fireEvent.click(button)
+    await user.click(button)
 
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
+    expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('file_manager')
   })
 
   it('opens the selected editor from the primary button', async () => {
@@ -198,10 +190,12 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+    await user.click(screen.getByRole('button', { name: 'Open in VS Code' }))
 
-    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode'))
-    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace')
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('vscode')
+    )
+    expect(mocks.openExternalApp).toHaveBeenCalledWith(vscodeApp, '/tmp/workspace')
   })
 
   it('opens targets from a custom workspace trigger', async () => {
@@ -209,10 +203,12 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" menuTrigger={<button type="button">Workspace 1</button>} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Workspace 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
-    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('cursor'))
-    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
+    await user.click(screen.getByRole('button', { name: 'Workspace 1' }))
+    await user.click(screen.getByRole('button', { name: 'Cursor' }))
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('cursor')
+    )
+    expect(mocks.openExternalApp).toHaveBeenCalledWith(cursorApp, '/tmp/workspace')
   })
 
   it('opens targets from the menu and persists the selected target', async () => {
@@ -221,14 +217,16 @@ describe('OpenExternalAppButton', () => {
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
     // Menu targets live behind the split button's "More" popover trigger.
-    fireEvent.click(screen.getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('button', { name: 'Finder' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
+    expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('file_manager')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cursor' }))
-    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('cursor'))
-    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://cursor/tmp/workspace')
+    await user.click(screen.getByRole('button', { name: 'Cursor' }))
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('cursor')
+    )
+    expect(mocks.openExternalApp).toHaveBeenCalledWith(cursorApp, '/tmp/workspace')
   })
 
   it('shows an error toast when opening the file manager fails', async () => {
@@ -236,28 +234,27 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
+    await user.click(screen.getByRole('button', { name: 'Open in Finder' }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
   })
 
   it('uses the same file-manager split control for files and keeps the default app in its menu', async () => {
     mocks.externalApps = [vscodeApp]
-    mocks.lastUsedTarget = 'file_manager'
+    MockUseCacheUtils.setPersistCacheValue('agent.open_external_app.last_used_target', 'file_manager')
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
 
     const primaryButton = screen.getByRole('button', { name: 'Open in Finder' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Default app' }))
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('button', { name: 'Default app' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
-    expect(mocks.windowOpen).not.toHaveBeenCalled()
-    expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('file_manager')
 
-    fireEvent.click(primaryButton)
+    await user.click(primaryButton)
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
-    expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('file_manager')
+    expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('file_manager')
   })
 
   it('lists and opens a terminal app from the workspace toolbar', async () => {
@@ -265,22 +262,30 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Windows Terminal' }))
+    await user.click(screen.getByRole('button', { name: 'Open in Windows Terminal' }))
 
-    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('wt'))
-    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://wt/tmp/workspace')
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('wt')
+    )
+    expect(mocks.openExternalApp).toHaveBeenCalledWith(windowsTerminalApp, '/tmp/workspace')
   })
 
-  it('opens a selected file in the selected editor', async () => {
-    mocks.externalApps = [vscodeApp]
-    mocks.lastUsedTarget = 'vscode'
+  it('excludes terminal apps from file targets and falls back to a code editor', async () => {
+    mocks.externalApps = [windowsTerminalApp, vscodeApp]
+    MockUseCacheUtils.setPersistCacheValue('agent.open_external_app.last_used_target', 'wt')
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+    expect(screen.getByRole('button', { name: 'Open in VS Code' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    expect(screen.queryByRole('button', { name: 'Windows Terminal' })).not.toBeInTheDocument()
 
-    await waitFor(() => expect(mocks.setLastUsedTarget).toHaveBeenCalledWith('vscode'))
-    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace/report.xlsx')
+    await user.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('vscode')
+    )
+    expect(mocks.openExternalApp).toHaveBeenCalledWith(vscodeApp, '/tmp/workspace/report.xlsx')
   })
 
   it('shows an error toast and does not persist the target when opening an editor fails', async () => {
@@ -289,9 +294,9 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in VS Code' }))
+    await user.click(screen.getByRole('button', { name: 'Open in VS Code' }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Open in VS Code: spawn failed'))
-    expect(mocks.setLastUsedTarget).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBeNull()
   })
 })

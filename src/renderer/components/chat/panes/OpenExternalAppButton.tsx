@@ -49,8 +49,10 @@ const OpenExternalAppButton = ({ workdir, filePath, menuTrigger, tooltip, classN
     if (!externalApps) {
       return []
     }
-    return externalApps.filter((app) => app.tags.includes('code-editor') || app.tags.includes('terminal'))
-  }, [externalApps])
+    return externalApps.filter(
+      (app) => app.tags.includes('code-editor') || (!fileTargetPath && app.tags.includes('terminal'))
+    )
+  }, [externalApps, fileTargetPath])
 
   const fileManagerName = useMemo(() => {
     if (isMac) {
