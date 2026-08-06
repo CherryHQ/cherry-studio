@@ -517,6 +517,24 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
   }
 }
 
+/**
+ * Time groups only label themselves when the list spans more than one bucket, so fixtures that
+ * assert on a bucket header need an older topic to contrast with.
+ */
+function withEarlierTopic(items: ApiTopic[]): ApiTopic[] {
+  return [
+    ...items,
+    createApiTopic({
+      id: 'topic-earlier',
+      name: 'Earlier topic',
+      assistantId: 'assistant-1',
+      orderKey: 'zzz',
+      createdAt: '2025-11-01T01:00:00.000Z',
+      updatedAt: '2025-11-01T01:00:00.000Z'
+    })
+  ]
+}
+
 function createTopicPageItems(count: number): ApiTopic[] {
   return Array.from({ length: count }, (_, index) =>
     createApiTopic({
@@ -945,7 +963,8 @@ describe('Topics', () => {
     })
     const { setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    // Everything falls into one time bucket, so the list drops the redundant "Today" header.
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTitle('chat.conversation.new'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
@@ -1115,7 +1134,7 @@ describe('Topics', () => {
 
   it('keeps right panel groups fully expanded without collapse controls', () => {
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(6)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1896,7 +1915,9 @@ describe('Topics', () => {
   it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
+    // One rule for both themes: titles sit at `foreground`, no per-theme override.
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground')
+    expect(screen.getByText('Alpha topic')).not.toHaveClass('dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
@@ -2104,7 +2125,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(51) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(51)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -2517,7 +2538,7 @@ describe('Topics', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
-          items: createTopicPageItems(51)
+          items: withEarlierTopic(createTopicPageItems(51))
         }
       ],
       isLoading: false,
@@ -3052,7 +3073,9 @@ describe('Topics', () => {
     )
 
     const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    // With the group open the row announces the selection; the header stays quiet so screen readers
+    // hear one "current", not two.
+    expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)

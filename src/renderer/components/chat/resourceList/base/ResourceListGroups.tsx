@@ -3,7 +3,7 @@ import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
-import { isValidElement, useCallback } from 'react'
+import { isValidElement, useCallback, useEffect, useState } from 'react'
 
 import {
   type ResourceListGroup,
@@ -16,10 +16,12 @@ import {
 } from './ResourceListContext'
 import {
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+  RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS,
   RESOURCE_LIST_ROW_HEIGHT_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
   RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+  RESOURCE_LIST_TITLE_FADE_CLASS,
   RESOURCE_LIST_VISUAL_ROW_CLASS
 } from './resourceListLayout'
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
@@ -28,6 +30,33 @@ const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
+}
+
+/**
+ * Group-header labels shrink to their text so the collapse chevron can sit right
+ * after the name, which means the fade band would eat the tail of names that fit.
+ * Measuring is the only way to tell: the label box shrinks below its text exactly
+ * when the row runs out of room (sidebar resize, or the hover actions claiming
+ * their reserve), and the observer catches both.
+ */
+function useLabelOverflow(label: string) {
+  // A callback ref, not useRef: the label span lives in two different JSX branches (collapsible vs
+  // not), so switching presentation swaps the node while `label` stays the same — a ref-only effect
+  // would keep observing the detached node and freeze the fade in its old state.
+  const [element, setElement] = useState<HTMLSpanElement | null>(null)
+  const [overflowing, setOverflowing] = useState(false)
+
+  useEffect(() => {
+    if (!element) return
+
+    const measure = () => setOverflowing(element.scrollWidth - element.clientWidth > 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element, label])
+
+  return { overflowing, ref: setElement }
 }
 
 /**
@@ -81,23 +110,25 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           aria-expanded={!collapsed}
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none focus-visible:text-foreground"
           onClick={() => actions.toggleGroup(section.id)}>
-          <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
+          <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
             {section.label}
           </span>
           <ChevronRight
             aria-hidden="true"
-            size={11}
-            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
+            size={14}
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
         {sectionHeaderAction && (
           <div
             className={cn(
-              'ml-auto flex shrink-0 items-center transition-opacity',
+              // The group-header cluster is absolutely placed at right-1.5; this one is in flow inside a
+              // px-2.5 row, so it needs the 4px back to share that column.
+              '-mr-1 ml-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
-                : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100'
+                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100'
             )}>
             {sectionHeaderAction}
           </div>
@@ -112,6 +143,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const meta = useResourceListMeta()
   const view = useResourceListView()
   const groupState = useResourceListGroupState(group.id)
+  const labelOverflow = useLabelOverflow(group.label)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = groupState.collapsed
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
@@ -126,6 +158,13 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
+  const isBucketHeader = meta.getGroupHeaderKind?.(group) === 'bucket'
+  // An entity header stands in for the conversation it holds — but only while that row is off screen
+  // (collapsed group, or trimmed away by show-more). When the row is rendered it carries the fill
+  // itself, and two identical pills for one conversation read as two selections. A bucket header (a
+  // folder, a time range, "unlinked agent") never stands in: it is a container, not the thing you
+  // opened, so it keeps its own voice.
+  const showsSelectedSurface = selected && !groupState.selectedVisible && !isBucketHeader
   const hasLeadingSlot = Boolean(groupHeaderIcon || groupHeaderLeadingAction)
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
@@ -158,12 +197,23 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
 
   if (!group.label) return null
+  // Type separates kinds of header, not click behaviour: rows naming a manageable entity (agent,
+  // assistant, workdir — the ones carrying hover actions) read as list content, while structural
+  // buckets (time ranges, pinned) take the same recessed typography as the section headers above
+  // them, so the list has exactly two voices instead of three.
   const groupHeaderLabelClassName = cn(
-    'min-w-0 truncate text-left text-[13px] text-inherit leading-5',
-    clickBehavior === 'select-first-then-toggle' ? 'font-normal' : 'font-medium'
+    'min-w-0 overflow-hidden text-clip whitespace-nowrap text-left text-inherit',
+    labelOverflow.overflowing && RESOURCE_LIST_TITLE_FADE_CLASS,
+    RESOURCE_LIST_LABEL_CLASS,
+    // The same weight an item row and the entity rail give a selected row: this header is standing
+    // in for one, so it has to read identically.
+    showsSelectedSurface && 'font-medium'
   )
+  // The chevron trails the label inside this button and carries the same 24px footprint as an action
+  // button, so reserving exactly the two action buttons parks it as a third icon in that rhythm —
+  // equal spacing between the chevron, the more menu and the create action.
   const groupHeaderActionYieldClassName = groupHeaderAction
-    ? 'transition-[padding-right] duration-150 group-focus-within/resource-list-group:pr-12 group-hover/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
+    ? 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-12 group-has-[:focus-visible]/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
     : undefined
   const headerContent = (
     <div
@@ -172,7 +222,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-        selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
+        isBucketHeader && 'text-muted-foreground',
+        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
         groupHeaderClassName
       )}>
       {groupHeaderLeadingAction && (
@@ -189,7 +240,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         <button
           type="button"
           aria-expanded={!collapsed}
-          aria-current={selected ? 'true' : undefined}
+          aria-current={showsSelectedSurface ? 'true' : undefined}
           className={cn(
             'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none',
             groupHeaderActionYieldClassName
@@ -200,15 +251,21 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
               {groupHeaderIcon}
             </ResourceListLeadingSlot>
           )}
-          <span className={groupHeaderLabelClassName}>{group.label}</span>
-          {!groupHeaderAction && (
+          <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
+            {group.label}
+          </span>
+          {/* The slot carries an action button's 24px footprint so the chevron lands on their rhythm
+              when the title is long; the pulled-in left margin keeps it the same 6px from a short
+              title as the section-header chevron. */}
+          <span
+            aria-hidden="true"
+            className="-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex">
             <ChevronRight
-              aria-hidden="true"
-              size={11}
-              className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+              size={14}
+              className="transition-transform duration-150"
               style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
             />
-          )}
+          </span>
         </button>
       ) : (
         <div
@@ -221,12 +278,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
               {groupHeaderIcon}
             </ResourceListLeadingSlot>
           )}
-          <span className={groupHeaderLabelClassName}>{group.label}</span>
+          <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
+            {group.label}
+          </span>
         </div>
       )}
       {groupHeaderAction && (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:opacity-100"
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
           onPointerDown={stopEventPropagation}
@@ -294,7 +353,10 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground leading-4 transition-colors duration-150 hover:text-inherit focus-visible:bg-sidebar-accent focus-visible:text-inherit focus-visible:outline-none"
+        className={cn(
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-foreground focus-visible:outline-none',
+          RESOURCE_LIST_LABEL_CLASS
+        )}
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
