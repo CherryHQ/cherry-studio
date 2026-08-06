@@ -1,4 +1,3 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
@@ -79,10 +78,6 @@ const Chat: FC<Props> = (props) => {
   const showConversation = Boolean(activeTopic && !centerSurface)
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
-  const { trigger: createAwaitingInputMessage } = useMutation('POST', '/topics/:topicId/messages', {
-    refresh: ({ args }) =>
-      args ? [`/topics/${args.params.topicId}/messages`, `/topics/${args.params.topicId}/tree`] : []
-  })
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
@@ -158,24 +153,6 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const handleStartBranchDraft = useCallback(
-    async (anchorMessageId: string) => {
-      if (!activeTopicId) return
-
-      await createAwaitingInputMessage({
-        params: { topicId: activeTopicId },
-        body: {
-          parentId: anchorMessageId,
-          role: 'user',
-          data: { parts: [] },
-          status: 'success'
-        }
-      })
-
-      void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
-    },
-    [activeTopicId, createAwaitingInputMessage]
-  )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -195,7 +172,6 @@ const Chat: FC<Props> = (props) => {
         locateMessageId={locateMessageId}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
-        onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
@@ -286,12 +262,7 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       center={center}
-      rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={setBranchLocateMessageId}
-          onStartBranchDraft={handleStartBranchDraft}
-        />
-      }
+      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={

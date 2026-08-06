@@ -42,7 +42,7 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { hasClearContextPart, readCherryMeta } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
@@ -75,7 +75,10 @@ export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' 
 
 export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
-  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
+  userMessage:
+    | { mode: 'create'; dto: CreateMessageDto }
+    | { mode: 'existing'; id: string }
+    | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: UniqueModelId }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]
@@ -276,10 +279,6 @@ function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: Messa
   }
 }
 
-function isEmptySuccessfulUser(message: Pick<Message, 'role' | 'status' | 'data'>): boolean {
-  return message.role === 'user' && message.status === 'success' && (message.data.parts?.length ?? 0) === 0
-}
-
 /**
  * Convert Message to TreeNode
  */
@@ -297,7 +296,10 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
     isContextBoundary: hasClearContextPart(message.data.parts) || undefined,
-    isAwaitingInput: isEmptySuccessfulUser(message) && !hasChildren ? true : undefined,
+    isAwaitingInput:
+      isBlankUserTurn({ role: message.role, status: message.status, parts: message.data.parts }) && !hasChildren
+        ? true
+        : undefined,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -1087,6 +1089,50 @@ export class MessageService {
   }
 
   /**
+   * Persist a distinct empty branch below an assistant message.
+   *
+   * Reserved branches are intentional user-created tree nodes: repeated calls below
+   * the same anchor always create another row. `activate=false` lets the branch manager
+   * place a reservation without moving the topic away from a currently streaming path.
+   */
+  reserveBranch(anchorId: string, activate: boolean = true): Message {
+    return application.get('DbService').withWriteTx((tx) => {
+      const [anchor] = tx
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.id, anchorId), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!anchor) {
+        throw DataApiErrorFactory.notFound('Message', anchorId)
+      }
+      if (anchor.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation('reserve branch', 'the branch anchor must be an assistant message')
+      }
+
+      const [row] = tx
+        .insert(messageTable)
+        .values({
+          topicId: anchor.topicId,
+          parentId: anchor.id,
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0
+        })
+        .returning()
+        .all()
+
+      if (activate) {
+        getDataService('TopicService').setActiveNodeTx(tx, anchor.topicId, row.id, { assumeValid: true })
+      }
+
+      logger.info('Reserved message branch', { anchorId, branchId: row.id, topicId: anchor.topicId, activate })
+      return rowToMessage(row)
+    })
+  }
+
+  /**
    * Atomically create one chat turn: insert (or resolve) one user message,
    * optionally backfill existing siblings with groupId=0, and insert N assistant
    * placeholders as children, then point topic.activeNodeId at the last placeholder.
@@ -1102,6 +1148,8 @@ export class MessageService {
    *   supported here — this API is for chat reservation, not general inserts.
    * - `mode: 'existing'`: caller supplies the id of an already-persisted user
    *   message (regenerate scenario).
+   * - `mode: 'fill-reserved'`: caller supplies a persisted blank user leaf plus
+   *   its first-turn content. The fill and assistant placeholders commit together.
    *
    * Siblings backfill: if `siblingsGroupId` is provided, any existing children
    * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
@@ -1154,7 +1202,7 @@ export class MessageService {
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
-      } else {
+      } else if (input.userMessage.mode === 'existing') {
         const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
@@ -1166,6 +1214,39 @@ export class MessageService {
           )
         }
         userMessage = rowToMessage(row)
+      } else {
+        const [row] = tx
+          .select()
+          .from(messageTable)
+          .where(and(eq(messageTable.id, input.userMessage.id), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
+        }
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation('fill reserved branch', 'Message does not belong to this topic')
+        }
+
+        const existing = rowToMessage(row)
+        if ((input.userMessage.data.parts?.length ?? 0) === 0 || !this.isAwaitingInputLeafTx(tx, existing)) {
+          throw DataApiErrorFactory.invalidOperation(
+            'fill reserved branch',
+            'the message is no longer an empty user leaf'
+          )
+        }
+
+        const [updatedRow] = tx
+          .update(messageTable)
+          .set({
+            data: input.userMessage.data,
+            ...(input.userMessage.modelId ? { modelId: input.userMessage.modelId } : {})
+          })
+          .where(eq(messageTable.id, row.id))
+          .returning()
+          .all()
+        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data)
+        userMessage = rowToMessage(updatedRow)
       }
 
       // 2. Backfill siblings with groupId=0 under the user message
@@ -1215,7 +1296,7 @@ export class MessageService {
   }
 
   private isAwaitingInputLeafTx(tx: DbOrTx, message: Message): boolean {
-    if (!isEmptySuccessfulUser(message)) return false
+    if (!isBlankUserTurn({ role: message.role, status: message.status, parts: message.data.parts })) return false
 
     const child = tx
       .select({ id: messageTable.id })
@@ -1226,27 +1307,24 @@ export class MessageService {
     return child === undefined
   }
 
+  isAwaitingInputLeaf(id: string, topicId: string): boolean {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, id), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .limit(1)
+      .all()
+    return row ? this.isAwaitingInputLeafTx(db, rowToMessage(row)) : false
+  }
+
   /**
    * Update a message
    *
    * Uses transaction to ensure atomicity of validation and update.
    * Cycle check is performed outside transaction as a read-only safety check.
    */
-  update(id: string, dto: UpdateMessageDto, awaitingInputOnly: boolean = false): Message {
-    if (
-      awaitingInputOnly &&
-      (dto.data === undefined ||
-        (dto.data.parts?.length ?? 0) === 0 ||
-        dto.parentId !== undefined ||
-        dto.siblingsGroupId !== undefined ||
-        dto.status !== undefined)
-    ) {
-      throw DataApiErrorFactory.invalidOperation(
-        'fill awaiting-input message',
-        'awaitingInputOnly accepts only a non-empty message data update'
-      )
-    }
-
+  update(id: string, dto: UpdateMessageDto): Message {
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
@@ -1266,18 +1344,6 @@ export class MessageService {
       }
 
       const existing = rowToMessage(existingRow)
-      if (awaitingInputOnly) {
-        const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, existing.topicId)).limit(1).all()
-        if (!topic) {
-          throw DataApiErrorFactory.notFound('Topic', existing.topicId)
-        }
-        if (topic.activeNodeId !== existing.id || !this.isAwaitingInputLeafTx(tx, existing)) {
-          throw DataApiErrorFactory.invalidOperation(
-            'fill awaiting-input message',
-            'the message is no longer the active empty user leaf'
-          )
-        }
-      }
 
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
       // structural backstop, these give clean errors):

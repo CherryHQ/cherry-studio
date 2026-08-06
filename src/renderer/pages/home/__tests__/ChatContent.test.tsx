@@ -1,4 +1,5 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -39,7 +40,10 @@ const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
 }))
 const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
-  | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
+  | ((
+      text: string,
+      options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
+    ) => Promise<void> | void)
   | undefined
 
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
@@ -137,12 +141,17 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     placement,
     onSend,
     sendDisabled,
-    onDraftAssistantChange
+    onDraftAssistantChange,
+    chatTarget
   }: {
     placement: 'home' | 'docked'
-    onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
+    onSend: (
+      text: string,
+      options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
+    ) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    chatTarget?: ComposerChatTarget
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
@@ -158,7 +167,12 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         type="button"
         data-use-mentioned-model-selector="true"
         disabled={sendDisabled}
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
+        onClick={() =>
+          onSend('hello', {
+            userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart],
+            chatTarget
+          })
+        }>
         send
       </button>
     )
@@ -344,7 +358,7 @@ describe('ChatContent', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
-  it('fills the active empty user message before regenerating and hides its empty bubble', async () => {
+  it('submits against the captured empty branch without patching it first and hides its empty bubble', async () => {
     const patchAwaitingInput = vi.fn().mockResolvedValue({
       id: 'awaiting-input-user',
       role: 'user',
@@ -390,24 +404,21 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('messages')).not.toHaveTextContent(awaitingInput.id)
 
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      fireEvent.click(screen.getByRole('button', { name: 'send' }))
       await Promise.resolve()
     })
 
     await waitFor(() => {
-      expect(patchAwaitingInput).toHaveBeenCalledWith({
-        params: { id: awaitingInput.id },
-        query: { awaitingInputOnly: true },
-        body: { data: { parts: [{ type: 'text', text: 'hello' }] } }
-      })
       expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
-          trigger: 'regenerate-message',
+          trigger: 'submit-message',
           parentAnchorId: awaitingInput.id,
-          topicId: 'topic-1'
+          topicId: 'topic-1',
+          targetMode: 'reserved-branch',
+          userMessageParts: [{ type: 'text', text: 'hello' }]
         })
       )
-      expect(patchAwaitingInput.mock.invocationCallOrder[0]).toBeLessThan(streamOpen.mock.invocationCallOrder[0])
+      expect(patchAwaitingInput).not.toHaveBeenCalled()
     })
   })
 

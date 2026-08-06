@@ -57,6 +57,13 @@ export const CreateMessageSchema = z.strictObject({
 })
 export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
 
+/** DTO for reserving a new empty branch below an assistant message. */
+export const ReserveBranchSchema = z.strictObject({
+  /** Whether the new reserved branch becomes the topic's selected node. */
+  activate: z.boolean().optional()
+})
+export type ReserveBranchDto = z.infer<typeof ReserveBranchSchema>
+
 /**
  * DTO for updating an existing message
  */
@@ -71,12 +78,6 @@ export const UpdateMessageSchema = z.strictObject({
   status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
-
-/** Conditional guard for updates that may consume only an awaiting-input message. */
-export const UpdateMessageQuerySchema = z.strictObject({
-  awaitingInputOnly: z.boolean().optional()
-})
-export type UpdateMessageQuery = z.infer<typeof UpdateMessageQuerySchema>
 
 /**
  * Strategy for updating activeNodeId when the active message is deleted
@@ -245,14 +246,9 @@ export type MessageSchemas = {
       params: { id: string }
       response: Message
     }
-    /**
-     * Update a message (content, move to new parent, etc.).
-     * `awaitingInputOnly=true` accepts only a data-only update to an active,
-     * empty successful user leaf and consumes its awaiting-input state.
-     */
+    /** Update a message (content, move to new parent, etc.). */
     PATCH: {
       params: { id: string }
-      query?: UpdateMessageQuery
       body: UpdateMessageDto
       response: Message
     }
@@ -288,6 +284,18 @@ export type MessageSchemas = {
     POST: {
       params: { id: string }
       body: MessageData
+      response: Message
+    }
+  }
+
+  /**
+   * Branch collection below an assistant message. Every POST creates a distinct,
+   * persisted empty user leaf; multiple reservations below one anchor are valid.
+   */
+  '/messages/:id/branches': {
+    POST: {
+      params: { id: string }
+      body: ReserveBranchDto
       response: Message
     }
   }

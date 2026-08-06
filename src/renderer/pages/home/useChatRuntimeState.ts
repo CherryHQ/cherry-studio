@@ -29,9 +29,10 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -47,6 +48,7 @@ export interface ChatTurnInput {
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
     fastMode?: boolean
+    chatTarget?: ComposerChatTarget
   }
 }
 
@@ -204,12 +206,21 @@ export function useChatRuntimeState({
         ? (messages.find(
             (message) =>
               message.id === activeNodeId &&
-              message.role === 'user' &&
-              message.metadata?.status === 'success' &&
-              message.parts.length === 0
+              isBlankUserTurn({
+                role: message.role,
+                status: message.metadata?.status,
+                parts: message.parts
+              })
           )?.id ?? null)
         : null,
     [activeNodeId, messages]
+  )
+  const composerChatTarget = useMemo<ComposerChatTarget>(
+    () => ({
+      parentAnchorId: activeNodeId,
+      mode: activeAwaitingInputMessageId ? 'reserved-branch' : 'active-path'
+    }),
+    [activeAwaitingInputMessageId, activeNodeId]
   )
   const displayMessages = useMemo(
     () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
@@ -259,32 +270,16 @@ export function useChatRuntimeState({
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
-    | { mode: 'submit'; topicId: string; parentAnchorId: string | null }
-    | { mode: 'regenerate'; topicId: string; parentAnchorId: string }
+    { topicId: string; parentAnchorId: string | null }
   >({
     scopeKey: topic.id,
     historyAdapter,
-    ensureConversation: async ({ text, options }) => {
+    ensureConversation: async ({ options }) => {
       if (isHistoryLoading) return null
 
-      if (activeAwaitingInputMessageId) {
-        const parts = options?.userMessageParts ?? [{ type: 'text' as const, text }]
-        await cache.patchMessageTrigger({
-          params: { id: activeAwaitingInputMessageId },
-          query: { awaitingInputOnly: true },
-          body: { data: { parts } }
-        })
-        return {
-          mode: 'regenerate',
-          topicId: topic.id,
-          parentAnchorId: activeAwaitingInputMessageId
-        }
-      }
-
       return {
-        mode: 'submit',
         topicId: topic.id,
-        parentAnchorId: activeNodeId ?? null
+        parentAnchorId: options?.chatTarget ? options.chatTarget.parentAnchorId : (activeNodeId ?? null)
       }
     },
     buildStreamRequest: ({ text, options }, conversation) => {
@@ -295,18 +290,13 @@ export function useChatRuntimeState({
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
 
-      return conversation.mode === 'regenerate'
-        ? {
-            ...requestOptions,
-            trigger: 'regenerate-message',
-            parentAnchorId: conversation.parentAnchorId
-          }
-        : {
-            ...requestOptions,
-            trigger: 'submit-message',
-            parentAnchorId: conversation.parentAnchorId ?? undefined,
-            userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }]
-          }
+      return {
+        ...requestOptions,
+        trigger: 'submit-message',
+        parentAnchorId: conversation.parentAnchorId ?? undefined,
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
+        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+      }
     },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
@@ -443,6 +433,7 @@ export function useChatRuntimeState({
     bindMessageListRuntime,
     locateMessage,
     sendMessage,
+    composerChatTarget,
     composerContext,
     translationOverlay,
     setTranslationOverlay

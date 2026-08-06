@@ -34,7 +34,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -125,7 +125,7 @@ const MESSAGES_PAGE_SIZE = 200
 
 function isRenderableTopicMessage(message: SharedMessage): boolean {
   const parts = message.data.parts ?? []
-  return !hasClearContextPart(parts) && (message.role !== 'user' || message.status !== 'success' || parts.length > 0)
+  return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
 }
 
 /**

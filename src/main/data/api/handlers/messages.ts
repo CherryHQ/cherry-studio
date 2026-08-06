@@ -14,8 +14,8 @@ import {
   DeleteMessageQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
+  ReserveBranchSchema,
   TreeQuerySchema,
-  UpdateMessageQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -66,10 +66,9 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       return messageService.getById(params.id)
     },
 
-    PATCH: async ({ params, body, query }) => {
+    PATCH: async ({ params, body }) => {
       const parsed = UpdateMessageSchema.parse(body)
-      const q = UpdateMessageQuerySchema.parse(query ?? {})
-      return messageService.update(params.id, parsed, q.awaitingInputOnly ?? false)
+      return messageService.update(params.id, parsed)
     },
 
     DELETE: async ({ params, query }) => {
@@ -84,6 +83,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = MessageDataSchema.parse(body)
       return messageService.createSibling(params.id, parsed)
+    }
+  },
+
+  '/messages/:id/branches': {
+    POST: async ({ params, body }) => {
+      const parsed = ReserveBranchSchema.parse(body)
+      return messageService.reserveBranch(params.id, parsed.activate ?? true)
     }
   }
 }

@@ -34,7 +34,6 @@ interface TopicRightPaneMeta {
 
 interface TopicRightPaneViewportCallbacks {
   onLocateMessage?: (messageId: string) => void
-  onStartBranchDraft?: (messageId: string) => Promise<void> | void
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
@@ -133,7 +132,6 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
       focusKey={canvasFocusKey}
       layoutReady={canvasLayoutReady}
       onLocateMessage={callbacks.onLocateMessage}
-      onStartBranchDraft={callbacks.onStartBranchDraft}
     />
   )
 }
@@ -226,11 +224,8 @@ function TopicRightPaneProvider({
   )
 }
 
-function TopicRightPaneViewport({ onLocateMessage, onStartBranchDraft }: TopicRightPaneViewportCallbacks) {
-  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
-    () => ({ onLocateMessage, onStartBranchDraft }),
-    [onLocateMessage, onStartBranchDraft]
-  )
+function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallbacks) {
+  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(() => ({ onLocateMessage }), [onLocateMessage])
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>

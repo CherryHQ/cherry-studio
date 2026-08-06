@@ -20,6 +20,8 @@ import type { FC, MouseEvent } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
+
 interface Props {
   open: boolean
   topicId: string
@@ -28,7 +30,6 @@ interface Props {
   focusKey?: string | number
   layoutReady?: boolean
   onLocateMessage?: (messageId: string) => void
-  onStartBranchDraft?: (messageId: string) => Promise<void> | void
 }
 
 const logger = loggerService.withContext('TopicBranchPanel')
@@ -53,8 +54,7 @@ const TopicBranchPanel: FC<Props> = ({
   liveState,
   focusKey,
   layoutReady,
-  onLocateMessage,
-  onStartBranchDraft
+  onLocateMessage
 }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
@@ -71,9 +71,7 @@ const TopicBranchPanel: FC<Props> = ({
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
-  const { trigger: deleteAwaitingInputMessage } = useMutation('DELETE', '/messages/:id', {
-    refresh: [messagesCachePath, treeCachePath]
-  })
+  const { reserveBranch, deleteReservedBranch } = useTopicBranchActions(topicId)
 
   const tree = useMemo(
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
@@ -118,12 +116,12 @@ const TopicBranchPanel: FC<Props> = ({
   const handleStartNodeBranch = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (selectedNode?.data.role !== 'assistant' || !onStartBranchDraft) {
+      if (selectedNode?.data.role !== 'assistant') {
         return
       }
 
       try {
-        await onStartBranchDraft(messageId)
+        await reserveBranch(messageId)
         toast.success(t('chat.message.new.branch.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -134,7 +132,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [graph.nodes, onStartBranchDraft, t, topicId]
+    [graph.nodes, reserveBranch, t, topicId]
   )
 
   const handleCopyBranchToNewTopic = useCallback(
@@ -163,10 +161,7 @@ const TopicBranchPanel: FC<Props> = ({
       if (!selectedNode?.data.isAwaitingInput) return
 
       try {
-        await deleteAwaitingInputMessage({
-          params: { id: messageId },
-          query: { awaitingInputOnly: true }
-        })
+        await deleteReservedBranch(messageId)
         toast.success(t('common.delete_success'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -177,7 +172,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.delete_failed'))
       }
     },
-    [deleteAwaitingInputMessage, graph.nodes, t, topicId]
+    [deleteReservedBranch, graph.nodes, t, topicId]
   )
 
   const handleNodeContextMenu = useCallback((messageId: string) => {
@@ -190,7 +185,7 @@ const TopicBranchPanel: FC<Props> = ({
       contextMenuMessageIdRef.current = null
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      const canShowStartBranch = !!onStartBranchDraft && selectedNode?.data.role === 'assistant'
+      const canShowStartBranch = selectedNode?.data.role === 'assistant'
       const canDeleteAwaitingInput = selectedNode?.data.isAwaitingInput === true
 
       const actions: ResolvedAction[] = [
@@ -248,14 +243,7 @@ const TopicBranchPanel: FC<Props> = ({
         }
       })
     },
-    [
-      graph.nodes,
-      handleCopyBranchToNewTopic,
-      handleDeleteAwaitingInputMessage,
-      handleStartNodeBranch,
-      onStartBranchDraft,
-      t
-    ]
+    [graph.nodes, handleCopyBranchToNewTopic, handleDeleteAwaitingInputMessage, handleStartNodeBranch, t]
   )
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {

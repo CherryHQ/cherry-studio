@@ -8,9 +8,11 @@ import TopicBranchPanel from '../TopicBranchPanel'
 const mocks = vi.hoisted(() => ({
   copyBranchToNewTopic: vi.fn().mockResolvedValue({ id: 'copied-topic' }),
   deleteAwaitingInputMessage: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
+  reserveBranch: vi.fn().mockResolvedValue({ id: 'reserved-user' }),
   refetchTree: vi.fn(),
   setActiveNode: vi.fn().mockResolvedValue(undefined),
-  startBranchDraft: vi.fn().mockResolvedValue(undefined),
+  topicPending: false,
+  eventEmit: vi.fn(),
   useQuery: vi.fn(),
   useMutation: vi.fn()
 }))
@@ -24,6 +26,15 @@ vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     get: vi.fn()
   }
+}))
+
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: { FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER' },
+  EventEmitter: { emit: mocks.eventEmit }
 }))
 
 vi.mock('@renderer/components/command', async () => {
@@ -163,6 +174,7 @@ vi.mock('react-i18next', () => ({
 describe('TopicBranchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.topicPending = false
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'active-1',
@@ -193,6 +205,9 @@ describe('TopicBranchPanel', () => {
       }
       if (path === '/messages/:id') {
         return { trigger: mocks.deleteAwaitingInputMessage }
+      }
+      if (path === '/messages/:id/branches') {
+        return { trigger: mocks.reserveBranch }
       }
       return { trigger: mocks.setActiveNode }
     })
@@ -354,7 +369,8 @@ describe('TopicBranchPanel', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 
-  it('starts a branch draft from the right-clicked node without switching branches locally', async () => {
+  it('reserves a branch from the right-clicked node without activating it during a stream', async () => {
+    mocks.topicPending = true
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'assistant-latest',
@@ -407,17 +423,21 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
     fireEvent.click(await screen.findByRole('button', { name: 'chat.message.new.branch.label' }))
 
     await waitFor(() => {
-      expect(mocks.startBranchDraft).toHaveBeenCalledWith('message-1')
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'message-1' },
+        body: { activate: false }
+      })
     })
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
     expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.eventEmit).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
 
@@ -577,14 +597,17 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
 
     const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
     fireEvent.click(branchButton)
     await waitFor(() => {
-      expect(mocks.startBranchDraft).toHaveBeenCalledWith('assistant-1')
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        body: { activate: true }
+      })
     })
     expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
@@ -622,14 +645,17 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
 
     const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
     fireEvent.click(branchButton)
     await waitFor(() => {
-      expect(mocks.startBranchDraft).toHaveBeenCalledWith('assistant-1')
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        body: { activate: true }
+      })
     })
     expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })

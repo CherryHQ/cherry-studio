@@ -5,6 +5,7 @@ import {
   type Message as SharedMessage,
   toContentRole
 } from '@shared/data/types/message'
+import { isBlankUserTurn } from '@shared/data/types/uiParts'
 
 export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage {
   return {
@@ -26,7 +27,7 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
 }
 
 export function isRenderableConversationMessage(message: CherryUIMessage): boolean {
-  return message.role !== 'user' || message.metadata?.status !== 'success' || message.parts.length > 0
+  return !isBlankUserTurn({ role: message.role, status: message.metadata?.status, parts: message.parts })
 }
 
 export function uiMessagesToPartsMap(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {

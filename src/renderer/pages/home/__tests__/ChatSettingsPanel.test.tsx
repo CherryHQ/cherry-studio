@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types/topic'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +10,6 @@ const renderCounters = vi.hoisted(() => ({
   chatContent: 0,
   navbar: 0,
   eventEmit: vi.fn(),
-  createAwaitingInputMessage: vi.fn().mockResolvedValue(undefined),
   setBranchLiveState: vi.fn()
 }))
 
@@ -21,18 +20,6 @@ vi.mock('@data/hooks/usePreference', () => ({
     return [undefined, vi.fn()]
   }
 }))
-
-vi.mock('@data/hooks/useDataApi', async () => {
-  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
-  return {
-    ...MockUseDataApi,
-    useMutation: () => ({
-      trigger: renderCounters.createAwaitingInputMessage,
-      isLoading: false,
-      error: undefined
-    })
-  }
-})
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
@@ -123,19 +110,10 @@ vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = {
     Scope: ({ children }: PropsWithChildren) => <div>{children}</div>,
     Shortcuts: () => <button type="button">branch shortcuts</button>,
-    Viewport: ({
-      onLocateMessage,
-      onStartBranchDraft
-    }: {
-      onLocateMessage?: (messageId: string) => void
-      onStartBranchDraft?: (messageId: string) => void | Promise<void>
-    }) => (
+    Viewport: ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
       <div data-testid="topic-right-pane-viewport">
         <button type="button" onClick={() => onLocateMessage?.('message-x')}>
           locate branch message
-        </button>
-        <button type="button" onClick={() => void onStartBranchDraft?.('assistant-old')}>
-          start branch draft
         </button>
       </div>
     )
@@ -216,8 +194,6 @@ describe('Chat panels', () => {
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
-    renderCounters.createAwaitingInputMessage.mockReset()
-    renderCounters.createAwaitingInputMessage.mockResolvedValue(undefined)
     renderCounters.setBranchLiveState.mockReset()
   })
 
@@ -276,31 +252,5 @@ describe('Chat panels', () => {
     fireEvent.click(screen.getByRole('button', { name: 'handled locate' }))
 
     expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('')
-  })
-
-  it('starts a branch draft from the right pane without re-rendering chat content', async () => {
-    renderChat(activeTopic)
-
-    const initialNavbarRenders = renderCounters.navbar
-    const initialChatContentRenders = renderCounters.chatContent
-    renderCounters.setBranchLiveState.mockClear()
-
-    fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
-
-    await waitFor(() => {
-      expect(renderCounters.createAwaitingInputMessage).toHaveBeenCalledWith({
-        params: { topicId: 'topic-1' },
-        body: {
-          parentId: 'assistant-old',
-          role: 'user',
-          data: { parts: [] },
-          status: 'success'
-        }
-      })
-    })
-    expect(renderCounters.navbar).toBe(initialNavbarRenders)
-    expect(renderCounters.chatContent).toBe(initialChatContentRenders)
-    expect(renderCounters.setBranchLiveState).not.toHaveBeenCalled()
-    expect(renderCounters.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
   })
 })
