@@ -67,7 +67,7 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import {
   CONFIG_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -91,6 +91,12 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import {
+  type Environment,
+  hasStaleCherryProxyMarkers,
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
+} from './agentProxyEnvironment'
 import {
   detectDestructiveAssistantCommand,
   isLarkFormSubmissionCommand,
@@ -699,8 +705,19 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
+export async function getClaudeCodeLoginShellEnvironment(
+  currentProxyEnvironment: Environment
+): Promise<Record<string, string | undefined>> {
+  let loginShellEnv = await getShellEnv()
+  if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
+    loginShellEnv = await refreshShellEnv()
+  }
+  return stripInheritedCherryProxyMarkers(loginShellEnv)
+}
+
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getShellEnv()
+  const proxyEnvironment = getProxyEnvironment(process.env)
+  const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -732,7 +749,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
-    ...getProxyEnvironment(process.env),
+    ...proxyEnvironment,
     CLAUDE_CODE_USE_BEDROCK: '0',
     CLAUDE_CODE_USE_VERTEX: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
@@ -816,7 +833,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     }
   }
 
-  return env
+  return mergeAgentLoopbackProxyBypass(env)
 }
 
 /**
