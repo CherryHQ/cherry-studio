@@ -4425,7 +4425,8 @@
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
-      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
+      "label": "Mehrfachauswahl",
+      "tooltip": "Multi-Modell-Parallelität"
     },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
