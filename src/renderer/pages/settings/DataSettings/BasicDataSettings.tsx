@@ -1,5 +1,6 @@
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
@@ -25,7 +26,9 @@ import RestorePopup from './RestorePopup'
 import V1RemigrationPopup from './V1RemigrationPopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
+const V1_INDEXED_DB_NAME = 'CherryStudio'
 const V1_REDUX_PERSIST_KEY = 'persist:cherry-studio'
+const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -34,7 +37,29 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
-  const hasV1MigrationSource = localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
+  const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
+    () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
+  )
+
+  useEffect(() => {
+    if (hasV1MigrationSource) return
+
+    let cancelled = false
+    void indexedDB
+      .databases()
+      .then((databases) => {
+        if (!cancelled && databases.some((database) => database.name === V1_INDEXED_DB_NAME)) {
+          setHasV1MigrationSource(true)
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to inspect IndexedDB for retained v1 data', { error: String(error) })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [hasV1MigrationSource])
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)

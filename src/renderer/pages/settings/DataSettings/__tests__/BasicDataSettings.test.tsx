@@ -5,8 +5,9 @@ import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getCacheSizeMock, requestMock } = vi.hoisted(() => ({
+const { getCacheSizeMock, indexedDbDatabasesMock, requestMock } = vi.hoisted(() => ({
   getCacheSizeMock: vi.fn(),
+  indexedDbDatabasesMock: vi.fn(),
   requestMock: vi.fn()
 }))
 
@@ -47,8 +48,11 @@ async function renderSettings() {
 describe('BasicDataSettings', () => {
   beforeEach(() => {
     getCacheSizeMock.mockResolvedValue('0')
+    indexedDbDatabasesMock.mockReset()
+    indexedDbDatabasesMock.mockResolvedValue([])
     requestMock.mockResolvedValue(undefined)
     vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
+    vi.stubGlobal('indexedDB', { databases: indexedDbDatabasesMock })
     localStorage.clear()
   })
 
@@ -64,10 +68,12 @@ describe('BasicDataSettings', () => {
     }
   })
 
-  it('hides the v1 remigration entry when the exact Redux key is absent', async () => {
+  it('hides the v1 remigration entry when neither exact v1 source exists', async () => {
     localStorage.setItem('persist:other-app', '{}')
+    indexedDbDatabasesMock.mockResolvedValueOnce([{ name: 'cherrystudio', version: 1 }])
     await renderSettings()
 
+    await waitFor(() => expect(indexedDbDatabasesMock).toHaveBeenCalledOnce())
     expect(screen.queryByRole('button', { name: 'settings.data.v1_remigration.button' })).not.toBeInTheDocument()
   })
 
@@ -78,6 +84,16 @@ describe('BasicDataSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.button' }))
 
     expect(V1RemigrationPopup.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the v1 remigration entry for the exact IndexedDB database name', async () => {
+    indexedDbDatabasesMock.mockResolvedValueOnce([
+      { name: 'other-database', version: 1 },
+      { name: 'CherryStudio', version: 29 }
+    ])
+    await renderSettings()
+
+    expect(await screen.findByRole('button', { name: 'settings.data.v1_remigration.button' })).toBeInTheDocument()
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {
