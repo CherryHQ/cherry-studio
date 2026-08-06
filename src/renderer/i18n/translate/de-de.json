@@ -451,7 +451,6 @@
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
-        "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
         "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
@@ -4425,7 +4424,8 @@
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
-      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
+      "label": "Mehrfachauswahl",
+      "tooltip": "Multi-Modell-Parallelität"
     },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",

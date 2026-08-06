@@ -128,7 +128,7 @@ const ENTITY_RAIL_LEADING_SLOT_CLASS =
   'text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
 const ENTITY_RAIL_TITLE_CLASS =
-  'font-medium text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
+  'font-normal text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
 function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
   if (actionCount >= 3) {
