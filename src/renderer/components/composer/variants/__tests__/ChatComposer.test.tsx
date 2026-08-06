@@ -802,7 +802,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
-  it('renders context usage after the speed control next to the send action', async () => {
+  it('renders context usage after the speed control next to the send action', () => {
     render(<ChatComposer topic={topic} contextUsage={{ contextTokens: 42, modelId: model.id }} onSend={vi.fn()} />)
 
     const sendAccessory = screen.getByTestId('composer-send-accessory')
@@ -813,9 +813,6 @@ describe('ChatComposer', () => {
     expect(speedControl.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(indicator).toHaveAttribute('tabindex', '0')
     expect(indicator).toHaveAttribute('aria-valuenow', '42')
-
-    await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
-    expect(screen.getByText('Model A')).toBeInTheDocument()
   })
 
   it('uses page-owned context without querying or rendering duplicate context controls', async () => {

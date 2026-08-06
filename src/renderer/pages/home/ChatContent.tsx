@@ -181,6 +181,8 @@ const ChatContentInner: FC<InnerProps> = ({
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
+    if (isHistoryStale) return null
+
     const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
     const contextTokens = activeMessage?.metadata?.stats?.contextTokens
     const modelId = activeMessage?.metadata?.modelId
@@ -188,7 +190,7 @@ const ChatContentInner: FC<InnerProps> = ({
       return null
     }
     return { contextTokens, modelId }
-  }, [activeNodeId, uiMessages])
+  }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
     if (!locateMessageId) {
