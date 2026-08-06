@@ -180,10 +180,15 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   /**
-   * Apply an explicit rename to the shared builder backing `treeId`. The
-   * caller is expected to have already performed the FS-level rename — this
+   * Apply an explicit in-place rename to the shared builder backing `treeId`.
+   * The caller is expected to have already performed the FS-level rename — this
    * call only updates the in-memory tree and synthesises the `renamed`
    * mutation that consumers receive. See `directory-tree.md §4.4`.
+   *
+   * Takes a `newName`, not a destination path: the target is always resolved
+   * against `oldPath`'s parent, so a cross-parent move — which `TreeNode.path`
+   * cannot express, it only repoints a basename within the existing parent —
+   * cannot be requested.
    *
    * Returns `false` when:
    *   - the treeId is unknown (already disposed, or never existed); or
@@ -191,10 +196,13 @@ export class DirectoryTreeManager extends BaseService {
    *     `unlink` already removed it — identity is lost but state is
    *     consistent).
    */
-  rename(treeId: string, oldPath: string, newPath: string): boolean {
+  rename(treeId: string, oldPath: string, newName: string): boolean {
     const consumer = this.consumers.get(treeId)
     if (!consumer) return false
-    return consumer.builder.rename(oldPath, newPath)
+    // Same normalization the builder applies, so a Windows-spelled oldPath
+    // resolves against the same parent the builder indexed it under.
+    const parent = oldPath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')
+    return consumer.builder.rename(oldPath, `${parent}/${newName}`)
   }
 
   /**

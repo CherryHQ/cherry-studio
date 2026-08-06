@@ -718,11 +718,14 @@ const NotesPage: FC = () => {
         // or the IPC fails, the watcher will catch up via removed+added —
         // just without identity preservation.
         if (treeId) {
+          // The name that actually landed on disk — `renameEntry` sanitises it and
+          // appends the markdown extension, so `renamed.name` is not the basename.
+          const renamedBasename = renamed.path.slice(renamed.path.lastIndexOf('/') + 1)
           await ipcApi
             .request('file.tree.rename', {
               treeId,
               oldPath: AbsoluteFilePathSchema.parse(oldPath),
-              newPath: AbsoluteFilePathSchema.parse(renamed.path)
+              newName: renamedBasename
             })
             .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
         }

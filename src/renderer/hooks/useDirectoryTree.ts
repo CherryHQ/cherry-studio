@@ -162,6 +162,17 @@ export function useDirectoryTree(
       })
     }
 
+    /** Release the stream and the main-side tree. Idempotent — every path may call it. */
+    const releaseTree = (): void => {
+      unsubscribeMutations?.()
+      unsubscribeMutations = null
+      if (createdTreeId) {
+        disposeTree(createdTreeId)
+        createdTreeId = null
+      }
+      mirrorRef.current = null
+    }
+
     void (async () => {
       try {
         const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
@@ -190,7 +201,16 @@ export function useDirectoryTree(
               `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
             )
             logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
+            // A gap is unrecoverable without a replay or a fresh snapshot, so this is
+            // terminal: tear the stream down and report once. Staying subscribed would
+            // re-gap on every later push — a new Error each time, which consumers that
+            // toast on `error` (Notes) turn into an endless stream of toasts, while the
+            // dead mirror keeps a watcher and its IPC traffic alive.
+            releaseTree()
+            setRoot(null)
+            setTreeId(null)
             setError(revisionError)
+            setIsLoading(false)
             return
           }
           const changed = applyMutation(mirror, payload.event)
@@ -211,13 +231,7 @@ export function useDirectoryTree(
         setIsLoading(false)
       } catch (err) {
         if (cancelled) return
-        unsubscribeMutations?.()
-        unsubscribeMutations = null
-        if (createdTreeId) {
-          disposeTree(createdTreeId)
-          createdTreeId = null
-        }
-        mirrorRef.current = null
+        releaseTree()
         const normalized = err instanceof Error ? err : new Error(String(err))
         // Distinguish "the main-side manager stopped while our create was
         // in flight" from a real failure — it fires during app shutdown or
@@ -234,9 +248,7 @@ export function useDirectoryTree(
 
     return () => {
       cancelled = true
-      unsubscribeMutations?.()
-      if (createdTreeId) disposeTree(createdTreeId)
-      mirrorRef.current = null
+      releaseTree()
       setTreeId(null)
     }
     // Re-create only on rootPath change. The `options` argument is sampled

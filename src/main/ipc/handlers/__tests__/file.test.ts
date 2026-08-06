@@ -432,13 +432,13 @@ describe('fileHandlers', () => {
     await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, ctx)).resolves.toBeUndefined()
     await expect(
       fileHandlers['file.tree.rename'](
-        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newPath: '/tmp/b.md' as AbsoluteFilePath },
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
         ctx
       )
     ).resolves.toBe(true)
 
     expect(directoryTreeManager.activateTree).toHaveBeenCalledWith('t-1', 3)
     expect(directoryTreeManager.dispose).toHaveBeenCalledWith('t-1')
-    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', '/tmp/b.md')
+    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', 'b.md')
   })
 })

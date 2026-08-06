@@ -163,7 +163,7 @@ The tree primitive rides [IpcApi](../ipc/README.md) — schemas in `src/shared/i
 | `file.tree.create` | renderer → main | `{ rootPath, options? }` | `{ treeId, revision, snapshot: SerializedTreeNode }` |
 | `file.tree.activate` | renderer → main | `{ treeId, revision }` | `boolean` (true when activated) |
 | `file.tree.dispose` | renderer → main | `{ treeId }` | `void` |
-| `file.tree.rename` | renderer → main | `{ treeId, oldPath, newPath }` | `boolean` (true if applied) |
+| `file.tree.rename` | renderer → main | `{ treeId, oldPath, newName }` | `boolean` (true if applied) |
 | `file.tree.mutation` | main → renderer (push) | `{ treeId, revision, event: TreeMutationEvent }` | — |
 
 The `file.tree.*` subtree places these alongside `file.read` / `file.open` / etc. — the tree primitive is part of the file module, so its route namespace is too.
@@ -184,7 +184,7 @@ A malformed payload rejects with an `IpcError(VALIDATION_FAILED)` carrying the z
 ipcApi.request('file.tree.create', { rootPath, options })        → Promise<CreateTreeIpcResult>
 ipcApi.request('file.tree.activate', { treeId, revision })       → Promise<boolean>
 ipcApi.request('file.tree.dispose', { treeId })                  → Promise<void>
-ipcApi.request('file.tree.rename', { treeId, oldPath, newPath }) → Promise<boolean>
+ipcApi.request('file.tree.rename', { treeId, oldPath, newName })  → Promise<boolean>
 ipcApi.on('file.tree.mutation', callback)                        → () => void  // unsubscribe
 ```
 
@@ -199,12 +199,16 @@ Two rules bind every caller of `file.tree.create`, not just `useDirectoryTree`:
 
 Revisions are monotonic per `treeId`. The snapshot owns its returned revision, and every later mutation increments it by one. Renderer mirrors ignore already-applied revisions and treat a forward gap as a broken stream rather than silently accepting stale state.
 
+A gap is **terminal**. There is no replay path, so the mirror can never catch up: `useDirectoryTree` unsubscribes, disposes the tree, clears `root`/`treeId` and reports the error exactly once. Staying subscribed would re-gap on every later push — a fresh `Error` per push, which a consumer that toasts on `error` turns into an unbounded run of toasts, while a mirror nobody can trust keeps a watcher and its IPC traffic alive.
+
 ### 4.4 Explicit Rename
 
-`file.tree.rename` is invoked by callers that just performed a file-system rename (e.g. Notes after `window.api.file.rename`). The flow:
+**In-place only.** The route takes a `newName`, never a destination path, and the target is resolved against `oldPath`'s parent. This is not a policy choice but the limit of the primitive: `TreeNode.path` repoints a basename inside the node's *existing* parent (`repointChild`) and has no detach/attach step, so a cross-parent move would leave the node in the old parent's `children` while its path and the lookup index claim the new one. `SafeNameSchema` rejects path separators, so a move is unexpressible at the boundary rather than validated away behind it. A genuine move must arrive as chokidar's `removed` + `added` (identity lost, state consistent) until the class hierarchy grows re-parenting.
+
+`file.tree.rename` is invoked by callers that just performed a file-system rename (e.g. Notes after `file.rename`). The flow:
 
 1. Renderer performs the FS rename (already happens today).
-2. Renderer calls `ipcApi.request('file.tree.rename', { treeId, oldPath, newPath })`.
+2. Renderer calls `ipcApi.request('file.tree.rename', { treeId, oldPath, newName })`; main resolves the destination as `dirname(oldPath)/newName`.
 3. Main side `DirectoryTreeBuilder.rename(oldPath, newPath)`:
    - Mutates the existing `TreeNode` instance via the `path` setter, which cascades through `adjustChildrenPaths` and repoints the parent's `_children` map.
    - Re-keys the internal `Map<path, TreeNode>` so descendants are reachable under their new paths.

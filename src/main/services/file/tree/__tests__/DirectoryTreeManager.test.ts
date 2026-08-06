@@ -1,5 +1,5 @@
 import type { EventEmitter } from 'node:events'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -211,7 +211,7 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     const sender = makeSender(1)
     const created = await registry.create(sender, tmp, undefined)
 
-    registry.rename(created.treeId, path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+    registry.rename(created.treeId, path.join(tmp, 'old.md'), 'new.md')
     expect(sender.sentMutations).toEqual([])
 
     expect(registry.activateTree(created.treeId, created.revision + 1)).toBe(false)
@@ -295,7 +295,7 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     expect(registry.activateTree(created1.treeId, created1.revision)).toBe(true)
     expect(registry.activateTree(created2.treeId, created2.revision)).toBe(true)
 
-    const applied = registry.rename(created1.treeId, path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+    const applied = registry.rename(created1.treeId, path.join(tmp, 'old.md'), 'new.md')
     expect(applied).toBe(true)
 
     // Both consumers see the renamed mutation (shared builder fan-out).
@@ -307,8 +307,29 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     expect(renamed2?.treeId).toBe(created2.treeId)
   })
 
+  it('rename(treeId, …) resolves the new name against the original parent directory', async () => {
+    const nested = path.join(tmp, 'nested')
+    await mkdir(nested)
+    await writeFile(path.join(nested, 'old.md'), 'x')
+    const sender = makeSender(1)
+
+    const created = await registry.create(sender, tmp, undefined)
+    expect(registry.activateTree(created.treeId, created.revision)).toBe(true)
+
+    // A name, not a path: the node cannot be re-parented, so the destination is
+    // always `dirname(oldPath)/newName` no matter what the caller passes.
+    expect(registry.rename(created.treeId, path.join(nested, 'old.md'), 'new.md')).toBe(true)
+
+    const renamed = sender.sentMutations.find((p) => p.event.type === 'renamed')
+    expect(renamed?.event).toMatchObject({
+      oldPath: `${nested.replace(/\\/g, '/')}/old.md`,
+      newPath: `${nested.replace(/\\/g, '/')}/new.md`,
+      basename: 'new.md'
+    })
+  })
+
   it('rename(treeId, …) returns false when the treeId is unknown', () => {
-    const applied = registry.rename('does-not-exist', '/a/old', '/a/new')
+    const applied = registry.rename('does-not-exist', '/a/old', 'new')
     expect(applied).toBe(false)
   })
 

@@ -492,7 +492,50 @@ describe('useDirectoryTree', () => {
     await waitFor(() => {
       expect(result.current.error?.message).toContain('expected 3, received 4')
     })
-    expect(result.current.root?.hasChild('skipped.md')).toBe(false)
+    expect(result.current.root).toBeNull()
+    expect(result.current.getNode('/notes/skipped.md')).toBeNull()
     expect(errorSpy).toHaveBeenCalledWith('Directory tree mutation stream became stale for /notes', expect.any(Error))
+  })
+
+  it('tears the stream down on a revision gap instead of re-reporting every later push', async () => {
+    vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    mocks.create.mockResolvedValue({ treeId: 't-gap-once', revision: 2, snapshot: makeSnapshot('/notes', ['a.md']) })
+    const unsubscribe = vi.fn()
+    // Held past `unsubscribe` on purpose, so the test can keep pushing and prove
+    // later payloads are inert rather than merely undeliverable.
+    let listener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      listener = cb
+      return unsubscribe
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-gap-once')
+    })
+
+    const push = (revision: number) =>
+      act(() => {
+        listener?.({ treeId: 't-gap-once', revision, event: { type: 'removed', path: '/notes/a.md' } })
+      })
+
+    push(4)
+    await waitFor(() => {
+      expect(result.current.error).not.toBeNull()
+    })
+    const firstError = result.current.error
+
+    // A gap is unrecoverable, so the stream and the main-side tree are released.
+    // Staying subscribed would re-gap on every push — a fresh Error each time, which
+    // consumers that toast on `error` turn into an unbounded run of toasts.
+    expect(unsubscribe).toHaveBeenCalled()
+    expect(mocks.dispose).toHaveBeenCalledWith('t-gap-once')
+    expect(result.current.root).toBeNull()
+    expect(result.current.treeId).toBeNull()
+
+    push(5)
+    push(6)
+    expect(result.current.error).toBe(firstError)
+    expect(mocks.dispose).toHaveBeenCalledTimes(1)
   })
 })

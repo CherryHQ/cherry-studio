@@ -154,6 +154,6 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.tree.dispose': async ({ treeId }) => {
     application.get('DirectoryTreeManager').dispose(treeId)
   },
-  'file.tree.rename': async ({ treeId, oldPath, newPath }) =>
-    application.get('DirectoryTreeManager').rename(treeId, oldPath, newPath)
+  'file.tree.rename': async ({ treeId, oldPath, newName }) =>
+    application.get('DirectoryTreeManager').rename(treeId, oldPath, newName)
 }

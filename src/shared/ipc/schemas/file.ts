@@ -158,11 +158,16 @@ export const fileRequestSchemas = {
     output: z.boolean()
   }),
   'file.tree.dispose': defineRoute({ input: z.strictObject({ treeId: treeIdSchema }), output: z.void() }),
+  // Rename in place only. A destination *name* rather than a path is what the
+  // primitive can actually honour: `TreeNode.path` repoints a basename inside the
+  // node's existing parent and cannot re-attach it elsewhere, so a cross-parent
+  // move would desync the child map from the path index. `SafeNameSchema` rejects
+  // separators, making that input unexpressible instead of merely rejected.
   'file.tree.rename': defineRoute({
     input: z.strictObject({
       treeId: treeIdSchema,
       oldPath: AbsoluteFilePathSchema,
-      newPath: AbsoluteFilePathSchema
+      newName: SafeNameSchema
     }),
     output: z.boolean()
   })
