@@ -2,7 +2,7 @@
 title: v1 migration can be run again
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18002"
 date: 2026-08-06
 ---
 
