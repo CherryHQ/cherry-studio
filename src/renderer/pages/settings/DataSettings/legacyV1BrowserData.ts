@@ -5,11 +5,12 @@ import { Dexie, type IndexableType } from 'dexie'
 const logger = loggerService.withContext('LegacyV1BrowserData')
 
 const LEGACY_DATABASE_NAME = 'CherryStudio'
+const LEGACY_PERSISTED_STATE_KEY = 'persist:cherry-studio'
 const INDEXED_DB_PAGE_SIZE = 100
 const textEncoder = new TextEncoder()
 
 export const LEGACY_LOCAL_STORAGE_KEYS = [
-  'persist:cherry-studio',
+  LEGACY_PERSISTED_STATE_KEY,
   'onboarding-completed',
   'memory_currentUserId',
   'privacy-popup-accepted',
@@ -31,6 +32,15 @@ interface BrowserDataMeasurement {
 
 function byteLength(value: string): number {
   return textEncoder.encode(value).byteLength
+}
+
+export function hasLegacyV1Marker(): boolean {
+  try {
+    return localStorage.getItem(LEGACY_PERSISTED_STATE_KEY) !== null
+  } catch (error) {
+    logger.warn('Failed to inspect legacy localStorage marker', error as Error)
+    return false
+  }
 }
 
 function collectLegacyLocalStorageKeys(): { keys: Set<string>; error?: unknown } {

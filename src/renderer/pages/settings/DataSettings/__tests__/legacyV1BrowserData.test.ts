@@ -28,6 +28,7 @@ vi.mock('dexie', () => ({
 
 import {
   clearLegacyV1BrowserData,
+  hasLegacyV1Marker,
   inspectLegacyV1BrowserData,
   LEGACY_LOCAL_STORAGE_KEYS,
   mergeLegacyV1CleanupResults
@@ -84,6 +85,14 @@ describe('legacyV1BrowserData', () => {
     localStorage.clear()
     dexieMock.exists.mockResolvedValue(true)
     dexieMock.tableNames.splice(0, dexieMock.tableNames.length, 'message_blocks')
+  })
+
+  it('uses only persist:cherry-studio as the v1 visibility marker', () => {
+    localStorage.setItem('language', 'zh-cn')
+    expect(hasLegacyV1Marker()).toBe(false)
+
+    localStorage.setItem('persist:cherry-studio', '')
+    expect(hasLegacyV1Marker()).toBe(true)
   })
 
   it('estimates selected localStorage keys and every IndexedDB page', async () => {

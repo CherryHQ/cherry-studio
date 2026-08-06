@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inspectMock = vi.hoisted(() => vi.fn())
 const inspectBrowserMock = vi.hoisted(() => vi.fn())
+const hasLegacyV1MarkerMock = vi.hoisted(() => vi.fn())
 const confirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
@@ -20,6 +21,7 @@ vi.mock('@renderer/services/popup', async (importOriginal) => {
 })
 
 vi.mock('../legacyV1BrowserData', () => ({
+  hasLegacyV1Marker: hasLegacyV1MarkerMock,
   inspectLegacyV1BrowserData: inspectBrowserMock
 }))
 
@@ -28,6 +30,7 @@ import { ClearCachePopupContainer } from '../ClearCachePopup'
 describe('ClearCachePopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    hasLegacyV1MarkerMock.mockReturnValue(true)
     confirmMock.mockResolvedValue(false)
     inspectBrowserMock.mockResolvedValue({
       bytes: 50,
@@ -80,6 +83,18 @@ describe('ClearCachePopup', () => {
     expect(screen.getByText('v1 版本遗留数据')).toBeInTheDocument()
     expect(screen.getByText('残留文件与知识库')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '清除缓存' })).toBeDisabled()
+  })
+
+  it('hides v1 cleanup and skips its inspection when the persisted v1 state is absent', async () => {
+    hasLegacyV1MarkerMock.mockReturnValue(false)
+
+    render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
+
+    await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    expect(screen.queryByText('v1 版本遗留数据')).not.toBeInTheDocument()
+    expect(inspectMock).not.toHaveBeenCalledWith('app.cache_cleanup.inspect', { groups: ['legacy_v1'] })
+    expect(inspectBrowserMock).not.toHaveBeenCalled()
   })
 
   it('updates the estimated selected total', async () => {

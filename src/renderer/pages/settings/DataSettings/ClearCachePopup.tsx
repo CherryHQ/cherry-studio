@@ -21,7 +21,7 @@ import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { inspectLegacyV1BrowserData } from './legacyV1BrowserData'
+import { hasLegacyV1Marker, inspectLegacyV1BrowserData } from './legacyV1BrowserData'
 
 interface ClearCachePopupParams {
   onClear: (groups: CacheCleanupGroup[]) => Promise<boolean>
@@ -97,6 +97,10 @@ function createLoadingOptionStates(): Record<CacheCleanupGroup, CleanupOptionSta
   >
 }
 
+function getVisibleCleanupGroups(): CacheCleanupGroup[] {
+  return CACHE_CLEANUP_GROUPS.filter((group) => group !== 'legacy_v1' || hasLegacyV1Marker())
+}
+
 async function inspectCleanupGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupInspection> {
   try {
     const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: [group] })
@@ -124,6 +128,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const [selected, setSelected] = useState<Set<CacheCleanupGroup>>(() => new Set())
   const [optionStates, setOptionStates] =
     useState<Record<CacheCleanupGroup, CleanupOptionState>>(createLoadingOptionStates)
+  const [visibleGroups, setVisibleGroups] = useState<CacheCleanupGroup[]>(getVisibleCleanupGroups)
   const [cleaning, setCleaning] = useState(false)
   const [hasRunCleanup, setHasRunCleanup] = useState(false)
   const inspectionGeneration = useRef(0)
@@ -131,10 +136,13 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
   const refreshInspections = useCallback(async () => {
     const generation = ++inspectionGeneration.current
+    const groups = getVisibleCleanupGroups()
+    setVisibleGroups(groups)
+    setSelected((current) => new Set(groups.filter((group) => current.has(group))))
     setOptionStates(createLoadingOptionStates())
 
     await Promise.all(
-      CACHE_CLEANUP_GROUPS.map(async (group) => {
+      groups.map(async (group) => {
         const inspection = await inspectCleanupGroup(group)
         if (generation !== inspectionGeneration.current) return
         setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
@@ -151,7 +159,8 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     }
   }, [open, refreshInspections])
 
-  const selectedStates = [...selected].map((group) => optionStates[group])
+  const selectedGroups = visibleGroups.filter((group) => selected.has(group))
+  const selectedStates = selectedGroups.map((group) => optionStates[group])
   const totalLoading = selectedStates.some((state) => state.loading)
   const totalBytes = selectedStates.reduce((total, state) => total + (state.inspection?.size.bytes ?? 0), 0)
   const totalHasUnknown = selectedStates.some(
@@ -159,7 +168,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
       !state.loading && (state.inspection?.size.bytes === null || state.inspection?.size.completeness === 'partial')
   )
   const totalEstimated = selectedStates.some((state) => state.inspection?.size.accuracy === 'estimated')
-  const canConfirm = !cleaning && selected.size > 0 && !totalLoading
+  const canConfirm = !cleaning && selectedGroups.length > 0 && !totalLoading
 
   const toggleGroup = async (group: CacheCleanupGroup, checked: boolean) => {
     if (cleaning) return
@@ -228,9 +237,8 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const handleConfirm = async () => {
     if (!canConfirm) return
 
-    const groups = CACHE_CLEANUP_GROUPS.filter((group) => selected.has(group))
     setCleaning(true)
-    const success = await onClear(groups)
+    const success = await onClear(selectedGroups)
     if (!popupOpen.current) return
     if (success) {
       handleClose()
@@ -254,39 +262,41 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         </DialogHeader>
 
         <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
-          {CLEANUP_OPTIONS.map(({ group, icon: Icon, titleKey, descriptionKey }) => {
-            const state = optionStates[group]
+          {CLEANUP_OPTIONS.filter(({ group }) => visibleGroups.includes(group)).map(
+            ({ group, icon: Icon, titleKey, descriptionKey }) => {
+              const state = optionStates[group]
 
-            return (
-              <label
-                key={group}
-                className={`flex gap-3 rounded-lg border p-3 ${
-                  cleaning ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
-                }`}>
-                <Checkbox
-                  className="mt-0.5"
-                  checked={selected.has(group)}
-                  disabled={cleaning}
-                  onCheckedChange={(checked) => void toggleGroup(group, checked === true)}
-                />
-                <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-start justify-between gap-3">
-                    <span className="font-medium text-sm">{t(titleKey)}</span>
-                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
-                      {renderSize(state)}
+              return (
+                <label
+                  key={group}
+                  className={`flex gap-3 rounded-lg border p-3 ${
+                    cleaning ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
+                  }`}>
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={selected.has(group)}
+                    disabled={cleaning}
+                    onCheckedChange={(checked) => void toggleGroup(group, checked === true)}
+                  />
+                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="font-medium text-sm">{t(titleKey)}</span>
+                      <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                        {renderSize(state)}
+                      </span>
                     </span>
+                    <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
                   </span>
-                  <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
-                </span>
-              </label>
-            )
-          })}
+                </label>
+              )
+            }
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t pt-4 text-sm">
           <span className="font-medium">{t('settings.data.clear_cache.selected_total')}</span>
-          <span className="text-muted-foreground">{selected.size === 0 ? '0 B' : renderTotal()}</span>
+          <span className="text-muted-foreground">{selectedGroups.length === 0 ? '0 B' : renderTotal()}</span>
         </div>
 
         <DialogFooter>
