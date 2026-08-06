@@ -358,12 +358,13 @@ The terminal status is derived once when the last execution terminates.
 ### Approval reconnect integrity
 
 The ordinary per-execution ring remains bounded and lossy; pending tool
-approvals do not introduce a second recovery buffer. Before attaching a new
-window, the manager verifies that each pending `toolCallId` still has an input
-start or complete input followed by its `tool-approval-request` in the
-surviving ring. If any approval is incomplete, attach returns a localized
-stream error instead of replaying an unactionable card. Ordinary ring overflow
-without an incomplete approval remains attachable.
+approvals do not introduce a second recovery buffer. Instead, ring eviction
+pauses while an execution's `pendingApprovalToolCallIds` set is non-empty:
+evicted chunks are pure history, but a pending approval's `tool-input-*`
+chunks are still-operable state a reconnect must replay for the user to
+decide. Growth stays bounded because the approval blocks the round (almost no
+chunks stream during the wait) and `approvalIdleTimeoutMs` caps the window.
+Eviction resumes with the same chunk that resolves the approval.
 
 This keeps `attach` observational: subscribing a new window may never abort,
 pause, or otherwise change the topic or agent runtime. Runtime termination stays
@@ -697,7 +698,7 @@ duplicated; the rest are stream-manager-specific.
 | Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
 | Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
-| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (validate pending approvals, then register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, an incomplete approval surfaces an error, or the final row is returned; attach never changes runtime state |
+| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
 | Abort — user stop | `Ai_Stream_Abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `Ai_Stream_Attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
@@ -908,7 +909,7 @@ the new.
 | Multi-window on same topic | Each window has its own `WebContentsListener`; chunks fan out to all alive listeners |
 | Same window re-attaches | Listener id is stable (`wc:${wc.id}:${topicId}`); `addListener` upserts by id |
 | Attach mid-stream | `attach` returns compact ring replay per execution; observer fills in the available tail without changing runtime state |
-| Ring overflow with pending approval | Attach verifies that every pending approval remains self-contained in the surviving ring; an incomplete approval returns `error` instead of replaying partial state |
+| Ring overflow with pending approval | Eviction pauses while `pendingApprovalToolCallIds` is non-empty, so the approval's tool-input chunks stay replayable; it resumes with the chunk that resolves the approval |
 | Multi-model + resubmit | the steer is queued once per topic; every model's execution yields via `steerYield`, and the single continuation answers it after the turn completes |
 | Stream emits `tool-approval-request` | Its `toolCallId` enters `exec.pendingApprovalToolCallIds`; on stream end the topic surfaces `awaiting-approval` via the shared cache |
 | Main process restart | `activeStreams` clears; in-flight streams are lost; the renderer re-reads from the DB |

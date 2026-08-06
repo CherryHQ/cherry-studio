@@ -13,11 +13,6 @@
       }
     }
   },
-  "ai": {
-    "stream": {
-      "approval_replay_incomplete": "[to be translated]:This tool approval can no longer be displayed because the stream data is incomplete, possibly after the page closed or crashed. Please retry the request."
-    }
-  },
   "apiGateway": {
     "docs": {
       "description": "HTTP API του Cherry Studio συμβατό με OpenAI, Anthropic και Gemini, καθώς και endpoints αποκλειστικά του Cherry (μοντέλα, βάσεις γνώσης)",

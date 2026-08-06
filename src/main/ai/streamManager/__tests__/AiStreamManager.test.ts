@@ -1054,10 +1054,11 @@ describe('AiStreamManager', () => {
         'tool-input-available',
         'tool-approval-request'
       ])
-      expect(response.bufferedChunks[0].chunk).toMatchObject({ delta: '4' })
+      // The approval-request pauses eviction, so both surviving deltas replay merged.
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ delta: '34' })
     })
 
-    it('returns an error when a pending approval cannot be replayed from the surviving ring', () => {
+    it('pauses ring eviction while an approval is pending and resumes once it resolves', () => {
       const approvalMgr = createManager({ maxBufferChunks: 3 })
       startSingle(approvalMgr, {
         topicId: 'a',
@@ -1068,7 +1069,7 @@ describe('AiStreamManager', () => {
 
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-available',
-        toolCallId: 'call-missing',
+        toolCallId: 'call-1',
         toolName: 'search',
         input: { query: 'Cherry Studio' }
       } as UIMessageChunk)
@@ -1081,16 +1082,45 @@ describe('AiStreamManager', () => {
       }
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
-        approvalId: 'approval-missing',
-        toolCallId: 'call-missing'
+        approvalId: 'approval-1',
+        toolCallId: 'call-1'
       } as UIMessageChunk)
+      // Over the cap while pending: nothing may be evicted, so the tool input
+      // needed to render and act on the approval stays replayable.
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'text-delta',
+        id: 'p2',
+        delta: 'sibling'
+      } as UIMessageChunk)
+
+      const snap = approvalMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(5)
+      expect(snap.executions[0].droppedChunks).toBe(0)
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
 
-      expect(response).toMatchObject({ status: 'error', error: { name: 'StreamReplayError' } })
-      expect(approvalMgr.inspect('a')!.executions[0].abortSignal.aborted).toBe(false)
-      expect(approvalMgr.inspect('a')!.listenerIds).toEqual(['l:a'])
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-available',
+        'text-delta',
+        'tool-approval-request',
+        'text-delta'
+      ])
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
+
+      // The approval response clears the pending set before the eviction
+      // check runs, so this same chunk resumes ordinary ring behaviour.
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: { ok: true }
+      } as UIMessageChunk)
+
+      const after = approvalMgr.inspect('a')!
+      expect(after.executions[0].bufferedChunkCount).toBe(5)
+      expect(after.executions[0].droppedChunks).toBe(1)
     })
 
     it('stream remains accessible during grace period', async () => {

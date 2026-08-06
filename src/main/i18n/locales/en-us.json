@@ -13,11 +13,6 @@
       }
     }
   },
-  "ai": {
-    "stream": {
-      "approval_replay_incomplete": "This tool approval can no longer be displayed because the stream data is incomplete, possibly after the page closed or crashed. Please retry the request."
-    }
-  },
   "apiGateway": {
     "docs": {
       "description": "OpenAI-, Anthropic- and Gemini-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)",

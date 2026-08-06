@@ -13,11 +13,6 @@
       }
     }
   },
-  "ai": {
-    "stream": {
-      "approval_replay_incomplete": "[to be translated]:This tool approval can no longer be displayed because the stream data is incomplete, possibly after the page closed or crashed. Please retry the request."
-    }
-  },
   "apiGateway": {
     "docs": {
       "description": "與 OpenAI、Anthropic、Gemini 相容的 Cherry Studio HTTP API，另含 Cherry 專有介面（模型、知識庫）",
