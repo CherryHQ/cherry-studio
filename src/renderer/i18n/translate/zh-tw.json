@@ -1710,7 +1710,7 @@
         "request_duration": "生成時機",
         "text_generation": "文字生成",
         "text_output": "文字輸出",
-        "tokens": "{{value}} 代幣",
+        "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
         "total_duration": "端到端持續時間",
         "uncached": "未快取",
@@ -3622,7 +3622,7 @@
         "polish_variables_changed_description": "優化後的結果變更或移除了提示變數。請再試一次。",
         "polish_variables_changed_title": "無法應用優化提示",
         "title": "提示",
-        "tokens_label": "代幣：",
+        "tokens_label": "Tokens: ",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
         "variables_example": "例如：今天是 {{variable}}，會使用目前日期。",
         "variables_title": "系統變數",
@@ -8417,7 +8417,7 @@
       "metric": {
         "cost": "成本",
         "requests": "請求",
-        "tokens": "代幣"
+        "tokens": "Token"
       },
       "overview": {
         "title": "概述"
@@ -8434,7 +8434,7 @@
         "date": "日期",
         "model": "模型",
         "source": "來源",
-        "tokens": "代幣",
+        "tokens": "Token",
         "tps": "TPS",
         "tpsValue": "{{value}} tok/s",
         "ttft": "TTFT"
