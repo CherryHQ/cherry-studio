@@ -146,6 +146,7 @@ export function useDirectoryTree(
     }
 
     let cancelled = false
+    let released = false
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
@@ -164,6 +165,7 @@ export function useDirectoryTree(
 
     /** Release the stream and the main-side tree. Idempotent — every path may call it. */
     const releaseTree = (): void => {
+      released = true
       unsubscribeMutations?.()
       unsubscribeMutations = null
       if (createdTreeId) {
@@ -224,7 +226,11 @@ export function useDirectoryTree(
           revision: result.revision
         })
         if (!activated) throw new Error(`Failed to activate directory tree ${result.treeId}`)
-        if (cancelled) return
+        // `activate` flushes the buffered mutations before it resolves, so the listener
+        // may have hit a revision gap and torn everything down while this await was
+        // pending. Publishing now would resurrect a snapshot with no mirror behind it —
+        // a tree whose `getNode()` returns null for every path it displays.
+        if (cancelled || released) return
 
         setRoot(snapshotRoot)
         setTreeId(result.treeId)

@@ -497,6 +497,39 @@ describe('useDirectoryTree', () => {
     expect(errorSpy).toHaveBeenCalledWith('Directory tree mutation stream became stale for /notes', expect.any(Error))
   })
 
+  it('does not publish the snapshot when the activation replay itself gapped', async () => {
+    vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    mocks.create.mockResolvedValue({ treeId: 't-gap-activate', revision: 2, snapshot: makeSnapshot('/notes', []) })
+    let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      pushListener = cb
+      return () => {
+        pushListener = null
+      }
+    })
+    // The flush happens inside the activate request, so the teardown runs while the
+    // hook is still awaiting it. Publishing afterwards would resurrect a snapshot
+    // whose mirror is already gone.
+    mocks.activate.mockImplementation(async () => {
+      pushListener?.({
+        treeId: 't-gap-activate',
+        revision: 9,
+        event: { type: 'removed', path: '/notes/gone.md' }
+      })
+      return true
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toContain('expected 3, received 9')
+    })
+    expect(result.current.root).toBeNull()
+    expect(result.current.treeId).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+    expect(mocks.dispose).toHaveBeenCalledWith('t-gap-activate')
+  })
+
   it('tears the stream down on a revision gap instead of re-reporting every later push', async () => {
     vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.create.mockResolvedValue({ treeId: 't-gap-once', revision: 2, snapshot: makeSnapshot('/notes', ['a.md']) })

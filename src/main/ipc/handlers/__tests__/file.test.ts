@@ -424,21 +424,40 @@ describe('fileHandlers', () => {
     expect((error as IpcError).code).toBe(fileErrorCodes.DIRECTORY_TREE_STOPPED)
   })
 
-  it('delegates activate / dispose / rename to DirectoryTreeManager', async () => {
+  it('delegates activate / dispose / rename with the caller as the claimed owner', async () => {
     directoryTreeManager.activateTree.mockReturnValueOnce(true)
     directoryTreeManager.rename.mockReturnValueOnce(true)
 
-    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, ctx)).resolves.toBe(true)
-    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, ctx)).resolves.toBeUndefined()
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, windowCtx)).resolves.toBe(true)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, windowCtx)).resolves.toBeUndefined()
+    await expect(
+      fileHandlers['file.tree.rename'](
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
+        windowCtx
+      )
+    ).resolves.toBe(true)
+
+    // The manager compares this id against the consumer's owner, so a treeId alone
+    // does not authorize anything.
+    expect(directoryTreeManager.activateTree).toHaveBeenCalledWith('t-1', 3, senderWebContents.id)
+    expect(directoryTreeManager.dispose).toHaveBeenCalledWith('t-1', senderWebContents.id)
+    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', 'b.md', senderWebContents.id)
+  })
+
+  it('refuses tree follow-ups from a sender that is not a managed window', async () => {
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, ctx)).resolves.toBe(false)
     await expect(
       fileHandlers['file.tree.rename'](
         { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
         ctx
       )
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, ctx)).resolves.toBeUndefined()
 
-    expect(directoryTreeManager.activateTree).toHaveBeenCalledWith('t-1', 3)
-    expect(directoryTreeManager.dispose).toHaveBeenCalledWith('t-1')
-    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', 'b.md')
+    // No claimed owner means no way to authorize, so nothing reaches the manager —
+    // notably `dispose` must not fall through to the unauthenticated internal path.
+    expect(directoryTreeManager.activateTree).not.toHaveBeenCalled()
+    expect(directoryTreeManager.rename).not.toHaveBeenCalled()
+    expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
   })
 })

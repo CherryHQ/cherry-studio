@@ -142,6 +142,8 @@ Without this, the freshly-built builder would resolve after `disposeAll()` clear
 
 The registry tracks `webContentsId → Set<treeId>`. When `sender.once('destroyed')` fires (e.g. a window closes), all trees owned by that sender are disposed in one pass. Renderer-side cleanup via `file.tree.dispose` is preferred (it triggers the grace window), but this cascade is the safety net for crashed windows.
 
+The listener alone is not sufficient: `create` awaits the ripgrep scan before it can subscribe, and a window that closes during that await has *already* fired `destroyed` — a later `once` never replays it. `create` therefore re-checks `sender.isDestroyed()` after acquiring the builder and, if the owner is gone, disposes the consumer through the normal path (so an otherwise-idle builder is released) and rejects.
+
 Note: the cascade routes each disposal through the regular `dispose(treeId)` path, which **still arms the 500 ms grace window** for each shared builder whose refcount drops to zero. The renderer is gone so no remount is coming, but waiting an extra 500 ms before tearing the watcher down has no observable cost. Test fixtures that need synchronous teardown call `disposeAll()` instead.
 
 ### 3.5 Children Ordering
@@ -177,6 +179,10 @@ The `IpcRouter` parses every request payload against its route schema before the
 A malformed payload rejects with an `IpcError(VALIDATION_FAILED)` carrying the zod issues; handlers never see an unvalidated object.
 
 `file.tree.create` also needs a **managed window** sender — the mutation stream is addressed by the caller's `WebContents`, so a tree whose owner is not a WindowManager window could never receive a push and the route refuses instead of leaking a watcher. When the manager is torn down mid-create it rejects with the `FILE_DIRECTORY_TREE_STOPPED` domain code, which `useDirectoryTree` swallows silently (the UI is going away).
+
+**A `treeId` is an identifier, not a capability.** Every window shares the one IpcApi request channel, so `activate` / `dispose` / `rename` carry the caller's `WebContents` id and the manager refuses any tree owned by another window. Ownership must never rest on UUID entropy.
+
+**The pending queue is bounded** at `MAX_PENDING_MUTATIONS` (1000). A renderer that creates a tree and then never activates — hung, paused, or non-conforming — would otherwise accumulate a full payload per watcher event for as long as the window lives, and the `destroyed` cascade cannot help while it is alive. Overflow disposes the consumer, so the late `activate` returns `false` and the renderer restarts the handshake. A deliberate ceiling was chosen over an activation timer because the memory is what is actually at risk; an idle un-activated tree costs one watcher, which the window's teardown already reclaims.
 
 ### 4.3 Renderer Surface
 
@@ -373,14 +379,17 @@ The tree primitive does not:
 
 ## 10. Testing
 
-Three suites under `src/main/services/file/tree/__tests__/`:
+Suites under `src/main/services/file/tree/__tests__/`:
 
 - **`builder.test.ts`** — initial scan, `.gitignore` honoring, chokidar fan-out, dispose cleanup, JSON round-trip (no parent cycles), `@main/data` import isolation (greps the source for forbidden imports).
-- **`DirectoryTreeManager.test.ts`** — builder dedupe (including order-insensitive option keys), grace-window reuse, multi-consumer mutation fan-out, explicit-rename dispatch by treeId, `webContents`-destroyed cascade cleanup, in-flight cancellation under `onStop`.
+- **`DirectoryTreeManager.protocol.test.ts`** — the manager state machine against a **fake builder**: handshake buffering + flush order, per-treeId revision numbering, activation-baseline mismatch, the pending ceiling, ownership refusal, owner destroyed mid-creation, builder dedupe (including order-insensitive option keys), grace-window reuse and teardown.
+- **`DirectoryTreeManager.test.ts`** — the same manager over a **real** ripgrep scan + chokidar watcher: snapshot content, live mutation fan-out, explicit rename applied to the real builder.
 - **`TreeNode.test.ts`** — class invariants: rename cascade, identity preservation, JSON serialization shape.
 - **`search.test.ts`** — `listDirectory` happy path + error branches (ripgrep unavailable, EACCES on root).
 
-Renderer-side: `src/renderer/hooks/__tests__/useDirectoryTree.test.tsx` covers mount/unmount, mutation application, mid-flight cancel, StrictMode remount, post-unmount rejection, and treeId mismatch filtering.
+**Keep the manager split.** `DirectoryTreeManager.test.ts` is gated behind `skipIf(!ripgrepAvailable)`, so it does **not** run in CI — a protocol assertion placed there is unverified no matter how green the run looks. Anything provable without the binary belongs in `.protocol.test.ts`, which always runs.
+
+Renderer-side: `src/renderer/hooks/__tests__/useDirectoryTree.test.tsx` covers mount/unmount, mutation application, mid-flight cancel, StrictMode remount, post-unmount rejection, treeId mismatch filtering, side-consumer delivery of the activation replay, and the terminal revision-gap state (including a gap raised *during* activation).
 
 ---
 

@@ -63,6 +63,19 @@ const logger = loggerService.withContext('file/tree/registry')
 const DISPOSE_GRACE_MS = 500
 
 /**
+ * Ceiling on mutations buffered for one un-activated consumer.
+ *
+ * A conforming renderer activates within a single round-trip and buffers a handful;
+ * a hung or non-conforming one can create a tree and then never activate, while a
+ * high-churn workspace keeps appending full payloads. `destroyed` does not help
+ * while the window is alive, so the queue is the only bound. Overflow disposes the
+ * consumer — a late `activate` then returns false and the renderer restarts the
+ * handshake, which is strictly better than growing main-process memory to hold
+ * events for a mirror that may never exist.
+ */
+const MAX_PENDING_MUTATIONS = 1000
+
+/**
  * Per-builder bookkeeping, modeled as a discriminated union on `state`:
  *
  *  - `active`:   at least one consumer is attached; no grace timer armed.
@@ -196,8 +209,8 @@ export class DirectoryTreeManager extends BaseService {
    *     `unlink` already removed it — identity is lost but state is
    *     consistent).
    */
-  rename(treeId: string, oldPath: string, newName: string): boolean {
-    const consumer = this.consumers.get(treeId)
+  rename(treeId: string, oldPath: string, newName: string, ownerWebContentsId: number): boolean {
+    const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
     if (!consumer) return false
     // Same normalization the builder applies, so a Windows-spelled oldPath
     // resolves against the same parent the builder indexed it under.
@@ -210,8 +223,8 @@ export class DirectoryTreeManager extends BaseService {
    * observed after the snapshot stay in the consumer queue until this call,
    * so installing the renderer listener never races live forwarding.
    */
-  activateTree(treeId: string, revision: number): boolean {
-    const consumer = this.consumers.get(treeId)
+  activateTree(treeId: string, revision: number, ownerWebContentsId: number): boolean {
+    const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
     if (!consumer || revision !== consumer.snapshotRevision) return false
     if (consumer.phase === 'active') return true
     if (consumer.sender.isDestroyed()) return false
@@ -259,6 +272,13 @@ export class DirectoryTreeManager extends BaseService {
       if (sender.isDestroyed()) return
       const payload: TreeMutationPushPayload = { treeId, revision: ++consumer.revision, event }
       if (consumer.phase === 'pending') {
+        if (consumer.pendingMutations.length >= MAX_PENDING_MUTATIONS) {
+          logger.warn(
+            `Tree ${treeId} buffered ${MAX_PENDING_MUTATIONS} mutations without activating — disposing the consumer`
+          )
+          this.dispose(treeId)
+          return
+        }
         consumer.pendingMutations.push(payload)
         return
       }
@@ -266,6 +286,17 @@ export class DirectoryTreeManager extends BaseService {
     })
     shared.consumers.set(treeId, consumer)
     this.consumers.set(treeId, consumer)
+
+    // `acquireBuilder` awaits a ripgrep scan + watcher install. If the owner window
+    // closed during it, `destroyed` has already fired and the `once` below would
+    // never replay it — the consumer (and an otherwise-idle builder) would survive
+    // until app shutdown. Reconcile against the current state instead. Registering
+    // first and disposing lets the normal refcount + grace-window path release the
+    // builder rather than stranding a freshly-created one with zero consumers.
+    if (sender.isDestroyed()) {
+      this.dispose(treeId)
+      throw new Error(`Directory tree owner (webContents ${consumer.webContentsId}) was destroyed during creation`)
+    }
 
     let bucket = this.byWebContents.get(sender.id)
     if (!bucket) {
@@ -287,8 +318,15 @@ export class DirectoryTreeManager extends BaseService {
     return { treeId, revision: snapshotRevision, snapshot: shared.builder.snapshot() }
   }
 
-  dispose(treeId: string): boolean {
-    const consumer = this.consumers.get(treeId)
+  /**
+   * @param ownerWebContentsId When given, the call is refused unless it matches the
+   *   consumer's owner. IPC handlers MUST pass it — a `treeId` is an identifier, not
+   *   a capability, and every renderer shares one request channel. Internal callers
+   *   (webContents teardown, overflow, `onStop`) are already authorized and omit it.
+   */
+  dispose(treeId: string, ownerWebContentsId?: number): boolean {
+    const consumer =
+      ownerWebContentsId === undefined ? this.consumers.get(treeId) : this.ownedConsumer(treeId, ownerWebContentsId)
     if (!consumer) return false
     consumer.forwardSubscription?.dispose()
     this.consumers.delete(treeId)
@@ -348,6 +386,18 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   // ─── Internals ────────────────────────────────────────────────────────
+
+  /**
+   * Consumer lookup gated on ownership. Every window shares the one IpcApi request
+   * channel, so a `treeId` reaching the manager proves nothing about who holds it —
+   * without this a renderer that learned another window's id could flush its buffer
+   * before it listens, dispose it, or mutate its mirror.
+   */
+  private ownedConsumer(treeId: string, ownerWebContentsId: number): Consumer | undefined {
+    const consumer = this.consumers.get(treeId)
+    if (!consumer || consumer.webContentsId !== ownerWebContentsId) return undefined
+    return consumer
+  }
 
   private async acquireBuilder(
     key: string,

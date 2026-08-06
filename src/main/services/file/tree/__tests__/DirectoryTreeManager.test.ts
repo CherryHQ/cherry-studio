@@ -1,5 +1,16 @@
+/**
+ * `DirectoryTreeManager` **integration** — the manager driving a real
+ * `DirectoryTreeBuilder` over a real ripgrep scan + chokidar watcher.
+ *
+ * Only behavior that genuinely needs the filesystem lives here, because this
+ * suite is gated behind `skipIf(!ripgrepAvailable)` and therefore does not run
+ * in CI. The manager's state machine — handshake, revisions, ownership, builder
+ * sharing, teardown — is covered against a fake builder in
+ * `DirectoryTreeManager.protocol.test.ts`, which always runs. Keep that split:
+ * anything provable without the binary belongs there.
+ */
 import type { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -44,7 +55,6 @@ vi.mock('@main/utils/binaryEnv', () => ({
   getBinaryExecutionEnv: () => ({})
 }))
 
-import * as builderModule from '../builder'
 import { DirectoryTreeManager } from '../DirectoryTreeManager'
 
 // Electron surfaces (`app.isPackaged`, etc.) are stubbed minimally because the
@@ -95,7 +105,7 @@ function makeSender(id: number) {
   return sender as typeof sender & WebContents
 }
 
-describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
+describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   let tmp: string
   let registry: DirectoryTreeManager
 
@@ -111,7 +121,7 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     vi.restoreAllMocks()
   })
 
-  it('issues a fresh treeId on every create, even when the underlying builder is shared', async () => {
+  it('scans the root and hands every consumer the same snapshot', async () => {
     await writeFile(path.join(tmp, 'a.md'), 'a')
 
     const sender1 = makeSender(1)
@@ -122,63 +132,17 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
 
     expect(created1.treeId).not.toBe(created2.treeId)
     expect(created1.snapshot.path).toBe(created2.snapshot.path)
+    expect(Object.keys(created1.snapshot.children ?? {})).toContain('a.md')
   })
 
-  it('reuses one DirectoryTreeBuilder across multiple consumers with the same (rootPath, options)', async () => {
-    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
-
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-
-    await registry.create(sender1, tmp, undefined)
-    await registry.create(sender2, tmp, undefined)
-
-    expect(spy).toHaveBeenCalledTimes(1)
-  })
-
-  it('dedupes truly concurrent creates via the inflight map (not just sequential reuse)', async () => {
-    // Sequential await skips the `inflight` map (the second call always
-    // finds an entry in `sharedBuilders` because the first finished). Two
-    // truly-parallel creates must hit the `pending` branch — otherwise a
-    // race could spawn two ripgrep scans + two chokidar watchers per root.
-    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
-
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-
-    const [created1, created2] = await Promise.all([
-      registry.create(sender1, tmp, undefined),
-      registry.create(sender2, tmp, undefined)
-    ])
-
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(created1.treeId).not.toBe(created2.treeId)
-  })
-
-  it('treats option objects with different key order or array order as the same key', async () => {
-    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
-
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-    const sender3 = makeSender(3)
-
-    // Same options, three different literal shapes. Without canonical key
-    // serialization the JSON.stringify outputs differ and dedupe fails.
-    await registry.create(sender1, tmp, { extensions: ['md', 'txt'], withStats: true })
-    await registry.create(sender2, tmp, { withStats: true, extensions: ['md', 'txt'] })
-    await registry.create(sender3, tmp, { extensions: ['txt', 'md'], withStats: true })
-
-    expect(spy).toHaveBeenCalledTimes(1)
-  })
-
-  it('fans watcher mutations out to every attached sender', async () => {
+  it('fans real watcher mutations out to every attached sender', async () => {
     const sender1 = makeSender(1)
     const sender2 = makeSender(2)
 
     const created1 = await registry.create(sender1, tmp, undefined)
     const created2 = await registry.create(sender2, tmp, undefined)
-    expect(registry.activateTree(created1.treeId, created1.revision)).toBe(true)
-    expect(registry.activateTree(created2.treeId, created2.revision)).toBe(true)
+    expect(registry.activateTree(created1.treeId, created1.revision, sender1.id)).toBe(true)
+    expect(registry.activateTree(created2.treeId, created2.revision, sender2.id)).toBe(true)
 
     await new Promise((resolve) => setTimeout(resolve, 100)) // let watcher settle
     await writeFile(path.join(tmp, 'fanout.md'), 'x')
@@ -206,142 +170,23 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager', () => {
     expect(added1?.event).toEqual(added2?.event)
   })
 
-  it('buffers mutations after the snapshot until the renderer activates the tree', async () => {
-    await writeFile(path.join(tmp, 'old.md'), 'x')
-    const sender = makeSender(1)
-    const created = await registry.create(sender, tmp, undefined)
-
-    registry.rename(created.treeId, path.join(tmp, 'old.md'), 'new.md')
-    expect(sender.sentMutations).toEqual([])
-
-    expect(registry.activateTree(created.treeId, created.revision + 1)).toBe(false)
-    expect(sender.sentMutations).toEqual([])
-
-    expect(registry.activateTree(created.treeId, created.revision)).toBe(true)
-    expect(sender.sentMutations).toEqual([
-      expect.objectContaining({
-        treeId: created.treeId,
-        revision: created.revision + 1,
-        event: expect.objectContaining({ type: 'renamed' })
-      })
-    ])
-  })
-
-  it('does not tear down the shared builder when one of two consumers disposes', async () => {
-    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
-
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-
-    const created1 = await registry.create(sender1, tmp, undefined)
-    await registry.create(sender2, tmp, undefined)
-    registry.dispose(created1.treeId)
-
-    // Builder must still exist; a third create with the same key reuses it.
-    const sender3 = makeSender(3)
-    await registry.create(sender3, tmp, undefined)
-    expect(spy).toHaveBeenCalledTimes(1)
-  })
-
-  it('reuses the still-warm builder when a dispose+create happens within the grace window', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
-
-    const sender = makeSender(1)
-    const created = await registry.create(sender, tmp, undefined)
-    registry.dispose(created.treeId)
-
-    // Re-acquire before the grace timer fires.
-    await vi.advanceTimersByTimeAsync(100)
-    await registry.create(sender, tmp, undefined)
-
-    // Still just one builder created end-to-end.
-    expect(spy).toHaveBeenCalledTimes(1)
-    vi.useRealTimers()
-  })
-
-  it('tears the shared builder down after the grace window elapses with no new consumers', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-
-    const sender = makeSender(1)
-    const created = await registry.create(sender, tmp, undefined)
-
-    const disposedSpy = vi.fn()
-    const consumer = (
-      registry as unknown as { consumers: Map<string, { builder: { dispose: typeof disposedSpy } }> }
-    ).consumers.get(created.treeId)
-    const builder = consumer!.builder
-    const realDispose = builder.dispose
-    builder.dispose = ((): void => {
-      disposedSpy()
-      realDispose.call(builder)
-    }) as typeof realDispose
-
-    registry.dispose(created.treeId)
-    expect(disposedSpy).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(600)
-    expect(disposedSpy).toHaveBeenCalledTimes(1)
-    vi.useRealTimers()
-  })
-
-  it('rename(treeId, …) dispatches to the shared builder and emits to all consumers', async () => {
+  it('applies an explicit rename to the real builder and emits it to every consumer', async () => {
     await writeFile(path.join(tmp, 'old.md'), 'x')
     const sender1 = makeSender(1)
     const sender2 = makeSender(2)
 
     const created1 = await registry.create(sender1, tmp, undefined)
     const created2 = await registry.create(sender2, tmp, undefined)
-    expect(registry.activateTree(created1.treeId, created1.revision)).toBe(true)
-    expect(registry.activateTree(created2.treeId, created2.revision)).toBe(true)
+    expect(registry.activateTree(created1.treeId, created1.revision, sender1.id)).toBe(true)
+    expect(registry.activateTree(created2.treeId, created2.revision, sender2.id)).toBe(true)
 
-    const applied = registry.rename(created1.treeId, path.join(tmp, 'old.md'), 'new.md')
-    expect(applied).toBe(true)
+    expect(registry.rename(created1.treeId, path.join(tmp, 'old.md'), 'new.md', sender1.id)).toBe(true)
 
     // Both consumers see the renamed mutation (shared builder fan-out).
     const renamed1 = sender1.sentMutations.find((p) => p.event.type === 'renamed')
     const renamed2 = sender2.sentMutations.find((p) => p.event.type === 'renamed')
-    expect(renamed1).toBeDefined()
-    expect(renamed2).toBeDefined()
     expect(renamed1?.treeId).toBe(created1.treeId)
     expect(renamed2?.treeId).toBe(created2.treeId)
-  })
-
-  it('rename(treeId, …) resolves the new name against the original parent directory', async () => {
-    const nested = path.join(tmp, 'nested')
-    await mkdir(nested)
-    await writeFile(path.join(nested, 'old.md'), 'x')
-    const sender = makeSender(1)
-
-    const created = await registry.create(sender, tmp, undefined)
-    expect(registry.activateTree(created.treeId, created.revision)).toBe(true)
-
-    // A name, not a path: the node cannot be re-parented, so the destination is
-    // always `dirname(oldPath)/newName` no matter what the caller passes.
-    expect(registry.rename(created.treeId, path.join(nested, 'old.md'), 'new.md')).toBe(true)
-
-    const renamed = sender.sentMutations.find((p) => p.event.type === 'renamed')
-    expect(renamed?.event).toMatchObject({
-      oldPath: `${nested.replace(/\\/g, '/')}/old.md`,
-      newPath: `${nested.replace(/\\/g, '/')}/new.md`,
-      basename: 'new.md'
-    })
-  })
-
-  it('rename(treeId, …) returns false when the treeId is unknown', () => {
-    const applied = registry.rename('does-not-exist', '/a/old', 'new')
-    expect(applied).toBe(false)
-  })
-
-  it('drops all trees and their builders when the owning webContents is destroyed', async () => {
-    const sender = makeSender(1)
-    await registry.create(sender, tmp, undefined)
-    await registry.create(sender, path.join(tmp), { extensions: ['.md'] })
-
-    sender.fireDestroyed()
-    // Both consumers were tracked under this webContentsId — disposal
-    // cascades through.
-    const internal = registry as unknown as { consumers: Map<string, unknown> }
-    expect(internal.consumers.size).toBe(0)
+    expect(renamed1?.event).toMatchObject({ newPath: `${tmp.replace(/\\/g, '/')}/new.md`, basename: 'new.md' })
   })
 })

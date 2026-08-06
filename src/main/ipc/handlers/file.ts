@@ -24,8 +24,12 @@ import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
  * A tree whose owner is not a managed window could never receive a push, so
  * `file.tree.create` refuses instead of leaking a watcher nobody reads.
  */
+function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
+  return senderId == null ? undefined : application.get('WindowManager').getWindow(senderId)?.webContents
+}
+
 function requireSenderWebContents(senderId: WindowId | null): Electron.WebContents {
-  const wc = senderId == null ? undefined : application.get('WindowManager').getWindow(senderId)?.webContents
+  const wc = senderWebContents(senderId)
   if (!wc) throw new Error('file.tree.create requires a managed window sender')
   return wc
 }
@@ -149,11 +153,18 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       throw error
     }
   },
-  'file.tree.activate': async ({ treeId, revision }) =>
-    application.get('DirectoryTreeManager').activateTree(treeId, revision),
-  'file.tree.dispose': async ({ treeId }) => {
-    application.get('DirectoryTreeManager').dispose(treeId)
+  // Follow-up operations carry the caller's identity: the manager refuses a treeId
+  // that belongs to another window, so ownership never rests on the id's secrecy.
+  'file.tree.activate': async ({ treeId, revision }, { senderId }) => {
+    const owner = senderWebContents(senderId)
+    return owner ? application.get('DirectoryTreeManager').activateTree(treeId, revision, owner.id) : false
   },
-  'file.tree.rename': async ({ treeId, oldPath, newName }) =>
-    application.get('DirectoryTreeManager').rename(treeId, oldPath, newName)
+  'file.tree.dispose': async ({ treeId }, { senderId }) => {
+    const owner = senderWebContents(senderId)
+    if (owner) application.get('DirectoryTreeManager').dispose(treeId, owner.id)
+  },
+  'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) => {
+    const owner = senderWebContents(senderId)
+    return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
+  }
 }
