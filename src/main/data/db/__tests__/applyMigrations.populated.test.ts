@@ -26,23 +26,28 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
  */
 
 /**
- * Build a migrations folder containing every entry *before* this branch's own
+ * Build a migrations folder containing every entry before one target
  * migration, so a test can stop at that baseline and migrate forward across it.
  * Drizzle drives ordering from `meta/_journal.json`, so trimming that (and
  * copying the matching `.sql` files) is enough — no snapshot needed at runtime.
  *
- * "All but the last" rather than a hand-written index: when an upstream migration
- * collides with this branch's, the rule is regenerate, never rename (CLAUDE.md),
- * which always lands this branch's migration back on the tip. Deriving the
- * baseline keeps the test pointed at it without a bump on every merge.
+ * The default target is the tip for a branch-local migration that may be
+ * regenerated after a merge. Tests for an older shipped migration name it
+ * explicitly; otherwise adding a later migration would silently stop testing
+ * the populated migrate-forward path that file exists to prove.
  */
-function baselineMigrationsFolder(into: string): string {
+function baselineMigrationsFolder(into: string, beforeTag?: string): string {
   const source = resolveMigrationsPath()
   const journal = JSON.parse(readFileSync(join(source, 'meta', '_journal.json'), 'utf8')) as {
     entries: Array<{ idx: number; tag: string }>
   }
 
-  const kept = journal.entries.slice(0, -1)
+  const targetIndex = beforeTag
+    ? journal.entries.findIndex((entry) => entry.tag === beforeTag)
+    : journal.entries.length - 1
+  if (targetIndex < 0) throw new Error(`Migration not found: ${beforeTag}`)
+
+  const kept = journal.entries.slice(0, targetIndex)
   mkdirSync(join(into, 'meta'), { recursive: true })
   writeFileSync(join(into, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: kept }))
   for (const entry of kept) {
@@ -106,7 +111,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
     seedBaselineRows()
 
     applyMigrations(db, resolveMigrationsPath())
@@ -144,7 +149,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('keeps the recreated table enforcing its constraints on new writes', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
     seedBaselineRows()
     applyMigrations(db, resolveMigrationsPath())
 
@@ -169,5 +174,95 @@ describe('applyMigrations over a populated database', () => {
         )
         .run('66666666-6666-7666-8666-666666666666', '/Users/me/LINKED.pdf', now, now)
     ).toThrow(/UNIQUE|constraint/i)
+  })
+
+  it('moves legacy sticky session pointers into the constrained relation', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-task-migrate', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-task-migrate', 'Workspace', '/tmp/task-migrate', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('session-task-migrate', 'agent-task-migrate', 'Session', 'workspace-task-migrate', 'a0', ?, ?)`
+      )
+      .run(now, now)
+
+    const legacyReuse = JSON.stringify({ reuse: { enabled: true, sessionId: 'session-task-migrate', revision: 3 } })
+    const template = JSON.stringify({ agentId: 'agent-task-migrate', prompt: 'test', timeoutMinutes: 0 })
+    const trigger = JSON.stringify({ kind: 'interval', ms: 60_000 })
+    const catchUpPolicy = JSON.stringify({ kind: 'skip-missed' })
+    for (const [id, name, updatedAt] of [
+      ['schedule-old', 'old', now],
+      ['schedule-new', 'new', now + 1]
+    ]) {
+      sqlite
+        .prepare(
+          `INSERT INTO job_schedule
+            (id, type, name, trigger, job_input_template, enabled, catch_up_policy, metadata, created_at, updated_at)
+           VALUES (?, 'agent.task', ?, ?, ?, 0, ?, ?, ?, ?)`
+        )
+        .run(id, name, trigger, template, catchUpPolicy, legacyReuse, now, updatedAt)
+    }
+
+    // JSON columns predate shape validation and can contain hand-edited or
+    // damaged text. One corrupt schedule must not brick the whole upgrade.
+    sqlite
+      .prepare(
+        `INSERT INTO job_schedule
+          (id, type, name, trigger, job_input_template, enabled, catch_up_policy, metadata, created_at, updated_at)
+         VALUES ('schedule-bad-template', 'agent.task', 'bad-template', ?, '{broken', 0, ?, ?, ?, ?)`
+      )
+      .run(trigger, catchUpPolicy, legacyReuse, now, now + 2)
+    sqlite
+      .prepare(
+        `INSERT INTO job_schedule
+          (id, type, name, trigger, job_input_template, enabled, catch_up_policy, metadata, created_at, updated_at)
+         VALUES ('schedule-bad-metadata', 'agent.task', 'bad-metadata', ?, ?, 0, ?, '{broken', ?, ?)`
+      )
+      .run(trigger, template, catchUpPolicy, now, now + 3)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
+    ).toEqual({
+      task_schedule_id: 'schedule-new'
+    })
+    const metadata = sqlite
+      .prepare(`SELECT id, metadata FROM job_schedule WHERE id IN ('schedule-old', 'schedule-new') ORDER BY id`)
+      .all() as Array<{ id: string; metadata: string }>
+    expect(metadata.map((row) => JSON.parse(row.metadata))).toEqual([
+      { reuse: { enabled: true, revision: 3 } },
+      { reuse: { enabled: true, revision: 3 } }
+    ])
+
+    // One session cannot serve two schedules after migration, and schedule
+    // deletion clears the internal pointer rather than retaining stale state.
+    expect(() =>
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session (id, agent_id, name, workspace_id, task_schedule_id, order_key, created_at, updated_at)
+           VALUES ('session-duplicate-binding', 'agent-task-migrate', 'Duplicate', 'workspace-task-migrate', 'schedule-new', 'a1', ?, ?)`
+        )
+        .run(now, now)
+    ).toThrow(/UNIQUE|constraint/i)
+    sqlite.prepare(`DELETE FROM job_schedule WHERE id = 'schedule-new'`).run()
+    expect(
+      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
+    ).toEqual({
+      task_schedule_id: null
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })

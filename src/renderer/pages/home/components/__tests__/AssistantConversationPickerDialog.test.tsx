@@ -27,9 +27,12 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
     return (
       <div data-testid="picker" data-open={String(props.open)}>
         {props.toolbar}
-        <span data-testid="create-action-icon">{props.createAction?.icon}</span>
-        <button type="button" onClick={() => props.createAction?.onSelect()}>
+        <span data-testid="create-action-icon">{props.createAction?.row('').icon}</span>
+        <button type="button" onClick={() => props.createAction?.onSelect('')}>
           create-new
+        </button>
+        <button type="button" onClick={() => props.createAction?.onSelect('测试助手')}>
+          create-new-from-query
         </button>
       </div>
     )
@@ -37,6 +40,7 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  getResourceCreateDefaultAvatar: () => '💬',
   ResourceCreateWizard: (props: any) => {
     mocks.createDialogProps = props
     return (
@@ -61,10 +65,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
-  isSelectableAssistantModel: () => true
-}))
-
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAssistant, isLoading: false })
 }))
@@ -73,7 +73,11 @@ vi.mock('@renderer/hooks/useAssistantCatalogPresets', () => ({
   useAssistantCatalogPresets: () => ({ presets: [{ id: 'preset-1', name: 'Preset One' }], isLoading: false })
 }))
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
 
 import { AssistantConversationPickerDialog } from '../AssistantConversationPickerDialog'
 
@@ -103,7 +107,7 @@ describe('AssistantConversationPickerDialog', () => {
 
     render(<AssistantConversationPickerDialog open onOpenChange={onOpenChange} assistants={[]} onSelect={vi.fn()} />)
 
-    expect(mocks.pickerProps.createAction.label).toBe('selector.assistant.create_new')
+    expect(mocks.pickerProps.createAction.row('').title).toBe('selector.assistant.create_new')
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByText('create-new'))
@@ -111,6 +115,22 @@ describe('AssistantConversationPickerDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-kind', 'assistant')
+    expect(mocks.createDialogProps.initialName).toBe('')
+  })
+
+  it('names the create row after the search query and seeds it into the create dialog', () => {
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={vi.fn()} />)
+
+    // The row that used to disappear while searching now previews the assistant it would create.
+    const namedRow = mocks.pickerProps.createAction.row('测试助手')
+    expect(namedRow.title).toBe('测试助手')
+    expect(namedRow.tag).toBe('selector.assistant.create_tag')
+    expect(namedRow.icon).toBeTruthy()
+
+    fireEvent.click(screen.getByText('create-new-from-query'))
+
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+    expect(mocks.createDialogProps.initialName).toBe('测试助手')
   })
 
   it('creates the assistant and starts a conversation with it on submit', async () => {

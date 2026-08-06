@@ -1,10 +1,4 @@
-import type { MessageMenuBarScope } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import {
-  DEFAULT_MESSAGE_MENUBAR_SCOPE,
-  getMessageMenuBarConfig
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import type { Topic } from '@renderer/types/topic'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
@@ -34,7 +28,6 @@ import MessageTokens from './MessageTokens'
 
 interface Props {
   message: MessageListItem
-  topic: Topic
   isGrouped?: boolean
   isLastMessage: boolean
   forceVisible?: boolean
@@ -55,7 +48,6 @@ const MessageMenuBar: FC<Props> = (props) => {
     forceVisible = false,
     isAssistantMessage,
     isProcessing,
-    topic,
     messageContainerRef,
     onStartEditing,
     onMenuOpenChange,
@@ -81,10 +73,6 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
-  const menubarScope: MessageMenuBarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
-  const { buttonIds } = getMessageMenuBarConfig(menubarScope)
-  const toolbarButtonIds = useMemo(() => new Set(buttonIds), [buttonIds])
-
   const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
@@ -103,7 +91,6 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageForExport,
       messageContainerRef,
       mainTextContent,
-      toolbarButtonIds,
       selection,
       menuConfig,
       copied,
@@ -118,6 +105,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isSelectedForContext,
       isEditable,
       translateLanguages,
+      translationLanguagesStatus: messageUi.translationLanguagesStatus,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
       startEditingMessage: onStartEditing,
       onSelectContext,
@@ -140,6 +128,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       message,
       messageContainerRef,
       messageUi.getTranslationLanguageLabel,
+      messageUi.translationLanguagesStatus,
       messageForExport,
       messageParts,
       onStartEditing,
@@ -147,8 +136,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       selection,
       setCopied,
       t,
-      translateLanguages,
-      toolbarButtonIds
+      translateLanguages
     ]
   )
 
@@ -166,6 +154,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   return (
     <>
       <div
+        data-ui="part:message-actions"
         className={classNames(
           'menubar flex flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',

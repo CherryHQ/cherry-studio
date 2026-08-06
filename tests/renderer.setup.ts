@@ -546,8 +546,8 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, size, ...props }) =>
+      React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -556,6 +556,36 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Item: ({ asChild, children, className, size, variant, ...props }) => {
+      const itemProps = {
+        ...props,
+        className,
+        'data-size': size,
+        'data-slot': 'item',
+        'data-variant': variant
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...itemProps,
+          ...childProps,
+          className: [className, childProps.className].filter(Boolean).join(' ') || undefined
+        })
+      }
+      return React.createElement('div', itemProps, children)
+    },
+    ItemActions: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-actions' }, children),
+    ItemContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-content' }, children),
+    ItemDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-slot': 'item-description' }, children),
+    ItemGroup: ({ children, ...props }) =>
+      React.createElement('div', { ...props, role: 'list', 'data-slot': 'item-group' }, children),
+    ItemMedia: ({ children, variant, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-media', 'data-variant': variant }, children),
+    ItemTitle: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-title' }, children),
     // Passthrough unless real react-hook-form methods are supplied, in which case the
     // provider is needed so FormField/FormMessage can read field state.
     Form: (props) => {

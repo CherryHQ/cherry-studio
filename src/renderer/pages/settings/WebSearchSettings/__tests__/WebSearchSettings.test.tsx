@@ -116,6 +116,22 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </button>
     ),
     SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> & {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onCheckedChange?.(!checked)}
+        {...props}
+      />
+    ),
     Textarea: {
       Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
     },
@@ -137,6 +153,7 @@ describe('WebSearchSettings', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     ipcRequestMock.mockResolvedValue({ results: [] })
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'fetch')
@@ -217,6 +234,23 @@ describe('WebSearchSettings', () => {
     expect(searchResultTitle).toBeVisible()
     expect(compressionControl).toBeVisible()
     expect(blacklistTitle).toBeVisible()
+  })
+
+  // The preference governs every capability section, so it lives in its own group rather than under
+  // one section's advanced settings — no accordion interaction needed to reach it.
+  it('defaults to client web-tool priority and persists switch changes', async () => {
+    render(<WebSearchSettings />)
+
+    const prioritySwitch = screen.getByRole('switch', {
+      name: 'settings.tool.websearch.client_tools_preferred.label'
+    })
+    expect(prioritySwitch).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(prioritySwitch)
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.client_tools_preferred')).toBe(false)
+    })
   })
 
   it('syncs clean max-result drafts from external preference changes', () => {

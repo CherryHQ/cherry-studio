@@ -279,6 +279,16 @@
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "The file panel requires a valid absolute local path. Please select the work directory again.",
+          "title": "Invalid workspace path"
+        },
+        "load_error": {
+          "description": "Make sure the work directory still exists and is accessible, then try again.",
+          "title": "Couldn't load workspace files"
+        }
+      },
       "unavailable": {
         "description": "This file couldn't be opened — it may have been moved or deleted.",
         "title": "File unavailable"
@@ -758,6 +768,13 @@
         "placeholder": "What should the agent do when this task runs?"
       },
       "resume": "Resume",
+      "reuseSession": {
+        "bound": "View session",
+        "description": "Continue every run in the same session instead of starting a new one.",
+        "label": "Reuse session",
+        "pending": "Waiting for the first run",
+        "warning": "A reused session keeps accumulating context, which raises token cost over time and can overflow the model's context window. To rebind a clean session, disable and save, then enable and save."
+      },
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
@@ -1350,6 +1367,9 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "error": {
+      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again."
+    },
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -1416,6 +1436,11 @@
         "placeholder": "Search"
       }
     },
+    "compaction": {
+      "compacted": "Context compacted, ~{{count}} tokens saved",
+      "compacted_plain": "Context compacted",
+      "compacting": "Compacting context…"
+    },
     "conversation": {
       "new": "New Chat"
     },
@@ -1481,6 +1506,13 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Conversation {{Command}}",
+      "note_reference": {
+        "description": "Attach a note from Notes",
+        "empty": "No notes found",
+        "load_failed": "Failed to load notes",
+        "loading": "Loading notes...",
+        "title": "Reference Note"
+      },
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
@@ -1595,7 +1627,6 @@
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
-      "url_context": "URL Context",
       "web_search": {
         "builtin": {
           "disabled_content": "The current model does not support web search",
@@ -1612,13 +1643,16 @@
           "description": "Do not enable web search",
           "label": "Disable Web Search"
         },
+        "route": {
+          "builtin": "Searches with the model's built-in tool",
+          "client": "Searches with {{provider}}"
+        },
         "settings": "Web Search Settings"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
-        "url_context": "Gemini does not support using url context and function calling simultaneously"
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously"
       }
     },
     "message": {
@@ -1902,7 +1936,7 @@
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
-          "label": "Export as markdown",
+          "label": "Export as Markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notes": "Export to Notes",
@@ -2485,6 +2519,7 @@
       "content": "Content blocked by safety system, please modify and retry",
       "context_length": "Conversation too long, please clear history or start a new chat",
       "deprecated": "This model has been retired, please switch to another model",
+      "free_model_unavailable": "AI diagnosis is temporarily unavailable",
       "go_to_settings": "Go to Settings",
       "knowledge": "Knowledge base vectorization failed",
       "mcp": "MCP server connection failed, check if service is running",
@@ -3167,6 +3202,7 @@
         "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
       "processor": "Processing Provider",
+      "processor_not_configured": "Not configured",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -3417,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-compress",
+        "context_compress_model": "Compression model",
+        "context_compress_model_follow": "Default",
         "context_count": "Context count",
+        "context_management": "Context management",
+        "context_truncate_threshold": "Tool-output truncation threshold (chars)",
         "creative": "Creative",
         "custom_params": "Custom parameters",
         "custom_params_add": "Add parameter",
@@ -3429,8 +3470,17 @@
           "avatar": {
             "hint": "Used to identify the assistant in the library and chats"
           },
+          "context_compress_enabled": {
+            "hint": "Summarize older turns automatically when nearing the context window"
+          },
           "context_count": {
             "hint": "Number of recent messages kept as context"
+          },
+          "context_management": {
+            "hint": "Override global context-management settings for this assistant; off inherits the global settings"
+          },
+          "context_truncate_threshold": {
+            "hint": "Tool outputs beyond this many characters are offloaded and truncated"
           },
           "custom_params": {
             "hint": "Extra provider parameters sent with requests"
@@ -3845,6 +3895,7 @@
       "pasted_text": "Pasted Text"
     },
     "backup": {
+      "cleanup_failed": "Backup completed, but old backups could not be cleaned up.",
       "failed": "Backup failed",
       "start": {
         "success": "Backup started"
@@ -4274,6 +4325,7 @@
       "cutoff": "Truncating search content...",
       "fetch_complete": "{{count}} search result(s)",
       "fetch_empty": "No search results found",
+      "fetch_opaque": "Searched by the model",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
@@ -5203,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Local Models",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5731,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "New Assistant",
+      "create_tag": "New",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
       "group_filter": "Filter by group",
@@ -5785,7 +5838,25 @@
         "title": "Enterprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Chat with Cherry Assistant to share feedback.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Unable to open Cherry Assistant for feedback. Please try again.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Choose how to share feedback and help us make Cherry Studio better.",
+          "title": "Choose a feedback channel"
+        },
+        "github": {
+          "description": "Create a bug report or feature request on GitHub.",
+          "title": "GitHub Issue"
+        },
+        "recommended": "Recommended",
+        "survey": {
+          "description": "Share feedback through our Feishu survey.",
+          "title": "Feedback survey"
+        },
         "title": "Feedback"
       },
       "label": "About & Feedback",
@@ -5900,12 +5971,16 @@
         "third_party": "Third-party Connections"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Third-party Apps",
+          "copy": "Copy",
+          "file": "File Export"
+        },
         "docx": "Export as Word",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -6118,6 +6193,7 @@
         },
         "pathSelector": {
           "currentPath": "Current Path",
+          "fetchError": "Failed to load the Nutstore folder list",
           "return": "Return",
           "title": "Nutstore Storage Path"
         },
@@ -6782,6 +6858,7 @@
         "allStatuses": "All statuses",
         "allTypes": "All types",
         "builtinOnly": "Built-in only",
+        "label": "Filter",
         "status": "Filter by status",
         "type": "Filter by type"
       },
@@ -6848,6 +6925,9 @@
         "loadError": "Get prompts Error",
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
+      },
+      "protocolInstall": {
+        "title": "Install MCP"
       },
       "protocolInstallWarning": {
         "command": "Startup command",
@@ -7195,7 +7275,9 @@
       "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
-        "label": "Filter models"
+        "label": "Filter models",
+        "scroll_left": "Scroll model types left",
+        "scroll_right": "Scroll model types right"
       },
       "group_disable": "Disable this group",
       "group_enable": "Enable this group",
@@ -7306,6 +7388,7 @@
       "topic_naming": {
         "auto": "Conversation Auto Naming",
         "label": "Conversation naming",
+        "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
@@ -8068,6 +8151,10 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
+        "client_tools_preferred": {
+          "description": "Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+          "label": "Prefer configured search services"
+        },
         "compression": {
           "cutoff": {
             "limit": {

@@ -279,6 +279,16 @@
         "description": "Fișierul depășește limita de previzualizare de {{limit}}.",
         "title": "Fișier prea mare pentru previzualizare"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Panoul de fișiere necesită o cale locală absolută validă. Vă rugăm să selectați din nou directorul de lucru.",
+          "title": "Calea spațiului de lucru este invalidă"
+        },
+        "load_error": {
+          "description": "Asigurați-vă că directorul de lucru încă există și este accesibil, apoi încercați din nou.",
+          "title": "Nu s-au putut încărca fișierele spațiului de lucru"
+        }
+      },
       "unavailable": {
         "description": "Acest fișier nu a putut fi deschis — este posibil să fi fost mutat sau șters.",
         "title": "Fișier indisponibil"
@@ -758,6 +768,13 @@
         "placeholder": "Ce ar trebui să facă agentul când rulează această sarcină?"
       },
       "resume": "Reia",
+      "reuseSession": {
+        "bound": "Vizualizare sesiune",
+        "description": "Continuă fiecare rulare în aceeași sesiune în loc să începi una nouă.",
+        "label": "Reutilizare sesiune",
+        "pending": "Așteptând prima rulare",
+        "warning": "O sesiune reutilizată continuă să acumuleze context, ceea ce crește costul tokenilor în timp și poate depăși fereastra de context a modelului. Pentru a reatașa o sesiune curată, dezactivați și salvați, apoi activați și salvați."
+      },
       "run": "Rulează",
       "runTriggered": "Sarcină declanșată",
       "save": "Salvează",
@@ -1350,6 +1367,9 @@
       "label": "Ești sigur că vrei să faci backup la date?"
     },
     "content": "Se face backup la toate datele, inclusiv istoricul chat-ului, setările și baza de cunoștințe. Te rugăm să reții că procesul de backup poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "error": {
+      "active_data_writers": "O conversație sau un agent este încă în execuție. Așteptați să se termine, apoi încercați din nou."
+    },
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
@@ -1416,6 +1436,11 @@
         "placeholder": "Caută"
       }
     },
+    "compaction": {
+      "compacted": "Context compactat, ~{{count}} tokeni economisiți",
+      "compacted_plain": "Context compactat",
+      "compacting": "Compactarea contextului…"
+    },
     "conversation": {
       "new": "Chat nou"
     },
@@ -1481,6 +1506,13 @@
       },
       "new_session": "Sesiune nouă {{Command}}",
       "new_topic": "Subiect nou {{Command}}",
+      "note_reference": {
+        "description": "Atașați o notă din Notes",
+        "empty": "Nicio notă găsită",
+        "load_failed": "Nu s-au putut încărca notițele",
+        "loading": "Se încarcă notițele...",
+        "title": "Notă de referință"
+      },
       "paste_text_file": "Lipește în intrare",
       "pasted_text_file_name": "text.txt lipit",
       "pause": "Pauză",
@@ -1595,7 +1627,6 @@
         "image_or_document": "Încarcă imagine sau fișier document",
         "upload_from_local": "Încarcă fișier local..."
       },
-      "url_context": "Context URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Modelul curent nu acceptă căutarea web",
@@ -1612,13 +1643,16 @@
           "description": "Nu activa căutarea web",
           "label": "Dezactivează căutarea web"
         },
+        "route": {
+          "builtin": "Căutări cu instrumentul încorporat al modelului",
+          "client": "Căutări cu {{provider}}"
+        },
         "settings": "Setări căutare web"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
-        "url_context": "Gemini nu acceptă utilizarea simultană a contextului URL și a apelării funcțiilor"
+        "gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor"
       }
     },
     "message": {
@@ -1695,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Salt la tura {{number}}"
+      },
       "bottom": "Înapoi jos",
       "close": "Închide",
       "first": "Deja la primul mesaj",
@@ -2482,6 +2519,7 @@
       "content": "Conținut blocat de sistemul de securitate, modificați și reîncercați",
       "context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
       "deprecated": "Acest model a fost retras, te rugăm să treci la alt model",
+      "free_model_unavailable": "Diagnosticul AI este temporar indisponibil",
       "go_to_settings": "Mergi la setări",
       "knowledge": "Vectorizarea bazei de cunoștințe a eșuat",
       "mcp": "Conexiunea la serverul MCP a eșuat, verificați dacă serviciul rulează",
@@ -3164,6 +3202,7 @@
         "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă."
       },
       "processor": "Furnizor de procesare",
+      "processor_not_configured": "Necunfigurat",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -3414,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Comprimare automată",
+        "context_compress_model": "Model de compresie",
+        "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
+        "context_management": "Gestionarea contextului",
+        "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
         "custom_params": "Parametri personalizați",
         "custom_params_add": "Adaugă parametru",
@@ -3426,8 +3470,17 @@
           "avatar": {
             "hint": "Folosit pentru a identifica asistentul în bibliotecă și în conversații"
           },
+          "context_compress_enabled": {
+            "hint": "Rezuma automat conversațiile mai vechi când te apropii de limita contextului"
+          },
           "context_count": {
             "hint": "Numărul de mesaje recente păstrate ca context"
+          },
+          "context_management": {
+            "hint": "Suprascrie setările globale de gestionare a contextului pentru acest asistent; dezactivat moștenește setările globale"
+          },
+          "context_truncate_threshold": {
+            "hint": "Ieșirile instrumentelor care depășesc acest număr de caractere sunt descărcate și trunchiate"
           },
           "custom_params": {
             "hint": "Parametri suplimentari ai furnizorului trimiși împreună cu cererile"
@@ -3842,6 +3895,7 @@
       "pasted_text": "Text lipit"
     },
     "backup": {
+      "cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",
       "failed": "Backup eșuat",
       "start": {
         "success": "Backup început"
@@ -4271,6 +4325,7 @@
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
       "fetch_empty": "Nu au fost găsite rezultate de căutare",
+      "fetch_opaque": "Căutat de model",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
@@ -5143,6 +5198,7 @@
     "reset": "Resetează",
     "rotate_left": "Rotire la stânga",
     "rotate_right": "Rotire la dreapta",
+    "save_as": "Salvare ca",
     "source": "Vezi codul sursă",
     "zoom_in": "Mărește",
     "zoom_out": "Micșorează"
@@ -5199,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modele locale",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5727,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Asistent Nou",
+      "create_tag": "Nou",
       "empty_text": "Niciun asistent încă",
       "filter": "Asistenți de filtrare",
       "group_filter": "Filtrează după grup",
@@ -5781,7 +5838,25 @@
         "title": "Enterprise"
       },
       "feedback": {
+        "agent": {
+          "description": "Discută cu Asistentul Cherry pentru a împărtăși feedback-ul tău.",
+          "title": "Utilizați Agentul"
+        },
+        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Vă rugăm să încercați din nou.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
+          "title": "Alege un canal de feedback"
+        },
+        "github": {
+          "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "title": "Problemă GitHub"
+        },
+        "recommended": "Recomandat",
+        "survey": {
+          "description": "Împărtășiți feedback-ul prin sondajul nostru Feishu.",
+          "title": "Sondaj de feedback"
+        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",
@@ -6114,6 +6189,7 @@
         },
         "pathSelector": {
           "currentPath": "Cale curentă",
+          "fetchError": "Nu s-a putut încărca lista de foldere Nutstore",
           "return": "Înapoi",
           "title": "Cale stocare Nutstore"
         },
@@ -6778,6 +6854,7 @@
         "allStatuses": "Toate statusurile",
         "allTypes": "Toate tipurile",
         "builtinOnly": "Doar încorporat",
+        "label": "Filtru",
         "status": "Filtrare după stare",
         "type": "Filtrare după tip"
       },
@@ -6844,6 +6921,9 @@
         "loadError": "Eroare obținere prompturi",
         "noPromptsAvailable": "Nu există prompturi disponibile",
         "requiredField": "Câmp obligatoriu"
+      },
+      "protocolInstall": {
+        "title": "Instalează MCP"
       },
       "protocolInstallWarning": {
         "command": "Comandă pornire",
@@ -7302,6 +7382,7 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
+        "model": "Model de denumire",
         "prompt": "Prompt numire subiect"
       },
       "translate_model": "Model traducere",
@@ -8064,6 +8145,10 @@
         "check": "Verifică",
         "check_failed": "Verificare eșuată",
         "check_success": "Verificare reușită",
+        "client_tools_preferred": {
+          "description": "Utilizați serviciile de căutare și preluare URL configurate mai sus chiar și atunci când modelul are căutare încorporată. Când este dezactivat, modelul se ocupă de acest lucru.",
+          "label": "Preferă serviciile de căutare configurate"
+        },
         "compression": {
           "cutoff": {
             "limit": {

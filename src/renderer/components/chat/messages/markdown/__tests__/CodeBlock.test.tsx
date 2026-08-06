@@ -5,15 +5,16 @@ import CodeBlock from '../CodeBlock'
 
 // Hoisted mocks
 const mocks = vi.hoisted(() => {
+  const navigateToRoute = vi.fn()
   const saveCodeBlock = vi.fn()
 
   return {
+    navigateToRoute,
     saveCodeBlock,
-    messageListActions: { saveCodeBlock } as any,
+    messageListActions: { navigateToRoute, saveCodeBlock } as any,
     getCodeBlockId: vi.fn(),
     isCodeFenceIncomplete: false,
     renderConfig: { codeFancyBlock: true },
-    messageListUi: { readonly: false },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
       <div>
@@ -46,11 +47,11 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mocks.renderConfig,
-  useOptionalMessageListActions: () => mocks.messageListActions,
-  useOptionalMessageListUi: () => mocks.messageListUi
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
   get isWin() {
     return mocks.isWin
   }
@@ -98,8 +99,7 @@ describe('CodeBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isWin = false
-    mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
-    mocks.messageListUi = { readonly: false }
+    mocks.messageListActions = { navigateToRoute: mocks.navigateToRoute, saveCodeBlock: mocks.saveCodeBlock }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isCodeFenceIncomplete = false
@@ -138,6 +138,51 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
       expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
     })
+
+    it('should render known app routes as navigation entries instead of file paths', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="/app/chat" />)
+
+      expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button'))
+      expect(mocks.navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: undefined })
+    })
+
+    it('should keep unknown app-like paths as file paths', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="/app/not-a-route" />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+    })
+
+    it.each(['/settings/skills', '/settings/channels'])(
+      'should render known settings route %s as a navigation entry',
+      (path) => {
+        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+
+        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button'))
+        expect(mocks.navigateToRoute).toHaveBeenCalledWith({ path, query: undefined })
+      }
+    )
+
+    it.each([
+      '/app/mini-app/example',
+      '/app/paintings/example',
+      '/settings/mcp/example/details',
+      '/settings/scheduled-tasks/task-1'
+    ])('should render declared dynamic route %s as a navigation entry', (path) => {
+      render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+
+      expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+    })
+
+    it.each(['/app/chat/not-a-route', '/app/mini-app/example/details', '/settings/provider/not-a-route'])(
+      'should keep undeclared descendant %s as a file path',
+      (path) => {
+        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+
+        expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      }
+    )
 
     it('should render ClickableFilePath for workspace-relative file paths', () => {
       render(<CodeBlock {...defaultProps} className={undefined} children="src/renderer/src/index.tsx" />)
@@ -207,19 +252,6 @@ describe('CodeBlock', () => {
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
     })
 
-    it('should pass editable=false for standard code blocks in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
-
-      render(<CodeBlock {...defaultProps} />)
-
-      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          editable: false
-        }),
-        undefined
-      )
-    })
-
     it('should pass editable=false for standard code blocks when saving is unavailable', () => {
       mocks.messageListActions = {}
 
@@ -259,8 +291,8 @@ describe('CodeBlock', () => {
       )
     })
 
-    it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
-      mocks.messageListUi = { readonly: true }
+    it('should pass editable=false for HTML artifacts when saving is unavailable', () => {
+      mocks.messageListActions = {}
       const htmlProps = {
         ...defaultProps,
         className: 'language-html',

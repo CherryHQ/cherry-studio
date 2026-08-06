@@ -38,7 +38,7 @@ import {
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 // Runtime vector store + material layout — source of truth:
-// src/main/features/knowledge/utils/storage/pathStorage.ts
+// src/main/features/knowledge/pathStorage.ts
 // (CHERRY_META_DIR / VECTOR_STORE_FILE / MATERIAL_ROOT_DIR). Runtime opens
 // {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id, and resolves
 // every material's bytes at {knowledgeBaseDir}/{baseId}/raw/{relativePath}, so the migrator must
@@ -1101,7 +1101,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
           for (const material of materials) {
-            await store.rebuildMaterial(material.itemId, material.input)
+            store.rebuildMaterial(material.itemId, material.input)
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()
@@ -1114,7 +1114,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         } finally {
           // Close so the file handle is released (a leaked handle would block a re-run's
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
-          await store.close()
+          store.close()
         }
         // Build + close succeeded: the complete store sits at its runtime path. A later failure
         // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
@@ -1305,7 +1305,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
         } finally {
-          await store.close()
+          store.close()
         }
       }
 

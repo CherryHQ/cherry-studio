@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useState } from 'react'
@@ -23,17 +24,18 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
-vi.mock('../KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
-  KnowledgeModelSelect: ({
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     onSettingsNavigate,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     onSettingsNavigate?: (navigate: () => void) => void
     'aria-label'?: string
@@ -47,6 +49,11 @@ vi.mock('../KnowledgeModelSelect', () => ({
       <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
         open model settings
       </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </>
   )
 }))
@@ -137,11 +144,10 @@ vi.mock('react-i18next', () => ({
           'knowledge.embedding_model': '嵌入模型',
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
-          'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'knowledge.name_required': '知识库名称为必填项',
-          'knowledge.not_set': '未设置',
+          'knowledge.rag.rerank_disabled': '不使用',
           'knowledge.restore.default_name': `${options?.name}_副本`,
           'knowledge.restore.skipped_missing_sources': `已跳过 ${options?.count} 个源已丢失的项目`,
           'knowledge.restore.failed_to_restore': '知识库重建失败',
@@ -266,7 +272,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
   })
 
-  it('does not submit when required fields are missing', async () => {
+  it('does not submit when the name is missing', async () => {
     const restoreBase = vi.fn().mockResolvedValue({ base: createKnowledgeBase(), skippedMissingSourceCount: 0 })
 
     render(
@@ -286,18 +292,78 @@ describe('RestoreKnowledgeBaseDialog', () => {
     await waitFor(() => expect(restoreBase).not.toHaveBeenCalled())
     expect(mockEmbedMany).not.toHaveBeenCalled()
     expect(screen.getByText('知识库名称为必填项')).toBeInTheDocument()
+  })
 
-    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Legacy KB_副本' } })
+  it('restores a BM25-only base after selecting disabled without probing dimensions', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      status: 'completed',
+      error: null,
+      embeddingModelId: null,
+      dimensions: null
+    })
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'completed', error: null })}
+        initialEmbeddingModelId="openai::text-embedding-3-small"
+        isRestoring={false}
+        restoreBase={restoreBase}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '不使用' }))
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
-    await waitFor(() => expect(restoreBase).not.toHaveBeenCalled())
+    await waitFor(() =>
+      expect(restoreBase).toHaveBeenCalledWith({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB_副本',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    )
     expect(mockEmbedMany).not.toHaveBeenCalled()
-    expect(screen.getByText('知识库嵌入模型是必需的')).toBeInTheDocument()
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
+  })
 
-    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+  it('restores with the local embedding model using its fixed dimensions', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      status: 'completed',
+      error: null,
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      dimensions: LOCAL_EMBEDDING_DIMENSIONS
+    })
+    const restoreBase = vi.fn().mockResolvedValue({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase()}
+        isRestoring={false}
+        restoreBase={restoreBase}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: LOCAL_EMBEDDING_UNIQUE_MODEL_ID } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
-    await waitFor(() => expect(restoreBase).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(restoreBase).toHaveBeenCalledWith({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB_副本',
+        embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+        dimensions: LOCAL_EMBEDDING_DIMENSIONS
+      })
+    )
+    expect(mockEmbedMany).not.toHaveBeenCalled()
   })
 
   it('probes dimensions when the RAG config panel supplies a new embedding model without dimensions', async () => {

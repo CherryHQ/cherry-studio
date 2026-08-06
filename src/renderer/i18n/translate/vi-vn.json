@@ -279,6 +279,16 @@
         "description": "Tệp vượt quá giới hạn xem trước {{limit}}.",
         "title": "Tệp quá lớn để xem trước"
       },
+      "tree_error": {
+        "invalid_path": {
+          "description": "Bảng tệp yêu cầu một đường dẫn tuyệt đối hợp lệ trên máy cục bộ. Vui lòng chọn lại thư mục làm việc.",
+          "title": "Đường dẫn không gian làm việc không hợp lệ"
+        },
+        "load_error": {
+          "description": "Hãy đảm bảo thư mục làm việc vẫn tồn tại và có thể truy cập được, sau đó thử lại.",
+          "title": "Không thể tải các tệp không gian làm việc"
+        }
+      },
       "unavailable": {
         "description": "Không thể mở tệp này — có thể tệp đã bị di chuyển hoặc xóa.",
         "title": "Tệp không khả dụng"
@@ -758,6 +768,13 @@
         "placeholder": "Đại lý nên làm gì khi nhiệm vụ này chạy?"
       },
       "resume": "Sơ yếu lý lịch",
+      "reuseSession": {
+        "bound": "Xem phiên",
+        "description": "Tiếp tục mỗi lần chạy trong cùng một phiên thay vì bắt đầu một phiên mới.",
+        "label": "Tái sử dụng phiên",
+        "pending": "Đang chờ lần chạy đầu tiên",
+        "warning": "Một phiên được tái sử dụng liên tục tích lũy ngữ cảnh, điều này làm tăng chi phí token theo thời gian và có thể tràn cửa sổ ngữ cảnh của mô hình. Để gắn lại một phiên sạch, hãy tắt và lưu, sau đó bật và lưu."
+      },
       "run": "Chạy",
       "runTriggered": "Nhiệm vụ được kích hoạt",
       "save": "Lưu",
@@ -1350,6 +1367,9 @@
       "label": "Bạn có chắc chắn muốn sao lưu dữ liệu không?"
     },
     "content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
+    "error": {
+      "active_data_writers": "Một cuộc trò chuyện hoặc tác nhân vẫn đang chạy. Hãy đợi nó hoàn thành, sau đó thử lại."
+    },
     "progress": {
       "completed": "Sao lưu đã hoàn tất",
       "compressing": "Compressando arquivos...",
@@ -1416,6 +1436,11 @@
         "placeholder": "Tìm kiếm"
       }
     },
+    "compaction": {
+      "compacted": "Ngữ cảnh được nén, ~{{count}} token đã được tiết kiệm",
+      "compacted_plain": "Ngữ cảnh được nén lại",
+      "compacting": "Đang nén ngữ cảnh…"
+    },
     "conversation": {
       "new": "Cuộc trò chuyện mới"
     },
@@ -1481,6 +1506,13 @@
       },
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
+      "note_reference": {
+        "description": "Đính kèm một ghi chú từ Notes",
+        "empty": "Không tìm thấy ghi chú nào",
+        "load_failed": "Không thể tải ghi chú",
+        "loading": "Đang tải ghi chú...",
+        "title": "Ghi chú tham khảo"
+      },
       "paste_text_file": "Dán vào ô nhập",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Tạm dừng",
@@ -1595,7 +1627,6 @@
         "image_or_document": "Tải lên tệp hình ảnh hoặc tài liệu",
         "upload_from_local": "Tải tệp tin cục bộ..."
       },
-      "url_context": "Bối cảnh URL",
       "web_search": {
         "builtin": {
           "disabled_content": "Mô hình hiện tại không hỗ trợ tìm kiếm web",
@@ -1612,13 +1643,16 @@
           "description": "Không bật tìm kiếm web",
           "label": "Tắt tìm kiếm web"
         },
+        "route": {
+          "builtin": "Tìm kiếm bằng công cụ tích hợp sẵn của mô hình",
+          "client": "Tìm kiếm với {{provider}}"
+        },
         "settings": "Cài đặt Tìm kiếm Web"
       }
     },
     "mcp": {
       "warning": {
-        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
-        "url_context": "Gemini không hỗ trợ sử dụng ngữ cảnh url và gọi hàm đồng thời"
+        "gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm"
       }
     },
     "message": {
@@ -1695,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Nhảy đến lượt {{number}}"
+      },
       "bottom": "Quay lại đầu trang",
       "close": "Đóng",
       "first": "Đã ngay từ tin nhắn đầu tiên",
@@ -2482,6 +2519,7 @@
       "content": "Nội dung bị chặn bởi hệ thống an toàn, vui lòng sửa đổi và thử lại",
       "context_length": "Cuộc hội thoại quá dài, vui lòng xóa lịch sử hoặc bắt đầu cuộc trò chuyện mới",
       "deprecated": "Mô hình này đã ngừng hoạt động, vui lòng chuyển sang mô hình khác",
+      "free_model_unavailable": "Chẩn đoán AI tạm thời không khả dụng",
       "go_to_settings": "Đi tới Cài đặt",
       "knowledge": "Vector hóa cơ sở tri thức thất bại",
       "mcp": "Kết nối máy chủ MCP thất bại, hãy kiểm tra xem dịch vụ có đang chạy không",
@@ -3164,6 +3202,7 @@
         "threshold": "Ngưỡng độ tương đồng để lọc các đoạn có độ liên quan thấp. Giá trị cao hơn sẽ làm cho việc truy xuất trở nên nghiêm ngặt hơn."
       },
       "processor": "Nhà cung cấp xử lý",
+      "processor_not_configured": "Chưa được cấu hình",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -3414,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Tự động nén",
+        "context_compress_model": "Mô hình nén",
+        "context_compress_model_follow": "Mặc định",
         "context_count": "Số lượng ngữ cảnh",
+        "context_management": "Quản lý ngữ cảnh",
+        "context_truncate_threshold": "Ngưỡng cắt ngắn đầu ra của công cụ (ký tự)",
         "creative": "Sáng tạo",
         "custom_params": "Các tham số tùy chỉnh",
         "custom_params_add": "Thêm tham số",
@@ -3426,8 +3470,17 @@
           "avatar": {
             "hint": "Dùng để xác định trợ lý trong thư viện và các cuộc trò chuyện"
           },
+          "context_compress_enabled": {
+            "hint": "Tóm tắt tự động các lượt trò chuyện cũ khi gần đến giới hạn ngữ cảnh"
+          },
           "context_count": {
             "hint": "Số lượng tin nhắn gần đây được giữ lại làm ngữ cảnh"
+          },
+          "context_management": {
+            "hint": "Ghi đè cài đặt quản lý ngữ cảnh toàn cục cho trợ lý này; tắt sẽ kế thừa cài đặt toàn cục"
+          },
+          "context_truncate_threshold": {
+            "hint": "Đầu ra của công cụ vượt quá số ký tự này sẽ được tải xuống và cắt bớt"
           },
           "custom_params": {
             "hint": "Các tham số bổ sung của nhà cung cấp được gửi kèm theo yêu cầu"
@@ -3842,6 +3895,7 @@
       "pasted_text": "Văn bản đã dán"
     },
     "backup": {
+      "cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",
       "failed": "Sao lưu thất bại",
       "start": {
         "success": "Đã bắt đầu sao lưu"
@@ -4271,6 +4325,7 @@
       "cutoff": "Đang cắt ngắn nội dung tìm kiếm...",
       "fetch_complete": "{{count}} kết quả tìm kiếm",
       "fetch_empty": "Không tìm thấy kết quả tìm kiếm",
+      "fetch_opaque": "Được tìm kiếm bởi mô hình",
       "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
@@ -5143,6 +5198,7 @@
     "reset": "Đặt lại",
     "rotate_left": "Xoay Trái",
     "rotate_right": "Xoay phải",
+    "save_as": "Lưu Dưới Dạng",
     "source": "Ver Código Fuente",
     "zoom_in": "Phóng to",
     "zoom_out": "Zum Herauszoomen"
@@ -5199,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Mô hình cục bộ",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5727,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Trợ lý mới",
+      "create_tag": "Mới",
       "empty_text": "Chưa có trợ lý nào",
       "filter": "Lọc trợ lý",
       "group_filter": "Lọc theo nhóm",
@@ -5781,7 +5838,25 @@
         "title": "Doanh nghiệp"
       },
       "feedback": {
+        "agent": {
+          "description": "Trò chuyện với Cherry Assistant để chia sẻ phản hồi.",
+          "title": "Sử dụng Agent"
+        },
+        "agent_error": "Không thể mở Cherry Assistant để gửi phản hồi. Vui lòng thử lại.",
         "button": "Phản hồi",
+        "dialog": {
+          "description": "Chọn cách chia sẻ phản hồi và giúp chúng tôi cải thiện Cherry Studio tốt hơn.",
+          "title": "Chọn kênh phản hồi"
+        },
+        "github": {
+          "description": "Tạo báo cáo lỗi hoặc yêu cầu tính năng trên GitHub.",
+          "title": "Vấn đề GitHub"
+        },
+        "recommended": "Được đề xuất",
+        "survey": {
+          "description": "Chia sẻ phản hồi qua khảo sát Feishu của chúng tôi.",
+          "title": "Khảo sát phản hồi"
+        },
         "title": "Phản hồi"
       },
       "label": "Giới thiệu & Phản hồi",
@@ -6114,6 +6189,7 @@
         },
         "pathSelector": {
           "currentPath": "Đường dẫn hiện tại",
+          "fetchError": "Không tải được danh sách thư mục Nutstore",
           "return": "Trở lại",
           "title": "Đường dẫn lưu trữ Nutstore"
         },
@@ -6778,6 +6854,7 @@
         "allStatuses": "Tất cả trạng thái",
         "allTypes": "Tất cả các loại",
         "builtinOnly": "Chỉ tích hợp sẵn",
+        "label": "Lọc",
         "status": "Lọc theo trạng thái",
         "type": "Lọc theo loại"
       },
@@ -6844,6 +6921,9 @@
         "loadError": "Lỗi lấy prompt",
         "noPromptsAvailable": "Không có lời nhắc nào có sẵn",
         "requiredField": "Trường bắt buộc"
+      },
+      "protocolInstall": {
+        "title": "Cài đặt MCP"
       },
       "protocolInstallWarning": {
         "command": "Lệnh khởi động",
@@ -7302,6 +7382,7 @@
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
+        "model": "Mô hình đặt tên",
         "prompt": "Prompt zur Themenbenennung"
       },
       "translate_model": "Mô hình Dịch",
@@ -8064,6 +8145,10 @@
         "check": "Kiểm tra",
         "check_failed": "Verifikation fehlgeschlagen",
         "check_success": "Xác minh thành công",
+        "client_tools_preferred": {
+          "description": "Sử dụng các dịch vụ tìm kiếm và lấy URL được cấu hình ở trên ngay cả khi mô hình có chức năng tìm kiếm tích hợp. Khi tắt, mô hình sẽ xử lý.",
+          "label": "Ưu tiên các dịch vụ tìm kiếm đã cấu hình"
+        },
         "compression": {
           "cutoff": {
             "limit": {

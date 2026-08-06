@@ -471,10 +471,11 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
+  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgentId?: string): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
     const saved = application.get('DbService').withWriteTx((tx) => {
+      this.assertExpectedAgentTx(tx, sessionId, expectedAgentId)
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
@@ -489,6 +490,20 @@ export class AgentSessionMessageService {
       }
     }
     return saved
+  }
+
+  /** Reject ownership changes before any message row is written in this transaction. */
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgentId: string | undefined): void {
+    if (!expectedAgentId) return
+    const [session] = db
+      .select({ agentId: sessionTable.agentId })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session || session.agentId !== expectedAgentId) {
+      throw DataApiErrorFactory.notFound('Session', sessionId)
+    }
   }
 
   replaceMessageParts(

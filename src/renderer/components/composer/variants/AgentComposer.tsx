@@ -23,6 +23,7 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
@@ -30,17 +31,15 @@ import {
 } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModelById } from '@renderer/hooks/useModel'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -64,7 +63,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -85,6 +84,7 @@ import {
   getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
+  hasAgentDraftCache,
   readAgentDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
@@ -260,16 +260,21 @@ export interface AgentComposerSendBody {
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
 
+export interface AgentComposerLaunchOptions {
+  draftCacheKey: string
+  initialDraft: AgentComposerDraftCache
+  onSent?: () => void
+}
+
 type Props = {
   agentId: string
   sessionId: string
-  sessionOverride?: AgentComposerSessionSnapshot
-  resolvedAgent?: AgentEntity
-  resolvedModel?: Model
-  resolvedWorkspaceWarning?: string | null
+  sessionOverride: AgentComposerSessionSnapshot
+  resolvedAgent: AgentEntity | undefined
+  resolvedModel: Model | undefined
+  resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
-  captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -282,6 +287,7 @@ type Props = {
   isStreaming: boolean
   sendDisabled?: boolean
   compactWhenSingleLine?: boolean
+  launchOptions?: AgentComposerLaunchOptions
 }
 
 type AgentComposerRootProps = Props & {
@@ -297,9 +303,7 @@ const AgentComposerRoot = ({
   resolvedAgent,
   resolvedModel,
   resolvedWorkspaceWarning,
-  externalContextControls = false,
   sendMessage,
-  captureLocalSendScrollEligibility,
   stop,
   onCreateEmptySession,
   onAgentChange,
@@ -312,19 +316,22 @@ const AgentComposerRoot = ({
   isStreaming,
   sendDisabled = false,
   compactWhenSingleLine = false,
+  launchOptions,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: AgentComposerRootProps) => {
-  const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
-  const session = sessionOverride ?? loadedSession
-  const { agent: loadedAgent } = useAgent(externalContextControls || resolvedAgent ? null : agentId)
-  const agent = resolvedAgent ?? loadedAgent
-  const { model: loadedModel, isLoading: isModelLoading } = useModelById(
-    externalContextControls || resolvedModel ? null : agent?.model
-  )
-  const sessionModel = resolvedModel ?? loadedModel
+  const session = sessionOverride
+  const agent = resolvedAgent
+  const sessionModel = resolvedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  const launchIdentityRef = useRef({ sessionId, draftCacheKey: launchOptions?.draftCacheKey })
+  if (launchIdentityRef.current.sessionId !== sessionId) {
+    launchIdentityRef.current = { sessionId, draftCacheKey: launchOptions?.draftCacheKey }
+  } else if (launchOptions) {
+    launchIdentityRef.current.draftCacheKey = launchOptions.draftCacheKey
+  }
+  const composerInstanceKey = `${sessionId}:${launchIdentityRef.current.draftCacheKey ?? 'default'}`
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
@@ -361,8 +368,6 @@ const AgentComposerRoot = ({
     []
   )
 
-  if (!session) return null
-
   return (
     <ComposerToolRuntimeProvider
       key={`${agentId}:${sessionId}`}
@@ -374,9 +379,10 @@ const AgentComposerRoot = ({
         }
       }}>
       <AgentComposerInner
+        key={composerInstanceKey}
         agent={agent}
         model={sessionModel}
-        modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
+        modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
@@ -384,7 +390,6 @@ const AgentComposerRoot = ({
         workspaceId={workspaceId ?? session?.workspaceId ?? null}
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         chatStop={stop}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
@@ -396,6 +401,7 @@ const AgentComposerRoot = ({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         compactWhenSingleLine={compactWhenSingleLine}
+        launchOptions={launchOptions}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -422,7 +428,6 @@ interface InnerProps {
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
-  captureLocalSendScrollEligibility?: Props['captureLocalSendScrollEligibility']
   chatStop: Props['stop']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
@@ -434,10 +439,11 @@ interface InnerProps {
   isStreaming: boolean
   sendDisabled: boolean
   compactWhenSingleLine: boolean
+  launchOptions?: AgentComposerLaunchOptions
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
-  resolvedWorkspaceWarning?: string | null
+  resolvedWorkspaceWarning: string | null
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -652,7 +658,6 @@ const AgentComposerInner = ({
   workspaceId,
   actionsRef,
   chatSendMessage,
-  captureLocalSendScrollEligibility,
   chatStop,
   onCreateEmptySession,
   onAgentChange,
@@ -664,6 +669,7 @@ const AgentComposerInner = ({
   isStreaming,
   sendDisabled,
   compactWhenSingleLine,
+  launchOptions,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
@@ -702,9 +708,14 @@ const AgentComposerInner = ({
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
     [pinnedToolIds]
   )
+  const draftCacheKey = launchOptions?.draftCacheKey ?? getAgentDraftCacheKey(agentId)
+  const shouldPersistInitialDraftRef = useRef(false)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
-    initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
+    const hasCachedDraft = hasAgentDraftCache(draftCacheKey)
+    const cachedDraft = readAgentDraftCache(draftCacheKey)
+    initialDraftRef.current = hasCachedDraft ? cachedDraft : (launchOptions?.initialDraft ?? cachedDraft)
+    shouldPersistInitialDraftRef.current = !hasCachedDraft && launchOptions?.initialDraft !== undefined
   }
 
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
@@ -746,7 +757,6 @@ const AgentComposerInner = ({
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
-  const draftCacheKey = getAgentDraftCacheKey(agentId)
   const [text, setTextState] = useState(() => initialDraftRef.current?.text ?? '')
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraftRef.current?.tokens ?? [])
   const textRef = useRef(text)
@@ -755,11 +765,35 @@ const AgentComposerInner = ({
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
-  const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
-  const workspaceWarning =
-    resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const workspaceWarning = resolvedWorkspaceWarning ?? undefined
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const skillsDataEnabled =
+    selectedSkills.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+    rootPanelVisible ||
+    skillsPanelVisible
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath, {
+    enabled: skillsDataEnabled
+  })
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
+
+  useEffect(() => {
+    if (!shouldPersistInitialDraftRef.current || !initialDraftRef.current) return
+    shouldPersistInitialDraftRef.current = false
+    writeAgentDraftCache(draftCacheKey, initialDraftRef.current.text, initialDraftRef.current.tokens)
+  }, [draftCacheKey])
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
@@ -892,6 +926,12 @@ const AgentComposerInner = ({
     })
   }, [actionsRef, sessionTopicId])
 
+  useEffect(() => {
+    if (!launchOptions?.initialDraft) return
+    const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    return () => window.cancelAnimationFrame(frameId)
+  }, [actionsRef, launchOptions?.initialDraft])
+
   const insertSkillToken = useCallback(
     (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
       if (!inputAdapter?.insertToken) return
@@ -968,8 +1008,6 @@ const AgentComposerInner = ({
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
   // it with the current (possibly stale) closure, so an externally installed/removed skill would
   // otherwise only appear on the next open (mirrors the MCP status panel).
-  const quickPanel = useOptionalQuickPanel()
-  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
@@ -1185,8 +1223,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
@@ -1204,21 +1241,14 @@ const AgentComposerInner = ({
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
+        launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [
-      accessiblePaths,
-      agentId,
-      captureLocalSendScrollEligibility,
-      chatSendMessage,
-      saveHistory,
-      sessionId,
-      sessionTopicId
-    ]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1301,9 +1331,8 @@ const AgentComposerInner = ({
       const previousSkills = selectedSkills
       const previousDraftTokens = draftTokensRef.current
 
-      captureLocalSendScrollEligibility?.()
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         clearTimeoutTimer('agentComposerSendMessage')
         setText(previousText)
@@ -1317,7 +1346,6 @@ const AgentComposerInner = ({
     },
     [
       buildQueuedPayload,
-      captureLocalSendScrollEligibility,
       clearTimeoutTimer,
       clearCurrentDraft,
       draftCacheKey,
@@ -1380,7 +1408,7 @@ const AgentComposerInner = ({
       {
         id: ComposerPanelSymbol.McpStatus,
         label: 'MCP',
-        icon: <Cable size={18} aria-hidden />,
+        icon: <McpLogo width={18} height={18} aria-hidden />,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }

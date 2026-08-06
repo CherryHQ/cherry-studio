@@ -297,6 +297,7 @@ export function RightPaneHost({ children, open, width = CHAT_SHELL_PANE_WIDTH, c
           animate={{ width, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={CHAT_SHELL_TRANSITION}
+          data-ui="part:conversation-navigation"
           data-right-pane
           className={cn('h-full min-h-0 shrink-0 overflow-hidden', className)}
           style={style}>
@@ -511,6 +512,7 @@ export function PersistentRightPaneHost({
         animate={animationControls}
         inert={interactionHidden}
         aria-hidden={interactionHidden || undefined}
+        data-ui="part:conversation-inspector"
         data-right-pane
         data-right-pane-mode={targetMode}
         data-right-pane-phase={phase}

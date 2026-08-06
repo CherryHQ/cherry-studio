@@ -8,11 +8,12 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
   initData: null as { kind: 'navigation'; to: string; requestId: number } | null,
-  ipcListeners: new Map<string, (payload: unknown) => void>()
+  ipcListeners: new Map<string, (payload: unknown) => void>(),
+  ipcRequest: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: mocks.ipcRequest },
   useIpcOn: (event: string, handler: (payload: unknown) => void) => {
     mocks.ipcListeners.set(event, handler)
   }
@@ -55,6 +56,13 @@ afterEach(() => {
 })
 
 describe('useMainWindowNavigation', () => {
+  it('announces readiness after mounting the navigation listeners', () => {
+    render(<MainWindowNavigationHarness />)
+
+    expect(mocks.ipcListeners.has('navigation.open_route_requested')).toBe(true)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.protocol_dispatch_ready')
+  })
+
   it('opens a settings tab for renderer settings-tab events', () => {
     render(<MainWindowNavigationHarness />)
 
@@ -119,11 +127,19 @@ describe('useMainWindowNavigation', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
   })
 
-  it('opens settings from main-window init data', () => {
+  it('acknowledges main-window init data so it is not replayed after remount', () => {
     mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 1 }
-    render(<MainWindowNavigationHarness />)
+    mocks.ipcRequest.mockImplementation((channel: string) => {
+      if (channel === 'navigation.ack_open_route') mocks.initData = null
+    })
+    const { unmount } = render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
+
+    unmount()
+    render(<MainWindowNavigationHarness />)
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {

@@ -218,9 +218,13 @@ vi.mock('@renderer/utils/citation', () => ({
 }))
 
 // Mock Markdown component
+const capturedChatMarkdownProps = vi.hoisted(() => [] as any[])
+
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, inlineHtmlPreviewMode, postProcess, components }: any) => {
+  default: (props: any) => {
+    capturedChatMarkdownProps.push(props)
+    const { block, inlineHtmlPreviewMode, postProcess, components } = props
     const content = postProcess ? postProcess(block.content) : block.content
     const tokenPlaceholderPattern =
       /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
@@ -258,6 +262,7 @@ describe('MainTextBlock', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    capturedChatMarkdownProps.length = 0
 
     const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
     mockWithCitationTags = withCitationTags as any
@@ -600,6 +605,74 @@ describe('MainTextBlock', () => {
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
       expect(document.body).toHaveTextContent('Line 5')
       expect(document.body).not.toHaveTextContent('Line 6')
+    })
+
+    it('does not collapse a short visible message because a reference token contains a long transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Old question
+
+[assistant]
+Old answer
+
+[user]
+More context
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} Start the demo`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(document.body).toHaveTextContent('Start the demo')
+      expect(document.body).not.toHaveTextContent('Old question')
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+    })
+
+    it('collapses long visible content after a reference token without exposing its transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Hidden question
+
+[assistant]
+Hidden answer
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} ${Array.from({ length: 7 }, (_, index) => `Visible line ${index + 1}`).join('\n')}`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.body).toHaveTextContent('Visible line 5')
+      expect(document.body).not.toHaveTextContent('Visible line 6')
+      expect(document.body).not.toHaveTextContent('Hidden question')
     })
 
     it('should not collapse assistant messages', () => {
@@ -1119,6 +1192,25 @@ describe('MainTextBlock', () => {
 
       expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
       expect(mockWithCitationTags).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('prop identity stability', () => {
+    // A fresh trustedCitations array per render cascades into ChatMarkdown's
+    // Streamdown components map and forces every markdown block to re-parse
+    // and re-animate on each streaming tick.
+    it('keeps trustedCitations identity stable across re-renders without citations', () => {
+      const view = render(
+        <MainTextBlock id="stable-1" content="chunk one" isStreaming role="assistant" citations={[]} />
+      )
+      view.rerender(<MainTextBlock id="stable-1" content="chunk one two" isStreaming role="assistant" citations={[]} />)
+
+      expect(capturedChatMarkdownProps.length).toBeGreaterThanOrEqual(2)
+      const [first, ...rest] = capturedChatMarkdownProps
+      expect(first.trustedCitations).toEqual([])
+      for (const props of rest) {
+        expect(props.trustedCitations).toBe(first.trustedCitations)
+      }
     })
   })
 })

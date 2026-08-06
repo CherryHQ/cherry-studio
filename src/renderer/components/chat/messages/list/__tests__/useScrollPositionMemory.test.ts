@@ -13,10 +13,10 @@ import {
 } from '../useScrollPositionMemory'
 
 describe('computeScrollAnchor', () => {
-  it('returns null when the list is at the bottom', () => {
+  it('returns null when the list is following', () => {
     expect(
       computeScrollAnchor({
-        atBottom: true,
+        following: true,
         scrollOffset: 1234,
         topIndex: 4,
         getKeyAtIndex: () => 'g4',
@@ -28,7 +28,7 @@ describe('computeScrollAnchor', () => {
   it('returns null when the top-most item is out of range', () => {
     expect(
       computeScrollAnchor({
-        atBottom: false,
+        following: false,
         scrollOffset: 100,
         topIndex: 9,
         getKeyAtIndex: () => null,
@@ -40,7 +40,7 @@ describe('computeScrollAnchor', () => {
   it('captures the top-most visible group key and the offset past its top', () => {
     expect(
       computeScrollAnchor({
-        atBottom: false,
+        following: false,
         scrollOffset: 250,
         topIndex: 3,
         getKeyAtIndex: (index) => (index === 3 ? 'g3' : null),
@@ -52,7 +52,7 @@ describe('computeScrollAnchor', () => {
   it('clamps a negative offset to zero', () => {
     expect(
       computeScrollAnchor({
-        atBottom: false,
+        following: false,
         scrollOffset: 80,
         topIndex: 2,
         getKeyAtIndex: () => 'g2',
@@ -104,8 +104,10 @@ describe('useScrollPositionMemory', () => {
     getItemOffset: ReturnType<typeof vi.fn>
     scrollToIndex: ReturnType<typeof vi.fn>
   }
-  let atBottom: boolean
-  let notifyProgrammaticStick: ReturnType<typeof vi.fn>
+  let following: boolean
+  let enterFollowingAfterRestore: ReturnType<typeof vi.fn>
+  let enterReadingForRestore: ReturnType<typeof vi.fn>
+  let settleReadingRestore: ReturnType<typeof vi.fn>
   let keysByIndex: Record<number, string>
 
   const buildInputs = (overrides: Partial<ScrollPositionMemoryInputs> = {}): ScrollPositionMemoryInputs => ({
@@ -119,8 +121,11 @@ describe('useScrollPositionMemory', () => {
       const found = Object.entries(keysByIndex).find(([, k]) => k === key)
       return found ? Number(found[0]) : -1
     },
-    isAtBottom: () => atBottom,
-    notifyProgrammaticStick,
+    shouldRestore: () => true,
+    isFollowing: () => following,
+    enterFollowingAfterRestore,
+    enterReadingForRestore,
+    settleReadingRestore,
     isAnimating: () => false,
     ...overrides
   })
@@ -137,8 +142,10 @@ describe('useScrollPositionMemory', () => {
 
     scroller = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 }
     handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn() }
-    atBottom = false
-    notifyProgrammaticStick = vi.fn()
+    following = false
+    enterFollowingAfterRestore = vi.fn()
+    enterReadingForRestore = vi.fn()
+    settleReadingRestore = vi.fn()
     keysByIndex = { 0: 'g0', 1: 'g1', 2: 'g2' }
   })
 
@@ -153,7 +160,9 @@ describe('useScrollPositionMemory', () => {
     flushRaf()
 
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start', offset: 80 })
-    expect(notifyProgrammaticStick).not.toHaveBeenCalled()
+    expect(enterReadingForRestore).toHaveBeenCalledTimes(1)
+    expect(settleReadingRestore).toHaveBeenCalledTimes(1)
+    expect(enterFollowingAfterRestore).not.toHaveBeenCalled()
   })
 
   it('follows the newest message via scrollToIndex(end) when nothing is saved', () => {
@@ -162,7 +171,7 @@ describe('useScrollPositionMemory', () => {
 
     // last index (itemCount - 1), end-aligned, offset by the bottom padding.
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
-    expect(notifyProgrammaticStick).toHaveBeenCalledTimes(1)
+    expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
     expect(scroller.scrollTop).toBe(0) // not touched directly while the handle exists
   })
 
@@ -173,7 +182,7 @@ describe('useScrollPositionMemory', () => {
     flushRaf()
 
     expect(scroller.scrollTop).toBe(600) // scrollHeight - clientHeight
-    expect(notifyProgrammaticStick).toHaveBeenCalledTimes(1)
+    expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
   })
 
   it('waits for items before restoring', () => {
@@ -181,11 +190,11 @@ describe('useScrollPositionMemory', () => {
       initialProps: buildInputs({ itemCount: 0 })
     })
     flushRaf()
-    expect(notifyProgrammaticStick).not.toHaveBeenCalled()
+    expect(enterFollowingAfterRestore).not.toHaveBeenCalled()
 
     rerender(buildInputs({ itemCount: 3 }))
     flushRaf()
-    expect(notifyProgrammaticStick).toHaveBeenCalledTimes(1)
+    expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
   })
 
   it('suppresses saves until the initial restore has settled', () => {
@@ -227,11 +236,11 @@ describe('useScrollPositionMemory', () => {
     nowSpy.mockRestore()
   })
 
-  it('saves null (follow latest) when the user is at the bottom', () => {
+  it('saves null when the list is following', () => {
     const { result } = renderHook(() => useScrollPositionMemory(buildInputs()))
     flushRaf()
 
-    atBottom = true
+    following = true
     act(() => result.current.save())
 
     expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)

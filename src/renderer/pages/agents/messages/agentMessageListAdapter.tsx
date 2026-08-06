@@ -7,22 +7,25 @@ import {
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
@@ -30,7 +33,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -74,17 +76,9 @@ function withTerminalErrorFallback(
 }
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
-  const runtime = agentMessageListRuntimes.get(topicId)
-  if (!runtime) {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-    return false
-  }
-
-  runtime.locateMessage(messageId)
-  window.requestAnimationFrame(() => {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
-  })
-  return true
+  const runtime = agentMessageListRuntimes.get(topicId) ?? null
+  dispatchLocateMessage(runtime, messageId, highlight)
+  return runtime !== null
 }
 
 interface AgentMessageListParams {
@@ -92,8 +86,6 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  localSendGeneration?: number
-  onBindRuntime?: MessageListActions['bindRuntime']
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -152,8 +144,6 @@ export function useAgentMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
-  localSendGeneration,
-  onBindRuntime,
   assistantProfile,
   assistantId,
   isLoading,
@@ -169,9 +159,9 @@ export function useAgentMessageListProviderValue({
   workspacePath,
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
-  const navigate = useNavigate()
   const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -208,25 +198,24 @@ export function useAgentMessageListProviderValue({
     [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
-    const resolvedAssistantId = assistantId ?? topic.assistantId
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topic.id) {
+      if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
         return cached.item
       }
 
       const item = toMessageListItem(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         topicId: topic.id
       })
       messageItemCacheRef.current.set(message, {
-        assistantId: resolvedAssistantId,
+        assistantId: resolvedAgentId,
         item,
         topicId: topic.id
       })
       return item
     })
-  }, [assistantId, visibleMessages, topic.assistantId, topic.id])
+  }, [resolvedAgentId, visibleMessages, topic.id])
 
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
@@ -293,8 +282,8 @@ export function useAgentMessageListProviderValue({
   }, [])
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
-    ({ path, query }) => navigate({ to: path, search: query }),
-    [navigate]
+    ({ path, query }) => openRoute(path, query),
+    []
   )
 
   useEffect(() => {
@@ -305,7 +294,6 @@ export function useAgentMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
-      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
         const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Agent session image export was cancelled',
@@ -315,12 +303,7 @@ export function useAgentMessageListProviderValue({
           settleActionRequest: settleAgentSessionImageActionRequest,
           targetId: sessionId
         })
-        return () => {
-          unbindCaptureRuntime()
-          if (typeof unbindExternalRuntime === 'function') {
-            unbindExternalRuntime()
-          }
-        }
+        return unbindCaptureRuntime
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
@@ -329,12 +312,9 @@ export function useAgentMessageListProviderValue({
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
-        if (typeof unbindExternalRuntime === 'function') {
-          unbindExternalRuntime()
-        }
       }
     },
-    [imageActionConsumer, onBindRuntime, sessionId, topic.id]
+    [imageActionConsumer, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -386,13 +366,8 @@ export function useAgentMessageListProviderValue({
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
-      estimateSize: 400,
-      overscan: 6,
-      loadOlderDelayMs: 0,
-      loadingResetDelayMs: 600,
-      listKey: topic.id,
-      localSendGeneration,
-      readonly: true,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAgentId,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
@@ -405,7 +380,6 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       isLoading,
       leafCapabilities,
-      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,
@@ -415,6 +389,7 @@ export function useAgentMessageListProviderValue({
       displayPartsByMessageId,
       renderActiveTurnStatus,
       renderConfig,
+      resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
       topic
@@ -477,7 +452,8 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
-      imageExportFileName: topic.name
+      imageExportFileName: topic.name,
+      aiUsageMessageKind: 'agent-session'
     }),
     [assistantProfile, headerCapabilities.userProfile, topic.name]
   )

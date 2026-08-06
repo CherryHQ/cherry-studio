@@ -2,10 +2,10 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
 
-import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
-import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
-import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
+import { stripOkfFrontmatter } from '@main/features/knowledge/pipeline/sources/okfFrontmatter'
+import { hashEmbeddingText } from '@main/features/knowledge/pipeline/vectorstore/indexStore/hashing'
+import { KnowledgeIndexStore } from '@main/features/knowledge/pipeline/vectorstore/indexStore/KnowledgeIndexStore'
+import { encodeVectorBlob } from '@main/features/knowledge/pipeline/vectorstore/indexStore/vectorBlob'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
@@ -73,7 +73,7 @@ function createTempRoot() {
 }
 
 // Mirrors the runtime vector store layout in
-// src/main/features/knowledge/utils/storage/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
+// src/main/features/knowledge/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
 // Read-back assertions use this so they fail if the migrator ever writes to a path the runtime
 // would not open — the exact bug this regression guards against.
 function runtimeVectorStorePath(baseId: string): string {
@@ -1512,7 +1512,9 @@ describe('KnowledgeVectorMigrator', () => {
       expect([...migrator.directoryItemsToDegrade]).toEqual([])
       expect(materialItemIds(migrator)).toEqual([CHILD_A])
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
+        throw new Error('rebuild failed')
+      })
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
@@ -1886,7 +1888,9 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
+        throw new Error('rebuild failed')
+      })
 
       // A per-base failure is non-fatal (P1-6): execute succeeds overall, the failed base is left
       // out of successfulBaseIds (so validate never checks it), and its error surfaces as a warning
@@ -1947,7 +1951,9 @@ describe('KnowledgeVectorMigrator', () => {
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
       // The rebuild fails (the real error), sending execute into its catch block...
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
+        throw new Error('rebuild failed')
+      })
       // ...where the partial-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
       // The first call (pre-build target clear) must still succeed so the rebuild is reached.
       migrator.removeIndexStoreFiles = vi
@@ -2049,7 +2055,9 @@ describe('KnowledgeVectorMigrator', () => {
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
 
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
+        throw new Error('rebuild failed')
+      })
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
@@ -2097,7 +2105,9 @@ describe('KnowledgeVectorMigrator', () => {
 
       // Fail the rebuild itself: the per-base catch marks the base failed when its store never
       // finished building (storePromoted stays false).
-      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockImplementationOnce(() => {
+        throw new Error('rebuild failed')
+      })
 
       const executeResult = await migrator.execute(migrationCtx as any)
       expect(executeResult.success).toBe(true)
@@ -2185,7 +2195,9 @@ describe('KnowledgeVectorMigrator', () => {
       // real rebuild so its store is written for real.
       const realRebuild = KnowledgeIndexStore.prototype.rebuildMaterial
       vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial')
-        .mockRejectedValueOnce(new Error('base a rebuild failed'))
+        .mockImplementationOnce(() => {
+          throw new Error('base a rebuild failed')
+        })
         .mockImplementation(function (this: KnowledgeIndexStore, ...args: Parameters<typeof realRebuild>) {
           return realRebuild.apply(this, args)
         })
