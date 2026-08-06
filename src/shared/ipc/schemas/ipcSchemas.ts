@@ -2,7 +2,7 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
-import { backupRequestSchemas } from './backup'
+import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
@@ -89,6 +89,7 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   AppEventSchemas &
+  BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
   LocalModelEventSchemas &
