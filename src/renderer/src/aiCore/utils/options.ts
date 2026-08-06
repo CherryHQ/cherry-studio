@@ -44,7 +44,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
-import type { ProviderCapabilities } from '../types'
+import { appProviderIds, type ProviderCapabilities } from '../types'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -140,6 +140,16 @@ export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   return { standardParams, providerParams }
 }
 
+const PROVIDER_SCOPED_PARAM_KEYS = new Set([...Object.keys(appProviderIds), 'poe'])
+
+function isProviderScopedParam(key: string, value: unknown): boolean {
+  return PROVIDER_SCOPED_PARAM_KEYS.has(key) && value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function buildBodyPassthroughParams(providerParams: Record<string, any>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(providerParams).filter(([key, value]) => !isProviderScopedParam(key, value)))
+}
+
 /**
  * 构建 AI SDK 的 providerOptions
  * 按 provider 类型分离，保持类型安全
@@ -160,6 +170,7 @@ export function buildProviderOptions(
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
+  customProviderParams: Record<string, unknown>
 } {
   const rawProviderId = getAiSdkProviderId(actualProvider)
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities, rawProviderId })
@@ -225,6 +236,7 @@ export function buildProviderOptions(
    */
   const customParams = getCustomParameters(assistant)
   const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
+  const customProviderParams = buildBodyPassthroughParams(providerParams)
   logger.debug('Extracted standardParams and providerParams', { standardParams, providerParams })
 
   /**
@@ -306,9 +318,13 @@ export function buildProviderOptions(
   logger.debug('Final providerSpecificOptions after merging providerParams', { providerSpecificOptions })
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
+  // customProviderParams: raw provider-specific custom params (non-standard).
+  // AI SDK adapters strip unknown keys via zod schema; the fetch wrapper in
+  // AiProvider re-injects them at the HTTP layer. See issue #16041.
   return {
     providerOptions: providerSpecificOptions,
-    standardParams
+    standardParams,
+    customProviderParams
   }
 }
 

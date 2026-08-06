@@ -15,6 +15,7 @@ import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provi
 import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
+import { createCustomParamsFetch } from './utils/customParamsFetch'
 
 const logger = loggerService.withContext('AiProvider')
 
@@ -23,6 +24,9 @@ export type AiProviderConfig = AiSdkMiddlewareConfig & {
   // topicId for tracing
   topicId?: string
   callType: string
+  // Raw provider-specific custom params that AI SDK adapters would strip.
+  // Injected at the fetch layer to bypass zod schema filtering. See #16041.
+  customProviderParams?: Record<string, unknown>
 }
 
 export default class AiProvider {
@@ -240,11 +244,25 @@ export default class AiProvider {
       config: middlewareConfig
     })
 
+    // Wrap fetch to re-inject custom provider params that AI SDK adapters strip
+    // via zod schema. See issue #16041.
+    let providerSettings = providerConfig.providerSettings
+    const customProviderParams = middlewareConfig.customProviderParams ?? {}
+    const hasCustomProviderParams = Object.keys(customProviderParams).length > 0
+    if (hasCustomProviderParams) {
+      const existingFetch = (providerSettings as Record<string, any>).fetch ?? globalThis.fetch
+      const wrappedFetch = createCustomParamsFetch(existingFetch, customProviderParams)
+      providerSettings = { ...providerSettings, fetch: wrappedFetch }
+    }
+
     // 用构建好的插件数组创建executor
     const executor = await createExecutor<AppProviderSettingsMap>(
       providerConfig.providerId,
-      providerConfig.providerSettings,
-      plugins
+      providerSettings,
+      plugins,
+      {
+        cache: !hasCustomProviderParams
+      }
     )
 
     // 创建带有中间件的执行器

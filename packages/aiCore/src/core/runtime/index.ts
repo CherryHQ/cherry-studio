@@ -12,7 +12,7 @@ export type { EmbedManyParams, EmbedManyResult, RuntimeConfig } from './types'
 // === 便捷工厂函数 ===
 
 import { type AiPlugin } from '../plugins'
-import { extensionRegistry } from '../providers'
+import { extensionRegistry, type ProviderCreationOptions } from '../providers'
 import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
 import { RuntimeExecutor } from './executor'
 
@@ -23,12 +23,17 @@ import { RuntimeExecutor } from './executor'
 export async function createExecutor<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
   T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
->(providerId: T, options: TSettingsMap[T], plugins?: AiPlugin[]): Promise<RuntimeExecutor<TSettingsMap, T>> {
+>(
+  providerId: T,
+  options: TSettingsMap[T],
+  plugins?: AiPlugin[],
+  creationOptions?: ProviderCreationOptions
+): Promise<RuntimeExecutor<TSettingsMap, T>> {
   if (!extensionRegistry.has(providerId)) {
     throw new Error(`Provider extension "${providerId}" not registered`)
   }
 
-  const provider = await extensionRegistry.createProvider(providerId, options || {})
+  const provider = await extensionRegistry.createProvider(providerId, options || {}, creationOptions)
 
   // Extract model resolver from variant's resolveModel declaration (type-safe at extension level)
   const resolver = extensionRegistry.getModelResolver(providerId as string)
