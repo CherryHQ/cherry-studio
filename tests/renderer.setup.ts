@@ -229,15 +229,26 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
-    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+    ConfirmDialog: ({ cancelText, confirmText, content, description, onConfirm, onOpenChange, open, title }) =>
       open
         ? React.createElement(
             'div',
             { role: 'dialog' },
             React.createElement('h2', null, title),
             description ? React.createElement('p', null, description) : null,
-            React.createElement('button', { type: 'button' }, cancelText),
-            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+            content,
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: async () => {
+                  await onConfirm?.()
+                  onOpenChange?.(false)
+                }
+              },
+              confirmText
+            )
           )
         : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
@@ -475,7 +486,14 @@ vi.mock('@cherrystudio/ui', () => {
                       index: activeIndex,
                       items,
                       resetTransform: vi.fn(),
-                      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+                      transform: {
+                        flipX: false,
+                        flipY: false,
+                        offsetX: 0,
+                        offsetY: 0,
+                        rotation: 0,
+                        zoom: 1
+                      }
                     }),
                   type: 'button'
                 },
@@ -492,31 +510,44 @@ vi.mock('@cherrystudio/ui', () => {
         : null,
     ImagePreviewImage: ({ item, ...props }) =>
       React.createElement('img', { ...props, alt: item?.alt, src: item?.src, 'data-testid': 'image-preview-image' }),
-    ImagePreviewToolbar: ({ actions = [], context, item, labels = {}, onClose }) =>
+    ImagePreviewToolbar: ({ labels = {}, transformControls }) =>
       React.createElement(
         'div',
         { 'data-testid': 'image-preview-toolbar' },
-        actions.map((action) =>
+        [
+          ['zoomOut', labels.zoomOut],
+          ['zoomIn', labels.zoomIn],
+          ['rotateLeft', labels.rotateLeft],
+          ['rotateRight', labels.rotateRight],
+          ['flipHorizontal', labels.flipHorizontal],
+          ['flipVertical', labels.flipVertical],
+          ['reset', labels.reset]
+        ].map(([control, label]) =>
           React.createElement(
             'button',
             {
-              disabled: action.disabled,
-              key: action.id,
-              onClick: () => action.onSelect?.(item, context),
+              key: control,
+              onClick: () => transformControls?.[control]?.(),
               type: 'button'
             },
-            action.icon,
-            action.label
+            label
           )
-        ),
-        React.createElement('button', { 'aria-label': labels.close, onClick: onClose, type: 'button' }, labels.close)
+        )
       ),
+    ImagePreviewViewport: ({ item, onError, onLoad }) =>
+      React.createElement('img', {
+        alt: item?.alt,
+        onError,
+        onLoad,
+        src: item?.src,
+        'data-testid': 'image-preview-viewport'
+      }),
     ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, size, ...props }) =>
+      React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -525,6 +556,36 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Item: ({ asChild, children, className, size, variant, ...props }) => {
+      const itemProps = {
+        ...props,
+        className,
+        'data-size': size,
+        'data-slot': 'item',
+        'data-variant': variant
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...itemProps,
+          ...childProps,
+          className: [className, childProps.className].filter(Boolean).join(' ') || undefined
+        })
+      }
+      return React.createElement('div', itemProps, children)
+    },
+    ItemActions: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-actions' }, children),
+    ItemContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-content' }, children),
+    ItemDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-slot': 'item-description' }, children),
+    ItemGroup: ({ children, ...props }) =>
+      React.createElement('div', { ...props, role: 'list', 'data-slot': 'item-group' }, children),
+    ItemMedia: ({ children, variant, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-media', 'data-variant': variant }, children),
+    ItemTitle: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-slot': 'item-title' }, children),
     // Passthrough unless real react-hook-form methods are supplied, in which case the
     // provider is needed so FormField/FormMessage can read field state.
     Form: (props) => {
@@ -732,20 +793,34 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, className, ...props }) => {
+    Tooltip: ({
+      children,
+      title,
+      content,
+      mouseEnterDelay,
+      classNames,
+      className,
+      sideOffset,
+      fullWidthTrigger,
+      ...props
+    }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       // Mirror the real Tooltip: the trigger wrapper carries classNames.placeholder.
-      const wrapperClassName = [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined
+      const wrapperClassName =
+        [className, classNames?.placeholder, fullWidthTrigger && 'block w-full min-w-0 max-w-full']
+          .filter(Boolean)
+          .join(' ') || undefined
       return React.createElement(
         'div',
         {
           ...props,
           ...(wrapperClassName && { className: wrapperClassName }),
+          ...(tooltipText && { 'data-slot': 'tooltip-trigger' }),
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
           'data-mouse-enter-delay': mouseEnterDelay,
-          className: classNames?.placeholder
+          'data-side-offset': sideOffset
         },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null

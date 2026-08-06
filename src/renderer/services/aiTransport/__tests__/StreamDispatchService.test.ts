@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -28,47 +29,7 @@ describe('StreamDispatchService', () => {
   it('routes a resolved ack to subscribers', async () => {
     const ack: AiStreamOpenResponse = {
       mode: 'started',
-      userMessageId: 'u-1',
-      reservedMessages: [
-        {
-          id: 'u-1',
-          role: 'user',
-          parts: [{ type: 'text', text: 'hello' }],
-          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
-        },
-        {
-          id: 'a-1',
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            status: 'pending',
-            createdAt: '2026-05-23T00:00:00.001Z',
-            modelId: 'openai:gpt-4o',
-            messageSnapshot: {
-              id: 'a1',
-              name: 'A',
-              emoji: '',
-              model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
-            }
-          }
-        },
-        {
-          id: 'a-2',
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            status: 'pending',
-            createdAt: '2026-05-23T00:00:00.002Z',
-            modelId: 'anthropic:claude-3-5-sonnet',
-            messageSnapshot: {
-              id: 'a1',
-              name: 'A',
-              emoji: '',
-              model: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
-            }
-          }
-        }
-      ]
+      userMessageId: 'u-1'
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []
@@ -107,6 +68,18 @@ describe('StreamDispatchService', () => {
     await flush()
 
     expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+  })
+
+  it('localizes paused dispatch failures from their reason', async () => {
+    streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'paused'
+    } satisfies AiStreamOpenResponse)
+
+    streamDispatchService.dispatch(TOPIC, req)
+    await flush()
+
+    expect(toast.error).toHaveBeenCalledWith(i18n.t('restore.messages_paused'))
   })
 
   it('unsubscribe stops further delivery', async () => {

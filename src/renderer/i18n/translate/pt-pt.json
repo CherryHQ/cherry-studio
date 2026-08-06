@@ -139,11 +139,16 @@
         "description": "Receba e responda a mensagens via WeChat usando a API iLink Bot.",
         "disconnected": "Desconectado",
         "loginHint": "O primeiro login exige a leitura de um código QR. Verifique os logs da aplicação para obter o URL de login.",
+        "qrExpired": "Código QR expirado. Por favor, tente novamente alternando o canal.",
         "qrHint": "Abra o WeChat no seu celular, escaneie o código QR para fazer login.",
         "qrTitle": "Login por QR Code do WeChat",
         "title": "WeChat",
         "whoamiTip": "Dica: Envie /whoami no WeChat para obter o ID de um usuário."
       }
+    },
+    "composer": {
+      "background_running_one": "{{count}} tarefa em segundo plano em execução",
+      "background_running_other": "{{count}} tarefas em segundo plano em execução"
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -230,6 +235,7 @@
           "discard_and_continue": "Descartar e continuar",
           "title": "Descartar alterações não salvas?"
         },
+        "metadata_pending": "O arquivo foi salvo, mas seus metadados ainda estão sendo recuperados. Não tente salvar novamente.",
         "refresh_failed": "Não foi possível recarregar o conteúdo mais recente do arquivo.",
         "save_failed": "Não foi possível salvar este arquivo. O salvamento automático está pausado até que você tente novamente ou descarte as alterações.",
         "unsaved": "Não salvo",
@@ -272,6 +278,16 @@
       "too_large": {
         "description": "O arquivo excede o limite de pré-visualização de {{limit}}.",
         "title": "Arquivo muito grande para pré-visualizar"
+      },
+      "tree_error": {
+        "invalid_path": {
+          "description": "O painel de arquivos requer um caminho local absoluto válido. Por favor, selecione o diretório de trabalho novamente.",
+          "title": "Caminho do espaço de trabalho inválido"
+        },
+        "load_error": {
+          "description": "Certifique-se de que o diretório de trabalho ainda existe e está acessível, depois tente novamente.",
+          "title": "Não foi possível carregar os arquivos do espaço de trabalho"
+        }
       },
       "unavailable": {
         "description": "Este arquivo não pôde ser aberto — pode ter sido movido ou excluído.",
@@ -320,16 +336,25 @@
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
         "no_subagents": "Sem subagentes",
-        "subagents": "Subagentes"
+        "shell_tasks": "Comandos em segundo plano",
+        "subagents": "Subagentes",
+        "workflows": "Fluxos de trabalho"
       },
       "status": {
         "activity": "Atividade",
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
+        "run_task_live_one": "{{count}} ao vivo",
+        "run_task_live_other": "{{count}} ao vivo",
+        "run_tasks": "Subtarefas",
         "selected_tool": "Ferramenta selecionada",
+        "stop_run_task": "Parar tarefa",
+        "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
+        "tool_uses_one": "{{count}} chamada de ferramenta",
+        "tool_uses_other": "{{count}} chamadas de ferramenta",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
@@ -377,6 +402,11 @@
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
+      },
+      "api_retry": {
+        "reason": "Pedido falhou ({{error}}, HTTP {{status}}) — tentando novamente",
+        "retrying": "Tentando novamente {{attempt}}/{{max}}…",
+        "retrying_in": "Tentando novamente {{attempt}}/{{max}} em {{seconds}}s"
       },
       "auto_rename": "Gerar nome da tarefa",
       "create": {
@@ -429,12 +459,19 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
+        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
         "yesterday": "Ontem"
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
       "list": {
         "title": "Tarefas"
+      },
+      "model_switch_confirm": {
+        "confirm": "Mudar modelo",
+        "description": "Diferentes modelos podem entender e processar o contexto de formas diferentes. Mudar de modelo pode afetar a continuidade ou a qualidade das respostas subsequentes. Deseja continuar?",
+        "skip_for_app_run": "Não pergunte novamente até eu sair do aplicativo",
+        "title": "Mudar para \"{{model}}\"?"
       },
       "new": "Nova tarefa",
       "pin": {
@@ -602,12 +639,17 @@
         },
         "permissionMode": {
           "acceptEdits": {
-            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
-            "title": "Aceitar automaticamente edições de arquivos"
+            "description": "Edita ficheiros livremente. Pergunta antes dos comandos.",
+            "title": "Aceitar edições automaticamente"
+          },
+          "auto": {
+            "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "title": "Aprovar por mim",
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
           },
           "bypassPermissions": {
-            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
-            "title": "Ignorar verificações de permissão",
+            "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
+            "title": "Acesso total",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
           },
           "confirmChange": {
@@ -615,14 +657,14 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "description": "Verificações normais de permissão aplicam-se.",
-            "title": "Padrão (perguntar antes de continuar)"
+            "description": "Pergunta antes de editar ficheiros ou executar comandos.",
+            "title": "Perguntar antes de agir"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
-            "title": "Modo de planejamento (em breve)"
+            "description": "Planeia sem editar ficheiros. Só são executados comandos de leitura ou verificados.",
+            "title": "Apenas planear"
           },
           "title": "Modo de permissões"
         },
@@ -658,6 +700,14 @@
       }
     },
     "sidebar_title": "Agentes",
+    "speed": {
+      "effort": "Esforço",
+      "fast": "Rápido",
+      "faster": "Mais rápido",
+      "label": "Velocidade",
+      "smarter": "Mais inteligente",
+      "title": "Configurações de resposta"
+    },
     "tasks": {
       "add": "Adicionar tarefa",
       "cancel": "Cancelar",
@@ -678,6 +728,7 @@
         "deleteFailed": "Falha ao excluir tarefa",
         "loadFailed": "Falha ao carregar tarefas",
         "runFailed": "Falha ao executar a tarefa",
+        "triggerInvalid": "Agendamento inválido: verifique a expressão, fuso horário ou intervalo de tempo",
         "updateFailed": "Falha ao atualizar a tarefa"
       },
       "frequency": {
@@ -717,9 +768,48 @@
         "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
       },
       "resume": "Retomar",
+      "reuseSession": {
+        "bound": "Ver sessão",
+        "description": "Continue cada execução na mesma sessão em vez de iniciar uma nova.",
+        "label": "Reutilizar sessão",
+        "pending": "Esperando a primeira execução",
+        "warning": "Uma sessão reutilizada continua acumulando contexto, o que aumenta o custo de tokens ao longo do tempo e pode transbordar a janela de contexto do modelo. Para vincular uma sessão limpa, desative e salve, depois ative e salve."
+      },
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
+      "schedule": {
+        "custom": "Agenda personalizada",
+        "daily": "Diário",
+        "hour": "Hora",
+        "hourly": "Por hora",
+        "interval": "Intervalo personalizado",
+        "intervalMinutes": "Intervalo",
+        "invalid": "Insira uma frequência de execução válida.",
+        "minute": "Minuto",
+        "once": "Uma vez",
+        "runAt": "Executar em",
+        "summary": {
+          "daily": "Diariamente às {{time}}",
+          "hourly": "No início de cada hora",
+          "interval": "A cada {{count}} minutos",
+          "weekdays": "Dias úteis às {{time}}",
+          "weekly": "Toda {{weekday}} às {{time}}"
+        },
+        "time": "Tempo",
+        "weekday": "Dia da semana",
+        "weekdays": {
+          "friday": "Sexta-feira",
+          "monday": "Segunda-feira",
+          "saturday": "Sábado",
+          "sunday": "Domingo",
+          "thursday": "quinta-feira",
+          "tuesday": "Terça-feira",
+          "wednesday": "Quarta-feira"
+        },
+        "weekdaysOnly": "Dias da semana",
+        "weekly": "Semanal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalo",
@@ -869,7 +959,7 @@
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Pendente",
       "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
       "suggestion": {
@@ -997,7 +1087,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiar",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
@@ -1009,8 +1098,6 @@
     "authHeader": {
       "title": "Cabeçalho de autorização"
     },
-    "authHeaderText": "Usar no cabeçalho de autorização:",
-    "configuration": "Configuração",
     "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
       "title": "Documentação API"
@@ -1018,13 +1105,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Chave API",
-        "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
-        "description": "Número de porta TCP do servidor HTTP (1000-65535)",
-        "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
       "url": {
@@ -1033,7 +1117,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
       "notEnabled": "O Servidor de API não está habilitado.",
       "operationFailed": "Operação do Servidor API falhou: ",
@@ -1043,8 +1126,7 @@
       "startError": "Falha ao iniciar o Servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
       "stopError": "Falha ao parar o Servidor API: ",
-      "stopSuccess": "Servidor API parado com sucesso",
-      "urlCopied": "URL do servidor copiada para a área de transferência"
+      "stopSuccess": "Servidor API parado com sucesso"
     },
     "status": {
       "running": "A executar",
@@ -1204,10 +1286,6 @@
           "tip": "O agente usará a capacidade de reconhecimento de intenção do grande modelo para decidir se deve chamar a base de conhecimento para responder. Esta função depende da capacidade do modelo"
         }
       },
-      "max_tool_calls": {
-        "label": "Máximo de Chamadas de Ferramentas",
-        "tip": "Número máximo de chamadas de ferramentas permitidas em uma única conversa. Valores mais altos permitem operações mais complexas de múltiplas etapas, mas podem aumentar o uso de tokens e o tempo de resposta."
-      },
       "mcp": {
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
@@ -1289,6 +1367,9 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "error": {
+      "active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente."
+    },
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -1355,6 +1436,11 @@
         "placeholder": "Pesquisar"
       }
     },
+    "compaction": {
+      "compacted": "Contexto compactado, ~{{count}} tokens economizados",
+      "compacted_plain": "Contexto compactado",
+      "compacting": "Compactando contexto…"
+    },
     "conversation": {
       "new": "Novo Chat"
     },
@@ -1413,35 +1499,41 @@
       "image_preview_failed": "Falha na visualização da imagem",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
-      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
+      "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
-      "mcp_unavailable": "Selecione um modelo compatível com ferramentas ou ative o uso de ferramentas no prompt",
       "new": {
         "context": "Limpar contexto {{Command}}"
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
+      "note_reference": {
+        "description": "Anexe uma nota do Notes",
+        "empty": "Nenhuma nota encontrada",
+        "load_failed": "Falha ao carregar notas",
+        "loading": "Carregando notas...",
+        "title": "Nota de Referência"
+      },
       "paste_text_file": "Cole na entrada",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Falha ao carregar a conversa referenciada",
+        "no_room": "Não há espaço suficiente na mensagem para adicionar esta conversa",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Nenhuma sessão corresponde à sua pesquisa",
+            "label": "Nenhuma sessão encontrada"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessões"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Nenhum tópico corresponde à sua pesquisa",
+            "label": "Nenhum tópico encontrado"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Tópicos"
         }
       },
       "resize_height": "Redimensionar altura da entrada",
@@ -1521,6 +1613,7 @@
         },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
+        "open_with": "Abrir com",
         "reveal_in_finder": "Revelar no Finder"
       },
       "topics": "Tópicos",
@@ -1534,7 +1627,6 @@
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
-      "url_context": "Contexto da Página da Web",
       "web_search": {
         "builtin": {
           "disabled_content": "Este modelo não suporta busca na web",
@@ -1551,18 +1643,16 @@
           "description": "Não ativar a função de busca na web",
           "label": "Sem busca na web"
         },
+        "route": {
+          "builtin": "Pesquisas com a ferramenta integrada do modelo",
+          "client": "Pesquisas com {{provider}}"
+        },
         "settings": "Configurações de Pesquisa na Web"
       }
     },
     "mcp": {
-      "error": {
-        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
-      },
       "warning": {
-        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
-        "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
-        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}",
-        "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
+        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções."
       }
     },
     "message": {
@@ -1603,8 +1693,17 @@
       "token_details": {
         "cache_read": "Leitura de cache",
         "cache_write": "Escrita em cache",
+        "cost": "Custo",
+        "cost_billed": "Faturado pelo provedor",
+        "cost_estimated": "Estimado",
+        "end_to_end_throughput": "Vazão de ponta a ponta",
         "input": "Entrada",
         "input_breakdown": "Quebra de entrada",
+        "lane_approval": "Aprovação",
+        "lane_model": "Modelo",
+        "lane_other": "Outro",
+        "lane_tool": "Ferramenta",
+        "model_throughput": "Geração de modelo TPS",
         "output": "Saída",
         "reasoning": "Raciocínio",
         "reasoning_time": "Raciocínio",
@@ -1613,6 +1712,7 @@
         "text_output": "Saída de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "Duração de ponta a ponta",
         "uncached": "Não em cache",
         "usage": "Uso de tokens",
         "waiting_first_token": "Aguardando"
@@ -1629,6 +1729,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "Ir para a jogada {{number}}"
+      },
       "bottom": "Voltar ao fundo",
       "close": "Fechar",
       "first": "Esta é a primeira mensagem",
@@ -1886,6 +1989,7 @@
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
+        "unknown_assistant_tip": "Este é um grupo de conversa histórico sem um assistente, não um assistente real. Mova a conversa para um assistente existente para continuar.",
         "yesterday": "Ontem"
       },
       "list": "Lista de tópicos",
@@ -2140,7 +2244,7 @@
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicativo de terminal executar a CLI",
     "terminal_placeholder": "Selecionar aplicativo de terminal",
-    "title": "Ferramenta de código",
+    "title": "Code Mate",
     "tool_parameters": "Configurações de Parâmetros",
     "up_to_date": "Atualizado",
     "update_options": "Opções de atualização",
@@ -2253,6 +2357,12 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "group": {
+      "create": "Novo Grupo",
+      "create_failed": "Falha ao criar grupo",
+      "name_placeholder": "Digite o nome do grupo...",
+      "name_required": "O nome do grupo é obrigatório"
+    },
     "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
@@ -2280,6 +2390,7 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
+    "other": "Outro",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2293,7 +2404,7 @@
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Não foi possível atualizar a lista. A mostrar a última versão carregada.",
     "regenerate": "Regenerar",
     "remove_image": "Remover imagem",
     "rename": "Renomear",
@@ -2408,6 +2519,7 @@
       "content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
       "context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
       "deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
+      "free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
       "go_to_settings": "Ir para definições",
       "knowledge": "Falha na vetorização da base de conhecimento",
       "mcp": "Falha na ligação ao servidor MCP, verifique se o serviço está em execução",
@@ -2512,6 +2624,10 @@
     "user": "Usuário"
   },
   "file_preview": {
+    "directory": {
+      "description": "Selecione um arquivo nesta pasta para visualizá-lo.",
+      "title": "Esta é uma pasta"
+    },
     "html": {
       "empty": {
         "description": "Este arquivo HTML não tem conteúdo.",
@@ -2578,6 +2694,10 @@
         "title": "O arquivo é muito grande"
       }
     },
+    "unavailable": {
+      "description": "O arquivo pode ter sido movido, excluído ou não pode ser acessado.",
+      "title": "Arquivo indisponível"
+    },
     "unsupported": {
       "action": "Abrir com aplicação padrão",
       "description": "Este tipo de arquivo ainda não pode ser visualizado.",
@@ -2609,7 +2729,7 @@
     "empty": {
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado",
-      "title": "[to be translated]:No files yet"
+      "title": "Nenhum arquivo ainda"
     },
     "empty_trash": "Esvaziar lixeira",
     "error": {
@@ -2838,6 +2958,10 @@
     "code": "Código",
     "empty_preview": "Sem conteúdo para exibir",
     "generating": "Gerando",
+    "interactive_preview": {
+      "action": "Ver página web",
+      "description": "Esta página web contém scripts ou recursos externos. Ao abri-la, poderá executar código e ligar-se à Internet."
+    },
     "preview": "Visualizar",
     "split": "Dividir",
     "view_mode": "Modo de visualização"
@@ -2980,6 +3104,7 @@
       "reindex_failed": "Falha ao reindexar a fonte de dados",
       "status": {
         "chunking": "Fragmentação",
+        "copying": "Copiando {{percent}}%",
         "embedding": "Incorporação",
         "error": "Erro",
         "pending": "Aguardando",
@@ -3007,6 +3132,7 @@
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
+    "empty_action": "Criar Base de Conhecimento",
     "empty_description": "Você ainda não tem nenhuma base de conhecimento. Crie uma para começar a organizar e pesquisar seus documentos.",
     "error": {
       "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
@@ -3076,6 +3202,7 @@
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
       "processor": "Processador de Provedor",
+      "processor_not_configured": "Não configurado",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -3275,7 +3402,7 @@
             "label": "Modelo pequeno (opcional)"
           }
         },
-        "model_config": "Configuração do modelo",
+        "model_config": "Modelo",
         "section": {
           "advanced": {
             "desc": "Limites de execução e parâmetros de tempo de execução",
@@ -3326,7 +3453,12 @@
         }
       },
       "basic": {
+        "context_compress_enabled": "Auto-comprimir",
+        "context_compress_model": "Modelo de compressão",
+        "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_management": "Gestão de contexto",
+        "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
         "custom_params_add": "Adicionar parâmetro",
@@ -3338,8 +3470,17 @@
           "avatar": {
             "hint": "Usado para identificar o assistente na biblioteca e nos chats"
           },
+          "context_compress_enabled": {
+            "hint": "Resumir automaticamente as conversas anteriores ao aproximar-se da janela de contexto"
+          },
           "context_count": {
             "hint": "Número de mensagens recentes mantidas como contexto"
+          },
+          "context_management": {
+            "hint": "Substituir as configurações globais de gerenciamento de contexto para este assistente; desativado herda as configurações globais"
+          },
+          "context_truncate_threshold": {
+            "hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas"
           },
           "custom_params": {
             "hint": "Parâmetros extras do provedor enviados com as solicitações"
@@ -3380,6 +3521,7 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
+        "max_tool_calls_default": "Predefinição ({{count}} rondas)",
         "mcp_mode": "Modo MCP",
         "model": "Modelo padrão",
         "model_clear": "Claro",
@@ -3395,8 +3537,7 @@
         "tags": "Etiquetas",
         "temperature": "Temperatura",
         "title": "Configurações básicas",
-        "top_p": "Top-P",
-        "unlimited": "Ilimitado"
+        "top_p": "Top-P"
       },
       "breadcrumb": "Biblioteca",
       "dialogs": {
@@ -3754,6 +3895,7 @@
       "pasted_text": "Arquivo da área de transferência"
     },
     "backup": {
+      "cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
       "failed": "Backup falhou",
       "start": {
         "success": "Início do backup"
@@ -3769,7 +3911,9 @@
       }
     },
     "citation": "{{count}} conteúdo(s) citado(s)",
+    "citation_source": "Fonte de citação {{number}}",
     "citations": "Citações",
+    "conversation_reset": "Histórico de conversa anterior não foi encontrado — continuando em uma nova conversa",
     "copied": "Copiado",
     "copy": {
       "failed": "Cópia falhou",
@@ -3781,6 +3925,8 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "first_turn_not_supported": "A primeira mensagem do usuário não pode ser excluída.",
+      "root_unavailable": "As mensagens ainda estão carregando e não podem ser excluídas ainda.",
       "success": "Excluído com sucesso"
     },
     "dialog": {
@@ -4049,6 +4195,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
+      "agent_background": "Executando em segundo plano",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
@@ -4080,6 +4227,7 @@
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
         "webSearch": "Pesquisa na Web",
+        "workflow": "Fluxo de trabalho",
         "write": "Escreva"
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
@@ -4137,6 +4285,15 @@
         "plan_other": "{{count}} planos",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
+      },
+      "workflow": {
+        "orchestrating": "Orquestrando fluxo de trabalho",
+        "run_id": "ID da Execução",
+        "script": "Script de fluxo de trabalho",
+        "script_path": "Caminho do script",
+        "started": "Iniciou fluxo de trabalho",
+        "summary": "Resumo",
+        "workflow": "fluxo de trabalho"
       }
     },
     "topic": {
@@ -4168,6 +4325,7 @@
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
       "fetch_empty": "Nenhum resultado de pesquisa encontrado",
+      "fetch_opaque": "Pesquisado pelo modelo",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
@@ -4279,6 +4437,7 @@
     },
     "pinned": "Fixado",
     "price": {
+      "cache_read": "Preço de Leitura de Cache",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
@@ -4400,7 +4559,8 @@
     "save_blocked_load_failed": "Salvamento bloqueado porque a nota falhou ao carregar",
     "save_failed": "Falha ao salvar nota",
     "save_failure": {
-      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado."
+      "description": "Esta nota não pôde ser salva. Suas edições permanecem no editor e o salvamento automático está pausado.",
+      "metadata_pending": "A nota foi salva, mas seus metadados de arquivo ainda estão sendo recuperados. Não tente salvar novamente."
     },
     "search": {
       "both": "Nome + Conteúdo",
@@ -4894,6 +5054,11 @@
     "seed_random": "Aleatório",
     "seed_tip": "A mesma semente e palavra-chave podem gerar imagens semelhantes",
     "select_model": "Selecionar modelo",
+    "showcase": {
+      "caption": "Escolha um modelo para começar e personalize o prompt abaixo.",
+      "styles_label": "Modelos de prompts",
+      "title": "Um espaço para a sua próxima obra-prima."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Automático",
@@ -5033,6 +5198,7 @@
     "reset": "repor",
     "rotate_left": "Rodar para a Esquerda",
     "rotate_right": "Rodar para a Direita",
+    "save_as": "Salvar Como",
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
@@ -5089,7 +5255,7 @@
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
-    "local-embedding": "Qwen3 Embedding 0.6B",
+    "local-embedding": "Modelos locais",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -5117,6 +5283,7 @@
     "ppio": "PPIO Nuvem Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "Nuvem de GPU AMD",
     "silicon": "Silício em Fluxo",
     "sophnet": "SophNet",
     "stepfun": "Função de Passo Estelar",
@@ -5170,6 +5337,7 @@
       "label": "Tem certeza de que deseja restaurar os dados?"
     },
     "content": "A operação de restauração usará os dados de backup para substituir todos os dados atuais do aplicativo. Por favor, note que o processo de restauração pode levar algum tempo. Agradecemos sua paciência.",
+    "messages_paused": "Uma restauração de backup está em andamento; novas mensagens estão pausadas até que seja concluída.",
     "progress": {
       "completed": "Restauração concluída",
       "copying_files": "Copiando arquivos... {{progress}}%",
@@ -5615,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "Novo Assistente",
+      "create_tag": "Novo",
       "empty_text": "Nenhum assistente ainda",
       "filter": "Assistentes de filtro",
       "group_filter": "Filtrar por grupo",
@@ -5669,7 +5838,25 @@
         "title": "Empresa"
       },
       "feedback": {
+        "agent": {
+          "description": "Converse com o Assistente Cherry para compartilhar comentários.",
+          "title": "Use Agent"
+        },
+        "agent_error": "Não foi possível abrir o Cherry Assistant para feedback. Por favor, tente novamente.",
         "button": "Feedback",
+        "dialog": {
+          "description": "Escolha como compartilhar feedback e ajude-nos a melhorar o Cherry Studio.",
+          "title": "Escolha um canal de feedback"
+        },
+        "github": {
+          "description": "Criar um relatório de bug ou solicitação de recurso no GitHub.",
+          "title": "Issue do GitHub"
+        },
+        "recommended": "Recomendado",
+        "survey": {
+          "description": "Compartilhe feedback através da nossa pesquisa Feishu.",
+          "title": "Pesquisa de feedback"
+        },
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
@@ -5677,6 +5864,7 @@
         "button": "Ver",
         "title": "Registro de alterações"
       },
+      "repository": "Repositório do GitHub",
       "social": {
         "title": "Contas sociais"
       },
@@ -5755,8 +5943,7 @@
       },
       "backup": {
         "skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
-        "skip_file_data_title": "Backup simplificado",
-        "v2_unavailable": "Backup & restore V2 ainda não está disponível. Em breve."
+        "skip_file_data_title": "Backup simplificado"
       },
       "clear_cache": {
         "button": "Limpar cache",
@@ -6002,6 +6189,7 @@
         },
         "pathSelector": {
           "currentPath": "Caminho atual",
+          "fetchError": "Falha ao carregar a lista de pastas do Nutstore",
           "return": "Voltar",
           "title": "Caminho de armazenamento do Nutstore"
         },
@@ -6400,6 +6588,7 @@
       "viewErrorDetails": "Ver detalhes"
     },
     "developer": {
+      "client_id": "ID do Cliente",
       "enable_developer_mode": "Ativar modo de desenvolvedor",
       "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
       "title": "Modo de Desenvolvedor"
@@ -6536,7 +6725,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "A desativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_disable": "Desativar a aceleração de hardware requer reiniciar o aplicativo para entrar em vigor. Deseja reiniciar agora?",
+        "content_enable": "A ativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
         "title": "Reinicialização do Aplicativo Necessária"
       },
       "title": "Desativar aceleração de hardware"
@@ -6582,16 +6772,15 @@
       "active": "Ativar",
       "addError": "Falha ao adicionar servidor",
       "addServer": {
+        "advanced": "Avançado",
         "create": "Criação rápida",
+        "createDescription": "Preencha os detalhes de conexão para criar o servidor; tudo o resto pode ser ajustado posteriormente.",
         "importFrom": {
           "connectionFailed": "Falha na conexão",
           "dxt": "Importar pacote DXT",
           "dxtFile": "Arquivo do pacote DXT",
           "dxtHelp": "Selecione um arquivo .dxt que contenha o servidor MCP",
           "dxtProcessFailed": "Falha ao processar o arquivo DXT",
-          "error": {
-            "multipleServers": "Não é possível importar de vários servidores"
-          },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
           "mcpb": "Importar Pacote MCPB",
@@ -6662,7 +6851,12 @@
         "success": "Servidores MCP obtidos com sucesso"
       },
       "filter": {
-        "label": "Filtro"
+        "allStatuses": "Todos os status",
+        "allTypes": "Todos os tipos",
+        "builtinOnly": "Apenas integrado",
+        "label": "Filtro",
+        "status": "Filtrar por status",
+        "type": "Filtrar por tipo"
       },
       "findMore": "Mais servidores MCP",
       "headers": "Cabeçalhos da Requisição",
@@ -6719,6 +6913,7 @@
         "usage": "Uso",
         "version": "Versão"
       },
+      "pageDescription": "Gerenciar servidores MCP. Uma vez habilitados, os agentes podem chamar as ferramentas e recursos que eles fornecem.",
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Dicas disponíveis",
@@ -6726,6 +6921,9 @@
         "loadError": "Falha ao carregar dicas",
         "noPromptsAvailable": "Nenhuma dica disponível",
         "requiredField": "Campo obrigatório"
+      },
+      "protocolInstall": {
+        "title": "Instalar MCP"
       },
       "protocolInstallWarning": {
         "command": "Comando de inicialização",
@@ -6740,6 +6938,15 @@
       "providers": "Fornecedores",
       "registry": "Fonte de Gerenciamento de Pacotes",
       "registryDefault": "Padrão",
+      "registryOptions": {
+        "custom": "Personalizado",
+        "npmTaobao": "Espelho NPM Taobao",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Selecione uma fonte alternativa para instalar pacotes, caso tenha problemas de rede com a fonte padrão.",
       "requiresConfig": "Requer configuração",
       "resources": {
@@ -6915,6 +7122,7 @@
         "display": "Gestão de exibição",
         "preferences": "Preferências"
       },
+      "hide_app": "Ocultar {{name}}",
       "open_link_external": {
         "description": "Quando ativado, links que abrem uma nova janela dentro de um miniaplicativo abrem no seu navegador padrão",
         "title": "Abrir link em nova janela do navegador"
@@ -6927,6 +7135,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
+      "show_app": "Mostrar {{name}}",
       "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
     },
@@ -7173,6 +7382,7 @@
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
+        "model": "Modelo de Nomenclatura",
         "prompt": "Prompt de nomenclatura de tópicos"
       },
       "translate_model": "Modelo de tradução",
@@ -7583,6 +7793,13 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Abrir o Token Factory",
+          "description": "Equivale a 10 USD diários em créditos de API: cerca de 10M–111M tokens de entrada/saída às tarifas atuais, consoante o modelo e o tipo de token. Os créditos são repostos diariamente; atualmente, os carregamentos não são suportados.",
+          "title": "10 USD diários em créditos de API gratuitos"
+        }
+      },
       "remove_duplicate_keys": "Remover chaves duplicadas",
       "remove_invalid_keys": "Remover chaves inválidas",
       "reorder_failed": "Falha ao reordenar provedores",
@@ -7682,12 +7899,39 @@
       "titlePlaceholder": "Por favor, insira o título da frase"
     },
     "scheduledTasks": {
+      "agentCreate": "Criar com Agente",
+      "allAgents": "Todos os Agentes",
+      "allStatuses": "Todos os status",
+      "clearFilters": "Limpar filtros",
+      "createDescription": "Defina o que o Agente deve fazer e quando deve ser executado.",
+      "createTitle": "Nova tarefa agendada",
       "description": "Gerencie tarefas agendadas em todos os agentes. As tarefas são executadas automaticamente conforme o agendamento configurado.",
+      "editDescription": "Atualize o que o Agente deve fazer e quando deve ser executado.",
+      "editTitle": "Editar tarefa agendada",
+      "filterAgent": "Filtrar por Agente",
+      "filterStatus": "Filtrar por status",
+      "manualCreate": "Criar manualmente",
+      "newTask": "Novo",
       "noAgents": "Nenhum agente encontrado. Crie um agente primeiro para adicionar tarefas agendadas.",
       "noAgentsTip": "Dica: Você também pode pedir ao seu agente para criar tarefas agendadas via chat.",
+      "noAgentsTitle": "Sem Agentes",
+      "noMatches": "Tente uma pesquisa ou filtro diferente.",
+      "noMatchesTitle": "Nenhuma tarefa correspondente",
       "noTasks": "Nenhuma tarefa agendada. Clique em \"+ Adicionar\" para criar uma para um agente.",
+      "noTasksTitle": "Tarefas agendadas",
+      "notFoundDescription": "Esta tarefa pode ter sido excluída ou o link é inválido.",
+      "notFoundTitle": "Tarefa não encontrada",
+      "paginationLabel": "Paginação de tarefas agendadas",
+      "paginationStatus": "Página {{page}} de {{pageCount}} · {{total}} tarefas",
+      "search": "Tarefas agendadas de pesquisa",
+      "searchPlaceholder": "Pesquisar tarefas ou Agentes",
       "selectTask": "Selecione uma tarefa para ver os detalhes",
-      "title": "Tarefas Agendadas"
+      "title": "Tarefas Agendadas",
+      "validation": {
+        "agent": "Selecione um Agente.",
+        "name": "Digite um nome de tarefa.",
+        "prompt": "Digite um prompt de tarefa."
+      }
     },
     "shortcuts": {
       "action": "Ação",
@@ -7776,6 +8020,7 @@
       "noInstalled": "Nenhuma habilidade instalada",
       "noResults": "Nenhuma habilidade encontrada",
       "noSkillFile": "Nenhum SKILL.md encontrado",
+      "pageDescription": "Gerencie as habilidades instaladas. As habilidades expandem o que seus agentes podem fazer e são invocadas sob demanda.",
       "searchPlaceholder": "Descobrir mais competências...",
       "searchRegistryTitle": "Procure registros de habilidades online",
       "searchTitle": "Habilidades de Pesquisa",
@@ -7900,6 +8145,10 @@
         "check": "Verificar",
         "check_failed": "Falha na verificação",
         "check_success": "Verificação bem-sucedida",
+        "client_tools_preferred": {
+          "description": "Use os serviços de pesquisa e busca de URL configurados acima mesmo quando o modelo possui pesquisa integrada. Quando desativado, o modelo lida com isso.",
+          "label": "Serviços de pesquisa configurados preferidos"
+        },
         "compression": {
           "cutoff": {
             "limit": {
@@ -7926,7 +8175,7 @@
           "save_failed": "Falha ao salvar",
           "zhipu_sync_failed": "Falha ao sincronizar a chave de API Zhipu com a Pesquisa na Web. Por favor, salve novamente a chave ou verifique as configurações da Pesquisa na Web."
         },
-        "fetch_urls_provider": "Provedor padrão de busca de URL",
+        "fetch_urls_provider": "Provedor de busca de URL",
         "free": "Grátis",
         "is_default": "Padrão",
         "local_provider": {
@@ -8031,6 +8280,108 @@
       "show": "Mostrar ícone de bandeja",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Dias ativos",
+        "cacheHitRate": "Taxa de acerto do cache",
+        "cacheObservedTokens": "Entrada observável: {{tokens}}",
+        "cacheStartsWithNewRequests": "Começa com novos pedidos",
+        "dailyAverage": "Média diária",
+        "explicitApiKey": "Chave selecionada",
+        "lastPeriod": "vs último período",
+        "matchedApiKey": "Sobreposição correspondente",
+        "none": "N/A",
+        "peakDay": "Dia de pico",
+        "providerAuth": "Autenticação do provedor",
+        "streak": "Maior sequência: {{days}} dias",
+        "topModel": "Top model",
+        "totalCost": "Custo total",
+        "totalRequests": "Pedidos",
+        "totalTokens": "Tokens totais",
+        "unattributedApiKey": "Pedido não atribuído",
+        "unattributedSource": "Fonte não atribuída"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Linha",
+        "pie": "Torta",
+        "stack": "Pilha"
+      },
+      "currency": "Moeda",
+      "empty": {
+        "description": "O uso aparece após as solicitações de IA suportadas criarem registros de uso.",
+        "title": "Sem uso ainda"
+      },
+      "explore": {
+        "analysis": "Análise",
+        "chart": "Gráfico",
+        "clearDate": "Limpar filtro de data",
+        "drilldownTitle": "Detalhamento de {{date}}",
+        "entries": "Pedidos",
+        "groupBy": "Agrupar por",
+        "loadMore": "Carregar mais",
+        "loading": "Carregando...",
+        "metric": "Métrica",
+        "noBreakdown": "Dados não detalhados",
+        "noBreakdownDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "noEntries": "Sem entradas",
+        "noEntriesDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "rollup": "Rollup",
+        "selectedDate": "Data selecionada: {{date}}",
+        "shareLabel": "Compartilhar",
+        "title": "Explorar",
+        "top": "Topo",
+        "totalEntries_one": "{{count}} entrada",
+        "totalEntries_other": "{{count}} entradas"
+      },
+      "groupBy": {
+        "apiKey": "Chave de API",
+        "model": "Modelo",
+        "provider": "Fornecedor",
+        "source": "Assistente / Agente"
+      },
+      "heatmap": {
+        "ariaDate": "Uso em {{date}}",
+        "title": "Atividade diária"
+      },
+      "metric": {
+        "cost": "Custo",
+        "requests": "Pedidos",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Visão Geral"
+      },
+      "rollup": {
+        "daily": "Diário",
+        "monthly": "Mensal",
+        "total": "Total",
+        "weekly": "Semanal"
+      },
+      "summary": "{{janela}} / {{tokens}} tokens / {{solicitações}} requests",
+      "table": {
+        "cost": "Custo",
+        "date": "Data",
+        "model": "Modelo",
+        "source": "Fonte",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Análise de Uso",
+      "tooltip": {
+        "cost": "Custo {{value}}",
+        "requests_one": "{{count}} solicitação",
+        "requests_other": "{{count}} solicitações",
+        "tokens": "{{value}} tokens"
+      },
+      "window": {
+        "30d": "Últimos 30 dias",
+        "365d": "Ano passado",
+        "90d": "Últimos 90 dias"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Alterar o estilo da barra de título requer reiniciar o aplicativo para ter efeito. Deseja reiniciar agora?",
@@ -8061,7 +8412,7 @@
   "title": {
     "apps": "Miniaplicativos",
     "chat": "Chat",
-    "code": "Código",
+    "code": "Code Mate",
     "files": "Arquivos",
     "home": "Página Inicial",
     "knowledge": "Base de Conhecimento",
@@ -8206,6 +8557,7 @@
         "placeholder": "Pesquisar histórico de traduções"
       },
       "source": "Fonte",
+      "star": "Favorito",
       "success": {
         "add": "Salvo no histórico",
         "clear": "Histórico limpo",

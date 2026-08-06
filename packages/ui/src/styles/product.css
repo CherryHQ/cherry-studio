@@ -10,8 +10,12 @@
 :root {
   /* Shared product semantics */
   --background-subtle: var(--cs-background-subtle);
+  --foreground-tertiary: var(--cs-foreground-tertiary);
+  --foreground-disabled: var(--cs-foreground-disabled);
   --border-subtle: var(--cs-border-subtle);
   --border-strong: var(--cs-border-strong);
+  --border-selected: var(--cs-border-selected);
+  --link: var(--cs-blue-600);
 
   /* Feedback */
   --success: var(--cs-success);
@@ -41,14 +45,17 @@
   --reference-foreground: #000;
   --reference-subtle: #f1f7ff;
   --highlight-foreground: var(--foreground);
-  --highlight: var(--cs-amber-50);
-  --highlight-accent: var(--cs-amber-100);
+  --highlight: var(--cs-amber-200);
+  --highlight-accent: var(--cs-orange-400);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
 }
 
 .dark {
+  /* Shared product semantics */
+  --link: var(--cs-blue-400);
+
   /* Stable product domain: rich text and code */
   --code-block: #323232;
   --inline-code: #323232;
@@ -59,7 +66,7 @@
   --reference-subtle: #0b0e12;
   --highlight-foreground: var(--foreground);
   --highlight: var(--cs-amber-900);
-  --highlight-accent: var(--cs-amber-800);
+  --highlight-accent: var(--cs-orange-800);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);

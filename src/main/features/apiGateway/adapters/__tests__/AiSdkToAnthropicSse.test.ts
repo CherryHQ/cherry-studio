@@ -32,10 +32,11 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
   const messageMetadata =
     usage !== undefined
       ? {
-          totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          promptTokens: usage.inputTokens ?? 0,
-          completionTokens: usage.outputTokens ?? 0,
-          thoughtsTokens: undefined
+          stats: {
+            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0
+          }
         }
       : undefined
   return {
@@ -204,6 +205,33 @@ describe('AiSdkToAnthropicSse', () => {
       if (messageDelta && messageDelta.type === 'message_delta') {
         expect(messageDelta.delta.stop_reason).toBe('tool_use')
       }
+    })
+
+    it('should restore client tool names before emitting tool_use blocks', async () => {
+      const adapter = new AiSdkToAnthropicSse({
+        model: 'test:model',
+        toClientToolName: (toolName) =>
+          toolName === 'mcp__calendar__events_list_123456789abc' ? 'mcp__calendar__events.list' : toolName
+      })
+      const stream = createMockStream([
+        {
+          type: 'tool-input-available',
+          toolCallId: 'call_123',
+          toolName: 'mcp__calendar__events_list_123456789abc',
+          input: {}
+        },
+        createFinish('tool-calls')
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      const blockStart = events.find(
+        (event) => event.type === 'content_block_start' && event.content_block.type === 'tool_use'
+      )
+
+      expect(blockStart).toMatchObject({
+        type: 'content_block_start',
+        content_block: { type: 'tool_use', name: 'mcp__calendar__events.list' }
+      })
     })
 
     it('should not create duplicate tool blocks', async () => {

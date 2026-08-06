@@ -1,11 +1,14 @@
+import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn((key: string) => `/mock/${key}`),
+    getPath: getPathMock,
     isPackaged: false
   }
 }))
@@ -21,7 +24,27 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 // We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
 // local Electron mock also lets the path-layout test exercise the real registry.
 
+beforeEach(() => {
+  getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
+})
+
 describe('buildPathRegistry', () => {
+  it('keeps the database and restore journal together under userData Data', () => {
+    const registry = buildPathRegistry()
+    const dataRoot = path.join('/mock/userData', 'Data')
+
+    expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
+    expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+  })
+
+  it('keeps the Claude config under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const claudeRoot = path.join('/mock/userData', 'Data', 'Agents', '.claude')
+
+    expect(registry['feature.agents.claude.root']).toBe(claudeRoot)
+    expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -29,6 +52,29 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('falls back when Electron cannot resolve an optional user system path', () => {
+    getPathMock.mockImplementation((key: string) => {
+      if (key === 'documents') {
+        throw new Error("Failed to get 'documents' path")
+      }
+      return `/mock/${key}`
+    })
+
+    const registry = buildPathRegistry()
+
+    expect(registry['sys.documents']).toBe(path.join(os.homedir(), 'Documents'))
+    expect(registry['sys.downloads']).toBe('/mock/downloads')
+    expect(registry['sys.desktop']).toBe('/mock/desktop')
+  })
+
+  it('registers the Cherry Assistant product manifest inside bundled resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.agents.assistant.manifest.file']).toBe(
+      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+    )
   })
 })
 
@@ -74,10 +120,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.file_processing.temp')).toBe(true)
     })
 
-    it('returns true for the new feature.agents.workspaces key', () => {
-      // Registered for BaseService's per-agent workspace parent dir
-      // (`userData/Data/Agents`). Cherry-owned, writable, not opted out.
-      expect(shouldAutoEnsure('feature.agents.workspaces')).toBe(true)
+    it('returns true for the Agent data root', () => {
+      expect(shouldAutoEnsure('feature.agents.data')).toBe(true)
     })
 
     it('returns true for feature.agents.skills (now that its value is fixed)', () => {
@@ -152,6 +196,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
   })
 
   describe('NO_ENSURE exact keys — read-only build artifacts', () => {
+    it('returns false for the system-workspace root so DataApi can store paths without creating directories', () => {
+      expect(shouldAutoEnsure('feature.agents.system_workspaces')).toBe(false)
+    })
+
     it('returns false for app.exe_file', () => {
       expect(shouldAutoEnsure('app.exe_file')).toBe(false)
     })
@@ -182,6 +230,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for app.database.migrations (packaged read-only path)', () => {
       expect(shouldAutoEnsure('app.database.migrations')).toBe(false)
+    })
+
+    it('returns false for the bundled Cherry Assistant product manifest', () => {
+      expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
     })
   })
 

@@ -1,5 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
@@ -17,16 +18,6 @@ import {
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
 import { clampResourceListPaneWidth } from './useResourceListPaneResize'
-
-/**
- * User-driven left-pane toggle marker: pages bump `seq` inside explicit user
- * toggle handlers (both directions) in the same commit that flips `paneOpen`.
- * Programmatic opens (history locate, layout resets, auto-restore) must not.
- */
-export interface PaneManualToggleSignal {
-  seq: number
-  open: boolean
-}
 
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
@@ -323,6 +314,7 @@ export function ChatAppShell({
           <div className="relative flex min-w-0 flex-1 flex-col">
             <motion.div
               ref={centerRef}
+              data-ui="part:conversation-main"
               data-chat-app-shell-center
               id={centerId}
               layout
@@ -335,7 +327,7 @@ export function ChatAppShell({
                 rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
               )}>
               {topBar && (
-                <div className="relative z-10 shrink-0 bg-background">
+                <div className="relative z-10 shrink-0">
                   <ErrorBoundary>{topBar}</ErrorBoundary>
                 </div>
               )}

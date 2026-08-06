@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP de Cherry Studio compatible con OpenAI, Anthropic y Gemini, más los endpoints propios de Cherry (modelos, bases de conocimiento)",
+      "language_switcher_label": "Idioma de la documentación",
+      "operations": {
+        "chat_completions": "Crea una respuesta de chat. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Chat Completions; con `stream: true` la salida es incremental.",
+        "count_tokens": "Estima cuántos tokens de entrada consume un conjunto de mensajes en formato Anthropic.",
+        "generate_content": "Genera contenido mediante el método `generateContent` de Gemini. El cuerpo de la petición y de la respuesta sigue el formato de la API de Gemini; `streamGenerateContent` se sirve en la misma ruta.",
+        "get_knowledge_base": "Obtiene una base de conocimiento por su ID.",
+        "health": "Estado del servicio, hora actual y versión. No requiere autenticación.",
+        "info": "Nombre y versión de la API y sus endpoints principales. No requiere autenticación.",
+        "list_knowledge_bases": "Lista las bases de conocimiento disponibles en esta instancia de Cherry Studio.",
+        "list_models": "Lista los modelos disponibles en esta pasarela, en formato de modelos de OpenAI.",
+        "messages": "Crea un mensaje. El cuerpo de la petición y de la respuesta sigue el formato de Anthropic Messages; con `stream: true` la salida es incremental.",
+        "responses": "Crea una respuesta. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Responses.",
+        "search_knowledge_bases": "Busca en una o varias bases de conocimiento y devuelve los fragmentos de documento coincidentes."
+      },
+      "tags": {
+        "anthropic": "Endpoints compatibles con Anthropic. Apunta la URL base de un SDK de Anthropic a esta pasarela para usarlos.",
+        "cherry": "Endpoints propios de Cherry Studio: bases de conocimiento, información del servicio y comprobación de estado.",
+        "gemini": "Endpoints compatibles con Gemini, servidos bajo `/v1beta` como en la API original.",
+        "openai": "Endpoints compatibles con OpenAI. Apunta la URL base de un SDK de OpenAI a esta pasarela para usarlos."
+      }
+    }
+  },
   "appMenu": {
     "about": "Acerca de",
     "close": "Cerrar ventana",
@@ -71,6 +96,14 @@
     "save_file": "Guardar archivo",
     "select_folder": "Seleccionar carpeta",
     "word_document": "Documento de Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "El binario de OpenClaw que utiliza Cherry Studio no es compatible con la configuración generada. Actualiza OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw rechazó una configuración fuera de la sección de proveedores gestionada por Cherry Studio. Corrige esa configuración o actualiza OpenClaw.{{details}}",
+      "more_issues": "y {{count}} problema(s) más",
+      "preflight_failed": "Cherry Studio no pudo validar la configuración de OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Error al generar la imagen",

@@ -100,7 +100,7 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 
 ### Knowledge `search_text_fts` follows the same rule
 
-`src/main/features/knowledge/vectorstore/indexStore/schema.ts` keys `search_text_fts` on a stable `fts_rowid` column too (assigned by the `search_text_ai` trigger; `content_rowid='fts_rowid'`). It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), but the same hazard applies: its `reclaim()` path runs `VACUUM` to return freed pages to the OS after a large delete, which renumbers the implicit rowid — keying on `fts_rowid` keeps the external-content index aligned by construction. The regression guard is `KnowledgeIndexStore.test.ts` → "keeps search_text_fts aligned after a rowid-reshuffling rebuild".
+`src/main/features/knowledge/pipeline/vectorstore/indexStore/schema.ts` keys `search_text_fts` on a stable `fts_rowid` column too (assigned by the `search_text_ai` trigger; `content_rowid='fts_rowid'`). It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), but the same hazard applies: its `reclaim()` path runs `VACUUM` to return freed pages to the OS after a large delete, which renumbers the implicit rowid — keying on `fts_rowid` keeps the external-content index aligned by construction. The regression guard is `KnowledgeIndexStore.test.ts` → "keeps search_text_fts aligned after a rowid-reshuffling rebuild".
 
 ## 5. Testing the build
 

@@ -42,7 +42,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+  useOptionalMessageListUi: () => ({ externalCodeEditors: [] }),
+  useOptionalMessageListTopicId: () => undefined
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -509,9 +510,7 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle(
-        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-      )
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
       expect(
         screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
       ).toBe(false)
@@ -659,6 +658,51 @@ describe('AgentToolRenderer', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
+    it('hides AskUserQuestion message card while its input is still streaming', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'streaming',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -709,8 +753,8 @@ describe('AgentToolRenderer', () => {
             type: 'tool-AskUserQuestion',
             toolName: 'AskUserQuestion',
             toolCallId: toolResponse.toolCallId,
-            state: 'approval-responded',
-            approval: { id: 'approval-ask', approved: true },
+            state: 'approval-requested',
+            approval: { id: 'approval-ask' },
             input: toolResponse.arguments
           }
         ]
@@ -813,7 +857,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('meta tool rendering', () => {
-    it('renders tool_search with the light tool-row styling', async () => {
+    it('renders and expands tool_search results', async () => {
       const toolResponse = createToolResponse({
         id: 'meta-tool-search',
         tool: {
@@ -834,17 +878,10 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      const { container } = render(<MessageTool toolResponse={toolResponse} />)
+      render(<MessageTool toolResponse={toolResponse} />)
 
-      const disclosure = container.querySelector('.message-tools-container')
-      expect(disclosure).toHaveClass('border-none')
-      expect(disclosure).toHaveClass('bg-transparent')
-      expect(disclosure).not.toHaveClass('rounded-[7px]')
       expect(screen.queryByTestId('wrench-icon')).toBeNull()
-
-      const title = screen.getByText('tool_search · ns=mcp:tavily')
-      expect(title).toHaveClass('font-normal')
-      expect(title).toHaveClass('text-foreground-secondary')
+      expect(screen.getByText('tool_search · ns=mcp:tavily')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
@@ -937,18 +974,10 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       const toolHeader = screen.getByText('View').closest('[role="button"]')!
-      expect(toolHeader).toHaveClass('w-fit')
-      expect(toolHeader).not.toHaveClass('w-full')
 
       fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
-      expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
-      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
-        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
-      )
-      expect(terminal?.className).toContain('bg-[#f5f5f5]')
-      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
@@ -967,11 +996,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should render the DEDICATED BashTool component
-      const bashLabel = screen.getByText('Installing')
-      expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
-      expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
-      expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')
+      expect(screen.getByText('Installing')).toBeInTheDocument()
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')

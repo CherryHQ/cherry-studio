@@ -9,6 +9,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -24,7 +25,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -41,6 +42,12 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 
+function publishTaskReadModelChanges(taskIds: readonly string[]): void {
+  if (taskIds.length === 0) return
+  // Resolve lazily because AgentTaskService reads the Session-owned relation.
+  getDataService('AgentTaskService').notifyReadModelChange(taskIds)
+}
+
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
@@ -49,10 +56,16 @@ type JoinedSessionRow = {
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   const clean = nullsToUndefined(row.session)
   return {
-    ...clean,
+    id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    name: clean.name,
+    isNameManuallyEdited: clean.isNameManuallyEdited,
+    description: clean.description,
+    workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
+    traceId: clean.traceId,
+    orderKey: clean.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -115,11 +128,12 @@ export class AgentSessionService {
   }
 
   /**
-   * Transactional create for seed-time composition. DbService is not marked ready
-   * while seeders run, so create() would fail through DbService.withWriteTx().
+   * DB-only create primitive for caller-owned transaction composition.
+   * The caller supplies the reserved id and owns the outer commit boundary.
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -135,7 +149,7 @@ export class AgentSessionService {
         break
       }
       case AGENT_WORKSPACE_TYPE.SYSTEM: {
-        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id }).id
+        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id, createdAt }).id
         break
       }
       default: {
@@ -152,7 +166,9 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
-      workspaceId
+      workspaceId,
+      createdAt,
+      updatedAt: createdAt
     })
   }
 
@@ -186,6 +202,99 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
+  }
+
+  /** Read the internal sticky-session relation without exposing it on session entities. */
+  getByTaskScheduleId(taskScheduleId: string): AgentSessionEntity | null {
+    return this.getByTaskScheduleIdTx(application.get('DbService').getDb(), taskScheduleId)
+  }
+
+  getByTaskScheduleIdTx(tx: DbOrTx, taskScheduleId: string): AgentSessionEntity | null {
+    const [row] = tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.taskScheduleId, taskScheduleId))
+      .limit(1)
+      .all()
+    return row ? rowToSession(row) : null
+  }
+
+  /** Batch relation read for task list projections. */
+  getTaskSessionIdsByScheduleIds(taskScheduleIds: readonly string[]): Map<string, string> {
+    return this.getTaskSessionIdsByScheduleIdsTx(application.get('DbService').getDb(), taskScheduleIds)
+  }
+
+  getTaskSessionIdsByScheduleIdsTx(tx: DbOrTx, taskScheduleIds: readonly string[]): Map<string, string> {
+    if (taskScheduleIds.length === 0) return new Map()
+    const rows = tx
+      .select({ taskScheduleId: sessionsTable.taskScheduleId, sessionId: sessionsTable.id })
+      .from(sessionsTable)
+      .where(inArray(sessionsTable.taskScheduleId, [...new Set(taskScheduleIds)]))
+      .all()
+    return new Map(rows.flatMap((row) => (row.taskScheduleId ? [[row.taskScheduleId, row.sessionId] as const] : [])))
+  }
+
+  /**
+   * Bind an unbound session to an unbound task schedule. The task command owner
+   * validates schedule type/configuration; this table owner validates session ownership.
+   */
+  bindTaskScheduleTx(
+    tx: DbOrTx,
+    params: { sessionId: string; taskScheduleId: string; expectedAgentId: string }
+  ): boolean {
+    const [session] = tx
+      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, params.sessionId))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
+    if (session.agentId !== params.expectedAgentId) return false
+    if (session.taskScheduleId !== null) return false
+
+    const alreadyBound = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.taskScheduleId, params.taskScheduleId))
+      .limit(1)
+      .all()
+    if (alreadyBound.length > 0) return false
+
+    return this.updateTaskScheduleRelationTx(
+      tx,
+      params.taskScheduleId,
+      and(eq(sessionsTable.id, params.sessionId), isNull(sessionsTable.taskScheduleId))!
+    )
+  }
+
+  clearTaskScheduleTx(tx: DbOrTx, taskScheduleId: string): boolean {
+    return this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.taskScheduleId, taskScheduleId))
+  }
+
+  /** Clear bindings before an agent FK detaches its sessions. */
+  clearTaskSchedulesForAgentTx(tx: DbOrTx, agentId: string): string[] {
+    const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+    if (taskScheduleIds.length > 0) {
+      this.updateTaskScheduleRelationTx(
+        tx,
+        null,
+        and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
+      )
+    }
+    return taskScheduleIds
+  }
+
+  /** Relation maintenance is not session activity and must not affect recency restore. */
+  private updateTaskScheduleRelationTx(tx: DbOrTx, taskScheduleId: string | null, where: SQL): boolean {
+    return (
+      tx
+        .update(sessionsTable)
+        // Explicit self-assignment suppresses updatedAt's table-level $onUpdateFn.
+        .set({ taskScheduleId, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .where(where)
+        .run().changes > 0
+    )
   }
 
   /**
@@ -336,17 +445,35 @@ export class AgentSessionService {
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
-    const row = withSqliteErrors(
-      () => this.updateTx(application.get('DbService').getDb(), id, patch),
+    const result = withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
       defaultHandlersFor('Session', id)
     )
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
+    publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     return this.getById(id)
   }
 
-  updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): SessionRow | undefined {
+  updateTx(
+    tx: DbOrTx,
+    id: string,
+    patch: UpdateAgentSessionDto
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+    const [current] = tx
+      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+      .all()
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+
+    const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
+    if (reassigned && current.taskScheduleId) {
+      this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))
+    }
     const [row] = tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning().all()
-    return row
+    return { row, clearedTaskScheduleIds }
   }
 
   /**
@@ -381,7 +508,10 @@ export class AgentSessionService {
 
     // Target is a system workspace; an existing system workspace is already correct.
     if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
-    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
+    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+      sessionId: id,
+      createdAt: current.session.createdAt
+    })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
   }
 
@@ -420,16 +550,19 @@ export class AgentSessionService {
       name: string
       description?: string
       workspaceId: string
+      createdAt: number
+      updatedAt: number
     }
   ): void {
     insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
   }
 
   delete(id: string): void {
-    application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+    const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+    publishTaskReadModelChanges(taskScheduleIds)
   }
 
-  deleteTx(tx: DbOrTx, id: string): void {
+  deleteTx(tx: DbOrTx, id: string): string[] {
     const [row] = tx
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -439,14 +572,14 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
-    this.cascadeDeleteSessionRowsTx(tx, [row])
+    return this.cascadeDeleteSessionRowsTx(tx, [row]).taskScheduleIds
   }
 
   deleteByIds(ids: string[]): DeleteAgentSessionsResult {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return { deletedIds: [] }
 
-    const deletedIds = application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const rows = tx
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
@@ -457,18 +590,21 @@ export class AgentSessionService {
       return this.cascadeDeleteSessionRowsTx(tx, rows)
     })
 
-    logger.info('Deleted sessions', { count: deletedIds.length })
-    return { deletedIds }
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    logger.info('Deleted sessions', { count: result.deletedIds.length })
+    return { deletedIds: result.deletedIds }
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
-    const deletedIds = application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
+      const taskScheduleIds = this.getTaskScheduleIdsForWorkspaceTx(tx, workspaceId)
       const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-      return deletedIds
+      return { deletedIds, taskScheduleIds }
     })
-    return { deletedIds }
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    return { deletedIds: result.deletedIds }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
@@ -483,10 +619,15 @@ export class AgentSessionService {
   }
 
   deleteByAgentId(agentId: string): DeleteAgentSessionsResult {
-    const deletedIds = application.get('DbService').withWriteTx((tx) => this.deleteByAgentIdTx(tx, agentId))
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+      const deletedIds = this.deleteByAgentIdTx(tx, agentId)
+      return { deletedIds, taskScheduleIds }
+    })
 
-    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
-    return { deletedIds }
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
+    return { deletedIds: result.deletedIds }
   }
 
   deleteByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): string[] {
@@ -507,10 +648,17 @@ export class AgentSessionService {
       .where(eq(sessionsTable.agentId, agentId))
       .all()
 
-    return this.cascadeDeleteSessionRowsTx(tx, rows)
+    return this.cascadeDeleteSessionRowsTx(tx, rows).deletedIds
   }
 
-  private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): string[] {
+  private cascadeDeleteSessionRowsTx(
+    tx: DbOrTx,
+    rows: JoinedSessionRow[]
+  ): { deletedIds: string[]; taskScheduleIds: string[] } {
+    const taskScheduleIds = this.getTaskScheduleIdsForSessionIdsTx(
+      tx,
+      rows.map((row) => row.session.id)
+    )
     const normalSessionIds: string[] = []
     const systemWorkspaceIds = new Set<string>()
     for (const row of rows) {
@@ -532,7 +680,35 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
-    return Array.from(deleted)
+    return { deletedIds: Array.from(deleted), taskScheduleIds }
+  }
+
+  private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {
+    if (sessionIds.length === 0) return []
+    return tx
+      .select({ taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(and(inArray(sessionsTable.id, [...new Set(sessionIds)]), isNotNull(sessionsTable.taskScheduleId)))
+      .all()
+      .flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
+  }
+
+  private getTaskScheduleIdsForWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
+    return tx
+      .select({ taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.workspaceId, workspaceId), isNotNull(sessionsTable.taskScheduleId)))
+      .all()
+      .flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
+  }
+
+  getTaskScheduleIdsForAgentTx(tx: DbOrTx, agentId: string): string[] {
+    return tx
+      .select({ taskScheduleId: sessionsTable.taskScheduleId })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId)))
+      .all()
+      .flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
   }
 
   private deleteByIdsTx(tx: DbOrTx, ids: string[]): string[] {
@@ -575,12 +751,6 @@ export class AgentSessionService {
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
-  }
-
-  exists(id: string): boolean {
-    const db = application.get('DbService').getDb()
-    const [row] = db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1).all()
-    return !!row
   }
 }
 

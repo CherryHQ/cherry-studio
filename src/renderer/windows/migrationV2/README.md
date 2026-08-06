@@ -30,11 +30,32 @@ src/renderer/windows/migrationV2/
 
 ## Failure Diagnostics
 
-Only error and version-incompatible pages offer Save Diagnostic Bundle. The panel warns that application logs
-may contain sensitive data and must not be shared publicly or outside Cherry Studio support. Saving never
-uploads or attaches the bundle; metadata-only fallback is disclosed when logs cannot be included. After a
-successful local-only save, the only support actions reveal the file and copy `support@cherry-ai.com`; no
-native preboot action, mail client, or prefilled email is provided.
+Only error and version-incompatible pages offer Save Diagnostic Bundle. On the error page, the full failure
+message stays visible for screenshots while the primary flow contains only Retry and a large secondary More
+options button. More options keeps Close App in its lower-left footer and presents three regular choices:
+"Save troubleshooting information" first, then "Use V2 without importing V1 data", then "Continue using V1".
+The first option opens a dedicated "Save troubleshooting file" dialog with the detailed privacy notice and save
+action. After a successful save and the export dialog's close animation, a follow-up dialog offers Open file
+location and Copy feedback email. The V2 option opens the existing destructive confirmation; "Continue using V1"
+opens `V1DownloadDialog`, whose download action opens the localized V1 download page. Clicking the visible error
+details, or focusing them and pressing Enter/Space, opens the same diagnostic export dialog; selecting error text
+for copying does not trigger it. The version-incompatible page keeps the standalone diagnostic panel.
+Every More options choice waits for that dialog's shared close animation to finish before opening its follow-up
+dialog, preventing overlapping overlays and focus restoration from the closing dialog.
+
+The diagnostic panel warns that application logs may contain sensitive data and must not be shared publicly or
+outside Cherry Studio support. Saving never uploads or attaches the bundle; metadata-only fallback is disclosed
+when logs cannot be included. After a successful local-only save, the only support actions reveal the file and
+copy `support@cherry-ai.com`; no mail client or prefilled email is provided. The V1 dialog also opens
+only when selected from More options. The window runs on the `simplest` preload (no shell access), so the
+download button asks main to open the page, passing the wizard's current language;
+`MigrationIpcHandler` owns the URL table and maps that language to a regional site with the same `zh` test
+`i18n/resolver.ts` uses, so the site is the one the user can read and the renderer can never name a URL of its
+own.
+
+On completion, non-fatal migration notices stay collapsed into a single-line warning entry below Restart. The
+entry opens a scrollable dialog with the full notice list and a full-width copy action at the bottom of the
+content; the dialog intentionally has no footer.
 
 ## Implementation Notes
 

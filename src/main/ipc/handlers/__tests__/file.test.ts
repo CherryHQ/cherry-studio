@@ -1,18 +1,23 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
+  assertOutsideManagedStorageMutationMock,
   getMetadataByPathMock,
   readByPathMock,
+  readChunkByPathMock,
   safeOpenMock,
   showPathInFolderMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  assertOutsideManagedStorageMutationMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
+  readChunkByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
@@ -22,15 +27,34 @@ vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
   return {
+    ContentCommittedMetadataPendingError: class ContentCommittedMetadataPendingError extends Error {
+      constructor(
+        readonly entryId: string,
+        readonly version: { mtime: number; size: number }
+      ) {
+        super('metadata pending')
+      }
+    },
+    StaleVersionError: class StaleVersionError extends Error {
+      constructor(
+        readonly expected: { mtime: number; size: number },
+        readonly current: { mtime: number; size: number }
+      ) {
+        super('stale')
+      }
+    },
+    assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
+    readChunkByPath: readChunkByPathMock,
     safeOpen: safeOpenMock,
     showInFolder: showPathInFolderMock,
     writeIfUnchangedByPath: writeIfUnchangedByPathMock
   }
 })
 
+import { ContentCommittedMetadataPendingError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 
@@ -60,8 +84,10 @@ const fileManager = {
   batchPermanentDelete: vi.fn(),
   emptyTrash: vi.fn(),
   rename: vi.fn(),
+  readChunk: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
+  writeIfUnchanged: vi.fn(),
   batchCreateInternalEntries: vi.fn()
 }
 
@@ -76,13 +102,21 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
+  it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
+    expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
+    expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)
+  })
+
   it('reads binary content by path through the generic FileHandle route', async () => {
     const result = { content: new Uint8Array([3, 4]), mime: 'text/markdown', version }
     readByPathMock.mockResolvedValueOnce(result)
 
     await expect(
       fileHandlers['file.read'](
-        { handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, options: { encoding: 'binary' } },
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          options: { mode: 'full', encoding: 'binary' }
+        },
         ctx
       )
     ).resolves.toBe(result)
@@ -95,7 +129,10 @@ describe('fileHandlers', () => {
     fileManager.read.mockResolvedValueOnce(result)
 
     await expect(
-      fileHandlers['file.read']({ handle: { kind: 'entry', entryId: ids[0] }, options: { encoding: 'binary' } }, ctx)
+      fileHandlers['file.read'](
+        { handle: { kind: 'entry', entryId: ids[0] }, options: { mode: 'full', encoding: 'binary' } },
+        ctx
+      )
     ).resolves.toBe(result)
 
     expect(fileManager.read).toHaveBeenCalledWith(ids[0], { encoding: 'binary' })
@@ -110,7 +147,7 @@ describe('fileHandlers', () => {
     await expect(
       fileHandlers['file.write_if_unchanged'](
         {
-          path: '/tmp/report.md' as AbsoluteFilePath,
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
           data,
           expectedVersion
         },
@@ -118,7 +155,29 @@ describe('fileHandlers', () => {
       )
     ).resolves.toBe(nextVersion)
 
-    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion)
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion, undefined)
+  })
+
+  it('writes a managed entry through FileManager', async () => {
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const nextVersion = { mtime: 2, size: 2 }
+    fileManager.writeIfUnchanged.mockResolvedValueOnce(nextVersion)
+
+    await expect(
+      fileHandlers['file.write_if_unchanged'](
+        {
+          handle: { kind: 'entry', entryId: ids[0] },
+          data,
+          expectedVersion
+        },
+        ctx
+      )
+    ).resolves.toBe(nextVersion)
+
+    expect(fileManager.writeIfUnchanged).toHaveBeenCalledWith(ids[0], data, expectedVersion, undefined)
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
   })
 
   it('maps path version conflicts to FILE_STALE_VERSION', async () => {
@@ -130,12 +189,39 @@ describe('fileHandlers', () => {
     )
     await expect(
       fileHandlers['file.write_if_unchanged'](
-        { path: '/tmp/report.md' as AbsoluteFilePath, data, expectedVersion: expected },
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          data,
+          expectedVersion: expected
+        },
         ctx
       )
     ).rejects.toMatchObject({
       code: fileErrorCodes.STALE_VERSION,
       data: { expected, current }
+    })
+  })
+
+  it('maps committed bytes with pending metadata to the stable IPC error code', async () => {
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const committedVersion = { mtime: 2, size: 2 }
+    fileManager.writeIfUnchanged.mockRejectedValueOnce(
+      new ContentCommittedMetadataPendingError(ids[0], committedVersion)
+    )
+
+    await expect(
+      fileHandlers['file.write_if_unchanged'](
+        {
+          handle: { kind: 'entry', entryId: ids[0] },
+          data,
+          expectedVersion
+        },
+        ctx
+      )
+    ).rejects.toMatchObject({
+      code: fileErrorCodes.COMMITTED_METADATA_PENDING,
+      data: { entryId: ids[0], version: committedVersion }
     })
   })
 
@@ -156,6 +242,36 @@ describe('fileHandlers', () => {
     expect(fileManager.getMetadata).toHaveBeenCalledWith(ids[0])
     expect(fileManager.getMetadata).toHaveBeenCalledWith(ids[1])
     expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
+  })
+
+  it('get_metadata returns file metadata for a regular file path', async () => {
+    getMetadataByPathMock.mockResolvedValueOnce({ ...metadata, size: 42 })
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toEqual({
+      ...metadata,
+      size: 42
+    })
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
+  })
+
+  it('get_metadata returns directory metadata for a directory path', async () => {
+    const directoryMetadata = { kind: 'directory' as const, size: 0, createdAt: 1, modifiedAt: 2 }
+    getMetadataByPathMock.mockResolvedValueOnce(directoryMetadata)
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/dir' as AbsoluteFilePath }, ctx)
+    ).resolves.toEqual(directoryMetadata)
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/dir')
+  })
+
+  it('get_metadata resolves null for a missing path instead of throwing', async () => {
+    getMetadataByPathMock.mockRejectedValueOnce(new Error('ENOENT'))
+
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/missing.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toBeNull()
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
@@ -216,11 +332,37 @@ describe('fileHandlers', () => {
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
   })
 
+  it('dispatches range reads for entry and path handles through file.read', async () => {
+    const entryResult = { content: new Uint8Array([1, 2, 3]), mime: 'application/pdf', version }
+    const pathResult = { content: new Uint8Array([4, 5]), mime: 'application/pdf', version }
+    fileManager.readChunk.mockResolvedValueOnce(entryResult)
+    readChunkByPathMock.mockResolvedValueOnce(pathResult)
+
+    await expect(
+      fileHandlers['file.read'](
+        { handle: { kind: 'entry', entryId: ids[0] }, options: { mode: 'range', offset: 10, length: 3 } },
+        ctx
+      )
+    ).resolves.toBe(entryResult)
+    await expect(
+      fileHandlers['file.read'](
+        {
+          handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath },
+          options: { mode: 'range', offset: 20, length: 2 }
+        },
+        ctx
+      )
+    ).resolves.toBe(pathResult)
+
+    expect(fileManager.readChunk).toHaveBeenCalledWith(ids[0], 10, 3)
+    expect(readChunkByPathMock).toHaveBeenCalledWith('/tmp/report.pdf', 20, 2)
+  })
+
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath },
-      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath }
+      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const },
+      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 

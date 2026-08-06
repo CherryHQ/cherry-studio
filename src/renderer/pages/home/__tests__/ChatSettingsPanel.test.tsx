@@ -84,8 +84,8 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   )
 }))
 
-vi.mock('@renderer/components/ContentSearch', () => ({
-  ContentSearch: () => <div data-testid="content-search" />
+vi.mock('@renderer/components/FindBar', () => ({
+  FindBar: () => <div data-testid="content-search" />
 }))
 
 vi.mock('@renderer/components/popups/PromptPopup', () => ({
@@ -121,7 +121,8 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
+  const TopicRightPane = {
+    Scope: ({ children }: PropsWithChildren) => <div>{children}</div>,
     Shortcuts: () => <button type="button">branch shortcuts</button>,
     Viewport: ({
       onLocateMessage,
@@ -144,7 +145,7 @@ vi.mock('../components/TopicRightPane', () => {
         </button>
       </div>
     )
-  })
+  }
 
   return {
     TopicRightPane,

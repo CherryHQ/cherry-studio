@@ -1,17 +1,29 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useMemo } from 'react'
 
-export function useGroups(entityType: EntityType) {
+export function useGroups(entityType: EntityType, options: { enabled?: boolean } = {}) {
   const { data, isLoading, error, refetch } = useQuery('/groups', {
+    ...(options.enabled !== undefined && { enabled: options.enabled }),
     query: { entityType }
   })
   const groups = useMemo(() => data ?? [], [data])
 
   return { groups, isLoading, error, refetch }
+}
+
+export function useGroupReorder() {
+  const { trigger } = useMutation('PATCH', '/groups/:id/order', { refresh: ['/groups'] })
+  const reorderGroup = useCallback(
+    (id: string, body: OrderRequest): Promise<void> => trigger({ params: { id }, body }),
+    [trigger]
+  )
+
+  return { reorderGroup }
 }
 
 export interface UseGroupMutationsOptions {

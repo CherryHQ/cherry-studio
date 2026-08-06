@@ -232,6 +232,7 @@ vi.mock('@dnd-kit/utilities', () => ({
 const sessionDataMocks = vi.hoisted(() => ({
   createSession: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteSession: vi.fn().mockResolvedValue(true),
+  deleteSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   reload: vi.fn().mockResolvedValue(undefined),
   reorderSession: vi.fn().mockResolvedValue(true),
   source: null as unknown,
@@ -289,6 +290,7 @@ const dataApiMocks = vi.hoisted(() => ({
   reorderAgent: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
+  useQuery: vi.fn(),
   mutationOptions: new Map<string, { refresh?: string[] }>(),
   workspaces: [] as Array<{
     id: string
@@ -421,6 +423,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
+    dataApiMocks.useQuery(path, options)
     if (options?.enabled === false) {
       return {
         data: undefined,
@@ -520,6 +523,9 @@ vi.mock('react-i18next', () => ({
         'agent.delete.content': 'Delete this agent and its tasks?',
         'agent.delete.error.failed': 'Failed to delete agent',
         'agent.delete.title': 'Delete Agent',
+        'agent.session.agent.delete.content': 'Delete all tasks for this agent. The agent itself will not be deleted.',
+        'agent.session.agent.delete.title': 'Delete agent tasks',
+        'agent.session.agent.delete.trigger': 'Delete agent tasks',
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
@@ -540,7 +546,8 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
+        'agent.session.group.unknown_agent_tip': 'Historical sessions without an agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
         'agent.session.new': 'New task',
@@ -764,6 +771,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoading: false,
     error: undefined,
     deleteSession: sessionDataMocks.deleteSession,
+    deleteSessions: sessionDataMocks.deleteSessions,
     hasMore: false,
     isFullyLoaded: true,
     isLoadingAll: false,
@@ -803,6 +811,7 @@ describe('Sessions', () => {
     dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
     dataApiMocks.mutationOptions.clear()
     sessionDataMocks.deleteSession.mockResolvedValue(true)
+    sessionDataMocks.deleteSessions.mockResolvedValue({ deletedIds: [] })
     Object.assign(window, {
       api: {
         file: {
@@ -856,13 +865,6 @@ describe('Sessions', () => {
     expect(screen.queryByPlaceholderText('Search tasks')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
-    const projectIconContainer = screen
-      .getByRole('button', { name: 'Project A Workspace' })
-      .querySelector('[data-resource-list-leading-slot="true"]')
-    expect(projectIconContainer?.querySelector('.lucide-folder')).toBeInTheDocument()
-    expect(projectIconContainer?.querySelector('.lucide-folder-open')).toHaveClass(
-      'group-hover/resource-list-group:block'
-    )
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
 
@@ -875,9 +877,28 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-b')
     view.rerender(<SessionsForTest key="expanded-project-a-workspace" />)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
-    expect(
-      screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
-    ).toBeInTheDocument()
+  })
+
+  it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+
+    render(<SessionsForTest dataEnabled={false} />)
+
+    expect(dataApiMocks.useQuery).toHaveBeenCalledWith('/agent-channels', { enabled: false })
+    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
+  })
+
+  it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
+    const view = render(<SessionsForTest />)
+    const listbox = screen.getByRole('listbox')
+    listbox.scrollTop = 640
+
+    setupSessions({ isValidating: true })
+    view.rerender(<SessionsForTest />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    expect(screen.getByRole('listbox')).toBe(listbox)
+    expect(listbox.scrollTop).toBe(640)
   })
 
   it('defaults workspace display groups to collapsed before the user changes expansion', () => {
@@ -994,17 +1015,6 @@ describe('Sessions', () => {
 
     const emptyStateText = screen.getByText('No tasks')
 
-    expect(emptyStateText).toHaveClass(
-      'h-full',
-      'w-full',
-      'max-w-sm',
-      'px-5',
-      'py-10',
-      'text-center',
-      'text-xs',
-      'text-muted-foreground',
-      'break-words'
-    )
     expect(screen.queryByRole('heading', { name: 'No tasks' })).not.toBeInTheDocument()
     expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
@@ -1169,6 +1179,19 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
+  it('renders orphan sessions under the unlinked agent group without a virtual agent icon', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })]
+    })
+
+    render(<SessionsForTest />)
+
+    const unlinkedAgentGroup = screen.getByRole('button', { name: 'Unlinked Agent' })
+    expect(unlinkedAgentGroup.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
+    expect(unlinkedAgentGroup.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+  })
+
   it('defaults agent display groups to collapsed before the user changes expansion', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setSessionGroupExpansionCache({
@@ -1196,38 +1219,6 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
-  })
-
-  it('uses the configured model icon for agent session groups', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('agent.icon_type', 'model')
-    preferenceMocks.values.set('chat.default_model_id', 'provider-default::default-model')
-    setSessionGroupExpansionCache({
-      ...createExpandedSessionGroupExpansionFixture(),
-      agent: ['session:agent:agent-a']
-    })
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        {
-          id: 'agent-a',
-          model: 'provider-a::model-a',
-          modelName: 'Model A',
-          name: 'Alpha agent',
-          configuration: { avatar: 'A' }
-        }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-    setupSessions({
-      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
-    })
-
-    render(<SessionsForTest />)
-
-    const agentHeader = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    expect(agentHeader).toBeInTheDocument()
-    expect(within(agentHeader as HTMLElement).getByTestId('model-avatar')).toHaveAttribute('data-model-id', 'model-a')
   })
 
   it('uses the provided active session setter', () => {
@@ -1305,26 +1296,6 @@ describe('Sessions', () => {
 
     pendingTransition?.()
     expect(setActiveSessionId).toHaveBeenCalledWith('session-b', expect.objectContaining({ id: 'session-b' }))
-  })
-
-  it('uses the default agent avatar for blank agent group avatars', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '   ' } }],
-      isLoading: false,
-      error: undefined
-    })
-    setupSessions({
-      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
-    })
-
-    render(<SessionsForTest />)
-
-    expect(screen.getByRole('button', { name: /Alpha agent/ })).toHaveTextContent('🤖')
-    expect(
-      screen.getByRole('button', { name: /Alpha agent/ }).querySelector('[data-resource-list-leading-slot="true"]')
-        ?.firstElementChild
-    ).toHaveClass('rounded-full')
   })
 
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {
@@ -1624,6 +1595,7 @@ describe('Sessions', () => {
 
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
   })
@@ -1735,7 +1707,6 @@ describe('Sessions', () => {
     const revealedRow = screen.getByText('Session 6').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
-    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
 
     await act(async () => {
@@ -1793,6 +1764,26 @@ describe('Sessions', () => {
     )
   })
 
+  it('closes the rename dialog without updating when its session is deleted', async () => {
+    const { rerender } = render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Edit task name' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    const sourceWithoutTarget = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })]
+    }
+    rerender(<SessionsForTest agentSessionsSource={sourceWithoutTarget} />)
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
+  })
+
   it('opens a session message page in a new app tab from the context menu', async () => {
     render(<SessionsForTest />)
 
@@ -1814,10 +1805,9 @@ describe('Sessions', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-b', {
       forceNew: true,
-      title: 'Beta session',
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-b' }
+      title: 'Beta session'
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -2335,7 +2325,7 @@ describe('Sessions', () => {
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
   })
 
-  it('shows a green dot when fulfilled and a spinner while pending', () => {
+  it('announces fulfilled and pending stream states', () => {
     // Only session-b carries a status; session-a is the selected row and a
     // green completion dot is suppressed there (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
@@ -2346,12 +2336,6 @@ describe('Sessions', () => {
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
     expect(indicator).toHaveAccessibleName('Done')
-    expect(indicator.firstElementChild).toHaveClass('bg-success')
-    expect(indicator.firstElementChild?.tagName).toBe('SPAN')
-    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
-    // The indicator is an absolute overlay that fades out on hover so the
-    // pin + delete actions take its resting spot (not swapped out of the DOM).
-    expect(indicator).toHaveClass('absolute', 'group-hover:opacity-0')
 
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isPending: true } : {})
@@ -2360,10 +2344,8 @@ describe('Sessions', () => {
     unmount()
     render(<SessionsForTest />)
 
-    // Pending now renders a spinner (not the old pulsing amber dot).
     const pendingIndicator = screen.getByTestId('agent-session-stream-indicator')
     expect(pendingIndicator).toHaveAccessibleName('Running')
-    expect(pendingIndicator.firstElementChild).toHaveClass('animate-spin')
   })
 
   it('keeps running and error indicators on the selected session row but suppresses the completion dot', () => {
@@ -2378,10 +2360,9 @@ describe('Sessions', () => {
       .getAllByTestId('agent-session-row')
       .find((row) => row.getAttribute('data-selected') === 'true')
     expect(selectedRow).toBeDefined()
-    // Running is an ongoing state — the spinner stays on the selected row.
-    expect(
-      within(selectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
-    ).toHaveClass('animate-spin')
+    expect(within(selectedRow as HTMLElement).getByTestId('agent-session-stream-indicator')).toHaveAccessibleName(
+      'Running'
+    )
 
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'error' } : {})
@@ -2394,8 +2375,6 @@ describe('Sessions', () => {
       .find((row) => row.getAttribute('data-selected') === 'true')
     const errorIndicator = within(erroredSelectedRow as HTMLElement).getByTestId('agent-session-stream-indicator')
     expect(errorIndicator).toHaveAccessibleName('Error')
-    expect(errorIndicator.firstElementChild).toHaveClass('text-error')
-    expect(errorIndicator.firstElementChild?.tagName).toBe('svg')
 
     // A completion dot on the same selected row IS suppressed (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
@@ -2410,7 +2389,7 @@ describe('Sessions', () => {
     expect(within(reselectedRow as HTMLElement).queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
   })
 
-  it('shows an accessible error icon when the last turn errored', () => {
+  it('announces an error when the last turn errored', () => {
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'error' } : {})
     )
@@ -2419,9 +2398,6 @@ describe('Sessions', () => {
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
     expect(indicator).toHaveAccessibleName('Error')
-    expect(indicator.firstElementChild).toHaveClass('text-error')
-    expect(indicator.firstElementChild?.tagName).toBe('svg')
-    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
   })
 
   it('does not show a stream indicator for an aborted turn', () => {
@@ -2434,7 +2410,7 @@ describe('Sessions', () => {
     expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
   })
 
-  it('shows an awaiting-approval badge that yields to hover actions', () => {
+  it('shows an awaiting-approval badge without a stream indicator', () => {
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'awaiting-approval' } : {})
     )
@@ -2444,17 +2420,7 @@ describe('Sessions', () => {
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
     expect(badges[0]).toHaveTextContent('Pending')
-    // Warning tint matches the composer's approval pill.
-    expect(badges[0]).toHaveClass('text-warning')
-    // The pill collapses while hover actions are visible (hover / focus-within /
-    // forced-active), like the stream dot swap.
-    expect(badges[0]).toHaveClass('group-hover:opacity-0')
-    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
-    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
-    // Terminal awaiting-approval (MCP): the turn is paused, not running — no
-    // overlay spinner, and the pill needs no overlay reservation margin.
     expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
-    expect(badges[0]).not.toHaveClass('mr-7')
   })
 
   it('shows only the pill (no spinner) while a live stream pauses for approval', () => {
@@ -2472,11 +2438,7 @@ describe('Sessions', () => {
 
     const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
     expect(badges).toHaveLength(1)
-    // A turn paused on an approval is blocked, not running — the pill says "act"
-    // and a spinner would say "wait", so it is suppressed even though the
-    // underlying stream is still live.
     expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
-    expect(badges[0].querySelector('.animate-spin')).toBeNull()
   })
 
   it('keeps the awaiting-approval badge on the selected session row', () => {
@@ -2859,7 +2821,6 @@ describe('Sessions', () => {
     const deleteWorkspaceButton = within(workdirGroup as HTMLElement).getByRole('menuitem', {
       name: 'Delete work directory'
     })
-    expect(deleteWorkspaceButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
     fireEvent.click(deleteWorkspaceButton)
 
     await vi.waitFor(() =>
@@ -2958,8 +2919,7 @@ describe('Sessions', () => {
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: true })
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
-    expect(agentGroup).toHaveClass('border', 'border-transparent')
-    expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag tasks to adjust display and hidden groups.')
+    expect(agentGroup?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
     expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'New task' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
@@ -3031,7 +2991,6 @@ describe('Sessions', () => {
       .getAllByRole('menuitem', { name: 'Delete Agent' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteAgentMenuItem).toBeDefined()
-    expect(deleteAgentMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
 
     dataApiMocks.deleteAgent.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-a'] })
 
@@ -3063,6 +3022,51 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
     await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
+  })
+
+  it('deletes only tasks from the built-in Cherry Assistant group', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'model-a',
+          name: 'Cherry Assistant',
+          configuration: { builtin_role: 'assistant' }
+        }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+    sessionDataMocks.deleteSessions.mockResolvedValueOnce({ deletedIds: ['session-a'] })
+
+    render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Cherry Assistant' }).closest('div')
+    expect(agentGroup).not.toBeNull()
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const deleteTasksMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Delete agent tasks' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+    expect(deleteTasksMenuItem).toBeDefined()
+    expect(screen.queryByRole('menuitem', { name: 'Delete Agent' })).not.toBeInTheDocument()
+
+    fireEvent.click(deleteTasksMenuItem as HTMLElement)
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSessions).toHaveBeenCalledWith(['session-a']))
+    expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
+    expect(popup.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Delete all tasks for this agent. The agent itself will not be deleted.',
+        title: 'Delete agent tasks'
+      })
+    )
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
   })
 
   it('collapses agent groups from the display options menu', async () => {

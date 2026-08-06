@@ -13,6 +13,31 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "OpenAI-, Anthropic- und Gemini-kompatible HTTP-API für Cherry Studio, dazu Cherry-eigene Endpunkte (Modelle, Wissensdatenbanken)",
+      "language_switcher_label": "Sprache der Dokumentation",
+      "operations": {
+        "chat_completions": "Erstellt eine Chat-Completion. Anfrage- und Antwortformat entsprechen OpenAI Chat Completions; mit `stream: true` erfolgt die Ausgabe schrittweise.",
+        "count_tokens": "Schätzt, wie viele Eingabe-Tokens eine Reihe von Nachrichten im Anthropic-Format benötigt.",
+        "generate_content": "Erzeugt Inhalte über die Methode `generateContent` von Gemini. Anfrage- und Antwortformat entsprechen der Gemini-API; `streamGenerateContent` wird über denselben Pfad bedient.",
+        "get_knowledge_base": "Ruft eine einzelne Wissensdatenbank anhand ihrer ID ab.",
+        "health": "Dienststatus, aktuelle Zeit und Version. Keine Authentifizierung erforderlich.",
+        "info": "Name und Version der API sowie die wichtigsten Endpunkte. Keine Authentifizierung erforderlich.",
+        "list_knowledge_bases": "Listet die in dieser Cherry-Studio-Instanz verfügbaren Wissensdatenbanken auf.",
+        "list_models": "Listet die über dieses Gateway verfügbaren Modelle im OpenAI-Models-Format auf.",
+        "messages": "Erstellt eine Nachricht. Anfrage- und Antwortformat entsprechen Anthropic Messages; mit `stream: true` erfolgt die Ausgabe schrittweise.",
+        "responses": "Erstellt eine Response. Anfrage- und Antwortformat entsprechen der OpenAI Responses API.",
+        "search_knowledge_bases": "Durchsucht eine oder mehrere Wissensdatenbanken und gibt die passenden Dokumentabschnitte zurück."
+      },
+      "tags": {
+        "anthropic": "Anthropic-kompatible Endpunkte. Richte die Basis-URL eines Anthropic-SDK auf dieses Gateway, um sie zu nutzen.",
+        "cherry": "Cherry Studios eigene Endpunkte: Wissensdatenbanken, Dienstinformationen und Health-Check.",
+        "gemini": "Gemini-kompatible Endpunkte, wie bei der Original-API unter `/v1beta`.",
+        "openai": "OpenAI-kompatible Endpunkte. Richte die Basis-URL eines OpenAI-SDK auf dieses Gateway, um sie zu nutzen."
+      }
+    }
+  },
   "appMenu": {
     "about": "Über",
     "close": "Fenster schließen",
@@ -71,6 +96,14 @@
     "save_file": "Datei speichern",
     "select_folder": "Ordner auswählen",
     "word_document": "Word-Dokument"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Die von Cherry Studio verwendete OpenClaw-Binärdatei ist mit der erzeugten Konfiguration nicht kompatibel. Aktualisieren Sie OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw hat eine Konfiguration außerhalb des von Cherry Studio verwalteten Anbieterbereichs abgelehnt. Korrigieren Sie diese Konfiguration oder aktualisieren Sie OpenClaw.{{details}}",
+      "more_issues": "und {{count}} weitere Problem(e)",
+      "preflight_failed": "Cherry Studio konnte die OpenClaw-Konfiguration nicht validieren."
+    }
   },
   "paintings": {
     "generate_failed": "Fehler beim Generieren des Bildes",

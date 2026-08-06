@@ -8,6 +8,7 @@
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
+import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
 import { UniqueModelIdSchema } from './model'
 
@@ -18,6 +19,14 @@ import { UniqueModelIdSchema } from './model'
 /** MCP server interaction mode */
 export const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
 export type McpMode = z.infer<typeof McpModeSchema>
+
+/**
+ * Effective mcpMode when `settings.mcpMode` is unset. Single source of truth —
+ * main's resolver, the renderer helper, and the composer MCP selector must all
+ * agree, or the same assistant resolves different tool sets per layer
+ * (runtime-test finding #6). 'manual' = only explicitly linked servers.
+ */
+export const DEFAULT_MCP_MODE: McpMode = 'manual'
 
 /**
  * Assistant settings — inference parameters + context source toggles.
@@ -51,6 +60,7 @@ export const AssistantSettingsSchema = z.object({
   enableMaxToolCalls: z.boolean(),
 
   // -- Context sources --
+  /** One switch for the web tool group (search + URL fetch), whichever side executes it. */
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
@@ -68,7 +78,13 @@ export const AssistantSettingsSchema = z.object({
       z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
       z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
     ])
-  )
+  ),
+
+  /** Per-assistant context-settings override (P2-D assistant layer). Absent or
+   *  `null` = inherit the global `chat.context_settings.*` preferences. `null`
+   *  is the wire form for "clear the override" — JSON drops `undefined` keys,
+   *  and the resolver's `??` chain treats null/undefined alike. */
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -82,7 +98,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxTokens: false,
   streamOutput: true,
   reasoning_effort: 'default',
-  mcpMode: 'auto',
+  mcpMode: DEFAULT_MCP_MODE,
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
@@ -134,10 +150,10 @@ export const AssistantSchema = z.strictObject({
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
   /**
-   * Human-readable model name resolved from `user_model.name` at read time.
-   * Read-only embedded field — edits go through `modelId`. Renderer consumers
-   * (list / grid / card) display this directly instead of re-resolving the
-   * `providerId::modelId` unique id against provider state.
+   * Human-readable model name resolved from the current runtime Model at read
+   * time. Read-only embedded field — edits go through `modelId`. Renderer
+   * consumers (list / grid / card) display this directly instead of
+   * re-resolving the `providerId::modelId` unique id against provider state.
    * `null` when the model row is missing (e.g. user removed the model after
    * binding).
    */

@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -82,7 +82,6 @@ const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
-
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
 const LATEST_VERSIONS_CONCURRENCY = 4
@@ -163,8 +162,18 @@ const BUNDLED_TOOLS: Array<{
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
 
+export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
+
+export type ManagedCliInventoryEntry = {
+  name: string
+  status: ManagedCliStatus
+  recipe?: string
+  version?: string
+}
+
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
 type FixedToolDefinition = { name: string; tool: string }
+type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
@@ -183,7 +192,6 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     { name: preset.executable, tool: preset.miseTool }
   ])
 ])
-
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
 
@@ -225,7 +233,6 @@ export class BinaryManager extends BaseService {
   // definition-fingerprint race guard, which only saw definition changes and was
   // blind to backend-only installs and removals.
   private mutationRevision = 0
-
   // Set the first time onAllReady fires (once per instance). Distinguishes an
   // initial-bootstrap onInit (before onAllReady) from a post-restart onInit
   // (after onAllReady already fired) — see registerPreferenceInvalidation.
@@ -236,6 +243,9 @@ export class BinaryManager extends BaseService {
   protected async onInit() {
     this.isShuttingDown = false
     this.normalizationPromise = null
+    // Prime the process-wide login-shell snapshot for system tool discovery, CLIs, MCP, and agent
+    // runtimes. Do not await it: consumers share shellEnv's memoized in-flight capture.
+    void getRawShellEnv()
     // Install-env invalidation subscription: this Background service depends on
     // PreferenceService, a BeforeReady service. A Background onInit is fire-and-forget
     // and races BeforeReady/WhenReady (Application.bootstrap sets isBootstrapped only
@@ -349,6 +359,23 @@ export class BinaryManager extends BaseService {
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
   }
 
+  private async listMiseInstalls(): Promise<Record<string, MiseInstallEntry[]>> {
+    const { stdout } = await this.runMise(['ls', '--json'])
+    const parsed: unknown = JSON.parse(stdout)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('mise ls --json returned a non-object shape')
+    }
+    for (const [spec, entries] of Object.entries(parsed)) {
+      if (!Array.isArray(entries)) throw new Error(`mise ls --json returned invalid entries for ${spec}`)
+      for (const entry of entries) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          throw new Error(`mise ls --json returned an invalid install for ${spec}`)
+        }
+      }
+    }
+    return parsed as Record<string, MiseInstallEntry[]>
+  }
+
   /**
    * Return one weakly-consistent, main-computed view of custom definitions, live
    * availability, and session operations. This deliberately does not take the
@@ -374,27 +401,14 @@ export class BinaryManager extends BaseService {
     for (const definition of customDefinitions) addCandidate(definition.name, definition.tool)
     for (const name of requestedNames) addCandidate(name, name)
 
-    const installed: Record<string, Array<{ version?: string; active?: boolean; install_path?: string }>> = {}
+    const installed: Record<string, MiseInstallEntry[]> = {}
     // Backend state is derived once and drives the independent application fact:
     // a missing backend is `backend_unavailable`, a failed/malformed query is
     // `query_failed`. Neither may ever collapse a tool to `absent`.
     let queryFailed = false
     if (this.miseBin) {
       try {
-        const { stdout } = await this.runMise(['ls', '--json'])
-        const parsed: unknown = JSON.parse(stdout)
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('mise ls --json returned a non-object shape')
-        }
-        for (const [spec, entries] of Object.entries(parsed)) {
-          if (!Array.isArray(entries)) throw new Error(`mise ls --json returned invalid entries for ${spec}`)
-          for (const entry of entries) {
-            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-              throw new Error(`mise ls --json returned an invalid install for ${spec}`)
-            }
-          }
-        }
-        Object.assign(installed, parsed as typeof installed)
+        Object.assign(installed, await this.listMiseInstalls())
       } catch (err) {
         queryFailed = true
         logger.warn('Failed to query installed versions via mise ls', {
@@ -425,7 +439,7 @@ export class BinaryManager extends BaseService {
       if (isRuntimeDependency(spec)) names.add(name)
     }
     const bundled = this.probeBundled()
-    const shimsDir = getBinarySearchDirs()[0]
+    const shimsDir = getBinaryShimsDir()
 
     // The exact-application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
@@ -493,8 +507,15 @@ export class BinaryManager extends BaseService {
         // backend entry in the isolated env. Otherwise `applied` would grant
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
-        if (typeof activeEntry.install_path === 'string' && !isPathWithin(activeEntry.install_path, resolved)) {
-          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        if (typeof activeEntry.install_path === 'string') {
+          try {
+            const canonicalInstallPath = await fsp.realpath(activeEntry.install_path)
+            if (!isPathWithin(canonicalInstallPath, resolved)) {
+              return { application: { status: 'broken', ...(version ? { version } : {}) } }
+            }
+          } catch {
+            return { application: { status: 'broken', ...(version ? { version } : {}) } }
+          }
         }
         return {
           application: { status: 'applied', ...(version ? { version } : {}) },
@@ -551,6 +572,94 @@ export class BinaryManager extends BaseService {
       }
     }
     return snapshots
+  }
+
+  /**
+   * Return a live Agent-facing CLI inventory without the Dependencies panel's
+   * per-tool `mise which` verification. One `mise ls` and one shims listing are
+   * sufficient for this read-only managed-tool surface.
+   */
+  public async getToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
+    const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
+    const bundledNames = new Set(BUNDLED_TOOLS.filter((tool) => !tool.internal).flatMap((tool) => tool.binaries))
+    const definitions = new Map<string, CustomToolDefinition | FixedToolDefinition>([
+      ...FIXED_CATALOG,
+      ...customDefinitions.map((definition) => [definition.name, definition] as const)
+    ])
+    const operations = application.get('CacheService').get<BinaryOperations>(BINARY_OPERATIONS_CACHE_KEY) ?? {}
+    const installed: Record<string, MiseInstallEntry[]> = {}
+    let queryFailed = false
+    if (this.miseBin) {
+      try {
+        Object.assign(installed, await this.listMiseInstalls())
+      } catch (err) {
+        queryFailed = true
+        logger.warn('Failed to query CLI inventory via mise ls', {
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+
+    for (const spec of Object.keys(installed)) {
+      if (!isRuntimeDependency(spec)) continue
+      const name = normalizeToolIdentity(spec).split('@')[0]
+      if (!definitions.has(name)) definitions.set(name, { name, tool: spec })
+    }
+
+    const names = new Set([...definitions.keys(), ...bundledNames, ...Object.keys(operations)])
+    const shimsDir = getBinaryShimsDir()
+    const shimNames = new Set<string>()
+    try {
+      for (const entry of await fsp.readdir(shimsDir, { withFileTypes: true })) {
+        if (!entry.isFile() && !entry.isSymbolicLink()) continue
+        const extension = path.extname(entry.name).toLowerCase()
+        if (isWin && !['.exe', '.cmd', '.bat'].includes(extension)) continue
+        shimNames.add(isWin ? path.basename(entry.name, extension).toLowerCase() : entry.name)
+      }
+    } catch {
+      // A fresh profile has no shims directory until its first managed install.
+    }
+
+    const bundled = this.probeBundled()
+    const installedFor = (tool: string): MiseInstallEntry[] | undefined => {
+      const normalized = normalizeToolIdentity(tool)
+      const runtimeName = isRuntimeDependency(tool) ? normalized.split('@')[0] : undefined
+      return (
+        installed[normalized] ??
+        Object.entries(installed).find(([spec]) => normalizeToolIdentity(spec) === normalized)?.[1] ??
+        (runtimeName
+          ? Object.entries(installed).find(([spec]) => normalizeToolIdentity(spec).split('@')[0] === runtimeName)?.[1]
+          : undefined)
+      )
+    }
+
+    const entries = [...names].map((name): ManagedCliInventoryEntry => {
+      const definition = definitions.get(name)
+      const installs = definition ? installedFor(definition.tool) : undefined
+      const active = installs?.find((entry) => entry.active)
+      const version = bundled[name] ?? active?.version ?? installs?.at(-1)?.version
+      const canonicalName = isWin ? name.toLowerCase() : name
+      const runnable = name in bundled || (active !== undefined && shimNames.has(canonicalName))
+      const operation = operations[name]
+      const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
+        [operation?.status === 'installing', 'installing'],
+        [operation?.status === 'removing', 'removing'],
+        [operation?.status === 'failed', 'failed'],
+        [runnable, 'ready'],
+        [!this.miseBin || queryFailed, 'unknown'],
+        [Boolean(installs?.length), 'failed']
+      ]
+      const status = statusRules.find(([matches]) => matches)?.[1] ?? 'not_installed'
+
+      return {
+        name,
+        status,
+        ...(definition ? { recipe: definition.tool } : {}),
+        ...(version ? { version } : {})
+      }
+    })
+
+    return entries.sort((left, right) => left.name.localeCompare(right.name))
   }
 
   private async extractBundledBinaries(): Promise<void> {
@@ -805,8 +914,13 @@ export class BinaryManager extends BaseService {
       const { stdout } = await this.runMise(['which', toolName])
       const resolved = stdout.trim().split(/\r?\n/)[0]
       if (!resolved) return null
-      await fsp.access(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-      return resolved
+      // mise commonly returns an alias path such as `installs/<tool>/latest/bin`.
+      // Compare and expose the canonical target: otherwise a valid `latest` symlink
+      // looks outside the active entry's versioned install_path and is misclassified
+      // as a foreign/conflicting binary.
+      const canonical = await fsp.realpath(resolved)
+      await fsp.access(canonical, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+      return canonical
     } catch {
       return null
     }
@@ -1022,6 +1136,23 @@ export class BinaryManager extends BaseService {
     await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
+    }
+
+    // Only explicit updates clean versions no longer referenced by mise.
+    if (targetVersion) {
+      try {
+        await this.runMise(['prune', definition.tool])
+      } catch (err) {
+        logger.warn('Failed to prune obsolete mise tool versions', {
+          name: definition.name,
+          error: this.errorMessage(err)
+        })
+        return
+      }
+      await this.runMise(['reshim'])
+      if (!(await this.isManagedBinaryReady(definition.name))) {
+        throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
+      }
     }
   }
 

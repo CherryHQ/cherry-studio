@@ -4,27 +4,22 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
+import { isNonChatModel } from '@shared/utils/model'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AgentEditDialog } from './AgentEditDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
 
-export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
-  /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
-  initialTab?: string
-}
-
 type ResourceEditDialogHostProps = {
   target: ResourceEditDialogTarget | null
   onOpenChange: (open: boolean) => void
-  onSaved?: (target: ResourceEditDialogTarget) => Promise<unknown> | void
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
 
-export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
+export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -63,11 +58,11 @@ export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: Resour
   )
 
   if (target?.kind === 'assistant') {
-    return <AssistantEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} onSaved={onSaved} />
+    return <AssistantEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
   }
 
   if (target?.kind === 'agent') {
-    return <AgentEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} onSaved={onSaved} />
+    return <AgentEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
   }
 
   return null
@@ -76,14 +71,13 @@ export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: Resour
 function AssistantEditDialogHost({
   target,
   open,
-  onOpenChange,
-  onSaved
+  onOpenChange
 }: ResourceEditDialogHostProps & {
   target: Extract<ResourceEditDialogTarget, { kind: 'assistant' }>
   open: boolean
 }) {
   const { t } = useTranslation()
-  const { assistant, error, refetch } = useAssistantApiById(target.id)
+  const { assistant, error } = useAssistantApiById(target.id)
 
   useEffect(() => {
     if (!error) return
@@ -92,23 +86,12 @@ function AssistantEditDialogHost({
     toast.error(t('common.error'))
   }, [error, t, target.id])
 
-  const handleSaved = useCallback(async () => {
-    try {
-      await refetch()
-      await onSaved?.(target)
-    } catch (error) {
-      logger.warn('Failed to refresh assistant after edit dialog save', { error, id: target.id })
-      toast.error(t('selector.edit_dialog.refresh_failed'))
-    }
-  }, [onSaved, refetch, t, target])
-
   return (
     <AssistantEditDialog
       open={open}
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
-      onSaved={handleSaved}
-      modelFilter={isSelectableAssistantModel}
+      modelFilter={(candidate) => !isNonChatModel(candidate)}
       initialTab={target.initialTab}
     />
   )
@@ -117,15 +100,14 @@ function AssistantEditDialogHost({
 function AgentEditDialogHost({
   target,
   open,
-  onOpenChange,
-  onSaved
+  onOpenChange
 }: ResourceEditDialogHostProps & {
   target: Extract<ResourceEditDialogTarget, { kind: 'agent' }>
   open: boolean
 }) {
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
-  const { agent, error, revalidate } = useAgent(target.id)
+  const { agent, error } = useAgent(target.id)
+  const modelFilter = useAgentModelFilter(agent?.type)
 
   useEffect(() => {
     if (!error) return
@@ -134,22 +116,11 @@ function AgentEditDialogHost({
     toast.error(t('common.error'))
   }, [error, t, target.id])
 
-  const handleSaved = useCallback(async () => {
-    try {
-      await revalidate()
-      await onSaved?.(target)
-    } catch (error) {
-      logger.warn('Failed to refresh agent after edit dialog save', { error, id: target.id })
-      toast.error(t('selector.edit_dialog.refresh_failed'))
-    }
-  }, [onSaved, revalidate, t, target])
-
   return (
     <AgentEditDialog
       open={open}
       resource={agent ?? null}
       onOpenChange={onOpenChange}
-      onSaved={handleSaved}
       modelFilter={modelFilter}
       initialTab={target.initialTab}
     />

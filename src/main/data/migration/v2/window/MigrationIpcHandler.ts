@@ -48,8 +48,25 @@ let currentProgress: MigrationProgress = {
 // introduction progress from scratch) instead of vanishing after a failed run.
 let dataLocationNotice: string | null = null
 
-function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
-  if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
+function assertMigrationWindowSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Unauthorized migration IPC sender.')
+}
+
+// The migration window runs on the `simplest` preload (ipcRenderer only), so opening the v1
+// download page has to go through main — which also owns the URL table, so the renderer only
+// names a language and can never turn this into an arbitrary shell.openExternal call.
+// The v1-specific page, since the button offers v1 rather than the current release.
+const V1_DOWNLOAD_URL_CN = 'https://cherryai.com.cn/download/v1'
+const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download/v1'
+
+/**
+ * Picks the download site from the wizard's language, using the same `zh` test the window's
+ * i18n resolver uses to pick that language — so the site is the one the user can read.
+ * Anything else, including a missing or malformed value, lands on the global site.
+ */
+function resolveV1DownloadUrl(language: unknown): string {
+  const isChinese = typeof language === 'string' && language.toLowerCase().includes('zh')
+  return isChinese ? V1_DOWNLOAD_URL_CN : V1_DOWNLOAD_URL_GLOBAL
 }
 
 const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
@@ -131,7 +148,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(
     MigrationIpcChannels.SaveDiagnosticBundle,
     async (event: IpcMainInvokeEvent, payload: unknown): Promise<MigrationDiagnosticSaveResult> => {
-      assertMigrationDiagnosticSender(event)
+      assertMigrationWindowSender(event)
       const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
       if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
       const { dialogTitle, logDate } = parsedPayload.data
@@ -177,7 +194,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   )
 
   ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
-    assertMigrationDiagnosticSender(event)
+    assertMigrationWindowSender(event)
     if (!lastSavedDiagnosticBundlePath) return false
     try {
       await fs.access(lastSavedDiagnosticBundlePath)
@@ -185,6 +202,18 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       return true
     } catch (error) {
       logger.warn('Failed to show migration diagnostic bundle in folder', error as Error)
+      return false
+    }
+  })
+
+  // Open the region-appropriate v1 download page when selected from the migration fallback options.
+  ipcMain.handle(MigrationIpcChannels.OpenDownloadPage, async (event: IpcMainInvokeEvent, language: unknown) => {
+    assertMigrationWindowSender(event)
+    try {
+      await shell.openExternal(resolveV1DownloadUrl(language))
+      return true
+    } catch (error) {
+      logger.warn('Failed to open v1 download page', error as Error)
       return false
     }
   })
@@ -259,6 +288,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         throw error
       }
 
+      // Update progress to error stage so the renderer shows the error UI.
+      // Do NOT re-throw — the progress update already communicates the failure,
+      // and re-throwing causes an unhandled promise rejection in the renderer.
       updateProgress({
         stage: 'error',
         overallProgress: currentProgress.overallProgress,
@@ -267,7 +299,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         error: errorMessage
       })
 
-      throw error
+      // Return a failure result instead of throwing, so the IPC invoke resolves
+      // gracefully and the renderer can display the error.
+      return { success: false, migratorResults: [], totalDuration: 0, error: errorMessage } satisfies MigrationResult
     } finally {
       if (runPromise && inFlightMigration === runPromise) {
         inFlightMigration = null
@@ -319,8 +353,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
-  // Skip migration (version incompatible — user chose to use defaults)
+  // Skip migration (user chose to discard migrated data and use defaults)
   ipcMain.handle(MigrationIpcChannels.SkipMigration, async () => {
+    // Skip clears the migration target tables on the same connection a running
+    // migration writes through — never let the two interleave.
+    if (inFlightMigration) {
+      logger.warn(CONCURRENT_MIGRATION_ERROR)
+      throw new Error(CONCURRENT_MIGRATION_ERROR)
+    }
+
     try {
       logger.info('User chose to skip migration and use defaults')
       await migrationEngine.skipMigration()

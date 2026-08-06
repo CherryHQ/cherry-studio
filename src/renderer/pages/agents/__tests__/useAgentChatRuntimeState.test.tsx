@@ -1,4 +1,3 @@
-import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
 
@@ -43,7 +43,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: () => ({
-    localSendGeneration: 7,
     send: mocks.sendTurn
   })
 }))
@@ -55,6 +54,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => []
+}))
+
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
 
 vi.mock('react-i18next', () => ({
@@ -166,7 +169,7 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
         sessionMessagesEnabled: true,
@@ -175,20 +178,11 @@ describe('useAgentChatRuntimeState', () => {
     )
 
     expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
-    expect(result.current.localSendGeneration).toBe(7)
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
-  it('forwards pre-send scroll sampling only while the current message list runtime is bound', () => {
-    const captureLocalSendScrollEligibility = vi.fn()
-    const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility,
-      scrollToBottom: vi.fn(),
-      locateMessage: vi.fn(),
-      copyTopicImage: vi.fn(),
-      exportTopicImage: vi.fn()
-    }
+  it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -197,15 +191,12 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    const unbind = result.current.bindMessageListRuntime(runtime)
-    result.current.captureLocalSendScrollEligibility()
+    await act(async () => {
+      await result.current.deleteMessage('assistant-1')
+    })
 
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-
-    unbind?.()
-    result.current.captureLocalSendScrollEligibility()
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
+    expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
   })
 
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
@@ -239,7 +230,7 @@ describe('useAgentChatRuntimeState', () => {
           ...assistantMessage,
           metadata: {
             ...assistantMessage.metadata,
-            thoughtsTokens: 256
+            totalTokens: 256
           }
         } as CherryUIMessage
       ],
@@ -255,7 +246,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+    expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
   })
 
   it('keeps the history contract and composer callback stable across stream snapshots', () => {

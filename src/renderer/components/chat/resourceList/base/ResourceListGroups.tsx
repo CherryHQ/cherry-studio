@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
@@ -86,7 +87,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <ChevronRight
             aria-hidden="true"
             size={11}
-            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -157,6 +158,84 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
 
   if (!group.label) return null
+  const groupHeaderLabelClassName = cn(
+    'min-w-0 truncate text-left text-[13px] text-inherit leading-5',
+    clickBehavior === 'select-first-then-toggle' ? 'font-normal' : 'font-medium'
+  )
+  const groupHeaderActionYieldClassName = groupHeaderAction
+    ? 'transition-[padding-right] duration-150 group-focus-within/resource-list-group:pr-12 group-hover/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
+    : undefined
+  const headerContent = (
+    <div
+      className={cn(
+        'relative flex w-full items-center gap-1.5 transition-colors duration-150',
+        hasLeadingSlot ? 'px-1.5' : 'px-2.5',
+        RESOURCE_LIST_VISUAL_ROW_CLASS,
+        RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
+        groupHeaderClassName
+      )}>
+      {groupHeaderLeadingAction && (
+        <div
+          className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}
+          onClick={stopEventPropagation}
+          onContextMenu={stopEventPropagation}
+          onPointerDown={stopEventPropagation}
+          onPointerUp={stopEventPropagation}>
+          {groupHeaderLeadingAction}
+        </div>
+      )}
+      {isCollapsible ? (
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-current={selected ? 'true' : undefined}
+          className={cn(
+            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none',
+            groupHeaderActionYieldClassName
+          )}
+          onClick={handleClick}>
+          {groupHeaderIcon && (
+            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+              {groupHeaderIcon}
+            </ResourceListLeadingSlot>
+          )}
+          <span className={groupHeaderLabelClassName}>{group.label}</span>
+          {!groupHeaderAction && (
+            <ChevronRight
+              aria-hidden="true"
+              size={11}
+              className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+            />
+          )}
+        </button>
+      ) : (
+        <div
+          className={cn(
+            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit',
+            groupHeaderActionYieldClassName
+          )}>
+          {groupHeaderIcon && (
+            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+              {groupHeaderIcon}
+            </ResourceListLeadingSlot>
+          )}
+          <span className={groupHeaderLabelClassName}>{group.label}</span>
+        </div>
+      )}
+      {groupHeaderAction && (
+        <div
+          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+          onClick={stopEventPropagation}
+          onContextMenu={stopEventPropagation}
+          onPointerDown={stopEventPropagation}
+          onPointerUp={stopEventPropagation}>
+          {groupHeaderAction}
+        </div>
+      )}
+    </div>
+  )
   const header = (
     <div
       ref={ref}
@@ -169,71 +248,13 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       data-selected={selected || undefined}
       onContextMenu={handleContextMenu}
       {...props}>
-      <div
-        title={groupHeaderTooltip}
-        className={cn(
-          'flex w-full items-center gap-1.5 transition-colors duration-150',
-          hasLeadingSlot ? 'px-1.5' : 'px-2.5',
-          RESOURCE_LIST_VISUAL_ROW_CLASS,
-          RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-          selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
-          groupHeaderClassName
-        )}>
-        {groupHeaderLeadingAction && (
-          <div
-            className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}
-            onClick={stopEventPropagation}
-            onContextMenu={stopEventPropagation}
-            onPointerDown={stopEventPropagation}
-            onPointerUp={stopEventPropagation}>
-            {groupHeaderLeadingAction}
-          </div>
-        )}
-        {isCollapsible ? (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-current={selected ? 'true' : undefined}
-            className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-            onClick={handleClick}>
-            {groupHeaderIcon && (
-              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-                {groupHeaderIcon}
-              </ResourceListLeadingSlot>
-            )}
-            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-              {group.label}
-            </span>
-            <ChevronRight
-              aria-hidden="true"
-              size={11}
-              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
-              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-            />
-          </button>
-        ) : (
-          <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
-            {groupHeaderIcon && (
-              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-                {groupHeaderIcon}
-              </ResourceListLeadingSlot>
-            )}
-            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-              {group.label}
-            </span>
-          </div>
-        )}
-        {groupHeaderAction && (
-          <div
-            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
-            onClick={stopEventPropagation}
-            onContextMenu={stopEventPropagation}
-            onPointerDown={stopEventPropagation}
-            onPointerUp={stopEventPropagation}>
-            {groupHeaderAction}
-          </div>
-        )}
-      </div>
+      {groupHeaderTooltip ? (
+        <Tooltip content={groupHeaderTooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+          {headerContent}
+        </Tooltip>
+      ) : (
+        headerContent
+      )}
     </div>
   )
 
@@ -273,7 +294,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground leading-4 transition-colors duration-150 hover:text-inherit focus-visible:bg-sidebar-accent focus-visible:text-inherit focus-visible:outline-none"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
