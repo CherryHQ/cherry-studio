@@ -117,12 +117,20 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
     ].map((exportPath) => path.resolve(exportPath))
   )
   exportPrepared = false
+  let exportCleanupQueue: Promise<void> = Promise.resolve()
 
-  const cleanupExportDirectories = async (): Promise<void> => {
+  const cleanupExportDirectories = (): Promise<void> => {
     exportPrepared = false
-    await Promise.all(
-      [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
-    )
+    // Preserve ordering after a failed cleanup so a retry can make a fresh attempt.
+    const cleanup = exportCleanupQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await Promise.all(
+          [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
+        )
+      })
+    exportCleanupQueue = cleanup
+    return cleanup
   }
 
   const cleanupExportDirectoriesBestEffort = async (reason: string): Promise<void> => {

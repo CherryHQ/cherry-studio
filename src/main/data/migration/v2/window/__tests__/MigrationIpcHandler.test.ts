@@ -151,6 +151,29 @@ describe('MigrationIpcHandler', () => {
       await expect(invoke(MigrationIpcChannels.PrepareExport)).rejects.toThrow('Unauthorized')
       expect(fsMock.rm).not.toHaveBeenCalled()
     })
+
+    it('waits for renderer-error cleanup before preparing the next export', async () => {
+      let finishFirstRemoval!: () => void
+      const firstRemoval = new Promise<void>((resolve) => {
+        finishFirstRemoval = resolve
+      })
+      fsMock.rm.mockImplementationOnce(() => firstRemoval).mockResolvedValue(undefined)
+
+      const reportError = invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      await vi.waitFor(() => expect(fsMock.rm).toHaveBeenCalledTimes(3))
+
+      const prepareExport = invoke(MigrationIpcChannels.PrepareExport)
+      await Promise.resolve()
+
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
+      expect(fsMock.mkdir).not.toHaveBeenCalled()
+
+      finishFirstRemoval()
+      await Promise.all([reportError, prepareExport])
+
+      expect(fsMock.rm).toHaveBeenCalledTimes(6)
+      expect(fsMock.mkdir).toHaveBeenCalledWith(migrationPaths.migrationTempDir, { recursive: true })
+    })
   })
 
   describe('renderer export diagnostics', () => {
