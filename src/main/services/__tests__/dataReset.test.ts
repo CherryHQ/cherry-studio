@@ -7,6 +7,8 @@ const USER_DATA = '/mock/home/appdata/CherryStudio'
 const APP_TEMP = '/mock/tmp/CherryStudio'
 const MARKER_FILE = `${USER_DATA}/data-reset.pending.json`
 const MARKER_ASIDE = `${USER_DATA}/data-reset.pending.invalid`
+const DATABASE_FILE = `${USER_DATA}/Data/cherrystudio.sqlite`
+const CLAUDE_ROOT = `${USER_DATA}/Data/Agents/.claude`
 
 let applicationMock: ReturnType<typeof createMockApplication>
 const showErrorBoxMock = vi.fn()
@@ -29,11 +31,13 @@ type DataResetMarker =
       requestedAt: string
       attempts?: number
       canonicalPath: string
+      operation?: 'full_reset' | 'v1_remigration'
     }
   | {
       version: 1
       status: 'completed'
       completedAt: string
+      operation?: 'full_reset' | 'v1_remigration'
     }
   | null
 
@@ -157,6 +161,8 @@ function stubApplication(userData: string = USER_DATA, opts: { throwOnUserData?:
     }
     if (key === 'app.temp') return APP_TEMP
     if (key === 'feature.data_reset.marker_file') return `${userData}/data-reset.pending.json`
+    if (key === 'app.database.file') return `${userData}/Data/cherrystudio.sqlite`
+    if (key === 'feature.agents.claude.root') return `${userData}/Data/Agents/.claude`
     return '/mock/unknown'
   })
   vi.doMock('@application', () => ({ application: applicationMock }))
@@ -334,6 +340,11 @@ async function requestReset() {
   return requestDataReset()
 }
 
+async function requestRemigration() {
+  const { requestV1Remigration } = await import('../dataReset')
+  return requestV1Remigration()
+}
+
 function wipedEntries(): string[] {
   return rmSyncMock.mock.calls.map(([target]) => String(target)).filter((t) => t.startsWith(`${USER_DATA}/`))
 }
@@ -380,6 +391,54 @@ describe('runDataReset', () => {
 
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('treats a legacy marker without an operation as a full reset', async () => {
+    stubAll(pendingMarker())
+    await runReset()
+
+    expect(wipedEntries()).toContain(`${USER_DATA}/Data`)
+    expect(rmSyncMock).toHaveBeenCalledWith(APP_TEMP, expect.anything())
+    expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'full_reset' })
+  })
+
+  it('removes only current v2 migration targets with the database last', async () => {
+    stubAll(pendingMarker({ operation: 'v1_remigration' }))
+    await runReset()
+
+    expect(rmSyncMock.mock.calls.map(([target]) => target)).toEqual([
+      `${DATABASE_FILE}-wal`,
+      `${DATABASE_FILE}-shm`,
+      CLAUDE_ROOT,
+      DATABASE_FILE
+    ])
+    expect(rmSyncMock).not.toHaveBeenCalledWith(APP_TEMP, expect.anything())
+    expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'v1_remigration' })
+    expect(markerExists()).toBe(false)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a failed remigration pending, refuses to boot, and retries on the next launch', async () => {
+    stubAll(pendingMarker({ operation: 'v1_remigration' }))
+    rmSyncMock.mockImplementation((target: string) => {
+      if (target === `${DATABASE_FILE}-shm`) throw new Error('EBUSY: resource busy')
+    })
+
+    await runReset()
+
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', operation: 'v1_remigration', attempts: 1 })
+    expect(rmSyncMock).not.toHaveBeenCalledWith(DATABASE_FILE, expect.anything())
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Migration Reset Failed', expect.any(String))
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+
+    vi.clearAllMocks()
+    rmSyncMock.mockImplementation(() => undefined)
+    await runReset()
+
+    expect(markerExists()).toBe(false)
+    expect(rmSyncMock).toHaveBeenCalledWith(DATABASE_FILE, expect.anything())
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 
   it('fsyncs the marker parent directory after each marker rename and unlink on POSIX', async () => {
@@ -746,7 +805,8 @@ describe('requestDataReset', () => {
       expect.objectContaining({
         version: 1,
         status: 'pending',
-        canonicalPath: USER_DATA
+        canonicalPath: USER_DATA,
+        operation: 'full_reset'
       })
     )
     expect(fsCtl.commits[0]).not.toHaveProperty('userDataPath')
@@ -853,5 +913,31 @@ describe('requestDataReset', () => {
     expect(defaultSession.clearData).not.toHaveBeenCalled()
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+})
+
+describe('requestV1Remigration', () => {
+  it('stages a remigration without native confirmation or clearing Chromium state', async () => {
+    stubAll(null)
+
+    await requestRemigration()
+
+    expect(fsCtl.commits[0]).toMatchObject({
+      version: 1,
+      status: 'pending',
+      canonicalPath: USER_DATA,
+      operation: 'v1_remigration'
+    })
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
+    expect(defaultSession.clearData).not.toHaveBeenCalled()
+    expect(defaultSession.clearAuthCache).not.toHaveBeenCalled()
+    expect(webviewSession.clearData).not.toHaveBeenCalled()
+    expect(webviewSession.clearAuthCache).not.toHaveBeenCalled()
+    expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.shutdown.mock.invocationCallOrder[0]
+    )
+    expect(applicationMock.shutdown.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
+    )
   })
 })

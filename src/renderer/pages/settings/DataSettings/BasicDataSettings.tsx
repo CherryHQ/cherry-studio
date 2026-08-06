@@ -22,8 +22,10 @@ import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import RestorePopup from './RestorePopup'
+import V1RemigrationPopup from './V1RemigrationPopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
+const V1_REDUX_PERSIST_KEY = 'persist:cherry-studio'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -32,6 +34,7 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const hasV1MigrationSource = localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
@@ -288,6 +291,19 @@ const BasicDataSettings: React.FC = () => {
             </Button>
           </RowFlex>
         </SettingRow>
+        {hasV1MigrationSource && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.v1_remigration.title')}</SettingRowTitle>
+              <RowFlex className="gap-1.25">
+                <Button onClick={() => V1RemigrationPopup.show()} variant="outline">
+                  {t('settings.data.v1_remigration.button')}
+                </Button>
+              </RowFlex>
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>

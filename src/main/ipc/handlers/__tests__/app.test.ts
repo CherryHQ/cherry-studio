@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, appRelaunchMock, requestDataResetMock, inspectTargetMock, requestRelocationMock } =
-  vi.hoisted(() => ({
-    appGetMock: vi.fn(),
-    appGetPathMock: vi.fn(),
-    appRelaunchMock: vi.fn(),
-    requestDataResetMock: vi.fn(),
-    inspectTargetMock: vi.fn(),
-    requestRelocationMock: vi.fn()
-  }))
+const {
+  appGetMock,
+  appGetPathMock,
+  appRelaunchMock,
+  requestDataResetMock,
+  requestV1RemigrationMock,
+  inspectTargetMock,
+  requestRelocationMock
+} = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  appGetPathMock: vi.fn(),
+  appRelaunchMock: vi.fn(),
+  requestDataResetMock: vi.fn(),
+  requestV1RemigrationMock: vi.fn(),
+  inspectTargetMock: vi.fn(),
+  requestRelocationMock: vi.fn()
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -17,7 +25,10 @@ vi.mock('@application', () => ({
     relaunch: appRelaunchMock
   }
 }))
-vi.mock('@main/services/dataReset', () => ({ requestDataReset: requestDataResetMock }))
+vi.mock('@main/services/dataReset', () => ({
+  requestDataReset: requestDataResetMock,
+  requestV1Remigration: requestV1RemigrationMock
+}))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
@@ -110,5 +121,12 @@ describe('appHandlers', () => {
     requestDataResetMock.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     await expect(appHandlers['app.data_reset.request'](undefined, ctx)).rejects.toThrow('EACCES')
+  })
+
+  it('delegates v1 remigration requests to the owning domain module', async () => {
+    const result = await appHandlers['app.migration_v2.rerun'](undefined, ctx)
+
+    expect(requestV1RemigrationMock).toHaveBeenCalledTimes(1)
+    expect(result).toBeUndefined()
   })
 })

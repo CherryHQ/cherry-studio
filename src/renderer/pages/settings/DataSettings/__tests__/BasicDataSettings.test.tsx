@@ -33,8 +33,10 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
+vi.mock('../V1RemigrationPopup', () => ({ default: { show: vi.fn() } }))
 
 import BasicDataSettings from '../BasicDataSettings'
+import V1RemigrationPopup from '../V1RemigrationPopup'
 
 async function renderSettings() {
   render(<BasicDataSettings />)
@@ -47,6 +49,7 @@ describe('BasicDataSettings', () => {
     getCacheSizeMock.mockResolvedValue('0')
     requestMock.mockResolvedValue(undefined)
     vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
+    localStorage.clear()
   })
 
   it('leaves backup and restore actions interactive', async () => {
@@ -59,6 +62,22 @@ describe('BasicDataSettings', () => {
       expect(action).toBeEnabled()
       expect(action.closest('[inert]')).toBeNull()
     }
+  })
+
+  it('hides the v1 remigration entry when the exact Redux key is absent', async () => {
+    localStorage.setItem('persist:other-app', '{}')
+    await renderSettings()
+
+    expect(screen.queryByRole('button', { name: 'settings.data.v1_remigration.button' })).not.toBeInTheDocument()
+  })
+
+  it('shows the v1 remigration entry for the exact Redux key and opens its warning', async () => {
+    localStorage.setItem('persist:cherry-studio', '{}')
+    await renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.button' }))
+
+    expect(V1RemigrationPopup.show).toHaveBeenCalledTimes(1)
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {

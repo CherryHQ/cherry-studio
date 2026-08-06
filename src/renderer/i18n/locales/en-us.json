@@ -6364,6 +6364,27 @@
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data",
+      "v1_remigration": {
+        "acknowledgement": "I understand the risk and want to continue.",
+        "back": "Back",
+        "backup_button": "Back Up All Data Now",
+        "backup_message": "We recommend backing up all current data first. The backup is optional, so you may also continue directly.",
+        "button": "Rerun Migration",
+        "confirm": "Confirm Delete and Rerun",
+        "dialog_title": "Rerun v1 Data Migration",
+        "error": "Failed to start v1 data migration again",
+        "final_message": "After you confirm, your current v2 data will be permanently deleted and Cherry Studio will restart immediately. This cannot be undone.",
+        "final_retained": "Your original v1 data will be kept and imported again after restart.",
+        "next": "Next",
+        "risk_message": "Your current v2 conversations, assistants, settings, and other data will be permanently deleted. Your original v1 data will be kept and imported again. This cannot be undone.",
+        "step_label": "Step {{current}} of {{total}} · {{name}}",
+        "steps": {
+          "backup": "Back Up Data",
+          "confirm": "Final Confirmation",
+          "risk": "Review Risk"
+        },
+        "title": "Rerun v1 Data Migration"
+      },
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
