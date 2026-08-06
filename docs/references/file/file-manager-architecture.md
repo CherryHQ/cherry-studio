@@ -1022,7 +1022,7 @@ async runSweep(): Promise<OrphanReport> {
 
 **Rationale for the split (scheduled/user-triggered FS pass, on-demand report)**:
 - The FS pass performs *reclamation*, and the entry-cleanup pass manufactures its input on every run (`unlinkFailures`, plus crash residue between row-delete and unlink). The idle tick guarantees eventual reclamation without a user action, behind a coarse 7-day floor because an orphan blob costs disk, never correctness.
-- The cache-cleanup UI needs an immediate preview and explicit cleanup action, so it calls the FS-only `inspectOrphanFiles()` / `cleanupOrphanFiles()` path. This bypasses only the scheduler cadence: pending-restore stand-aside, the freshness gate, and the safety threshold still apply.
+- The cache-cleanup UI needs an immediate preview and explicit cleanup action, so it calls the FS-only `inspectOrphanFiles()` / `cleanupOrphanFiles()` path. This bypasses the scheduler cadence and its `fileSweepInFlight` gate, and it does not stamp `lastFileSweepAt`; direct requests may therefore overlap a scheduled pass or another direct request without delaying the next scheduled pass. Pending-restore stand-aside, the freshness gate, and the safety threshold still apply.
 - The DB pass only *reports*. A report with no consumer has nothing to do, so it stays available only through the broader `runSweep()` umbrella; the cache-cleanup UI does not invoke it or the entry-cleanup pass.
 - No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
@@ -1133,7 +1133,7 @@ The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its cur
 
 The entry-cleanup pass (§7.1, [file-entry-cleanup.md §5.6](./file-entry-cleanup.md#56-failure-handling--observability)) emits a third, independent record under `event: 'file-entry-cleanup'` — `info` on `completed` and on `'skipped'` (the pending-staged-restore stand-aside), `error` on `failed` (it has no `aborted` outcome; the volume abort was removed, spec §5.3) — covering candidate/deleted/`gonePinned`/`failed` counts and skip/unlink-failure breakdowns for the `delete_when_unreferenced` reclaim path. It fires on its own triggers (init, idle-gated interval) in addition to running as the first of `runSweep`'s three passes (§10.1).
 
-These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — `runSweep()` emits at most three records, while direct `cleanupOrphanFiles()` emits only the FS-sweep record.
+These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — `runSweep()` emits at most three records, while direct `inspectOrphanFiles()` and `cleanupOrphanFiles()` each emit only the FS-sweep record.
 
 ### 10.6 DanglingCache Initialization
 

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { createReadStream, type Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -9,16 +9,17 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
+import { atomicWriteFile } from '@main/utils/file'
 import { KnowledgeBaseIdSchema } from '@shared/data/types/knowledge'
+import type { CacheCleanupGroup, CacheCleanupSizeAccuracy } from '@shared/types/cacheCleanup'
 import type {
-  CacheCleanupGroup,
   CacheCleanupGroupInspection,
   CacheCleanupGroupResult,
   CacheCleanupInspection,
   CacheCleanupRunResult,
-  CacheCleanupSizeAccuracy,
   CacheCleanupSizeSnapshot
-} from '@shared/types/cacheCleanup'
+} from '@shared/types/cacheCleanupIpc'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { Mutex } from 'async-mutex'
 import Database from 'better-sqlite3'
@@ -184,8 +185,6 @@ async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean
 }
 
 function getCleanupPaths() {
-  const data = application.getPath('app.userdata.data')
-
   return {
     defaultSession: application.getPath('app.session'),
     webviewSession: application.getPath('app.session.webview'),
@@ -207,7 +206,6 @@ function getCleanupPaths() {
     legacyAgents: application.getPath('app.userdata.data', 'agents.db'),
     rootLegacyAgents: application.getPath('app.userdata', 'agents.db'),
     customMiniApps: application.getPath('feature.files.data', 'custom-minapps.json'),
-    legacyMemory: path.join(data, 'Memory', 'memories.db'),
     rootLegacyMemory: application.getPath('app.userdata', 'memories.db'),
     indexedDbRestore: application.getPath('app.userdata', 'IndexedDB.restore'),
     localStorageRestore: application.getPath('app.userdata', 'Local Storage.restore'),
@@ -335,11 +333,7 @@ async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
       path: path.join(root, relativePath)
     }))
   )
-  diskTargets.push(
-    { item: 'app_temp', path: paths.appTemp },
-    { item: 'trace', path: paths.trace },
-    { item: 'legacy_trace', path: paths.legacyTrace }
-  )
+  diskTargets.push({ item: 'trace', path: paths.trace }, { item: 'legacy_trace', path: paths.legacyTrace })
 
   const diskMeasurement = await measurePaths(diskTargets)
   return toSizeSnapshot(mergeMeasurements([...electronMeasurements, diskMeasurement]), 'estimated')
@@ -446,10 +440,11 @@ async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
   if (fileReport.outcome !== 'completed' || fileReport.statFailedCount > 0) {
     fileIssues.push(issue('orphan_files', 'inspection_failed'))
   }
+  const reclaimableFileBytes = fileReport.outcome === 'completed' ? fileReport.plannedDeleteBytes : 0
 
   return toSizeSnapshot(
     {
-      bytes: fileReport.plannedDeleteBytes + targetMeasurement.bytes,
+      bytes: reclaimableFileBytes + targetMeasurement.bytes,
       issues: [...fileIssues, ...knowledgePlan.issues, ...restorePlan.issues, ...targetMeasurement.issues]
     },
     'exact'
@@ -498,9 +493,39 @@ async function collectOwnedTargets(
   }
 }
 
-function sqliteHasTable(targetPath: string, tableName: string, requiredColumns: string[] = []): boolean {
-  const db = new Database(targetPath, { readonly: true, fileMustExist: true })
+async function withSqliteProbe<T>(targetPath: string, inspect: (db: Database.Database) => T): Promise<T> {
+  const tempRoot = application.getPath('app.temp')
+  await fs.mkdir(tempRoot, { recursive: true })
+  const probeDirectory = await fs.mkdtemp(path.join(tempRoot, 'cache-cleanup-sqlite-'))
+  const probePath = path.join(probeDirectory, path.basename(targetPath))
   try {
+    await fs.copyFile(targetPath, probePath)
+    for (const suffix of SQLITE_SIDECAR_SUFFIXES) {
+      const sourcePath = `${targetPath}${suffix}`
+      try {
+        const stats = await fs.lstat(sourcePath)
+        if (stats.isSymbolicLink() || !stats.isFile()) {
+          throw new Error(`Unsafe SQLite sidecar: ${sourcePath}`)
+        }
+        await fs.copyFile(sourcePath, `${probePath}${suffix}`)
+      } catch (error) {
+        if (!isNodeError(error, 'ENOENT')) throw error
+      }
+    }
+
+    const db = new Database(probePath, { readonly: true, fileMustExist: true })
+    try {
+      return inspect(db)
+    } finally {
+      db.close()
+    }
+  } finally {
+    await fs.rm(probeDirectory, { recursive: true, force: true })
+  }
+}
+
+function sqliteHasTable(targetPath: string, tableName: string, requiredColumns: string[] = []): Promise<boolean> {
+  return withSqliteProbe(targetPath, (db) => {
     const table = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName)
     if (table === undefined) return false
     if (requiredColumns.length === 0) return true
@@ -511,19 +536,14 @@ function sqliteHasTable(targetPath: string, tableName: string, requiredColumns: 
       )
     )
     return requiredColumns.every((column) => columns.has(column))
-  } finally {
-    db.close()
-  }
+  })
 }
 
-function sqliteHasAnyTable(targetPath: string, tableNames: readonly string[]): boolean {
-  const db = new Database(targetPath, { readonly: true, fileMustExist: true })
-  try {
+function sqliteHasAnyTable(targetPath: string, tableNames: readonly string[]): Promise<boolean> {
+  return withSqliteProbe(targetPath, (db) => {
     const statement = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
     return tableNames.some((tableName) => statement.get(tableName) !== undefined)
-  } finally {
-    db.close()
-  }
+  })
 }
 
 async function addSqliteTargetWithSidecars(plan: LegacyCleanupPlan, targetPath: string, item: string): Promise<void> {
@@ -590,7 +610,7 @@ async function collectAgentsDatabases(
   if (fileStatus === 'missing') return
 
   try {
-    if (!sqliteHasAnyTable(legacyAgentsPath, LEGACY_AGENTS_TABLES)) {
+    if (!(await sqliteHasAnyTable(legacyAgentsPath, LEGACY_AGENTS_TABLES))) {
       plan.issues.push(issue(item, 'invalid_data'))
       return
     }
@@ -630,7 +650,7 @@ async function collectMemoryDatabase(plan: LegacyCleanupPlan, targetPath: string
   }
 
   try {
-    if (!sqliteHasTable(targetPath, 'memories', ['id', 'memory'])) {
+    if (!(await sqliteHasTable(targetPath, 'memories', ['id', 'memory']))) {
       plan.issues.push(issue(item, 'invalid_data'))
       return
     }
@@ -669,7 +689,7 @@ async function collectKnowledgeDatabases(plan: LegacyCleanupPlan, knowledgeRoot:
 
     const targetPath = path.join(knowledgeRoot, entry.name)
     try {
-      if (!sqliteHasTable(targetPath, 'vectors', ['id', 'pageContent', 'uniqueLoaderId', 'source', 'vector'])) {
+      if (!(await sqliteHasTable(targetPath, 'vectors', ['id', 'pageContent', 'uniqueLoaderId', 'source', 'vector']))) {
         continue
       }
       await addSqliteTargetWithSidecars(plan, targetPath, 'legacy_knowledge_databases')
@@ -766,7 +786,6 @@ async function collectLegacyCleanupPlan(): Promise<LegacyCleanupPlan> {
 
   await Promise.all([
     collectAgentsDatabases(plan, paths.legacyAgents, paths.rootLegacyAgents),
-    collectMemoryDatabase(plan, paths.legacyMemory, 'legacy_memory_database'),
     collectMemoryDatabase(plan, paths.rootLegacyMemory, 'legacy_root_memory_database'),
     collectKnowledgeDatabases(plan, paths.knowledge),
     collectLegacyHomeConfig(plan, paths.homeConfig)
@@ -846,23 +865,10 @@ async function captureStep(item: string, operation: () => Promise<void>): Promis
 
 function clearSessionNormalCache(ses: Session, item: string): Promise<CleanupStepResult[]> {
   return Promise.all([
-    captureStep(`${item}_http_cache`, () => ses.clearData({ dataTypes: ['cache'] })),
+    captureStep(`${item}_http_cache`, () => ses.clearData({ dataTypes: ['cache'], avoidClosingConnections: true })),
     captureStep(`${item}_code_cache`, () => ses.clearCodeCaches({})),
     captureStep(`${item}_shared_cache`, () => ses.clearStorageData({ storages: ['shadercache', 'cachestorage'] }))
   ])
-}
-
-async function resetTempDirectory(targetPath: string): Promise<void> {
-  try {
-    const stats = await fs.lstat(targetPath)
-    if (stats.isSymbolicLink() || !stats.isDirectory()) {
-      throw new Error('Application temp path is not a regular directory')
-    }
-  } catch (error) {
-    if (!isNodeError(error, 'ENOENT')) throw error
-  }
-  await fs.rm(targetPath, { recursive: true, force: true })
-  await fs.mkdir(targetPath, { recursive: true })
 }
 
 function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResult[]): CacheCleanupGroupResult {
@@ -876,20 +882,19 @@ function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResult[]): 
 
 async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
   const paths = getCleanupPaths()
-  const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, tempStep, traceStep, legacyTraceStep] =
-    await Promise.all([
+  const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, traceStep, legacyTraceStep] = await Promise.all(
+    [
       clearSessionNormalCache(session.defaultSession, 'default_session'),
       clearSessionNormalCache(session.fromPartition('persist:webview'), 'webview_session'),
       clearSessionNormalCache(session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION), 'html_artifact_preview_session'),
-      captureStep('app_temp', () => resetTempDirectory(paths.appTemp)),
       captureStep('trace', () => application.get('TraceStorageService').cleanLocalData()),
       removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
-    ])
+    ]
+  )
   return resultFromSteps('normal_cache', [
     ...defaultSessionSteps,
     ...webviewSessionSteps,
     ...previewSessionSteps,
-    tempStep,
     traceStep,
     legacyTraceStep
   ])
@@ -897,7 +902,9 @@ async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
 
 async function clearSiteData(): Promise<CacheCleanupGroupResult> {
   const steps = await Promise.all([
-    captureStep('default_session_cookies', () => session.defaultSession.clearData({ dataTypes: ['cookies'] })),
+    captureStep('default_session_cookies', () =>
+      session.defaultSession.clearData({ dataTypes: ['cookies'], avoidClosingConnections: true })
+    ),
     captureStep('webview_site_data', () =>
       session.fromPartition('persist:webview').clearData({
         dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
@@ -940,6 +947,8 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
 }
 
 async function removeOrphanKnowledgeTarget(target: CleanupTarget): Promise<CleanupStepResult> {
+  if (hasPendingRestore()) return { state: 'skipped' }
+
   const baseId = path.basename(target.path)
   const status = await inspectTarget(target.path, target.item, target.kind)
   if (status === 'missing') return { state: 'not_found' }
@@ -976,24 +985,47 @@ async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepRe
 
 async function withLegacyHomeConfigLock<T>(targetPath: string, callback: () => Promise<T>): Promise<T> {
   const lockPath = `${targetPath}.cleanup.lock`
+  const takeoverPath = `${lockPath}.takeover`
 
-  for (let attempt = 0; attempt <= LEGACY_HOME_CONFIG_LOCK_RETRIES; attempt += 1) {
+  for (let attempt = 0; ; attempt += 1) {
     let lockHandle: Awaited<ReturnType<typeof fs.open>>
     try {
       lockHandle = await fs.open(lockPath, 'wx', 0o600)
     } catch (error) {
-      if (!isNodeError(error, 'EEXIST') || attempt >= LEGACY_HOME_CONFIG_LOCK_RETRIES) throw error
+      if (!isNodeError(error, 'EEXIST')) throw error
+      if (attempt >= LEGACY_HOME_CONFIG_LOCK_RETRIES) {
+        throw new Error(`Failed to acquire legacy home config lock: ${lockPath}`, { cause: error })
+      }
+
+      let takeoverHandle: Awaited<ReturnType<typeof fs.open>> | undefined
+      try {
+        takeoverHandle = await fs.open(takeoverPath, 'wx', 0o600)
+      } catch (takeoverError) {
+        if (!isNodeError(takeoverError, 'EEXIST')) throw takeoverError
+      }
+
+      if (takeoverHandle) {
+        try {
+          const lockStats = await fs.lstat(lockPath)
+          if (
+            lockStats.isFile() &&
+            !lockStats.isSymbolicLink() &&
+            Date.now() - lockStats.mtimeMs > LEGACY_HOME_CONFIG_LOCK_STALE_MS
+          ) {
+            await fs.unlink(lockPath)
+            continue
+          }
+        } catch (lockError) {
+          if (isNodeError(lockError, 'ENOENT')) continue
+          throw lockError
+        } finally {
+          await takeoverHandle.close()
+          await fs.unlink(takeoverPath).catch(() => undefined)
+        }
+      }
 
       try {
-        const lockStats = await fs.lstat(lockPath)
-        if (
-          lockStats.isFile() &&
-          !lockStats.isSymbolicLink() &&
-          Date.now() - lockStats.mtimeMs > LEGACY_HOME_CONFIG_LOCK_STALE_MS
-        ) {
-          await fs.unlink(lockPath)
-          continue
-        }
+        await fs.lstat(lockPath)
       } catch (lockError) {
         if (isNodeError(lockError, 'ENOENT')) continue
         throw lockError
@@ -1010,22 +1042,12 @@ async function withLegacyHomeConfigLock<T>(targetPath: string, callback: () => P
       await fs.unlink(lockPath).catch(() => undefined)
     }
   }
-
-  throw new Error(`Failed to acquire legacy home config lock: ${lockPath}`)
 }
 
 async function replaceLegacyHomeConfig(targetPath: string, nextValue: Record<string, unknown>): Promise<void> {
-  const tempPath = `${targetPath}.cleanup.${randomUUID()}.tmp`
-  const tempHandle = await fs.open(tempPath, 'wx', 0o600)
-  try {
-    await tempHandle.writeFile(`${JSON.stringify(nextValue, null, 2)}\n`, 'utf8')
-    await tempHandle.close()
-    await fs.rename(tempPath, targetPath)
-  } catch (error) {
-    await tempHandle.close().catch(() => undefined)
-    await fs.unlink(tempPath).catch(() => undefined)
-    throw error
-  }
+  await atomicWriteFile(AbsoluteFilePathSchema.parse(targetPath), `${JSON.stringify(nextValue, null, 2)}\n`, {
+    mode: 0o600
+  })
 }
 
 async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepResult> {

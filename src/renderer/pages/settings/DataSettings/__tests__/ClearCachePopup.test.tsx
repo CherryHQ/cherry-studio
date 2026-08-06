@@ -97,6 +97,25 @@ describe('ClearCachePopup', () => {
     expect(inspectBrowserMock).not.toHaveBeenCalled()
   })
 
+  it('cancels the legacy database scan when the popup closes', async () => {
+    const user = userEvent.setup()
+    let inspectionSignal: AbortSignal | undefined
+    inspectBrowserMock.mockImplementationOnce(
+      (signal: AbortSignal) =>
+        new Promise(() => {
+          inspectionSignal = signal
+        })
+    )
+    const resolve = vi.fn()
+
+    render(<ClearCachePopupContainer open resolve={resolve} onClear={vi.fn()} />)
+    await waitFor(() => expect(inspectionSignal).toBeDefined())
+    await user.click(screen.getByRole('button', { name: '取消' }))
+
+    expect(inspectionSignal?.aborted).toBe(true)
+    expect(resolve).toHaveBeenCalledWith(undefined)
+  })
+
   it('updates the estimated selected total', async () => {
     const user = userEvent.setup()
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)

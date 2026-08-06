@@ -54,7 +54,7 @@ function createTableMock(inputRows: LegacyRecord[]) {
   })
 
   return {
-    bulkGet: vi.fn(async (keys: string[]) => keys.map((key) => rowsById.get(key))),
+    get: vi.fn(async (key: string) => rowsById.get(key)),
     orderBy: vi.fn(() => createCollection()),
     pageQuery,
     where: vi.fn(() => ({ above: (key: string) => createCollection(key) }))
@@ -97,13 +97,21 @@ describe('legacyV1BrowserData', () => {
     expect(hasLegacyV1Marker()).toBe(true)
 
     localStorage.removeItem('persist:cherry-studio')
-    beginLegacyV1Cleanup()
+    expect(beginLegacyV1Cleanup()).toBe(true)
     expect(hasLegacyV1Marker()).toBe(true)
+  })
+
+  it('reports a retry-marker write failure without throwing', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError')
+    })
+
+    expect(beginLegacyV1Cleanup()).toBe(false)
   })
 
   it('estimates selected localStorage keys and every IndexedDB page', async () => {
     localStorage.setItem('persist:cherry-studio', 'legacy')
-    localStorage.setItem('failed_favicon_https://example.com', 'true')
+    localStorage.setItem('failed_favicon_https://example.com', 'active-v2-state')
     localStorage.setItem('cs_cache_persist', 'v2-cache')
     const rows = Array.from({ length: 205 }, (_, index) => ({
       id: `block-${String(index).padStart(3, '0')}`,
@@ -117,8 +125,6 @@ describe('legacyV1BrowserData', () => {
     const expectedBytes =
       encoder.encode('persist:cherry-studio').byteLength +
       encoder.encode('legacy').byteLength +
-      encoder.encode('failed_favicon_https://example.com').byteLength +
-      encoder.encode('true').byteLength +
       rows.reduce((total, row) => total + encoder.encode(JSON.stringify(row)).byteLength, 0)
 
     expect(result).toMatchObject({
@@ -127,6 +133,28 @@ describe('legacyV1BrowserData', () => {
       completeness: 'complete'
     })
     expect(table.pageQuery).toHaveBeenCalledTimes(4)
+    expect(table.get).toHaveBeenCalledTimes(rows.length)
+    expect(dexieMock.close).toHaveBeenCalledOnce()
+  })
+
+  it('cancels an in-flight IndexedDB inspection and closes the database', async () => {
+    const table = createTableMock([{ id: 'block-001', payload: 'legacy' }])
+    let releaseGet!: () => void
+    table.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseGet = () => resolve({ id: 'block-001', payload: 'legacy' })
+        })
+    )
+    dexieMock.table.mockReturnValue(table)
+    const controller = new AbortController()
+
+    const inspection = inspectLegacyV1BrowserData(controller.signal)
+    await vi.waitFor(() => expect(table.get).toHaveBeenCalledOnce())
+    controller.abort()
+    releaseGet()
+
+    await expect(inspection).rejects.toMatchObject({ name: 'AbortError' })
     expect(dexieMock.close).toHaveBeenCalledOnce()
   })
 
@@ -140,7 +168,7 @@ describe('legacyV1BrowserData', () => {
     expect(result.completeness).toBe('partial')
   })
 
-  it('deletes only the v1 keys, failed favicon entries, and the CherryStudio database', async () => {
+  it('deletes only the v1 keys and the CherryStudio database', async () => {
     for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
       localStorage.setItem(key, `legacy-${key}`)
     }
@@ -162,9 +190,7 @@ describe('legacyV1BrowserData', () => {
     for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
       expect(localStorage.getItem(key)).toBeNull()
     }
-    for (const key of failedFaviconKeys) {
-      expect(localStorage.getItem(key)).toBeNull()
-    }
+    for (const key of failedFaviconKeys) expect(localStorage.getItem(key)).toBe('true')
     expect(localStorage.getItem('cs_cache_persist')).toBe('keep-cache')
     expect(localStorage.getItem('modelscope_token')).toBe('keep-token')
     expect(localStorage.getItem('failed-favicon-unrelated')).toBe('keep-unrelated')

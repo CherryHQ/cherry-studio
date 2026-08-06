@@ -124,7 +124,7 @@ Data Module dependencies (src/main/data/)
 
 The file module has **two top-level primitives** — `FileManager` and `DirectoryTreeBuilder` — sitting alongside the shared infrastructure (File IPC adapters, file-module utils, DanglingCache, DirectoryWatcher, FS primitives). Neither subsumes the other; they manage **orthogonal resource concerns**:
 
-- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` as an on-demand "report everything" entry point; the FS half of that sweep **also runs unattended** from the idle cleanup tick (`fileSweepTick`, weekly floor), so orphan-blob reclamation does not depend on a caller. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
+- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` as an on-demand "report everything" entry point plus `inspectOrphanFiles()` / `cleanupOrphanFiles()` for the cache-cleanup UI's direct FS-only preview and cleanup. The FS pass **also runs unattended** from the idle cleanup tick (`fileSweepTick`, weekly floor), so orphan-blob reclamation does not depend on a caller. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, entry orchestration, and instance-scoped caches. It does **not** own renderer transport or `FileHandle.kind` dispatch; those belong to the File IPC adapter layer. Implementation mechanics (deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
 - **File IPC adapters** (`src/main/ipc/handlers/file.ts`) own renderer-facing File IPC routes. They validate request schemas, dispatch `FileHandle` routes, and delegate entry branches to FileManager and path branches to helpers implemented under `src/main/services/file/utils/*` and re-exported by `@main/services/file`. They must not import `node:fs` directly.
 - **DirectoryTreeBuilder** is the **second top-level primitive**, parallel to FileManager. It manages in-memory tree mirrors + chokidar watchers for arbitrary directories (Notes workspace, future ArtifactPane, …). It is **not** DB-backed — every tree is rebuilt from disk on `File_TreeCreate`. Its IPC surface (`File_TreeCreate` / `File_TreeDispose` / `File_TreeMutation`) is owned by the `DirectoryTreeManager` lifecycle service. SoT: [directory-tree.md](./directory-tree.md). The two primitives observe the same paths independently — a directory can be watched (tree) without its contents being entered (entries), and vice versa.
@@ -676,6 +676,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 | Role: explicit cleanup of internal UUID files + *.tmp-<uuid> residues   |
 |       plus orphan-entry reporting                                       |
 | Trigger: FS half runs unattended (fileSweepTick, weekly floor);         |
+|          cache cleanup calls the FS-only preview/cleanup directly;      |
 |          runSweep() via IPC is the on-demand full report                |
 +-------------------------------------------------------------------------+
 | services/file/utils/*  (file-module path/API helpers)                   |
@@ -776,7 +777,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 |  |  in-memory: LRU version cache                             |    |
 |  |                                                           |    |
 |  |  -- Orphan Sweep --                                       |    |
-|  |  FS half: fileSweepTick (idle, weekly floor)              |    |
+|  |  FS half: fileSweepTick + direct cache preview/cleanup    |    |
 |  |  Full report: runSweep() on demand via IPC                |    |
 |  +-----------------------------------------------------------+    |
 |                                                                   |

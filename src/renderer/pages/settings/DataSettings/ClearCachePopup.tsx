@@ -8,20 +8,20 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
-import type {
-  CacheCleanupGroup,
-  CacheCleanupGroupInspection,
-  CacheCleanupSizeSnapshot
-} from '@shared/types/cacheCleanup'
+import type { CacheCleanupGroup } from '@shared/types/cacheCleanup'
 import { CACHE_CLEANUP_GROUPS } from '@shared/types/cacheCleanup'
+import type { CacheCleanupGroupInspection, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { DatabaseZap, FolderX, Globe2, LoaderCircle, Trash2 } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { hasLegacyV1Marker, inspectLegacyV1BrowserData } from './legacyV1BrowserData'
+
+const logger = loggerService.withContext('ClearCachePopup')
 
 interface ClearCachePopupParams {
   onClear: (groups: CacheCleanupGroup[]) => Promise<boolean>
@@ -101,17 +101,24 @@ function getVisibleCleanupGroups(): CacheCleanupGroup[] {
   return CACHE_CLEANUP_GROUPS.filter((group) => group !== 'legacy_v1' || hasLegacyV1Marker())
 }
 
-async function inspectCleanupGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupInspection> {
+async function inspectCleanupGroup(
+  group: CacheCleanupGroup,
+  signal: AbortSignal
+): Promise<CacheCleanupGroupInspection> {
   try {
+    signal.throwIfAborted()
     const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: [group] })
+    signal.throwIfAborted()
     let inspection = response.results[0]
     if (!inspection) throw new Error(`Missing cache cleanup inspection for ${group}`)
 
     if (group === 'legacy_v1') {
-      inspection = mergeLegacySizes(inspection, await inspectLegacyV1BrowserData())
+      inspection = mergeLegacySizes(inspection, await inspectLegacyV1BrowserData(signal))
     }
     return inspection
-  } catch {
+  } catch (error) {
+    if (signal.aborted) throw error
+    logger.warn('Failed to inspect cache cleanup group', { group, error })
     return {
       group,
       size: {
@@ -132,9 +139,13 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const [cleaning, setCleaning] = useState(false)
   const [hasRunCleanup, setHasRunCleanup] = useState(false)
   const inspectionGeneration = useRef(0)
+  const inspectionAbortController = useRef<AbortController | null>(null)
   const popupOpen = useRef(open)
 
   const refreshInspections = useCallback(async () => {
+    inspectionAbortController.current?.abort()
+    const abortController = new AbortController()
+    inspectionAbortController.current = abortController
     const generation = ++inspectionGeneration.current
     const groups = getVisibleCleanupGroups()
     setVisibleGroups(groups)
@@ -143,9 +154,15 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
     await Promise.all(
       groups.map(async (group) => {
-        const inspection = await inspectCleanupGroup(group)
-        if (generation !== inspectionGeneration.current) return
-        setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
+        try {
+          const inspection = await inspectCleanupGroup(group, abortController.signal)
+          if (generation !== inspectionGeneration.current) return
+          setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            logger.warn('Cache cleanup inspection stopped unexpectedly', { group, error })
+          }
+        }
       })
     )
   }, [])
@@ -155,7 +172,10 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     if (open) {
       void refreshInspections()
     } else {
-      inspectionGeneration.current++
+      inspectionAbortController.current?.abort()
+    }
+    return () => {
+      inspectionAbortController.current?.abort()
     }
   }, [open, refreshInspections])
 
@@ -251,6 +271,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
   const handleClose = () => {
     popupOpen.current = false
+    inspectionAbortController.current?.abort()
     resolve(undefined)
   }
 
@@ -296,7 +317,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
         <div className="flex items-center justify-between border-t pt-4 text-sm">
           <span className="font-medium">{t('settings.data.clear_cache.selected_total')}</span>
-          <span className="text-muted-foreground">{selectedGroups.length === 0 ? '0 B' : renderTotal()}</span>
+          <span className="text-muted-foreground">{renderTotal()}</span>
         </div>
 
         <DialogFooter>

@@ -2,9 +2,30 @@ import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FileUrlString } from '@shared/types/file'
 import { vi } from 'vitest'
 
-function emptyOrphanFileReport() {
+interface MockFileSweepStats {
+  entriesInDb: number
+  direntsScanned: number
+  filesOnDisk: number
+  bytesOnDisk: number
+  plannedDeleteCount: number
+  plannedDeleteBytes: number
+  actualDeleteCount: number
+  actualDeleteBytes: number
+  statFailedCount: number
+  scanDurationMs: number
+}
+
+type MockFileSweepReport = MockFileSweepStats &
+  (
+    | { outcome: 'completed' }
+    | { outcome: 'partial'; failedDeleteCount: number; failedSamples: readonly string[] }
+    | { outcome: 'aborted'; abortReason: 'count-fraction' | 'byte-fraction' | 'pending-restore' }
+    | { outcome: 'failed'; errorMessage: string }
+  )
+
+function emptyOrphanFileReport(): MockFileSweepReport {
   return {
-    outcome: 'completed' as const,
+    outcome: 'completed',
     entriesInDb: 0,
     direntsScanned: 0,
     filesOnDisk: 0,

@@ -250,6 +250,7 @@ describe('runFileSweep (FS-level)', () => {
     await writeFile(orphanPath, 'inspect')
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(orphanPath, ancient, ancient)
+    const debugSpy = vi.spyOn(loggerService, 'debug')
 
     const report = await inspectFileSweep({ fileEntryService })
 
@@ -260,6 +261,10 @@ describe('runFileSweep (FS-level)', () => {
       actualDeleteCount: 0,
       actualDeleteBytes: 0
     })
+    expect(debugSpy).toHaveBeenCalledWith(
+      'orphan-file-sweep',
+      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
+    )
     await expect(stat(orphanPath)).resolves.toBeDefined()
   })
 

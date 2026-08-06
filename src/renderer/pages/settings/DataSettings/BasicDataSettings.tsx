@@ -1,5 +1,6 @@
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
@@ -14,7 +15,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanup'
+import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
@@ -32,6 +33,7 @@ import {
 import RestorePopup from './RestorePopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
+const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -46,7 +48,8 @@ const BasicDataSettings: React.FC = () => {
     try {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
       setCacheSize(response.results[0]?.size ?? null)
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to inspect normal cache size', error as Error)
       setCacheSize(null)
     }
   }, [])
@@ -173,7 +176,8 @@ const BasicDataSettings: React.FC = () => {
       window.setTimeout(() => {
         void ipcApi.request('app.relaunch')
       }, 500)
-    } catch {
+    } catch (error) {
+      logger.error('Failed to change application data path', error as Error)
       toast.error(t('settings.data.app_data.path_change_failed'))
     }
   }
@@ -195,13 +199,16 @@ const BasicDataSettings: React.FC = () => {
       onClear: async (groups) => {
         setClearingCache(true)
         try {
-          if (groups.includes('legacy_v1')) {
-            beginLegacyV1Cleanup()
-          }
-          const mainResult = await ipcApi.request('app.cache_cleanup.run', { groups })
-          const results = mainResult.results
+          const legacyRequested = groups.includes('legacy_v1')
+          const legacyMarkerReady = !legacyRequested || beginLegacyV1Cleanup()
+          const runnableGroups = legacyMarkerReady ? groups : groups.filter((group) => group !== 'legacy_v1')
+          const mainResult =
+            runnableGroups.length > 0
+              ? await ipcApi.request('app.cache_cleanup.run', { groups: runnableGroups })
+              : { results: [] }
+          const results = [...mainResult.results]
 
-          if (groups.includes('legacy_v1')) {
+          if (legacyRequested && legacyMarkerReady) {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
@@ -213,6 +220,8 @@ const BasicDataSettings: React.FC = () => {
                 )
               )
             )
+          } else if (legacyRequested) {
+            results.push({ group: 'legacy_v1', status: 'failed' })
           }
 
           const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
@@ -222,7 +231,8 @@ const BasicDataSettings: React.FC = () => {
             toast.success(t('settings.data.clear_cache.success'))
           }
           return !hasFailures
-        } catch {
+        } catch (error) {
+          logger.error('Cache cleanup failed', error as Error)
           toast.error(t('settings.data.clear_cache.error'))
           return false
         } finally {

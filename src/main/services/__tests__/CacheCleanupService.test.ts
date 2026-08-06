@@ -11,6 +11,7 @@ import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
+const hasPendingRestoreMock = vi.hoisted(() => vi.fn(() => false))
 const removeOrphanBaseArtifacts = vi.hoisted(() => vi.fn())
 const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoisted(() => {
   const createSession = () => ({
@@ -28,6 +29,10 @@ const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoiste
 
 vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
+}))
+
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: hasPendingRestoreMock
 }))
 
 vi.mock('electron', () => ({
@@ -97,6 +102,7 @@ describe('CacheCleanupService', () => {
     vi.clearAllMocks()
     bootConfigGet.mockReset()
     bootConfigGet.mockReturnValue(undefined)
+    hasPendingRestoreMock.mockReturnValue(false)
     vi.spyOn(knowledgeBaseService, 'listAllIds').mockReturnValue(new Set())
     removeOrphanBaseArtifacts.mockImplementation(async (baseId: string) => {
       if (knowledgeBaseService.listAllIds().has(baseId)) return false
@@ -153,7 +159,7 @@ describe('CacheCleanupService', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  it('sums all Electron sessions, disk caches, temp data, and traces', async () => {
+  it('sums all Electron sessions, disk caches, and traces without counting shared temp data', async () => {
     defaultSession.getCacheSize.mockResolvedValue(100)
     webviewSession.getCacheSize.mockResolvedValue(200)
     htmlArtifactPreviewSession.getCacheSize.mockResolvedValue(300)
@@ -174,7 +180,7 @@ describe('CacheCleanupService', () => {
     expect(result.results[0]).toMatchObject({
       group: 'normal_cache',
       size: {
-        bytes: 653,
+        bytes: 642,
         accuracy: 'estimated',
         completeness: 'complete'
       }
@@ -198,8 +204,10 @@ describe('CacheCleanupService', () => {
 
   it('clears both the active and legacy trace directories', async () => {
     const legacyTracePath = rootPath('Home', 'trace')
+    const activeTempPath = rootPath('Temp', 'active-operation.tmp')
     await writeTestFile(path.join(tracePath, 'active-trace'), 'active')
     await writeTestFile(path.join(legacyTracePath, 'legacy-trace'), 'legacy')
+    await writeTestFile(activeTempPath, 'keep')
     vi.mocked(application.get).mockReturnValueOnce({
       cleanLocalData: () => fs.rm(tracePath, { recursive: true, force: true })
     } as never)
@@ -208,6 +216,23 @@ describe('CacheCleanupService', () => {
 
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(tracePath, legacyTracePath)
+    await expectExisting(activeTempPath)
+    for (const mockedSession of [defaultSession, webviewSession, htmlArtifactPreviewSession]) {
+      expect(mockedSession.clearData).toHaveBeenCalledWith({
+        dataTypes: ['cache'],
+        avoidClosingConnections: true
+      })
+    }
+  })
+
+  it('keeps default-session connections open while clearing site cookies', async () => {
+    const cleanup = await cacheCleanupService.run(['site_data'])
+
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    expect(defaultSession.clearData).toHaveBeenCalledWith({
+      dataTypes: ['cookies'],
+      avoidClosingConnections: true
+    })
   })
 
   it('counts a shared disk path only once', async () => {
@@ -222,7 +247,8 @@ describe('CacheCleanupService', () => {
   it('reports a symlink as partially unknown without following it', async () => {
     const external = rootPath('External')
     await writeTestFile(path.join(external, 'secret.bin'), Buffer.alloc(23))
-    await fs.symlink(external, rootPath('Temp'))
+    await fs.mkdir(rootPath('Home'), { recursive: true })
+    await fs.symlink(external, rootPath('Home', 'trace'))
 
     const result = await cacheCleanupService.inspect(['normal_cache'])
 
@@ -268,6 +294,24 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(orphanBasePath)
     await expectExisting(knownBasePath, unknownDirectory)
+  })
+
+  it('does not advertise bytes from an orphan-file plan that the safety threshold aborts', async () => {
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      outcome: 'aborted',
+      abortReason: 'count-fraction',
+      plannedDeleteCount: 25,
+      plannedDeleteBytes: 4096
+    })
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toEqual({
+      bytes: null,
+      accuracy: 'unavailable',
+      completeness: 'partial'
+    })
   })
 
   it('preserves a fresh UUID knowledge base directory without a database row', async () => {
@@ -316,6 +360,30 @@ describe('CacheCleanupService', () => {
 
     expect(cleanup.results[0]?.status).toBe('not_found')
     expect(removeOrphanBaseArtifacts).toHaveBeenCalledWith(baseId)
+    await expectExisting(basePath)
+  })
+
+  it('stands aside when a restore becomes pending after orphan knowledge planning', async () => {
+    const baseId = '22222222-2222-4222-8222-222222222225'
+    const basePath = rootPath('Data', 'KnowledgeBase', baseId)
+    await writeTestFile(path.join(basePath, '.cherry', 'index.sqlite'), 'keep')
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000)
+    await fs.utimes(basePath, oldMtime, oldMtime)
+    let finishFileSweep!: () => void
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFileSweep = () => resolve(emptyFileSweepReport)
+        })
+    )
+
+    const cleanup = cacheCleanupService.run(['orphaned_data'])
+    await vi.waitFor(() => expect(knowledgeBaseService.listAllIds).toHaveBeenCalled())
+    hasPendingRestoreMock.mockReturnValue(true)
+    finishFileSweep()
+
+    await expect(cleanup).resolves.toMatchObject({ results: [{ status: 'partial' }] })
+    expect(removeOrphanBaseArtifacts).not.toHaveBeenCalled()
     await expectExisting(basePath)
   })
 
@@ -412,7 +480,7 @@ describe('CacheCleanupService', () => {
     await expectExisting(v2Database, v2ClaudeSettings)
   })
 
-  it('removes only schema-validated legacy knowledge and Memory databases', async () => {
+  it('removes only schema-validated legacy knowledge databases and preserves Memory data', async () => {
     const knowledgeRoot = rootPath('Data', 'KnowledgeBase')
     const legacyKnowledge = path.join(knowledgeRoot, 'legacy-base')
     const unrelatedKnowledge = path.join(knowledgeRoot, 'unrelated.db')
@@ -433,22 +501,37 @@ describe('CacheCleanupService', () => {
 
     expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expectMissing(legacyKnowledge, legacyMemory)
-    await expectExisting(unrelatedKnowledge, v2Knowledge, unrelatedMemory)
+    await expectMissing(legacyKnowledge)
+    await expectExisting(unrelatedKnowledge, v2Knowledge, legacyMemory, unrelatedMemory)
   })
 
-  it('does not follow a symbolic-link ancestor to a legacy database', async () => {
+  it('does not create SQLite sidecars beside a WAL-mode database during inspection', async () => {
+    const legacyMemory = rootPath('memories.db')
+    const db = new Database(legacyMemory)
+    db.pragma('journal_mode = WAL')
+    db.exec(MEMORY_SCHEMA)
+    db.close()
+    await fs.rm(`${legacyMemory}-wal`, { force: true })
+    await fs.rm(`${legacyMemory}-shm`, { force: true })
+
+    const inspection = await cacheCleanupService.inspect(['legacy_v1'])
+
+    expect(inspection.results[0]?.size.completeness).toBe('complete')
+    await expectMissing(`${legacyMemory}-wal`, `${legacyMemory}-shm`)
+  })
+
+  it('does not follow a symbolic link at the legacy database path', async () => {
     const externalMemoryDirectory = rootPath('ExternalMemory')
     const externalMemory = path.join(externalMemoryDirectory, 'memories.db')
     await fs.mkdir(externalMemoryDirectory)
     createSqlite(externalMemory, MEMORY_SCHEMA)
-    await fs.symlink(externalMemoryDirectory, rootPath('Data', 'Memory'))
+    await fs.symlink(externalMemory, rootPath('memories.db'))
 
     const cleanup = await cacheCleanupService.run(['legacy_v1'])
 
     expect(cleanup.results[0]?.status).toBe('skipped')
     await expectExisting(externalMemory)
-    await expect(fs.lstat(rootPath('Data', 'Memory'))).resolves.toBeDefined()
+    await expect(fs.lstat(rootPath('memories.db'))).resolves.toBeDefined()
   })
 
   it('preserves a root agents.db copy when any SQLite sidecar differs', async () => {
@@ -535,6 +618,29 @@ describe('CacheCleanupService', () => {
       appDataPath: [otherEntry, concurrentEntry],
       retainedField: true,
       concurrentField: 'keep'
+    })
+  })
+
+  it('takes over an expired shared-config lock before applying cleanup', async () => {
+    const executablePath = rootPath('CherryStudio')
+    const homeConfigPath = rootPath('HomeConfig', 'config.json')
+    const lockPath = `${homeConfigPath}.cleanup.lock`
+    bootConfigGet.mockReturnValue({ [executablePath]: root })
+    await writeTestFile(
+      homeConfigPath,
+      JSON.stringify({ appDataPath: [{ executablePath, dataPath: root }], retainedField: true })
+    )
+    await writeTestFile(lockPath, 'abandoned')
+    const expired = new Date(Date.now() - 31_000)
+    await fs.utimes(lockPath, expired, expired)
+
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
+
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(lockPath, `${lockPath}.takeover`)
+    await expect(fs.readFile(homeConfigPath, 'utf8').then(JSON.parse)).resolves.toEqual({
+      appDataPath: [],
+      retainedField: true
     })
   })
 

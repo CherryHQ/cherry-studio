@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanup'
+import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { Dexie, type IndexableType } from 'dexie'
 
 const logger = loggerService.withContext('LegacyV1BrowserData')
@@ -24,8 +24,6 @@ export const LEGACY_LOCAL_STORAGE_KEYS = [
   'tokenflux_token'
 ] as const
 
-const LEGACY_LOCAL_STORAGE_PREFIX = 'failed_favicon_'
-
 interface BrowserDataMeasurement {
   bytes: number
   hasFailures: boolean
@@ -47,40 +45,35 @@ export function hasLegacyV1Marker(): boolean {
   }
 }
 
-export function beginLegacyV1Cleanup(): void {
-  localStorage.setItem(LEGACY_CLEANUP_RETRY_MARKER_KEY, 'true')
+export function beginLegacyV1Cleanup(): boolean {
+  try {
+    localStorage.setItem(LEGACY_CLEANUP_RETRY_MARKER_KEY, 'true')
+    return true
+  } catch (error) {
+    logger.error('Failed to persist legacy cleanup retry marker', error as Error)
+    return false
+  }
 }
 
 export function finalizeLegacyV1Cleanup(result: CacheCleanupGroupResult): CacheCleanupGroupResult {
   if (result.status === 'cleared' || result.status === 'not_found') {
-    localStorage.removeItem(LEGACY_CLEANUP_RETRY_MARKER_KEY)
+    try {
+      localStorage.removeItem(LEGACY_CLEANUP_RETRY_MARKER_KEY)
+    } catch (error) {
+      logger.warn('Failed to clear legacy cleanup retry marker', error as Error)
+    }
   }
   return result
 }
 
-function collectLegacyLocalStorageKeys(): { keys: Set<string>; error?: unknown } {
-  const keys = new Set<string>(LEGACY_LOCAL_STORAGE_KEYS)
-  try {
-    for (let index = 0; index < localStorage.length; index++) {
-      const key = localStorage.key(index)
-      if (key?.startsWith(LEGACY_LOCAL_STORAGE_PREFIX)) {
-        keys.add(key)
-      }
-    }
-    return { keys }
-  } catch (error) {
-    return { keys, error }
-  }
+function collectLegacyLocalStorageKeys(): Set<string> {
+  return new Set(LEGACY_LOCAL_STORAGE_KEYS)
 }
 
 function inspectLegacyLocalStorage(): BrowserDataMeasurement {
   let bytes = 0
   let hasFailures = false
-  const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
-  if (enumerationError) {
-    logger.warn('Failed to enumerate legacy localStorage keys', enumerationError as Error)
-    hasFailures = true
-  }
+  const keys = collectLegacyLocalStorageKeys()
 
   for (const key of keys) {
     try {
@@ -97,12 +90,14 @@ function inspectLegacyLocalStorage(): BrowserDataMeasurement {
   return { bytes, hasFailures }
 }
 
-async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
+async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserDataMeasurement> {
+  signal?.throwIfAborted()
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) {
       return { bytes: 0, hasFailures: false }
     }
   } catch (error) {
+    if (signal?.aborted) throw error
     logger.warn('Failed to check legacy IndexedDB existence', error as Error)
     return { bytes: 0, hasFailures: true }
   }
@@ -113,19 +108,24 @@ async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
 
   try {
     await db.open()
+    signal?.throwIfAborted()
 
     for (const table of db.tables) {
       let lastPrimaryKey: IndexableType | undefined
 
       try {
         while (true) {
+          signal?.throwIfAborted()
           const collection =
             lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
           const primaryKeys = await collection.limit(INDEXED_DB_PAGE_SIZE).primaryKeys()
+          signal?.throwIfAborted()
           if (primaryKeys.length === 0) break
 
-          const records = await table.bulkGet(primaryKeys)
-          for (const record of records) {
+          for (const primaryKey of primaryKeys) {
+            signal?.throwIfAborted()
+            const record = await table.get(primaryKey)
+            signal?.throwIfAborted()
             if (record === undefined) {
               throw new Error('IndexedDB record missing from page')
             }
@@ -139,11 +139,13 @@ async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
           lastPrimaryKey = primaryKeys[primaryKeys.length - 1]
         }
       } catch (error) {
+        if (signal?.aborted) throw error
         logger.warn('Failed to inspect legacy IndexedDB table', { table: table.name, error })
         hasFailures = true
       }
     }
   } catch (error) {
+    if (signal?.aborted) throw error
     logger.warn('Failed to open legacy IndexedDB', error as Error)
     hasFailures = true
   } finally {
@@ -153,9 +155,9 @@ async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
   return { bytes, hasFailures }
 }
 
-export async function inspectLegacyV1BrowserData(): Promise<CacheCleanupSizeSnapshot> {
+export async function inspectLegacyV1BrowserData(signal?: AbortSignal): Promise<CacheCleanupSizeSnapshot> {
   const localStorageMeasurement = inspectLegacyLocalStorage()
-  const indexedDbMeasurement = await inspectLegacyIndexedDb()
+  const indexedDbMeasurement = await inspectLegacyIndexedDb(signal)
   const bytes = localStorageMeasurement.bytes + indexedDbMeasurement.bytes
   const partial = localStorageMeasurement.hasFailures || indexedDbMeasurement.hasFailures
 
@@ -190,11 +192,7 @@ async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' 
 export async function clearLegacyV1BrowserData(onIndexedDbBlocked?: () => void): Promise<CacheCleanupGroupResult> {
   let clearedItems = 0
   let failedItems = 0
-  const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
-  if (enumerationError) {
-    logger.error('Failed to enumerate legacy localStorage keys', enumerationError as Error)
-    failedItems++
-  }
+  const keys = collectLegacyLocalStorageKeys()
 
   for (const key of keys) {
     try {

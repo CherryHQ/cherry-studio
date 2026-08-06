@@ -260,6 +260,13 @@ describe('pathRegistry.shouldAutoEnsure', () => {
     it('returns false for the bundled Cherry Assistant product manifest', () => {
       expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
     })
+
+    it('does not auto-create the persist:webview session directory', () => {
+      const registry = buildPathRegistry()
+
+      expect(registry['app.session.webview']).toBe(path.join('/mock/sessionData', 'Partitions', 'webview'))
+      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
+    })
   })
 
   describe('app.* keys NOT in NO_ENSURE — should auto-ensure', () => {
@@ -277,10 +284,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for app.session', () => {
       expect(shouldAutoEnsure('app.session')).toBe(true)
-    })
-
-    it('does not auto-create the persist:webview session directory', () => {
-      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
     })
 
     it('returns true for app.temp', () => {

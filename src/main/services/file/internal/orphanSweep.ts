@@ -260,12 +260,16 @@ function pendingRestoreFileSweepReport(): FileSweepReport {
   }
 }
 
-/** Build the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
+/** Build and log the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
 export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
   if (hasPendingRestore()) {
-    return pendingRestoreFileSweepReport()
+    const report = pendingRestoreFileSweepReport()
+    logFileSweep(report)
+    return report
   }
-  return runFileSweepInner(deps, false)
+  const report = await runFileSweepInner(deps, false)
+  logFileSweep(report)
+  return report
 }
 
 /**

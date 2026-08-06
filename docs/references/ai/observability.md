@@ -52,7 +52,7 @@ spans on demand through the `trace.getData` IPC — it never collects spans itse
 
 Trace history is stored under `{userData}/Runtime/trace/<topicId>/<traceId>`.
 The previous `~/.cherrystudio/trace` location is no longer written; it remains a
-cleanup-only target of the regular-cache option.
+cleanup-only target of the `normal_cache` (App cache) option.
 
 ## AdapterTracer
 
