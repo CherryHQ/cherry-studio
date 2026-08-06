@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 // Stub the registry loader so the preset lookup returns a minimal CherryIN row
-// (its anthropic / gemini / openai-chat endpoints tagged `cherryin`) without
+// (its anthropic / gemini / OpenAI endpoints tagged `cherryin`) without
 // reading the shipped providers.json, whose path is mocked away in the harness.
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
@@ -20,6 +20,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           endpointConfigs: {
             'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+            'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           }
         }
@@ -141,7 +142,7 @@ describe('ProviderService.update — endpoint config overrides', () => {
     expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('newapi')
   })
 
-  it('defaults an undeclared endpoint to its endpoint-type family, not cherryin', async () => {
+  it('uses the preset adapter family when adding the CherryIN Responses endpoint', async () => {
     providerService.create({
       providerId: 'cherryin-express-2',
       presetProviderId: 'cherryin',
@@ -152,7 +153,6 @@ describe('ProviderService.update — endpoint config overrides', () => {
       }
     })
 
-    // openai-responses is NOT declared by the cherryin preset → endpoint-type default.
     providerService.update('cherryin-express-2', {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://express-ent-admin.cherryin.ai' }
@@ -166,9 +166,7 @@ describe('ProviderService.update — endpoint config overrides', () => {
     expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]).toEqual({
       baseUrl: 'https://express-ent-admin.cherryin.ai'
     })
-    // openai-responses is NOT declared by the cherryin preset → the runtime
-    // read infers the endpoint-type default, not cherryin.
     const runtime = providerService.getByProviderId('cherryin-express-2')
-    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('openai')
+    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('cherryin')
   })
 })

@@ -210,19 +210,18 @@ export const useSessions = (
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
 
-  // SWR Infinite revalidates only the first page by default. A load-all source
-  // must refresh every loaded page before publishing its complete snapshot — but
-  // only once the chain is complete. Leaving `revalidateAll` on while the chain
-  // is still growing makes each `setSize` re-fetch every previously loaded page
-  // before fetching the next, producing 1+2+...+n IPC reads. Keep it off during
-  // growth and flip it on only when fully loaded so mutations/passive
-  // revalidation still refresh every loaded page.
+  // A load-all source must refresh every loaded page once the chain is complete,
+  // but it should fetch only the new page while the chain is growing. SWR
+  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
+  // would re-fetch every previous page. Disable both growth-time behaviors;
+  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
+  // complete. Progressive pagination retains SWR's first-page revalidation.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
     limit: pageSize,
     enabled,
-    swrOptions: { revalidateAll: revalidateAllPages }
+    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
