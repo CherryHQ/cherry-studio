@@ -40,6 +40,8 @@ import {
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
   selectFormatWire,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
   stripDateSnapshot,
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
@@ -358,30 +360,34 @@ function prettifyIdSegment(segment: string): string {
  * - Exact apiModelId match → the curated/override name verbatim (authoritative — never decorated).
  * - Fuzzy (normalized) match → curated name plus a distinguishing suffix for the tokens normalization
  *   stripped: a trailing dated snapshot / `:variant` / quant tag goes in parens (via the same canonical
- *   stripper the matcher uses), and a slash vendor-namespace prefix is rendered `Prefix: `. A hyphen
- *   aggregator prefix (`aihubmix-…`) is a prefix, not a stripped suffix, so it leaves no remainder and
- *   keeps the clean curated name.
+ *   stripper the matcher uses), and a vendor-namespace prefix — slash (`MiniMax/…`) or dotted Bedrock
+ *   ARN (`MiniMax.…`, `us.anthropic.…`) — is rendered `Prefix: `. A hyphen aggregator prefix
+ *   (`aihubmix-…`) is a prefix, not a stripped suffix, so it leaves no remainder and keeps the clean
+ *   curated name.
  * - No catalog match → the raw id prettified.
  */
 function deriveResolvedModelName(rawId: string, curatedName: string | null, canonicalApiId: string | null): string {
   if (curatedName && canonicalApiId && rawId === canonicalApiId) return curatedName
 
   const slashIdx = rawId.lastIndexOf('/')
-  const tail = slashIdx >= 0 ? rawId.slice(slashIdx + 1) : rawId
+  const afterSlash = slashIdx >= 0 ? rawId.slice(slashIdx + 1) : rawId
+  // Normalization folds the dotted vendor prefix away, so the decoration has to restore it — otherwise
+  // `MiniMax.MiniMax-M2.1` and the bare `MiniMax-M2.1` resolve to the same name despite distinct ids.
+  const tail = afterSlash.slice(afterSlash.length - stripBedrockDottedVendorPrefix(afterSlash.toLowerCase()).length)
 
   let name: string
   if (curatedName) {
-    const suffix = trailingRemainder(tail, stripVariantQuantDateSuffixes(tail))
+    const suffix = trailingRemainder(tail, stripBedrockRevision(stripVariantQuantDateSuffixes(tail)))
     name = suffix ? `${curatedName} (${suffix})` : curatedName
   } else {
     name = prettifyIdSegment(tail)
   }
 
-  if (slashIdx >= 0) {
-    const prefix = rawId.slice(0, slashIdx).split('/').map(titleCaseIdToken).join(': ')
-    name = `${prefix}: ${name}`
-  }
-  return name
+  const namespaces = [
+    ...(slashIdx >= 0 ? rawId.slice(0, slashIdx).split('/').map(titleCaseIdToken) : []),
+    ...(tail.length < afterSlash.length ? [afterSlash.slice(0, afterSlash.length - tail.length - 1)] : [])
+  ]
+  return namespaces.length > 0 ? `${namespaces.join(': ')}: ${name}` : name
 }
 
 /** Create a minimal custom model used when a model ID has no registry match. */

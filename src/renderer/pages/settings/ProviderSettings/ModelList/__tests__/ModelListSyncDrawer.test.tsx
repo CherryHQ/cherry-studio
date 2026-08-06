@@ -168,9 +168,22 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByText('GPT 5')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
     expect(screen.getByText('Legacy Model')).toBeInTheDocument()
-    // raw api ids moved from a subtitle line into the title tooltip
-    for (const id of ['gpt-5', 'claude-sonnet', 'legacy-model']) {
-      expect(document.querySelector(`[data-tooltip-content="${id}"]`)).toBeInTheDocument()
+  })
+
+  // The raw api id moved out of a visible subtitle line into the title's tooltip, so it must stay
+  // reachable without a mouse: a focusable title (which opens the tooltip on focus) described by an
+  // off-screen copy of the id. Names can collide — the id is what disambiguates them.
+  it('keeps each raw api model id reachable by keyboard and screen reader', () => {
+    renderDrawer()
+
+    for (const [name, apiModelId] of [
+      ['GPT 5', 'gpt-5'],
+      ['Claude Sonnet', 'claude-sonnet'],
+      ['Legacy Model', 'legacy-model']
+    ]) {
+      const title = screen.getByText(name)
+      expect(title).toHaveAttribute('tabindex', '0')
+      expect(document.getElementById(title.getAttribute('aria-describedby')!)).toHaveTextContent(apiModelId)
     }
   })
 

@@ -88,6 +88,7 @@ const ManageModelRow = memo(function ManageModelRow({
 }) {
   const { t } = useTranslation()
   const apiModelId = modelIdLine(model)
+  const apiModelIdId = `${model.id}-api-model-id`
   const actionTooltip = isAdded
     ? isDefaultModel
       ? t('settings.models.manage.default_model_cannot_remove')
@@ -99,9 +100,16 @@ const ManageModelRow = memo(function ManageModelRow({
       <ModelGlyph model={model} />
       <div className="min-w-0 flex-1">
         <div className={modelSyncClasses.manageRowTitleLine}>
+          {/* Friendly names can collide, so the raw id must stay reachable without a mouse: the title
+              is focusable (opening the tooltip on focus) and described by an off-screen copy of it. */}
           <Tooltip content={apiModelId} placement="top">
-            <p className={modelSyncClasses.manageRowTitle}>{model.name || apiModelId}</p>
+            <p tabIndex={0} aria-describedby={apiModelIdId} className={modelSyncClasses.manageRowTitle}>
+              {model.name || apiModelId}
+            </p>
           </Tooltip>
+          <span id={apiModelIdId} className="sr-only">
+            {apiModelId}
+          </span>
           {model.description ? (
             <Tooltip content={model.description} placement="top">
               <span tabIndex={0} aria-label={model.description} className={modelSyncClasses.manageRowDescriptionHelp}>

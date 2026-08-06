@@ -598,9 +598,10 @@ describe('ProviderRegistryService', () => {
         ]
       } as ReturnType<typeof readProviderRegistry>)
 
-      const [self, vendor, dated] = providerRegistryService.resolveModels('dashscope', [
+      const [self, vendor, dotted, dated] = providerRegistryService.resolveModels('dashscope', [
         'MiniMax-M2.1',
         'MiniMax/MiniMax-M2.1',
+        'MiniMax.MiniMax-M2.1',
         'qwen-plus-2025-12-01'
       ])
 
@@ -611,9 +612,42 @@ describe('ProviderRegistryService', () => {
       expect(vendor.name).toBe('MiniMax: MiniMax M2.1')
       expect(vendor.apiModelId).toBe('MiniMax/MiniMax-M2.1')
       expect(vendor.id).toBe(createUniqueModelId('dashscope', 'MiniMax/MiniMax-M2.1'))
+      // a dotted vendor prefix normalizes away just like the slash form, so it must decorate too —
+      // otherwise this collapses onto the bare sibling's name despite being a distinct SKU
+      expect(dotted.name).toBe('MiniMax: MiniMax M2.1')
+      expect(dotted.apiModelId).toBe('MiniMax.MiniMax-M2.1')
+      expect(dotted.id).toBe(createUniqueModelId('dashscope', 'MiniMax.MiniMax-M2.1'))
       // fuzzy match via dated snapshot → date appended, raw id preserved
       expect(dated.name).toBe('Qwen-Plus (2025-12-01)')
       expect(dated.apiModelId).toBe('qwen-plus-2025-12-01')
+    })
+
+    it('decorates a multi-segment Bedrock ARN prefix and its revision', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', capabilities: ['function-call'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'aws-bedrock', modelId: 'claude-sonnet-4-5' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'aws-bedrock',
+            name: 'AWS Bedrock',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://bedrock.example/v1/' } },
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: { website: { official: 'https://aws.amazon.com/bedrock/' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [regional] = providerRegistryService.resolveModels('aws-bedrock', ['us.anthropic.claude-sonnet-4-5-v1:0'])
+
+      expect(regional.name).toBe('us.anthropic: Claude Sonnet 4.5 (v1:0)')
+      expect(regional.apiModelId).toBe('us.anthropic.claude-sonnet-4-5-v1:0')
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
