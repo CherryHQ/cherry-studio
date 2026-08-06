@@ -244,6 +244,7 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 
 | Event                  | Payload                  | Description                           |
 | ---------------------- | ------------------------ | ------------------------------------- |
+| `BEFORE_STOP_ALL`      | (none)                   | Global stop has begun, before the first serial `onStop()` |
 | `SERVICE_INITIALIZING` | `{ name, state }`        | Service is starting initialization    |
 | `SERVICE_READY`        | `{ name, state }`        | Service completed initialization      |
 | `SERVICE_PAUSING`      | `{ name, state }`        | Service is being paused               |

@@ -1,4 +1,4 @@
-import { BaseService } from '@main/core/lifecycle/BaseService'
+import { BaseService, DependsOn, Injectable, LifecycleManager, Phase, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +6,7 @@ const {
   startupMock,
   buildWarmRequestMock,
   applicationGetMock,
+  applicationGetLifecycleManagerMock,
   applicationIsQuitting,
   closeAgentRuntimeMock,
   traceModeEnabledMock,
@@ -15,6 +16,7 @@ const {
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
+  applicationGetLifecycleManagerMock: vi.fn(),
   applicationIsQuitting: { value: true },
   closeAgentRuntimeMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: applicationGetMock,
+    getLifecycleManager: applicationGetLifecycleManagerMock,
     get isQuitting() {
       return applicationIsQuitting.value
     }
@@ -74,9 +77,12 @@ function createDeferred<T>() {
 
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
+    LifecycleManager.reset()
+    ServiceContainer.reset()
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
+    applicationGetLifecycleManagerMock.mockImplementation(() => LifecycleManager.getInstance())
     applicationGetMock.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
@@ -173,6 +179,80 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
       expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
       expect(closeAgentRuntimeMock).not.toHaveBeenCalled()
+      expect(shutdown).not.toHaveBeenCalled()
+    } finally {
+      shutdown.mockRestore()
+    }
+  })
+
+  it('starts application shutdown before a later service can block serial stop', async () => {
+    const delayedStop = createDeferred<void>()
+    const shutdownDone = createDeferred<void>()
+    const events: string[] = []
+
+    @Injectable('DelayedStopService')
+    @DependsOn(['ClaudeCodeWarmQueryManager'])
+    class DelayedStopService extends BaseService {
+      protected override async onStop(): Promise<void> {
+        events.push('delayed-stop-started')
+        await delayedStop.promise
+      }
+    }
+
+    const lifecycleManager = LifecycleManager.getInstance()
+    const container = ServiceContainer.getInstance()
+    container.register(ClaudeCodeWarmQueryManager)
+    container.register(DelayedStopService)
+    const closeWarmQueries = vi.spyOn(container.get(ClaudeCodeWarmQueryManager), 'closeAll')
+
+    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown').mockImplementation((close) => {
+      events.push('claude-shutdown-started')
+      void close()
+      return shutdownDone.promise
+    })
+
+    await lifecycleManager.startPhase(Phase.WhenReady)
+    const stopping = lifecycleManager.stopAll()
+    let stopSettled = false
+    void stopping.then(() => {
+      stopSettled = true
+    })
+
+    try {
+      await Promise.resolve()
+
+      expect(events).toEqual(['claude-shutdown-started', 'delayed-stop-started'])
+      expect(closeWarmQueries).toHaveBeenCalledOnce()
+      expect(closeAgentRuntimeMock).toHaveBeenCalledOnce()
+      expect(stopSettled).toBe(false)
+
+      delayedStop.resolve()
+      await Promise.resolve()
+      expect(stopSettled).toBe(false)
+
+      shutdownDone.resolve()
+      await expect(stopping).resolves.toBeUndefined()
+      expect(shutdown).toHaveBeenCalledOnce()
+    } finally {
+      delayedStop.resolve()
+      shutdownDone.resolve()
+      await stopping
+      closeWarmQueries.mockRestore()
+      shutdown.mockRestore()
+    }
+  })
+
+  it('does not start application shutdown for a non-quitting stopAll', async () => {
+    applicationIsQuitting.value = false
+    const lifecycleManager = LifecycleManager.getInstance()
+    const container = ServiceContainer.getInstance()
+    container.register(ClaudeCodeWarmQueryManager)
+    const shutdown = vi.spyOn(claudeCodeProcessManager, 'shutdown')
+
+    try {
+      await lifecycleManager.startPhase(Phase.WhenReady)
+      await lifecycleManager.stopAll()
+
       expect(shutdown).not.toHaveBeenCalled()
     } finally {
       shutdown.mockRestore()

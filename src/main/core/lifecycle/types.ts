@@ -132,6 +132,7 @@ export type ServiceConstructor<T = unknown> = new (...args: unknown[]) => T
  * All events are prefixed with 'lifecycle:' for consistent namespacing
  */
 export const LifecycleEvents = {
+  BEFORE_STOP_ALL: 'lifecycle:before-stop-all',
   SERVICE_CREATED: 'lifecycle:service:created',
   SERVICE_INITIALIZING: 'lifecycle:service:initializing',
   SERVICE_READY: 'lifecycle:service:ready',

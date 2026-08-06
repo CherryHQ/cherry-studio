@@ -248,9 +248,11 @@ Service stop and destroy close all runtime entries.
 
 Application shutdown also owns the Claude Code CLI subprocess boundary. Every SDK `Options` object
 uses a host spawn wrapper that records only the `ChildProcess` handles created by this app and drops
-each handle on `exit`. The warm-query and agent-session lifecycle services start both close
-aggregates together: warm handles use their async-dispose contract, while live queries call
-`close()` and await `return()`.
+each handle on `exit`. At the lifecycle `BEFORE_STOP_ALL` boundary during application quit, the
+warm-query lifecycle owner starts both close aggregates before serial service teardown can block:
+warm handles use their async-dispose contract, while live queries call `close()` and await
+`return()`. Its later `onStop()` joins the same cached shutdown promise; both service stop paths also
+retain the shared process-manager shutdown as a fallback.
 
 One process-wide shutdown timeline bounds that cooperative cleanup. It allows up to two seconds for
 the close aggregates and registered children to settle, sends `SIGTERM` only to registered children
