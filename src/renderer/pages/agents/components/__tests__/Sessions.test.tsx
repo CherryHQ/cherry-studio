@@ -2123,6 +2123,18 @@ describe('Sessions', () => {
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
 
+  it('keeps the pinned group label when every session is pinned in time mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+  })
+
   it('requires a second inline click before deleting a session', async () => {
     render(<SessionsForTest />)
 

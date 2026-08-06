@@ -16,9 +16,6 @@ import {
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
   type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
@@ -1778,15 +1775,13 @@ const TopicRow = memo(function TopicRow({
       />
       {!rowState.renaming && (
         <ResourceList.ItemTitle
+          fade
           title={topicName}
           className={cn(
             nameAnimationClassName,
-            RESOURCE_LIST_TITLE_FADE_CLASS,
-            topic.pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin.
+            // overlay fades out and ResourceList reserves the rendered actions.
             hasTopicStreamIndicator && 'mr-7'
           )}
           onDoubleClick={(event) => {

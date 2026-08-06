@@ -130,19 +130,6 @@ const ENTITY_RAIL_LEADING_SLOT_CLASS =
 const ENTITY_RAIL_TITLE_CLASS =
   'font-normal text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
-function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
-  if (actionCount >= 3) {
-    return 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-  }
-  if (actionCount === 2) {
-    return 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-  }
-  if (actionCount === 1) {
-    return 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-  }
-  return ''
-}
-
 export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionContext = unknown>({
   addIcon,
   addLabel,
@@ -227,8 +214,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
       const hasTrailingAction = Boolean(item.trailingAction)
-      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
-      const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
@@ -242,9 +227,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
               {item.icon}
             </ResourceList.ItemLeadingSlot>
           )}
-          <ResourceList.ItemTitle
-            className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.tooltip ? undefined : item.name}>
+          <ResourceList.ItemTitle className={ENTITY_RAIL_TITLE_CLASS} title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (

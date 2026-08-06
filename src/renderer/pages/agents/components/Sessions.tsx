@@ -667,7 +667,12 @@ const Sessions = ({
   )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
   const sessionGroupByForDisplay = useMemo(
-    () => (displayMode === 'time' ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions) : sessionGroupBy),
+    () =>
+      displayMode === 'time'
+        ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions, {
+            ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+          })
+        : sessionGroupBy,
     [displayMode, filteredGroupedSessions, sessionGroupBy]
   )
   const createSessionSeedIndex = useMemo(

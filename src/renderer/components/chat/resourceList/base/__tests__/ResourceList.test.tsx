@@ -133,7 +133,7 @@ import {
   useResourceListRowState
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
-import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_MODULE_START_ROW_SIZE } from '../resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT, RESOURCE_LIST_MODULE_START_ROW_LAYOUT } from '../resourceListLayout'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -573,7 +573,7 @@ describe('ResourceList', () => {
     const options = lastVirtualizerOptions()
 
     // index 0 is the group header (shared row height), index 1 the first item (caller's estimate)
-    expect(options.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_SIZE)
+    expect(options.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size)
     expect(options.estimateSize(1)).toBe(44)
     expect(estimateItemSize).toHaveBeenCalledWith(0)
   })
@@ -1824,14 +1824,14 @@ describe('ResourceList', () => {
 
     // Both groups are declared buckets: the first opens the list, the second opens a new module.
     const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
-    expect(firstHeader.closest(`.${CSS.escape('h-[36px]')}`)).not.toBeNull()
-    expect(secondHeader.closest(`.${CSS.escape('h-[44px]')}`)).not.toBeNull()
+    expect(firstHeader.closest('.h-9')).not.toBeNull()
+    expect(secondHeader.closest('.h-11')).not.toBeNull()
 
     // The estimate has to agree with what got rendered or the virtualiser scrolls jumpily.
     const rows = lastVirtualizerOptions()
-    expect(rows.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_SIZE)
+    expect(rows.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size)
     expect(rows.estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
-      RESOURCE_LIST_MODULE_START_ROW_SIZE
+      RESOURCE_LIST_MODULE_START_ROW_LAYOUT.size
     )
   })
 
@@ -1858,10 +1858,10 @@ describe('ResourceList', () => {
     // A plain bucket here would open a module and take the 8px break. This one stands among entity
     // headers, so it keeps the 36px row — and the estimate has to say the same thing.
     const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
-    expect(secondHeader.closest(`.${CSS.escape('h-[44px]')}`)).toBeNull()
-    expect(secondHeader.closest(`.${CSS.escape('h-[36px]')}`)).not.toBeNull()
+    expect(secondHeader.closest('.h-11')).toBeNull()
+    expect(secondHeader.closest('.h-9')).not.toBeNull()
     expect(lastVirtualizerOptions().estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
-      RESOURCE_LIST_DEFAULT_ROW_SIZE
+      RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
     )
 
     // The rhythm is all it gives up: the recessed label that marks a bucket stays.

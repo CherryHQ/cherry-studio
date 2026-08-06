@@ -6,9 +6,6 @@ import type {
 } from '@renderer/components/chat/actions/sessionItemActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
   useResourceListActions,
   useResourceListRowState
@@ -288,15 +285,13 @@ const SessionItem = ({
 
       {!rowState.renaming && (
         <ResourceList.ItemTitle
+          fade
           title={sessionName}
           className={cn(
             nameAnimationClassName,
-            RESOURCE_LIST_TITLE_FADE_CLASS,
-            pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin. The
+            // overlay fades out and ResourceList reserves the rendered actions. The
             // awaiting-approval pill (mutually exclusive with the overlay) is an
             // in-flow sibling the title simply fades against — no standing margin.
             hasStreamIndicator && 'mr-7'

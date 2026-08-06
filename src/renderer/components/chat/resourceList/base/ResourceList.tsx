@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { Children, createContext, Fragment, isValidElement, use, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -22,9 +22,12 @@ import {
 } from './ResourceListContext'
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
+  getResourceListItemActionYieldClassName,
+  RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-  RESOURCE_LIST_ROW_HEIGHT_CLASS,
+  RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
+  RESOURCE_LIST_TITLE_FADE_CLASS,
   RESOURCE_LIST_VISUAL_ROW_CLASS
 } from './resourceListLayout'
 import { ResourceListLeadingSlot, type ResourceListLeadingSlotProps } from './ResourceListLeadingSlot'
@@ -169,7 +172,7 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-normal text-[13px] text-foreground leading-5">
+        <span className={cn('min-w-0 flex-1 truncate text-left text-foreground', RESOURCE_LIST_LABEL_CLASS)}>
           {label}
         </span>
         {command && <CommandHint command={command} className="font-normal text-muted-foreground text-xs" />}
@@ -364,8 +367,11 @@ type ItemProps<T extends ResourceListItemBase> = ComponentProps<'div'> & {
   tooltip?: ReactNode
 }
 
+const ResourceListItemActionCountContext = createContext(0)
+
 function Item<T extends ResourceListItemBase>({
   item,
+  children,
   className,
   ref,
   id: elementId,
@@ -381,6 +387,7 @@ function Item<T extends ResourceListItemBase>({
   const { getItemId } = useResourceListItemAccessors<T>()
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
+  const actionCount = getResourceListItemActionCount(children)
 
   const content = (
     <div
@@ -394,10 +401,11 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        RESOURCE_LIST_LABEL_CLASS,
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-        rowState.active && !rowState.selected && 'bg-sidebar-accent text-foreground',
+        rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
@@ -421,8 +429,9 @@ function Item<T extends ResourceListItemBase>({
       onMouseLeave={(event) => {
         onMouseLeave?.(event)
       }}
-      {...props}
-    />
+      {...props}>
+      <ResourceListItemActionCountContext value={actionCount}>{children}</ResourceListItemActionCountContext>
+    </div>
   )
 
   if (!tooltip) return content
@@ -488,7 +497,9 @@ function RenameField<T extends ResourceListItemBase>({
         // the title visibly thins out the moment the input takes over.
         // `md:text-sm` on the shared Input wins over a plain `text-[13px]`, so the responsive variant
         // has to be restated — otherwise the title grows a size the moment editing starts.
-        'h-6 flex-1 border-none bg-transparent px-0 font-medium text-[13px] text-foreground leading-5 shadow-none focus-visible:ring-0 md:text-[13px]',
+        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-accent-foreground shadow-none focus-visible:ring-0 md:text-[13px]',
+        RESOURCE_LIST_LABEL_CLASS,
+        'font-medium',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -518,15 +529,21 @@ function RenameField<T extends ResourceListItemBase>({
 }
 
 type ItemTitleProps = ComponentProps<'span'> & {
+  fade?: boolean
   ref?: Ref<HTMLSpanElement>
 }
 
-function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
+function ItemTitle({ className, fade = false, ref, ...props }: ItemTitleProps) {
+  const actionCount = use(ResourceListItemActionCountContext)
+
   return (
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-foreground leading-5 group-data-[selected=true]:font-medium',
+        'min-w-0 flex-1 truncate text-left text-foreground group-data-[selected=true]:font-medium group-data-[active-descendant=true]:text-sidebar-accent-foreground group-data-[selected=true]:text-sidebar-accent-foreground',
+        RESOURCE_LIST_LABEL_CLASS,
+        fade && RESOURCE_LIST_TITLE_FADE_CLASS,
+        getResourceListItemActionYieldClassName(actionCount),
         className
       )}
       {...props}
@@ -552,7 +569,8 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:outline-none',
+        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:opacity-100 focus-visible:outline-none',
+        'group-data-[active-descendant=true]:text-sidebar-accent-foreground group-data-[selected=true]:text-sidebar-accent-foreground',
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}
@@ -567,10 +585,13 @@ type ItemActionsProps = ComponentProps<'div'> & {
 }
 
 function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
+  const actionCount = use(ResourceListItemActionCountContext)
+
   return (
     <div
       ref={ref}
       data-active={active || undefined}
+      data-action-count={actionCount || undefined}
       data-resource-list-item-actions="true"
       className={cn(
         '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
@@ -580,6 +601,24 @@ function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
       {...props}
     />
   )
+}
+
+function countResourceListActionSlots(children: ReactNode): number {
+  return Children.toArray(children).reduce<number>((count, child) => {
+    if (isValidElement<{ children?: ReactNode }>(child) && child.type === Fragment) {
+      return count + countResourceListActionSlots(child.props.children)
+    }
+    return count + 1
+  }, 0)
+}
+
+function getResourceListItemActionCount(children: ReactNode): number {
+  return Children.toArray(children).reduce<number>((count, child) => {
+    if (!isValidElement<{ children?: ReactNode }>(child)) return count
+    if (child.type === ItemActions) return count + countResourceListActionSlots(child.props.children)
+    if (child.type === Fragment) return count + getResourceListItemActionCount(child.props.children)
+    return count
+  }, 0)
 }
 
 type BodyProps<T extends ResourceListItemBase> = {
@@ -648,7 +687,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
         <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
           <div
             data-resource-list-loading-group-header="true"
-            className={cn('flex items-center gap-1.5 px-1.5 pt-2 pb-1', RESOURCE_LIST_ROW_HEIGHT_CLASS)}>
+            className={cn('flex items-center gap-1.5 px-1.5 pt-2 pb-1', RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className)}>
             <ResourceListLeadingSlot variant="loading">
               <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             </ResourceListLeadingSlot>

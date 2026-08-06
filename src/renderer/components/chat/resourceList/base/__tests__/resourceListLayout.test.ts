@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { RESOURCE_LIST_TITLE_FADE_YIELD_CLASS } from '../resourceListLayout'
+import { getResourceListItemActionYieldClassName } from '../resourceListLayout'
 
 describe('resourceListLayout', () => {
-  it('reserves both action slots while an item action is forced active', () => {
-    const classes = RESOURCE_LIST_TITLE_FADE_YIELD_CLASS.split(' ')
+  it('derives the title reserve from the rendered action slots', () => {
+    const singleActionClasses = getResourceListItemActionYieldClassName(1)?.split(' ')
+    const doubleActionClasses = getResourceListItemActionYieldClassName(2)?.split(' ')
 
-    expect(classes).toContain('group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12')
-    expect(classes).not.toContain('group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7')
+    expect(singleActionClasses).toContain('group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7')
+    expect(doubleActionClasses).toContain('group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12')
   })
 })

@@ -1,18 +1,20 @@
-// 32px row surface + 4px breathing room, matching the settings sidebar's 32px menu items. The list
-// is dense by design: the surface owns the height, and the gap is the smallest one that still
-// separates two filled rows.
-export const RESOURCE_LIST_DEFAULT_ROW_SIZE = 36
-
-export const RESOURCE_LIST_ROW_HEIGHT_CLASS = 'h-[36px]'
+// 32px row surface + 4px breathing room, the same rhythm the settings sidebar uses (DESIGN.md puts
+// menu items at 32px). Keep the measured size and rendered class together: virtual-list estimates
+// must never drift from the row that they describe.
+export const RESOURCE_LIST_DEFAULT_ROW_LAYOUT = {
+  className: 'h-9',
+  size: 36
+} as const
 
 /**
  * Rows sit on one rhythm; the only break in it is between modules. A header that opens a new module
  * (a section, or a bucket group such as a time range) grows by 8px and bottom-aligns its pill, so
  * the extra space lands above the label instead of splitting it from the rows it introduces.
  */
-export const RESOURCE_LIST_MODULE_START_ROW_SIZE = 44
-
-export const RESOURCE_LIST_MODULE_START_ROW_CLASS = 'h-[44px] items-end'
+export const RESOURCE_LIST_MODULE_START_ROW_LAYOUT = {
+  className: 'h-11 items-end',
+  size: 44
+} as const
 
 export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 
@@ -27,21 +29,21 @@ export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
 export const RESOURCE_LIST_LEADING_SLOT_BASE_CLASS = 'flex size-6 shrink-0 items-center justify-center'
 
 export const RESOURCE_LIST_ITEM_LEADING_SLOT_CLASS =
-  'rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0'
+  'rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[active-descendant=true]:text-sidebar-accent-foreground group-data-[selected=true]:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0'
 
 export const RESOURCE_LIST_GROUP_HEADER_LEADING_SLOT_CLASS =
   'rounded-lg text-inherit [&_svg]:size-4 [&_svg]:text-inherit'
 
 export const RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS = RESOURCE_LIST_LEADING_SLOT_BASE_CLASS
 
-// Active sidebar rows use `sidebar-accent`, so that's the fill — a lighter surface than a
-// general-purpose `accent`, which the label's `font-medium` makes up for. The text colour never
-// changes; weight is the only thing selection adds to it.
+// DESIGN.md's sidebar spec puts an active row on `sidebar-accent`, so that's the fill — a lighter
+// surface than a general-purpose `accent`, paired with its matching foreground token. Weight is the
+// only additional emphasis selection adds.
 //
 // The hover fill has to be restated here: `hover:bg-*` out-specifies a plain `bg-*`, so without this
 // the row would go LIGHTER under the pointer — the open conversation would look like any hovered row.
 export const RESOURCE_LIST_SELECTED_ROW_CLASS =
-  'bg-sidebar-accent text-foreground shadow-none hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
+  'bg-sidebar-accent text-sidebar-accent-foreground shadow-none hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
 
 /**
  * ONE type voice for every label in the list — structure headers, entity rows and item titles all
@@ -58,8 +60,8 @@ export const RESOURCE_LIST_LABEL_CLASS = 'font-normal text-[13px] leading-5'
  * SINGLE constant 16px mask band hugging the title's right edge. mask-image
  * cannot transition, so it is never swapped — in-flow trailing siblings (e.g.
  * the awaiting-approval badge) keep flex space so the fade hugs them at rest,
- * and yielding to the hover actions is done purely with animatable geometry
- * (the margins in RESOURCE_LIST_TITLE_FADE_YIELD_CLASS), letting the fade
+ * and yielding to the hover actions is done purely with animatable geometry,
+ * letting the fade
  * slide continuously with the edge. Absolutely-positioned trailing elements
  * (e.g. the right-panel detached stream indicator) keep NO space — consumers
  * must add a standing margin for those themselves. Margin, not padding: the
@@ -71,29 +73,40 @@ export const RESOURCE_LIST_LABEL_CLASS = 'font-normal text-[13px] leading-5'
  * button's own padding-right instead of a margin on the label.
  */
 export const RESOURCE_LIST_TITLE_FADE_CLASS =
-  'overflow-hidden text-clip whitespace-nowrap transition-[margin] duration-150 [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'
+  'overflow-hidden text-clip whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'
 
 /**
- * Companion to RESOURCE_LIST_TITLE_FADE_CLASS: shift the faded edge left of
- * the hover actions ONLY while they are actually visible — pointer hover,
- * keyboard focus inside the actions, or the forced-active dot/delete-confirm
- * state. All three variants reserve the same two-icon zone (mr-12, the icon
- * zone plus ~12px of breathing room so the fading text never touches the
- * icons): the forced-active :has() variant out-specifies group-hover, so any
- * smaller margin there would win the cascade while the row is hovered — the
- * normal way delete-confirm is entered — and slide the title under the pin
- * icon. NOT group-focus-within: clicking a row focuses it and would pin the
- * yield while the icons stay hidden.
+ * Reserve the rendered action slots while they are visible. Consumers provide
+ * actions; ResourceList owns the slot-to-spacing scale, so page code never has
+ * to choose raw margins. NOT group-focus-within: clicking a row focuses it and
+ * would pin the yield while the icons stay hidden.
  */
-export const RESOURCE_LIST_TITLE_FADE_YIELD_CLASS =
-  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
+export function getResourceListItemActionYieldClassName(actionCount: number) {
+  if (actionCount >= 3) {
+    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-16 group-has-[[data-resource-list-item-actions]:focus-within]:mr-16 group-hover:mr-16'
+  }
+  if (actionCount === 2) {
+    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
+  }
+  if (actionCount === 1) {
+    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7 group-has-[[data-resource-list-item-actions]:focus-within]:mr-7 group-hover:mr-7'
+  }
+  return undefined
+}
 
-/**
- * Same yield for rows that reveal a single action (a pinned row drops delete): reserving the
- * two-icon zone there would open a visibly empty gap where the second icon isn't.
- */
-export const RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS =
-  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7 group-has-[[data-resource-list-item-actions]:focus-within]:mr-7 group-hover:mr-7'
+/** The same action-slot scale for absolutely positioned group-header actions. */
+export function getResourceListGroupHeaderActionYieldClassName(actionCount: number) {
+  if (actionCount >= 3) {
+    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-16 group-has-[:focus-visible]/resource-list-group:pr-16 group-has-data-[state=open]/resource-list-group:pr-16'
+  }
+  if (actionCount === 2) {
+    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-12 group-has-[:focus-visible]/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
+  }
+  if (actionCount === 1) {
+    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-7 group-has-[:focus-visible]/resource-list-group:pr-7 group-has-data-[state=open]/resource-list-group:pr-7'
+  }
+  return undefined
+}
 
 /** Compact search input used by the right-panel presentation of the topic/session lists (classic layout). */
 export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
