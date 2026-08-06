@@ -76,6 +76,31 @@ describe('formatWebviewAnnotations', () => {
     })
   })
 
+  it('formats a region annotation with its rect and contained elements', () => {
+    const regionDocument = {
+      ...document,
+      annotations: [
+        {
+          ...document.annotations[0],
+          region: {
+            rect: { x: 10, y: 20, width: 190, height: 180 },
+            elements: [
+              { selector: '#overlap-a', tagName: 'div', text: 'First card', ariaLabel: null, role: null },
+              { selector: '#overlap-b', tagName: 'div', text: 'Second card', ariaLabel: null, role: null }
+            ]
+          }
+        }
+      ]
+    }
+    const result = formatWebviewAnnotations([regionDocument])
+
+    expect(result.text).toContain('Region: 190×180 at page (10, 20)')
+    expect(result.text).toContain('Containing element: `<button>`')
+    expect(result.text).toContain('Elements in region:')
+    expect(result.text).toContain('`#overlap-a` — `<div>` — First card')
+    expect(result.text).toContain('`#overlap-b` — `<div>` — Second card')
+  })
+
   it('reports annotations omitted by the output limit', () => {
     const many = {
       ...document,

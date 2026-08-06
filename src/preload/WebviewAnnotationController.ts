@@ -4,13 +4,21 @@ import {
   type WebviewAnnotation,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationLocale,
+  type WebviewAnnotationRegion,
   type WebviewAnnotationState,
   type WebviewAnnotationTheme,
-  type WebviewElementLocator
+  type WebviewElementLocator,
+  type WebviewRegionRect
 } from '@shared/types/webview'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
 const FORM_ELEMENTS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION'])
+const MARQUEE_DRAG_THRESHOLD_PX = 5
+/** An element counts as inside the marquee when this share of its area overlaps the box. */
+const REGION_CONTAINMENT_RATIO = 0.6
+// ponytail: flat visit cap instead of spatial pruning — absolutely positioned
+// children can escape their parent's box, so subtree pruning would miss them.
+const REGION_WALK_BUDGET = 5_000
 
 const OVERLAY_CSS = `
   :host {
@@ -29,6 +37,15 @@ const OVERLAY_CSS = `
     border-radius: 4px;
     background: color-mix(in srgb, var(--annotation-accent) 12%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--annotation-surface) 70%, transparent);
+    pointer-events: none;
+  }
+
+  .marquee {
+    position: fixed;
+    display: none;
+    border: 2px dashed var(--annotation-accent);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--annotation-accent) 8%, transparent);
     pointer-events: none;
   }
 
@@ -295,6 +312,37 @@ export function createWebviewElementLocator(element: Element): WebviewElementLoc
   }
 }
 
+interface ViewportRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+const composedParent = (element: Element): Element | null => {
+  if (element.parentElement) return element.parentElement
+  const root = element.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
+}
+
+const findCommonAncestor = (elements: readonly Element[]): Element | null => {
+  if (elements.length === 0) return null
+  const chain = new Set<Element>()
+  for (let current: Element | null = elements[0]; current; current = composedParent(current)) chain.add(current)
+  for (const element of elements.slice(1)) {
+    let current: Element | null = element
+    while (current && !chain.has(current)) current = composedParent(current)
+    if (!current) return null
+    // Trim the chain down to the shared suffix so later elements narrow it further.
+    let drop = false
+    for (const kept of chain) {
+      if (kept === current) drop = true
+      if (!drop) chain.delete(kept)
+    }
+  }
+  return chain.values().next().value ?? null
+}
+
 type StateListener = (state: WebviewAnnotationState) => void
 
 export class WebviewAnnotationController {
@@ -303,8 +351,15 @@ export class WebviewAnnotationController {
   private configured = false
   private editorAnnotationId: string | null = null
   private editorElement: Element | null = null
+  /** Page-coordinate rect anchoring the editor/highlight while a region is being created or edited. */
+  private editorRegion: WebviewRegionRect | null = null
   private enabled = false
   private highlightElement: Element | null = null
+  private marquee: HTMLDivElement | null = null
+  private marqueeOrigin: { x: number; y: number } | null = null
+  private marqueeRect: ViewportRect | null = null
+  private pendingRegion: WebviewAnnotationRegion | null = null
+  private suppressNextClick = false
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
   private observedRoots = new Set<Document | ShadowRoot>()
@@ -348,7 +403,15 @@ export class WebviewAnnotationController {
       enabled: this.enabled,
       annotations: this.annotations.map((annotation) => ({
         ...annotation,
-        element: { ...annotation.element }
+        element: { ...annotation.element },
+        ...(annotation.region
+          ? {
+              region: {
+                rect: { ...annotation.region.rect },
+                elements: annotation.region.elements.map((element) => ({ ...element }))
+              }
+            }
+          : {})
       }))
     }
   }
@@ -356,6 +419,7 @@ export class WebviewAnnotationController {
   dispose() {
     this.enabled = false
     this.removeSelectionListeners()
+    this.cancelMarquee()
     this.stopPositionTracking()
     this.removeOverlay()
   }
@@ -374,6 +438,7 @@ export class WebviewAnnotationController {
       this.startPositionTracking()
     } else {
       this.removeSelectionListeners()
+      this.cancelMarquee()
       this.closeEditor()
       this.highlightElement = null
       this.schedulePositionUpdate()
@@ -424,14 +489,17 @@ export class WebviewAnnotationController {
 
     const highlight = document.createElement('div')
     highlight.className = 'highlight'
+    const marquee = document.createElement('div')
+    marquee.className = 'marquee'
     const pinLayer = document.createElement('div')
     const editor = this.createEditor()
 
-    shadowRoot.append(highlight, pinLayer, editor)
+    shadowRoot.append(highlight, marquee, pinLayer, editor)
     document.documentElement?.appendChild(host)
 
     this.overlayHost = host
     this.highlight = highlight
+    this.marquee = marquee
     this.pinLayer = pinLayer
     this.editor = editor
     this.applyTheme()
@@ -475,6 +543,7 @@ export class WebviewAnnotationController {
     this.overlayHost?.remove()
     this.overlayHost = null
     this.highlight = null
+    this.marquee = null
     this.pinLayer = null
     this.editor = null
     this.textarea = null
@@ -547,8 +616,8 @@ export class WebviewAnnotationController {
 
   private addSelectionListeners() {
     document.addEventListener('pointermove', this.handlePointerMove, true)
-    document.addEventListener('pointerdown', this.blockSelectionEvent, true)
-    document.addEventListener('pointerup', this.blockSelectionEvent, true)
+    document.addEventListener('pointerdown', this.handlePointerDown, true)
+    document.addEventListener('pointerup', this.handlePointerUp, true)
     document.addEventListener('mousedown', this.blockSelectionEvent, true)
     document.addEventListener('mouseup', this.blockSelectionEvent, true)
     document.addEventListener('click', this.handleClick, true)
@@ -557,8 +626,8 @@ export class WebviewAnnotationController {
 
   private removeSelectionListeners() {
     document.removeEventListener('pointermove', this.handlePointerMove, true)
-    document.removeEventListener('pointerdown', this.blockSelectionEvent, true)
-    document.removeEventListener('pointerup', this.blockSelectionEvent, true)
+    document.removeEventListener('pointerdown', this.handlePointerDown, true)
+    document.removeEventListener('pointerup', this.handlePointerUp, true)
     document.removeEventListener('mousedown', this.blockSelectionEvent, true)
     document.removeEventListener('mouseup', this.blockSelectionEvent, true)
     document.removeEventListener('click', this.handleClick, true)
@@ -577,7 +646,25 @@ export class WebviewAnnotationController {
   }
 
   private handlePointerMove = (event: PointerEvent) => {
-    if (!this.enabled || this.isOverlayEvent(event)) return
+    if (!this.enabled) return
+    if (this.marqueeOrigin) {
+      const passedThreshold =
+        Math.abs(event.clientX - this.marqueeOrigin.x) >= MARQUEE_DRAG_THRESHOLD_PX ||
+        Math.abs(event.clientY - this.marqueeOrigin.y) >= MARQUEE_DRAG_THRESHOLD_PX
+      if (this.marqueeRect || passedThreshold) {
+        this.marqueeRect = {
+          left: Math.min(this.marqueeOrigin.x, event.clientX),
+          top: Math.min(this.marqueeOrigin.y, event.clientY),
+          width: Math.abs(event.clientX - this.marqueeOrigin.x),
+          height: Math.abs(event.clientY - this.marqueeOrigin.y)
+        }
+        this.highlightElement = null
+        this.renderMarquee()
+        this.schedulePositionUpdate()
+        return
+      }
+    }
+    if (this.isOverlayEvent(event)) return
     this.highlightElement = this.eventElement(event)
     this.schedulePositionUpdate()
   }
@@ -588,8 +675,37 @@ export class WebviewAnnotationController {
     event.stopImmediatePropagation()
   }
 
+  private handlePointerDown = (event: PointerEvent) => {
+    if (!this.enabled || this.isOverlayEvent(event) || !this.eventElement(event)) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (event.button === 0) this.marqueeOrigin = { x: event.clientX, y: event.clientY }
+  }
+
+  private handlePointerUp = (event: PointerEvent) => {
+    if (!this.enabled) return
+    const rect = this.marqueeRect
+    this.marqueeOrigin = null
+    if (rect) {
+      this.cancelMarquee()
+      this.suppressNextClick = true
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      this.openRegionEditor(rect)
+      return
+    }
+    this.blockSelectionEvent(event)
+  }
+
   private handleClick = (event: MouseEvent) => {
-    if (!this.enabled || this.isOverlayEvent(event)) return
+    if (!this.enabled) return
+    if (this.suppressNextClick) {
+      this.suppressNextClick = false
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      return
+    }
+    if (this.isOverlayEvent(event)) return
     const element = this.eventElement(event)
     if (!element) return
     event.preventDefault()
@@ -601,11 +717,91 @@ export class WebviewAnnotationController {
     if (!this.enabled || event.key !== 'Escape' || this.isOverlayEvent(event)) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (this.editorElement) {
+    if (this.marqueeOrigin || this.marqueeRect) {
+      this.cancelMarquee()
+    } else if (this.editorElement) {
       this.closeEditor()
     } else {
       this.setEnabled(false)
     }
+  }
+
+  private renderMarquee() {
+    if (!this.marquee || !this.marqueeRect) return
+    this.marquee.style.display = 'block'
+    this.marquee.style.left = `${this.marqueeRect.left}px`
+    this.marquee.style.top = `${this.marqueeRect.top}px`
+    this.marquee.style.width = `${this.marqueeRect.width}px`
+    this.marquee.style.height = `${this.marqueeRect.height}px`
+  }
+
+  private cancelMarquee() {
+    this.marqueeOrigin = null
+    this.marqueeRect = null
+    if (this.marquee) this.marquee.style.display = 'none'
+  }
+
+  /** Elements mostly inside the marquee, deduped so a contained container hides its descendants. */
+  private collectRegionElements(rect: ViewportRect): Element[] {
+    const right = rect.left + rect.width
+    const bottom = rect.top + rect.height
+    const candidates: Element[] = []
+    let visited = 0
+
+    const visit = (element: Element) => {
+      if (visited >= REGION_WALK_BUDGET || element === this.overlayHost) return
+      visited++
+      const box = element.getBoundingClientRect()
+      const overlapX = Math.min(right, box.right) - Math.max(rect.left, box.left)
+      const overlapY = Math.min(bottom, box.bottom) - Math.max(rect.top, box.top)
+      const area = box.width * box.height
+      if (overlapX > 0 && overlapY > 0 && area > 0 && (overlapX * overlapY) / area >= REGION_CONTAINMENT_RATIO) {
+        candidates.push(element)
+      }
+      if (element.shadowRoot) for (const child of Array.from(element.shadowRoot.children)) visit(child)
+      for (const child of Array.from(element.children)) visit(child)
+    }
+    if (document.body) visit(document.body)
+
+    const candidateSet = new Set(candidates)
+    return candidates.filter((element) => {
+      for (let parent = composedParent(element); parent; parent = composedParent(parent)) {
+        if (candidateSet.has(parent)) return false
+      }
+      return true
+    })
+  }
+
+  private openRegionEditor(rect: ViewportRect) {
+    if (this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations) return
+
+    const contained = this.collectRegionElements(rect)
+    let centerElement: Element | null = null
+    try {
+      centerElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    } catch {
+      // jsdom and detached documents do not implement elementFromPoint.
+    }
+    let anchor: Element | null =
+      findCommonAncestor(contained) ?? (centerElement !== this.overlayHost ? centerElement : null) ?? document.body
+    // Walk up until a selector can be built; <body> always can.
+    while (anchor && !buildWebviewElementSelector(anchor)) anchor = composedParent(anchor)
+    if (!anchor) return
+
+    const pageRect: WebviewRegionRect = {
+      x: Math.round(rect.left + window.scrollX),
+      y: Math.round(rect.top + window.scrollY),
+      width: Math.max(1, Math.round(rect.width)),
+      height: Math.max(1, Math.round(rect.height))
+    }
+    const elements = contained
+      .map(createWebviewElementLocator)
+      .filter((locator): locator is WebviewElementLocator => locator !== null)
+      .slice(0, WEBVIEW_ANNOTATION_LIMITS.regionElements)
+
+    this.pendingRegion = { rect: pageRect, elements }
+    this.editorRegion = pageRect
+    this.openEditor(anchor)
   }
 
   private openEditor(element: Element, annotationId: string | null = null) {
@@ -630,6 +826,8 @@ export class WebviewAnnotationController {
   private closeEditor() {
     this.editorAnnotationId = null
     this.editorElement = null
+    this.editorRegion = null
+    this.pendingRegion = null
     if (this.editor) this.editor.style.display = 'none'
     this.schedulePositionUpdate()
   }
@@ -643,9 +841,13 @@ export class WebviewAnnotationController {
       const annotation = this.annotations.find((item) => item.id === this.editorAnnotationId)
       if (!annotation) return
       annotation.comment = comment
-      const locator = createWebviewElementLocator(this.editorElement)
-      if (locator) annotation.element = locator
-      this.annotationElements.set(annotation.id, this.editorElement)
+      // Region annotations keep their captured ancestor locator: the editor may
+      // have fallen back to <body> when the ancestor no longer resolves.
+      if (!annotation.region) {
+        const locator = createWebviewElementLocator(this.editorElement)
+        if (locator) annotation.element = locator
+        this.annotationElements.set(annotation.id, this.editorElement)
+      }
     } else {
       const locator = createWebviewElementLocator(this.editorElement)
       if (!locator) return
@@ -653,7 +855,8 @@ export class WebviewAnnotationController {
         id: crypto.randomUUID(),
         comment,
         createdAt: Date.now(),
-        element: locator
+        element: locator,
+        ...(this.pendingRegion ? { region: this.pendingRegion } : {})
       }
       this.annotations.push(annotation)
       this.annotationElements.set(annotation.id, this.editorElement)
@@ -690,8 +893,10 @@ export class WebviewAnnotationController {
       pin.textContent = String(index + 1)
       pin.setAttribute('aria-label', `${this.locale?.edit ?? ''} ${index + 1}`.trim())
       pin.addEventListener('click', () => {
-        const element = this.resolveAnnotationElement(annotation)
-        if (element) this.openEditor(element, annotation.id)
+        const element = this.resolveAnnotationElement(annotation) ?? (annotation.region ? document.body : null)
+        if (!element) return
+        if (annotation.region) this.editorRegion = annotation.region.rect
+        this.openEditor(element, annotation.id)
       })
       this.pinLayer?.appendChild(pin)
     })
@@ -761,6 +966,13 @@ export class WebviewAnnotationController {
     this.annotations.forEach((annotation) => {
       const pin = this.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
       if (!pin) return
+      if (annotation.region) {
+        // Region pins are geometric: they follow window scroll, not element resolution.
+        pin.style.display = ''
+        pin.style.left = `${Math.max(4, annotation.region.rect.x - window.scrollX)}px`
+        pin.style.top = `${Math.max(4, annotation.region.rect.y - window.scrollY)}px`
+        return
+      }
       const element = this.resolveAnnotationElement(annotation)
       if (!element) {
         pin.style.display = 'none'
@@ -776,8 +988,15 @@ export class WebviewAnnotationController {
       pin.style.top = `${Math.max(4, rect.top)}px`
     })
 
-    const highlightedElement = this.editorElement ?? this.highlightElement
-    if (this.highlight && highlightedElement?.isConnected) {
+    const anchorRect = this.getEditorAnchorRect()
+    const highlightedElement = this.highlightElement
+    if (this.highlight && anchorRect) {
+      this.highlight.style.display = anchorRect.width > 0 && anchorRect.height > 0 ? 'block' : 'none'
+      this.highlight.style.left = `${anchorRect.left}px`
+      this.highlight.style.top = `${anchorRect.top}px`
+      this.highlight.style.width = `${anchorRect.width}px`
+      this.highlight.style.height = `${anchorRect.height}px`
+    } else if (this.highlight && highlightedElement?.isConnected) {
       const rect = highlightedElement.getBoundingClientRect()
       this.highlight.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none'
       this.highlight.style.left = `${rect.left}px`
@@ -788,21 +1007,37 @@ export class WebviewAnnotationController {
       this.highlight.style.display = 'none'
     }
 
-    if (this.editor && this.editorElement?.isConnected) {
-      const rect = this.editorElement.getBoundingClientRect()
+    if (this.editor && anchorRect) {
       const editorRect = this.editor.getBoundingClientRect()
       const margin = 8
       const left = Math.min(
-        Math.max(margin, rect.left),
+        Math.max(margin, anchorRect.left),
         Math.max(margin, window.innerWidth - editorRect.width - margin)
       )
-      const belowTop = rect.bottom + margin
+      const belowTop = anchorRect.top + anchorRect.height + margin
       const top =
         belowTop + editorRect.height <= window.innerHeight - margin
           ? belowTop
-          : Math.max(margin, rect.top - editorRect.height - margin)
+          : Math.max(margin, anchorRect.top - editorRect.height - margin)
       this.editor.style.left = `${left}px`
       this.editor.style.top = `${top}px`
     }
+  }
+
+  /** Viewport rect the editor and highlight anchor to: the region box when set, else the editor element. */
+  private getEditorAnchorRect(): ViewportRect | null {
+    if (this.editorRegion) {
+      return {
+        left: this.editorRegion.x - window.scrollX,
+        top: this.editorRegion.y - window.scrollY,
+        width: this.editorRegion.width,
+        height: this.editorRegion.height
+      }
+    }
+    if (this.editorElement?.isConnected) {
+      const rect = this.editorElement.getBoundingClientRect()
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+    }
+    return null
   }
 }
