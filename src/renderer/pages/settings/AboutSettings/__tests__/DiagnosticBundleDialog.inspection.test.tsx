@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 import type { OutputFor } from '@shared/ipc/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -52,6 +53,27 @@ describe('DiagnosticBundleDialog inspection state', () => {
     })
   })
 
+  it('describes sources as pending instead of unavailable while inspection is running', async () => {
+    let resolveInspection: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route !== 'diagnostics.bundle.inspect') return Promise.resolve(undefined)
+      return new Promise((resolve) => {
+        resolveInspection = resolve
+      })
+    })
+
+    renderDialog()
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
+
+    expect(screen.getAllByText('settings.about.diagnostics.sources.inspecting')).toHaveLength(2)
+    expect(screen.queryByText('settings.about.diagnostics.sources.unavailable')).not.toBeInTheDocument()
+
+    await act(async () => resolveInspection(inspectResult))
+    await waitFor(() =>
+      expect(screen.queryByText('settings.about.diagnostics.sources.inspecting')).not.toBeInTheDocument()
+    )
+  })
+
   it('ignores stale inspection results and disables export while a new range is inspected', async () => {
     const user = userEvent.setup()
     let resolve24h: (value: OutputFor<'diagnostics.bundle.inspect'>) => void = () => undefined
@@ -88,7 +110,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
     expect(screen.getByRole('switch', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeDisabled()
   })
 
-  it('resets the range while closed before inspecting on reopen', async () => {
+  it('resets the range after the close animation before inspecting on reopen', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const { rerender } = render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={onOpenChange} />)
@@ -98,6 +120,7 @@ describe('DiagnosticBundleDialog inspection state', () => {
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
 
     rerender(<DiagnosticBundleDialog appVersion="2.0.0" open={false} onOpenChange={onOpenChange} />)
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, DIALOG_CLOSE_DURATION_MS)))
     mocks.request.mockClear()
     rerender(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={onOpenChange} />)
 

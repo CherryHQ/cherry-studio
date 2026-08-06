@@ -87,6 +87,23 @@ describe('diagnostic source collection', () => {
     expect(await readFile(stagedPath, 'utf8')).toBe(recentLog)
   })
 
+  it('ignores trace files that are still being written', async () => {
+    const now = Date.now()
+    const topicDir = path.join(tracesDir, 'topic')
+    await mkdir(topicDir)
+    const traceLine = `${JSON.stringify({ id: 'recent', startTime: now - 1_000 })}\n`
+    await Promise.all([
+      writeFile(path.join(topicDir, 'completed-trace'), traceLine),
+      writeFile(path.join(topicDir, `completed-trace.${process.pid}.tmp`), traceLine)
+    ])
+
+    const collection = await collectDiagnosticSources({ fromMs: now - 86_400_000, toMs: now }, ALL_SOURCES)
+
+    expect(collection.traces).toHaveLength(1)
+    expect(collection.traces[0].sourcePath).toBe(path.join(topicDir, 'completed-trace'))
+    expect(collection.warnings).not.toContain('source_unreadable')
+  })
+
   it('rejects a source whose inode changes after inspection', async () => {
     const now = Date.now()
     const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)

@@ -240,7 +240,9 @@ describe('DiagnosticBundleDialog', () => {
     await user.click(confirmButton)
     await user.click(confirmButton)
 
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(1)
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(1)
+    )
     await act(async () => resolveExport({ status: 'canceled' }))
     await waitFor(() => expect(exportButton).toBeEnabled())
 

@@ -1,8 +1,9 @@
-import { access, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -233,7 +234,7 @@ describe('DiagnosticBundleService', () => {
 
     await expect(
       service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
-    ).rejects.toThrow('destination cannot be inside')
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE })
   })
 
   it('refuses to save through a directory symlink into a diagnostic source directory', async () => {
@@ -247,8 +248,20 @@ describe('DiagnosticBundleService', () => {
 
     await expect(
       service.exportBundle({ includeLogs: false, includeTraces: false, range: '24h' }, 'main-window')
-    ).rejects.toThrow('destination cannot be inside')
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE })
     await expect(access(path.join(crashDumpsDir, 'diagnostics.zip'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('refuses to overwrite a destination that is the same physical file as a selected source', async () => {
+    const now = Date.now()
+    const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
+    await writeFile(source, `${JSON.stringify({ timestamp: new Date(now - 1_000).toISOString() })}\n`)
+    await link(source, destination)
+    const service = new DiagnosticBundleService()
+
+    await expect(
+      service.exportBundle({ includeLogs: true, includeTraces: false, range: '24h' }, 'main-window')
+    ).rejects.toMatchObject({ code: diagnosticsErrorCodes.DESTINATION_IS_SOURCE })
   })
 
   it('cleans staged and atomic temporary files when the destination cannot be written', async () => {

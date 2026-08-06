@@ -16,6 +16,8 @@ import {
   removeDir,
   stat
 } from '@main/utils/file'
+import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -210,7 +212,10 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
   const resolvedDestination = AbsoluteFilePathSchema.parse(path.join(destinationParent, path.basename(destination)))
   const resolvedRoots = await Promise.all(sourceRoots.map((root) => resolveThroughExistingAncestor(root)))
   if (resolvedRoots.some((root) => isPathInside(resolvedDestination, root))) {
-    throw new Error('Diagnostic bundle destination cannot be inside a diagnostic source directory')
+    throw new IpcError(
+      diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE,
+      'Diagnostic bundle destination cannot be inside a diagnostic source directory'
+    )
   }
 }
 
@@ -279,7 +284,10 @@ export class DiagnosticBundleService {
     const enabledCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
     if (enabledCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
-      throw new Error('Diagnostic bundle destination matches a source file')
+      throw new IpcError(
+        diagnosticsErrorCodes.DESTINATION_IS_SOURCE,
+        'Diagnostic bundle destination matches a source file'
+      )
     }
 
     const selection = selectSourceCandidates(enabledCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)

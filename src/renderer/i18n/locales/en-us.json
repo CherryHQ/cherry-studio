@@ -5853,6 +5853,7 @@
         "errors": {
           "busy": "Another diagnostic bundle is already being exported",
           "copy_failed": "Could not copy the support email",
+          "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
           "email_client_failed": "Could not open an email client. You can copy the support email instead.",
           "export_failed": "Could not export the diagnostic bundle",
           "inspect_failed": "Could not check what is available to export. Try again later.",
@@ -5876,10 +5877,13 @@
           "7d": "Last 7 days"
         },
         "sources": {
+          "inspecting": "Checking what is available...",
           "logs": {
             "title": "App logs"
           },
           "summary": "{{count}} files, about {{size}}",
+          "summary_one": "{{count}} file, about {{size}}",
+          "summary_other": "{{count}} files, about {{size}}",
           "system": {
             "description": "Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
             "title": "App and device information"

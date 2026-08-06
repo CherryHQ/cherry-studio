@@ -276,7 +276,7 @@ async function discoverTraces(
     }
 
     for (const trace of traces) {
-      if (!trace.isFile()) continue
+      if (!trace.isFile() || trace.name.endsWith('.tmp')) continue
       const sourcePath = AbsoluteFilePathSchema.parse(path.join(topicPath, trace.name))
       try {
         const fileStat = await lstat(sourcePath)

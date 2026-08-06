@@ -5853,6 +5853,7 @@
         "errors": {
           "busy": "已有诊断包正在导出",
           "copy_failed": "无法复制支持邮箱",
+          "destination_conflict": "所选保存位置与诊断数据冲突，请选择其他文件夹。",
           "email_client_failed": "无法打开邮件客户端，你可以复制支持邮箱。",
           "export_failed": "无法导出诊断包",
           "inspect_failed": "暂时无法检查可导出的内容，请稍后重试。",
@@ -5876,10 +5877,13 @@
           "7d": "最近 7 天"
         },
         "sources": {
+          "inspecting": "正在检查可用内容...",
           "logs": {
             "title": "运行日志"
           },
           "summary": "{{count}} 个文件，约 {{size}}",
+          "summary_one": "{{count}} 个文件，约 {{size}}",
+          "summary_other": "{{count}} 个文件，约 {{size}}",
           "system": {
             "description": "包括应用版本、系统和设备信息。最近崩溃 {{crashCount}} 次，不收集崩溃文件。",
             "title": "应用和设备信息"

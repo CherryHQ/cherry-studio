@@ -12,9 +12,12 @@ import {
   SegmentedControl,
   Switch
 } from '@cherrystudio/ui'
+import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -54,6 +57,14 @@ function formatBytes(bytes: number): string {
   return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
+function isDestinationConflictError(error: unknown): boolean {
+  return (
+    error instanceof IpcError &&
+    (error.code === diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE ||
+      error.code === diagnosticsErrorCodes.DESTINATION_IS_SOURCE)
+  )
+}
+
 const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, onOpenChange, open }) => {
   const { t } = useTranslation()
   const [range, setRange] = useState<DiagnosticRange>('24h')
@@ -67,22 +78,52 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const [copyEmailFallback, setCopyEmailFallback] = useState(false)
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const revealButtonRef = useRef<HTMLButtonElement>(null)
+  const closeResetTimerRef = useRef<number | null>(null)
+  const confirmedExportTimerRef = useRef<number | null>(null)
   const status = exportState.status
   const savedResult = exportState.status === 'saved' ? exportState.result : null
 
   useEffect(() => {
-    if (open) return
-    setRange('24h')
-    setIncludeLogs(true)
-    setIncludeTraces(true)
-    setConsent(false)
-    setIsConfirmationOpen(false)
-    setInspectResult(null)
-    setInspectError(false)
-    setIsInspecting(false)
-    setCopyEmailFallback(false)
-    setExportState({ status: 'idle' })
+    if (open) {
+      if (closeResetTimerRef.current !== null) {
+        window.clearTimeout(closeResetTimerRef.current)
+        closeResetTimerRef.current = null
+      }
+      return
+    }
+    if (confirmedExportTimerRef.current !== null) {
+      window.clearTimeout(confirmedExportTimerRef.current)
+      confirmedExportTimerRef.current = null
+    }
+    closeResetTimerRef.current = window.setTimeout(() => {
+      closeResetTimerRef.current = null
+      setRange('24h')
+      setIncludeLogs(true)
+      setIncludeTraces(true)
+      setConsent(false)
+      setIsConfirmationOpen(false)
+      setInspectResult(null)
+      setInspectError(false)
+      setIsInspecting(false)
+      setCopyEmailFallback(false)
+      setExportState({ status: 'idle' })
+    }, DIALOG_CLOSE_DURATION_MS)
+    return () => {
+      if (closeResetTimerRef.current !== null) {
+        window.clearTimeout(closeResetTimerRef.current)
+        closeResetTimerRef.current = null
+      }
+    }
   }, [open])
+
+  useEffect(
+    () => () => {
+      if (confirmedExportTimerRef.current !== null) {
+        window.clearTimeout(confirmedExportTimerRef.current)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     if (!open) return
@@ -117,7 +158,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
   const includesSensitiveData = effectiveIncludeLogs || effectiveIncludeTraces
-  const canExport = inspectResult !== null && !isInspecting && !inspectError && status !== 'saving'
+  const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
+  const canExport = inspectResult !== null && !isInspectionPending && !inspectError && status !== 'saving'
   const hasInspectWarnings = inspectResult?.hasWarnings ?? false
   const hasSavedWarnings = savedResult?.hasWarnings ?? false
 
@@ -169,7 +211,13 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
     } catch (error) {
       logger.error('Failed to export diagnostic bundle', error as Error)
       setExportState({ status: 'idle' })
-      toast.error(t('settings.about.diagnostics.errors.export_failed'))
+      toast.error(
+        t(
+          isDestinationConflictError(error)
+            ? 'settings.about.diagnostics.errors.destination_conflict'
+            : 'settings.about.diagnostics.errors.export_failed'
+        )
+      )
     }
   }
 
@@ -189,9 +237,12 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   }
 
   const handleConfirmedExport = () => {
-    if (!consent) return
+    if (!consent || confirmedExportTimerRef.current !== null) return
     setIsConfirmationOpen(false)
-    void performExport()
+    confirmedExportTimerRef.current = window.setTimeout(() => {
+      confirmedExportTimerRef.current = null
+      void performExport()
+    }, DIALOG_CLOSE_DURATION_MS)
   }
 
   const handleReveal = async () => {
@@ -304,21 +355,21 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={sourceDescription(t, inspectResult?.sources.logs)}
+                    description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
                     checked={effectiveIncludeLogs}
-                    disabled={status === 'saving' || isInspecting || !logsAvailable}
+                    disabled={status === 'saving' || isInspectionPending || !logsAvailable}
                     onCheckedChange={changeLogs}
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={sourceDescription(t, inspectResult?.sources.traces)}
+                    description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
                     checked={effectiveIncludeTraces}
-                    disabled={status === 'saving' || isInspecting || !tracesAvailable}
+                    disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
                     onCheckedChange={changeTraces}
                   />
                 </section>
 
-                {isInspecting && (
+                {isInspectionPending && (
                   <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
                     <LoaderCircle className="size-4 animate-spin" />
                     {t('settings.about.diagnostics.inspecting')}
@@ -409,8 +460,10 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
 
 function sourceDescription(
   t: ReturnType<typeof useTranslation>['t'],
-  source: InspectResult['sources']['logs'] | undefined
+  source: InspectResult['sources']['logs'] | undefined,
+  isInspectionPending: boolean
 ): string {
+  if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
   if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
   return t('settings.about.diagnostics.sources.summary', {
     count: source.fileCount,
