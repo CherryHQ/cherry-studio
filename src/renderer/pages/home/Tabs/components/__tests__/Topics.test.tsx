@@ -725,7 +725,6 @@ describe('Topics', () => {
       'data.export.menus.joplin': true,
       'data.export.menus.markdown': true,
       'data.export.menus.markdown_reason': true,
-      'data.export.menus.notes': true,
       'data.export.menus.notion': true,
       'data.export.menus.obsidian': true,
       'data.export.menus.plain_text': true,
@@ -1410,10 +1409,9 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-c', {
       forceNew: true,
-      title: 'Gamma topic',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-c' }
+      title: 'Gamma topic'
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1913,7 +1911,6 @@ describe('Topics', () => {
       joplin: true,
       markdown: true,
       markdown_reason: true,
-      notes: true,
       notion: true,
       obsidian: true,
       plain_text: true,
