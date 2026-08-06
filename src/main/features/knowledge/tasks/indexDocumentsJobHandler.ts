@@ -84,7 +84,7 @@ export function createIndexDocumentsJobHandler(
       // per-base index.sqlite the lock protects, and updateStatus's own 'deleting' guard
       // (KnowledgeItemService.updateStatus) already covers the race the lock would.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
+      if (!ctx.input.restoreId) knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
 
       // Capture a url's or note's snapshot on first index (a url fetches outside
       // the lock, a note writes its in-hand content; both persist a relativePath
@@ -107,7 +107,7 @@ export function createIndexDocumentsJobHandler(
       // Mark embedding separately so the UI reflects the current long-running phase.
       // No base mutation lock here either — same reasoning as the 'reading' status above.
       reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-      knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
+      if (!ctx.input.restoreId) knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
       // A prior run's lingering percentage must not flash into this run; the key is
       // recreated only once this run actually embeds chunks (buildRebuildMaterialInput).
       application.get('CacheService').deleteShared(embeddingProgressCacheKey(item.id))
@@ -129,7 +129,12 @@ export function createIndexDocumentsJobHandler(
     },
 
     async onSettled(event) {
-      await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
+      // A restore rebuild starts from a durable `completed` row and must leave
+      // that row retryable if derived indexing fails. Ordinary jobs keep the
+      // user-visible failed transition.
+      if (!event.input.restoreId) {
+        await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
+      }
     }
   }
 }
@@ -168,7 +173,7 @@ function loadIndexDocumentsInputOrSkip(
     throw new Error(`indexDocumentsJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
   }
 
-  if (item.status === 'completed') {
+  if (item.status === 'completed' && !ctx.input.restoreId) {
     reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
     return null
   }
@@ -256,6 +261,9 @@ async function ensureSnapshot(
   const spec = resolveSnapshotCaptureSpec(item)
   if (!spec) {
     return item
+  }
+  if (ctx.input.restoreId) {
+    throw new Error(`Restore rebuild refuses to recapture ${spec.type} item '${item.id}' outside transported material`)
   }
 
   const snapshot = await spec.produce(ctx.signal)

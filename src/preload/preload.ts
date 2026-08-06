@@ -9,7 +9,6 @@ import type {
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
@@ -32,7 +31,6 @@ import type { CommandId } from '@shared/utils/command'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
 
@@ -82,38 +80,6 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
-    // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
-    backup: (fileName: string, destinationPath: string, skipBackupFile?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
-    backupToWebdav: (webdavConfig: WebDavConfig): Promise<BackupResult<boolean>> =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
-    listWebdavFiles: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_ListWebdavFiles, webdavConfig),
-    checkConnection: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-    createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
-    deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
-    backupToLocalDir: (fileName: string | undefined, localConfig: LocalBackupConfig): Promise<BackupResult<string>> =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, fileName, localConfig),
-    restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
-    listLocalBackupFiles: (localBackupDir?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_ListLocalBackupFiles, localBackupDir),
-    deleteLocalBackupFile: (fileName: string, localBackupDir?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
-    checkWebdavConnection: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-    backupToS3: (s3Config: S3Config): Promise<BackupResult<unknown>> =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
-    restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
-    listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
-    deleteS3File: (fileName: string, s3Config: S3Config) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
     createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
@@ -229,10 +195,7 @@ const api = {
     detectInstalled: (): Promise<ExternalAppInfo[]> => ipcRenderer.invoke(IpcChannel.ExternalApps_DetectInstalled)
   },
   nutstore: {
-    getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
-    decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
-    getDirectoryContents: (token: string, path: string) =>
-      ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
+    getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   // setDisableHardwareAcceleration: (isDisable: boolean) =>

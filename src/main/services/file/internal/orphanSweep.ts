@@ -39,7 +39,7 @@ import { readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import { hasPendingRestore } from '@data/db/restore/restoreGuard'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -121,8 +121,9 @@ export type { OrphanReport } from '@shared/types/file'
  */
 export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   const startedAt = Date.now()
-  // A staged/promoting restore owns the file+DB surface — deleting "orphans"
-  // mid-restore would reclaim rows/files the promotion is about to reference.
+  // A pending or unacknowledged restore owns the file+DB surface — deleting
+  // "orphans" would reclaim rows/files the promotion is about to reference, or
+  // asides its rollback still needs.
   if (hasPendingRestore()) {
     const report: DbSweepReport = {
       orphanEntriesByOrigin: {},
@@ -264,7 +265,7 @@ export type FileSweepReport = FileSweepStats & FileSweepOutcome
  * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
 export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
-  // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
+  // Same stand-aside as runDbSweep: a prepared restore's blobs are on disk but
   // not yet referenced by the live DB — exactly what this sweep would unlink.
   if (hasPendingRestore()) {
     const report: FileSweepReport = {

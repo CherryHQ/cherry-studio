@@ -81,6 +81,30 @@ describe('index-documents job handler', () => {
     )
   })
 
+  it('restore mode indexes a completed transported snapshot without transient status rewrites', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, null, 'completed'))
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, restoreId: 'restore-1' }))
+
+    expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
+    expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
+    expect(rebuildMaterialMock).toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
+  it('restore mode refuses to fetch a URL whose transported snapshot is absent', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-restore', undefined, 'completed'))
+
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-restore', restoreId: 'restore-1' }))
+    ).rejects.toThrow(/refuses to recapture url/)
+    expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
+  })
+
   it('pairs every embedding vector with the hash of the body it was computed from', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
@@ -561,6 +585,24 @@ describe('index-documents job handler', () => {
       expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced-note.md' }) })
     )
     expect(lastRebuildInput().material.relativePath).toBe('raced-note.md')
+  })
+
+  it('onSettled leaves a restore item completed so a failed rebuild remains retryable', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+
+    await handler.onSettled?.({
+      jobId: 'restore-index-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'failed',
+      input: { baseId: 'kb-1', itemId: 'note-1', restoreId: 'restore-1' },
+      error: { code: 'FAILED', message: 'embedding unavailable', retryable: true },
+      attempt: 3,
+      metadata: {}
+    })
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())
   })
 
   it('onSettled skips failed status when the item is deleting', async () => {

@@ -1,35 +1,33 @@
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import {
   backupToNutstore,
   checkConnection,
-  createDirectory,
-  restoreFromNutstore
+  getNutstoreSyncState,
+  startNutstoreAutoSync,
+  stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
@@ -38,17 +36,15 @@ const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const nutstoreSyncState = useBackupSyncState('nutstore')
+  const nutstoreSyncState = getNutstoreSyncState()
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
   const [nutstorePath, setNutstorePath] = usePreference('data.backup.nutstore.path')
-  const [nutstoreSkipBackupFile, setNutstoreSkipBackupFile] = usePreference('data.backup.nutstore.skip_backup_file')
   const [nutstoreSyncInterval, setNutstoreSyncInterval] = usePreference('data.backup.nutstore.sync_interval')
   const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
-  const [nutstorePass, setNutstorePass] = useState<string | undefined>(undefined)
   // const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
   const [checkConnectionLoading, setCheckConnectionLoading] = useState(false)
   const [nsConnected, setNsConnected] = useState<boolean>(false)
@@ -68,21 +64,17 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreSsoHandler, setNutstoreToken])
 
   useEffect(() => {
-    async function decryptTokenEffect() {
-      if (nutstoreToken) {
-        const decrypted = await window.api.nutstore.decryptToken(nutstoreToken)
+    async function loadAccount() {
+      if (!nutstoreToken) return
+      const account = await ipcApi.request('nutstore.get_account')
+      if (!account) return
 
-        if (decrypted) {
-          setNutstoreUsername(decrypted.username)
-          setNutstorePass(decrypted.access_token)
-          if (!nutstorePath) {
-            void setNutstorePath('/cherry-studio')
-            // setStoragePath('/cherry-studio')
-          }
-        }
+      setNutstoreUsername(account.username)
+      if (!nutstorePath) {
+        void setNutstorePath('/cherry-studio')
       }
     }
-    void decryptTokenEffect()
+    void loadAccount()
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
@@ -94,7 +86,7 @@ const NutstoreSettings: FC = () => {
     if (confirmedLogout) {
       void setNutstoreToken('')
       void setNutstorePath('')
-      await setNutstoreAutoSync(false)
+      void setNutstoreAutoSync(false)
       setNutstoreUsername('')
     }
   }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
@@ -126,8 +118,10 @@ const NutstoreSettings: FC = () => {
     await setNutstoreSyncInterval(value)
     if (value === 0) {
       await setNutstoreAutoSync(false)
+      stopNutstoreAutoSync()
     } else {
       await setNutstoreAutoSync(true)
+      void startNutstoreAutoSync()
     }
   }
 
@@ -140,21 +134,10 @@ const NutstoreSettings: FC = () => {
       return
     }
 
-    const result = await window.api.nutstore.decryptToken(nutstoreToken)
-
-    if (!result) {
-      return
-    }
-
     const targetPath = await NutstorePathPopup.show({
-      ls: async (target: string) => {
-        const { username, access_token } = result
-        const token = window.btoa(`${username}:${access_token}`)
-        const items = await window.api.nutstore.getDirectoryContents(token, target)
-        return items.map(fileStatToStatModel)
-      },
+      ls: (target: string) => ipcApi.request('nutstore.list_directory', { path: target }),
       mkdirs: async (path) => {
-        await createDirectory(path)
+        await ipcApi.request('nutstore.create_directory', { path })
       }
     })
 
@@ -319,17 +302,6 @@ const NutstoreSettings: FC = () => {
               ]}
             />
           </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch
-              checked={nutstoreSkipBackupFile}
-              onCheckedChange={(value) => void setNutstoreSkipBackupFile(value)}
-            />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
         </>
       )}
       <>
@@ -349,17 +321,10 @@ const NutstoreSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost: NUTSTORE_HOST,
-            webdavUser: nutstoreUsername,
-            webdavPass: nutstorePass,
-            webdavPath: nutstorePath
-          }}
-          restoreMethod={restoreFromNutstore}
+          destination="nutstore"
           customLabels={{
             restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
-            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
-            invalidConfigMessage: t('message.error.invalid.nutstore')
+            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content')
           }}
         />
       </>
@@ -374,17 +339,6 @@ export interface StatModel {
   isDeleted: boolean
   mtime: number
   size: number
-}
-
-function fileStatToStatModel(from: FileStat): StatModel {
-  return {
-    path: from.filename,
-    basename: from.basename,
-    isDir: from.type === 'directory',
-    isDeleted: false,
-    mtime: new Date(from.lastmod).valueOf(),
-    size: from.size
-  }
 }
 
 export default NutstoreSettings

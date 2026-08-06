@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { decodePortableAgentResumePoint, encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -361,6 +362,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastTopLevelAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -383,7 +385,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
-    this.resumeToken = input.resumeToken
+    this.resumeToken = decodePortableAgentResumePoint(input.resumeToken)?.sessionId
   }
 
   async start(): Promise<this> {
@@ -483,6 +485,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    this.lastTopLevelAssistantUuid = undefined
     this.adapter?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
@@ -667,7 +670,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          // Turn-gated so the resume-point anchor can never hold an outside-turn
+          // (background) uuid that the main transcript file would not contain.
+          if (message.parent_tool_use_id === null && this.adapter!.isTurnActive) {
+            this.lastTopLevelAssistantUuid = message.uuid
+          }
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -678,6 +688,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           throw error
         }
         if (result.type === 'result') {
+          if (message.type === 'result' && message.subtype === 'success') {
+            this.emitPortableResumePoint(result.sessionId)
+          }
           this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
@@ -822,7 +835,25 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private updateResumeToken(resumeToken: string): void {
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
-    this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+  }
+
+  private emitPortableResumePoint(sessionId: string): void {
+    // Encoding validates the ids are the UUIDs the SDK contract promises. A
+    // resume point is not worth losing a completed turn over, so a violation is
+    // logged and the token is dropped rather than thrown out of the result path.
+    let token: string
+    try {
+      token = encodePortableAgentResumePoint({
+        sessionId,
+        ...(this.lastTopLevelAssistantUuid ? { resumeSessionAt: this.lastTopLevelAssistantUuid } : {})
+      })
+    } catch (error) {
+      logger.warn('Skipping an unencodable portable resume point', error as Error, {
+        sessionId: this.input.sessionId
+      })
+      return
+    }
+    this.eventQueue.push({ type: 'resume-token', token })
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {

@@ -922,6 +922,10 @@ export class FileManager extends BaseService implements IFileManager {
    * - Both clean → `outcome: 'completed'`.
    */
   async runSweep(): Promise<OrphanReport> {
+    return this.runSweepManaged()
+  }
+
+  private async runSweepManaged(): Promise<OrphanReport> {
     const cleanupReport = await this.runEntryCleanup()
     const startedAt = Date.now()
     const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(

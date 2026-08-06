@@ -37,8 +37,6 @@ export enum IpcChannel {
 
   // nutstore
   Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
-  Nutstore_DecryptToken = 'nutstore:decrypt-token',
-  Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
 
   //aes
   Aes_Decrypt = 'aes:decrypt',
@@ -91,22 +89,6 @@ export enum IpcChannel {
   File_TreeMutation = 'file:tree:mutation',
 
   // backup
-  Backup_Backup = 'backup:backup',
-  Backup_Restore = 'backup:restore',
-  Backup_BackupToWebdav = 'backup:backupToWebdav',
-  Backup_RestoreFromWebdav = 'backup:restoreFromWebdav',
-  Backup_ListWebdavFiles = 'backup:listWebdavFiles',
-  Backup_CheckConnection = 'backup:checkConnection',
-  Backup_CreateDirectory = 'backup:createDirectory',
-  Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
-  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
-  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
-  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
-  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
-  Backup_BackupToS3 = 'backup:backupToS3',
-  Backup_RestoreFromS3 = 'backup:restoreFromS3',
-  Backup_ListS3Files = 'backup:listS3Files',
-  Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 

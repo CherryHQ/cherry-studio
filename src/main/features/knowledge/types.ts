@@ -97,6 +97,14 @@ export function knowledgeIndexIdempotencyKey(
   return `knowledge:${baseId}:${itemId}:index${runKey}`
 }
 
+export function knowledgeRestoreIndexIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  restoreId: string
+): string {
+  return `knowledge:${baseId}:${itemId}:restore-index:${restoreId}`
+}
+
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,

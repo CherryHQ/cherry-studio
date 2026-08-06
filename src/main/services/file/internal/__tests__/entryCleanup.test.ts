@@ -31,7 +31,7 @@ vi.mock('@application', async () => {
 
 // The scan-based cleanup gates on a pending staged restore, like the orphan sweeps.
 const hasPendingRestoreMock = vi.fn((): boolean => false)
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock('@data/db/restore/restoreGuard', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 

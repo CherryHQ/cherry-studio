@@ -81,6 +81,7 @@
   },
   "dialog": {
     "all_files": "すべてのファイル",
+    "cherry_backup_files": "[to be translated]:Cherry Studio Backup",
     "data_reset": {
       "cancel": "キャンセル",
       "confirm": "リセットして再起動",

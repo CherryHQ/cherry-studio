@@ -67,6 +67,9 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 vi.mock('@application', () => ({
   application: {
+    getPath: vi.fn((_key: string, filename?: string) =>
+      filename ? `/mock/userData/Data/Agents/${filename}` : '/mock/userData/Data/Agents'
+    ),
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
         return {
@@ -107,6 +110,7 @@ vi.mock('../settingsBuilder', () => ({
 }))
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { encodePortableAgentResumePoint } = await import('@main/ai/agents/portableProfilePolicy')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model) {
   const endpointType =
@@ -183,6 +187,23 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBe('persisted-token')
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+  })
+
+  it('resumes a managed transcript at its last completed assistant boundary', async () => {
+    mocks.getLastRuntimeResumeToken.mockReturnValue(
+      encodePortableAgentResumePoint({
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        resumeSessionAt: '22222222-2222-4222-8222-222222222222'
+      })
+    )
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.options).toMatchObject({
+      resume: '11111111-1111-4111-8111-111111111111',
+      resumeSessionAt: '22222222-2222-4222-8222-222222222222'
+    })
+    expect(request?.options.sessionStore).toBeUndefined()
   })
 
   it('leaves resume undefined when neither an explicit nor a persisted token exists', async () => {

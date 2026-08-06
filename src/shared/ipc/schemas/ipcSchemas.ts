@@ -2,7 +2,7 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
-import { type BackupEventSchemas, backupRequestSchemas } from './backup'
+import { backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
@@ -17,6 +17,7 @@ import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
 import { miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
+import { nutstoreRequestSchemas } from './nutstore'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
@@ -45,6 +46,7 @@ export const ipcRequestSchemas = {
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
   ...backupRequestSchemas,
+  ...nutstoreRequestSchemas,
   ...binaryRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
@@ -87,7 +89,6 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   AppEventSchemas &
-  BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
   LocalModelEventSchemas &

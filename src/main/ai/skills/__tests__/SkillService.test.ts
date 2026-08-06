@@ -448,7 +448,7 @@ describe('SkillService', () => {
     })
 
     it('returns null when skill does not exist', async () => {
-      const result = skillService.toggle({ agentId: AGENT_ID, skillId: 'nonexistent', isEnabled: true })
+      const result = await skillService.toggle({ agentId: AGENT_ID, skillId: 'nonexistent', isEnabled: true })
       expect(result).toBeNull()
     })
 
@@ -456,7 +456,7 @@ describe('SkillService', () => {
       await seedAgent()
       await seedSkills()
 
-      const result = skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+      const result = await skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
 
       expect(result).toMatchObject({ id: SKILL_ID_1, isEnabled: true })
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
@@ -468,7 +468,7 @@ describe('SkillService', () => {
       await seedSkills()
       await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
 
-      const result = skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: false })
+      const result = await skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: false })
 
       expect(result).toMatchObject({ id: SKILL_ID_1, isEnabled: false })
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))

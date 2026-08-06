@@ -81,6 +81,12 @@
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
+### Backup & Restore
+
+| Document | Description |
+|----------|-------------|
+| [Backup & Restore Architecture](./references/backup/README.md) | Backup v2 contract: shared portable DB, resource overlay, manifest/journal v2, promotion & recovery |
+
 ### Components
 
 | Document | Description |

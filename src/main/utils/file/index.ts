@@ -9,9 +9,12 @@
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).
+ * - `./durability` — fsync, full-write, durable unlink, and rename-only
+ *   primitives for transaction state machines.
  * - `./metadata` — content-derived classification (`getFileType(path)`,
  *   `isTextByContent`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
+ * - `./pathSafety` — link-aware path identity and ancestor/device proofs.
  * - `./pathStatus` — `getPathStatus` + its result types.
  * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
@@ -37,6 +40,11 @@
  *   / `writeIfUnchanged` instead.
  * - **Do NOT** mutate files a FileEntry references without going through
  *   FileManager (same reason).
+ * - The sole whole-profile exception is journaled preboot restore. With no
+ *   database connection or runtime FileManager alive, `data/db/restore` may
+ *   rename complete, admission-authorized DB/resource units through the
+ *   durability and path-safety primitives below. This does not authorize any
+ *   runtime caller to bypass FileManager.
  * - **OK** to use these for: temp workspaces, module-local storage (Notes,
  *   backups), OAuth token caches, MCP configs — anything outside the
  *   internal-origin storage region.
@@ -48,6 +56,19 @@
  */
 
 export { createContentHasher, hashContent, parseContentHash } from './contentHash'
+export {
+  durableFileIo,
+  fsyncDirectory,
+  fsyncDirectorySync,
+  fsyncFile,
+  fsyncFileSync,
+  renameOnly,
+  renameOnlySync,
+  shouldSilenceFsyncDirError,
+  unlinkAndFsyncParentSync,
+  writeFileFullySync,
+  type WriteFileFullySyncOptions
+} from './durability'
 export {
   assertPathVersionUnchanged,
   atomicWriteFile,
@@ -80,11 +101,21 @@ export {
   realpath,
   remove,
   removeDir,
-  shouldSilenceFsyncDirError,
   stat,
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } from './path'
+export {
+  findCrossDeviceEndpoint,
+  findUnsafeAncestor,
+  OwnedPathIdentityError,
+  type PathIdentity,
+  type PathNodeType,
+  type PathProbe,
+  probePath,
+  probePathSync,
+  removeOwnedDirectory
+} from './pathSafety'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

@@ -43,6 +43,11 @@ export interface SqliteReclaimOutcome {
 
 export interface SqliteDriver extends SqliteExecutor {
   /**
+   * Optional online SQLite backup primitive. Rebuildable test/alternate
+   * drivers may omit it; the production better-sqlite3 driver provides it.
+   */
+  backup?(destination: string, signal?: AbortSignal): Promise<void>
+  /**
    * Run `fn` inside a single write transaction. Commits when `fn` returns,
    * rolls back and rethrows when it throws — preserving the atomic-replace
    * semantics rebuildMaterial relies on (no mixed old/new rows ever visible).

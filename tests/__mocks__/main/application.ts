@@ -4,6 +4,8 @@ import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
 import { MockMainFileManagerExport } from './FileManager'
+import { MockMainKnowledgeServiceExport } from './KnowledgeService'
+import { MockMainKnowledgeVectorStoreServiceExport } from './KnowledgeVectorStoreService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -85,6 +87,8 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   FileManager: MockMainFileManagerExport.fileManager,
+  KnowledgeService: MockMainKnowledgeServiceExport.knowledgeService,
+  KnowledgeVectorStoreService: MockMainKnowledgeVectorStoreServiceExport.knowledgeVectorStoreService,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,

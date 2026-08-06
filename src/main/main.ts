@@ -53,8 +53,9 @@ const startApp = async () => {
   if (relocationResult === 'handled') return
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
-  // migration gate reads the DB. Never throws; on any failure the old DB
-  // stays live and the app starts normally.
+  // migration gate reads the DB. Recoverable attempts preserve the old DB, but
+  // an unsafe or incomplete recovery throws so the startup safety net exits
+  // instead of opening normal services on an unproven profile state.
   await runBackupRestoreGate()
 
   // 'handled' = migration window took over OR fatal error already quit the app.

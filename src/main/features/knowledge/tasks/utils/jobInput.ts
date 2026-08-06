@@ -94,7 +94,18 @@ function narrowItemJobPayload(
 }
 
 function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): KnowledgeIndexDocumentsPayload | null {
-  return narrowItemJobPayload(rawInput)
+  const input = narrowJobInputObject(rawInput)
+  if (!input) return null
+  const basePayload = narrowItemJobPayload(rawInput)
+  if (!basePayload) return null
+  const restoreId = input.restoreId
+  if (restoreId !== undefined && typeof restoreId !== 'string') return null
+
+  return {
+    baseId: basePayload.baseId,
+    itemId: basePayload.itemId,
+    ...(restoreId !== undefined ? { restoreId } : {})
+  }
 }
 
 function narrowSubtreeJobPayload(

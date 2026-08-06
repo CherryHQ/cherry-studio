@@ -1,52 +1,63 @@
-import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import type { S3Config } from '@shared/types/backup'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import S3Storage from '../S3Storage'
+const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 
-const config: S3Config = {
-  endpoint: 'https://s3.example.com',
-  region: 'us-east-1',
-  bucket: 'backups',
-  accessKeyId: 'access-key',
-  secretAccessKey: 'secret-key',
-  root: '/cherry-studio/test/',
-  autoSync: false,
-  syncInterval: 0,
-  maxBackups: 0
+vi.mock('@aws-sdk/client-s3', () => ({
+  S3Client: class {
+    send = sendMock
+  },
+  DeleteObjectCommand: class {
+    constructor(public input: { Bucket: string; Key: string }) {}
+  },
+  GetObjectCommand: class {},
+  HeadBucketCommand: class {},
+  ListObjectsV2Command: class {},
+  PutObjectCommand: class {}
+}))
+
+const { default: S3Storage } = await import('../S3Storage')
+
+function storage(root: string) {
+  return new S3Storage({
+    endpoint: 'https://s3.example.com',
+    region: 'us-east-1',
+    accessKeyId: 'id',
+    secretAccessKey: 'secret',
+    bucket: 'my-bucket',
+    root
+  } as S3Config)
 }
 
-describe('S3Storage', () => {
-  it('lists object keys relative to the configured root', async () => {
-    const storage = new S3Storage(config)
-    const send = vi.fn().mockResolvedValue({
-      Contents: [
-        { Key: 'cherry-studio/test/backup.zip', Size: 1 },
-        { Key: 'cherry-studio/test/nested/backup.zip', Size: 2 }
-      ]
-    })
-    Object.assign(storage, { client: { send } })
-
-    await expect(storage.listFiles()).resolves.toEqual([
-      { key: 'backup.zip', lastModified: undefined, size: 1 },
-      { key: 'nested/backup.zip', lastModified: undefined, size: 2 }
-    ])
-
-    expect(send.mock.calls[0][0]).toBeInstanceOf(ListObjectsV2Command)
-    expect(send.mock.calls[0][0].input.Prefix).toBe('cherry-studio/test/')
+describe('S3Storage.deleteFile', () => {
+  beforeEach(() => {
+    sendMock.mockReset()
+    sendMock.mockResolvedValue({})
   })
 
-  it('only deletes the root-scoped key and propagates failures', async () => {
-    const storage = new S3Storage(config)
-    const error = new Error('Delete failed')
-    const send = vi.fn().mockRejectedValue(error)
-    Object.assign(storage, { client: { send } })
+  // The bucket root can hold objects this app never wrote; deleting a bare key
+  // alongside the rooted one would take them out with the rotation.
+  it('deletes only the object under the configured root', async () => {
+    await storage('backups').deleteFile('cherry-studio.20260101.host.mac.zip')
 
-    await expect(storage.deleteFile('backup.zip')).rejects.toBe(error)
+    expect(sendMock).toHaveBeenCalledOnce()
+    expect(sendMock.mock.calls[0][0].input).toEqual({
+      Bucket: 'my-bucket',
+      Key: 'backups/cherry-studio.20260101.host.mac.zip'
+    })
+  })
 
-    expect(send).toHaveBeenCalledOnce()
-    const command = send.mock.calls[0][0]
-    expect(command).toBeInstanceOf(DeleteObjectCommand)
-    expect(command.input).toEqual({ Bucket: 'backups', Key: 'cherry-studio/test/backup.zip' })
+  it('leaves an already-rooted key alone', async () => {
+    await storage('backups').deleteFile('backups/old.zip')
+
+    expect(sendMock.mock.calls[0][0].input.Key).toBe('backups/old.zip')
+  })
+
+  // Rotation reads this result: a swallowed failure reports success, so old
+  // backups pile up forever while the caller believes they were pruned.
+  it('propagates a failed delete instead of reporting success', async () => {
+    sendMock.mockRejectedValueOnce(new Error('AccessDenied'))
+
+    await expect(storage('backups').deleteFile('old.zip')).rejects.toThrow('AccessDenied')
   })
 })

@@ -52,6 +52,11 @@ export class KnowledgeIndexStore {
     private readonly vectorIndex: VectorIndex
   ) {}
 
+  async snapshotTo(destination: string, signal?: AbortSignal): Promise<void> {
+    if (!this.driver.backup) throw new Error('Knowledge index driver does not support online snapshots')
+    await this.driver.backup(destination, signal)
+  }
+
   /**
    * Atomically replace everything indexed for `materialId`. Runs in one write
    * transaction so a crash or error can never leave old and new units mixed, and
