@@ -1099,7 +1099,7 @@ describe('findCommandInShellEnv', () => {
       expect(spawn).toHaveBeenCalledWith('where', ['npx'], expect.any(Object))
     })
 
-    it('should accept .cmd files on Windows as fallback', async () => {
+    it('should reject .cmd files on Windows', async () => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
@@ -1110,21 +1110,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 0)
 
       const result = await resultPromise
-      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
-    })
-
-    it('should accept .bat files on Windows as fallback', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
-
-      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-
-      // Simulate where output with only .bat file
-      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.bat\r\n')
-      mockChild.emit('close', 0)
-
-      const result = await resultPromise
-      expect(result).toBe('C:\\Program Files\\nodejs\\npx.bat')
+      expect(result).toBeNull()
     })
 
     it('should prefer .exe over .cmd when both exist', async () => {
