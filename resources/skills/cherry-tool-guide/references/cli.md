@@ -79,9 +79,9 @@ gain by shelling out — you only lose Cherry's bookkeeping.
 
 ## Example
 
-> "I need `ripgrep` available for searches."
+> "I need `jq` available for later data-processing tasks."
 
-`command -v rg` to check the agent's effective PATH → if absent, `mcp__cherry-tools__cli_list` to see
-if Cherry already manages it → `mcp__cherry-tools__cli_search` "ripgrep" for the exact
-recipe → `mcp__cherry-tools__cli_install` with that recipe (approval runs). Never
-`brew install` / `cargo install` it yourself.
+`command -v jq` to check the agent's effective PATH → if absent, `mcp__cherry-tools__cli_list` to see
+if Cherry already manages it → `mcp__cherry-tools__cli_search` "jq" for the exact recipe →
+`mcp__cherry-tools__cli_install` with that recipe (approval runs). Never `brew install` /
+`apt install` it yourself.

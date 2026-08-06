@@ -724,6 +724,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     // The stream adapter's background-work release waits for `session_state_changed: idle`
     // (streamAdapter.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+    CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
@@ -1310,35 +1311,6 @@ async function buildToolPermissions(
   }
 }
 
-/**
- * Describe the runtimes the agent's Bash tool can rely on. bun and uv ship
- * bundled and are always on PATH (extracted at boot into `cherry.bin`); node /
- * npm / npx / pip are NOT guaranteed to exist, so the model is steered to bun and
- * uv for running scripts and pulling libraries when it needs to verify logic.
- *
- * Only the `bun` binary is bundled (no `bunx` shim), so the model is told to use
- * `bun x` rather than `bunx`; `uvx` is bundled alongside `uv`. Resolved paths are
- * stable (fixed install location), so this block is safe inside the warm-query
- * system-prompt signature.
- */
-async function buildRuntimeContext(): Promise<string> {
-  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
-  return [
-    '## Managed CLI Installation',
-    'Call `cli_list` before assuming a reusable CLI is unavailable, and `cli_search` to look up its executable and mise recipe.',
-    'Install reusable CLIs only with `cli_install`. If the registry misses, read trusted public documentation and pass its exact executable plus mise recipe (for example `npm:package`, `pipx:package`, or `github:owner/repo`); never guess the executable.',
-    'Do not run remote `curl`/`wget` install scripts for reusable CLIs. Those commands remain available for APIs, data, documentation, and project files.',
-    '',
-    '## Available Runtimes',
-    'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
-    `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
-    `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
-    `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
-    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) and direct mise mutations are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.',
-    'CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
-  ].join('\n')
-}
-
 export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
@@ -1390,9 +1362,9 @@ export async function buildSystemPrompt(
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
-  // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
-  const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
+  // Runtime and tool-selection strategy lives in the default-enabled cherry-tool-guide skill.
+  // PATH injection and the dependency guard enforce availability and isolation without duplicating that handbook here.
   const promptParts = await promptBuilder.buildPromptParts(
     cwd,
     agentConfig,
@@ -1410,7 +1382,7 @@ export async function buildSystemPrompt(
           'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
         ].join('\n')}`
       : ''
-  const cherryContext = `${promptParts.context}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  const cherryContext = `${promptParts.context}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}\n\n${langInstruction}`
 
   // The workspace chooses only the base. Cherry-owned context survives either path.
   if (promptParts.base.kind === 'claude_code') {
