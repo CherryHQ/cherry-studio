@@ -12,7 +12,7 @@ import { FinishReasonError } from '@renderer/types/finish-reason-error'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
-import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
+import { LinkConverter } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type FinishReason, type TextStreamPart, type ToolSet } from 'ai'
 
@@ -46,6 +46,7 @@ export class AiSdkToChunkAdapter {
   private getSessionWasCleared?: () => boolean
   private providerId?: string
   private idleTimeout?: IdleTimeoutHandle
+  private linkConverter = new LinkConverter()
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -133,7 +134,7 @@ export class AiSdkToChunkAdapter {
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
           if (this.enableWebSearch) {
-            const remainingText = flushLinkConverterBuffer()
+            const remainingText = this.linkConverter.flush()
             if (remainingText) {
               this.markFirstTokenIfNeeded()
               this.onChunk({
@@ -216,7 +217,7 @@ export class AiSdkToChunkAdapter {
 
         // Only apply link conversion if web search is enabled
         if (this.enableWebSearch) {
-          const result = convertLinks(processedText, this.isFirstChunk)
+          const result = this.linkConverter.convert(processedText, this.isFirstChunk)
 
           if (this.isFirstChunk) {
             this.isFirstChunk = false
