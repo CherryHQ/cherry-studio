@@ -3,7 +3,6 @@ import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { LocalSkill } from '@shared/types/skill'
 
-import { excludeComposerDraftTokens } from '../../composerDraft'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
@@ -18,6 +17,11 @@ export interface AgentComposerDraftCache {
   knowledgeBaseIds: string[]
   workspaceKey: string
   agentId: string
+  shouldValidateSkills?: boolean
+}
+
+export interface RestoredAgentComposerDraftCache extends AgentComposerDraftCache {
+  shouldValidateSkills: boolean
 }
 
 interface AgentDraftCacheScope {
@@ -76,23 +80,34 @@ export function getCacheableAgentDraft(draft: ComposerSerializedDraft): Composer
   }
 }
 
-function downgradeWorkspaceDraft(draft: ComposerSerializedDraft): ComposerSerializedDraft {
-  return excludeComposerDraftTokens(
-    draft,
-    (token) => token.kind === 'file' || token.kind === 'folder' || token.kind === 'skill'
-  )
-}
-
-export function readAgentDraftCache(cacheKey: string, scope: AgentDraftCacheScope): AgentComposerDraftCache {
+export function readAgentDraftCache(cacheKey: string, scope: AgentDraftCacheScope): RestoredAgentComposerDraftCache {
   const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
   if (typeof cached === 'string') {
-    return { ...EMPTY_DRAFT_CACHE, text: cached, workspaceKey: scope.workspaceKey, agentId: scope.agentId }
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      text: cached,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
   }
-  if (!isRecord(cached)) return { ...EMPTY_DRAFT_CACHE, workspaceKey: scope.workspaceKey, agentId: scope.agentId }
+  if (!isRecord(cached)) {
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
+  }
 
   const cachedAgentId = typeof cached.agentId === 'string' ? cached.agentId : ''
   if (cachedAgentId && cachedAgentId !== scope.agentId) {
-    return { ...EMPTY_DRAFT_CACHE, workspaceKey: scope.workspaceKey, agentId: scope.agentId }
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
   }
 
   const draft = getCacheableAgentDraft({
@@ -101,16 +116,18 @@ export function readAgentDraftCache(cacheKey: string, scope: AgentDraftCacheScop
   })
   const cachedWorkspaceKey = typeof cached.workspaceKey === 'string' ? cached.workspaceKey : ''
   const workspaceMatches = cachedWorkspaceKey === '' || cachedWorkspaceKey === scope.workspaceKey
-  const restoredDraft = workspaceMatches ? draft : downgradeWorkspaceDraft(draft)
+  const shouldValidateSkills =
+    (cached.shouldValidateSkills === true || !workspaceMatches) && getCachedSkillTokens(draft.tokens).length > 0
 
   return {
-    ...restoredDraft,
-    files: workspaceMatches && Array.isArray(cached.files) ? cached.files : [],
+    ...draft,
+    files: Array.isArray(cached.files) ? cached.files : [],
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
       : [],
     workspaceKey: scope.workspaceKey,
-    agentId: scope.agentId
+    agentId: scope.agentId,
+    shouldValidateSkills
   }
 }
 
@@ -127,7 +144,8 @@ export function writeAgentDraftCache(cacheKey: string, draft: AgentComposerDraft
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
       workspaceKey: draft.workspaceKey,
-      agentId: draft.agentId
+      agentId: draft.agentId,
+      ...(draft.shouldValidateSkills && { shouldValidateSkills: true })
     },
     DRAFT_CACHE_TTL
   )

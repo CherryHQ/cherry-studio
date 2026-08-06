@@ -68,6 +68,7 @@ import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -88,6 +89,7 @@ import {
   getSkillFromCachedToken,
   hasAgentDraftCache,
   readAgentDraftCache,
+  type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
@@ -343,7 +345,7 @@ const AgentComposerRoot = ({
   const draftCacheKey = launchIdentityRef.current.draftCacheKey ?? getAgentDraftCacheKey(sessionId)
   const initialDraftRef = useRef<{
     instanceKey: string
-    draft: AgentComposerDraftCache
+    draft: RestoredAgentComposerDraftCache
     shouldPersistInitialDraft: boolean
   } | null>(null)
   const scopedComposerInstanceKey = `${composerInstanceKey}:${workspaceKey}`
@@ -459,7 +461,7 @@ interface InnerProps {
   modelPending?: boolean
   agentId: string
   sessionId: string
-  initialDraft: AgentComposerDraftCache
+  initialDraft: RestoredAgentComposerDraftCache
   draftCacheKey: string
   workspaceKey: string
   shouldPersistInitialDraft: boolean
@@ -802,6 +804,7 @@ const AgentComposerInner = ({
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
   )
+  const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const draftTokensRef = useRef(draftTokens)
@@ -833,9 +836,16 @@ const AgentComposerInner = ({
     getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
     rootPanelVisible ||
     knowledgeBasePanelVisible
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath, {
-    enabled: skillsDataEnabled
-  })
+  const {
+    skills: availableSkills,
+    loading: isAvailableSkillsLoading,
+    error: availableSkillsError,
+    refresh: refreshAvailableSkills
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  const skillByFilename = useMemo(
+    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
+    [availableSkills]
+  )
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
     enabled: knowledgeBasesDataEnabled
   })
@@ -858,6 +868,37 @@ const AgentComposerInner = ({
     },
     [clearTimeoutTimer]
   )
+
+  useEffect(() => {
+    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+
+    const draft = { text, tokens: draftTokens }
+    const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
+      if (token.kind !== 'skill') return false
+      return !skillByFilename.has(getSkillFromCachedToken(token).filename)
+    })
+    if (validatedDraft !== draft) {
+      actionsRef.current.replaceDraft(validatedDraft)
+      setText(validatedDraft.text)
+      setDraftTokens(validatedDraft.tokens)
+      draftTokensRef.current = validatedDraft.tokens
+    }
+    setSelectedSkills(
+      getCachedSkillTokens(validatedDraft.tokens).flatMap((token) => {
+        const skill = skillByFilename.get(getSkillFromCachedToken(token).filename)
+        return skill ? [skill] : []
+      })
+    )
+    setShouldValidateSkills(false)
+  }, [
+    availableSkillsError,
+    draftTokens,
+    isAvailableSkillsLoading,
+    setText,
+    shouldValidateSkills,
+    skillByFilename,
+    text
+  ])
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
@@ -978,7 +1019,8 @@ const AgentComposerInner = ({
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
-      agentId
+      agentId,
+      shouldValidateSkills
     })
   }, [
     actionsRef,
@@ -990,7 +1032,8 @@ const AgentComposerInner = ({
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
     text,
-    workspaceKey
+    workspaceKey,
+    shouldValidateSkills
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
@@ -1002,7 +1045,8 @@ const AgentComposerInner = ({
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
-      agentId
+      agentId,
+      shouldValidateSkills
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by session/workspace.
@@ -1015,10 +1059,6 @@ const AgentComposerInner = ({
       ...selectedSkills.map(agentSkillToComposerToken)
     ],
     [files, selectedKnowledgeBasesInScope, selectedSkills]
-  )
-  const skillByFilename = useMemo(
-    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
-    [availableSkills]
   )
   const resolveSkillMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
@@ -1371,6 +1411,7 @@ const AgentComposerInner = ({
     setText('')
     setFiles([])
     setSelectedSkills([])
+    setShouldValidateSkills(false)
     setDraftTokens([])
     draftTokensRef.current = []
     writeAgentDraftCache(draftCacheKey, {
@@ -1453,6 +1494,7 @@ const AgentComposerInner = ({
       const previousFiles = files
       const previousSkills = selectedSkills
       const previousDraftTokens = draftTokensRef.current
+      const previousShouldValidateSkills = shouldValidateSkills
 
       clearCurrentDraft()
       const sent = await sendQueuedPayload(payload)
@@ -1461,6 +1503,7 @@ const AgentComposerInner = ({
         setText(previousText)
         setFiles(previousFiles)
         setSelectedSkills(previousSkills)
+        setShouldValidateSkills(previousShouldValidateSkills)
         setDraftTokens(previousDraftTokens)
         draftTokensRef.current = previousDraftTokens
         writeAgentDraftCache(draftCacheKey, {
@@ -1469,7 +1512,8 @@ const AgentComposerInner = ({
           files: previousFiles,
           knowledgeBaseIds: knowledgeBaseIdsRef.current,
           workspaceKey,
-          agentId
+          agentId,
+          shouldValidateSkills: previousShouldValidateSkills
         })
         toast.error(t('chat.input.send_failed'))
       }
@@ -1489,6 +1533,7 @@ const AgentComposerInner = ({
       setFiles,
       setText,
       selectedSkills,
+      shouldValidateSkills,
       t,
       workspaceKey,
       workspaceWarning

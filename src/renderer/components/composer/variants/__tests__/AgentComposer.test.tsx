@@ -63,6 +63,8 @@ const mocks = vi.hoisted(() => ({
   replaceDraft: vi.fn(),
   toggleExpanded: vi.fn(),
   availableSkills: [] as LocalSkill[],
+  availableSkillsLoading: false,
+  availableSkillsError: null as string | null,
   availableSkillsRefresh: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
@@ -469,8 +471,8 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 vi.mock('@renderer/hooks/useSkills', () => ({
   useAvailableSkills: () => ({
     skills: mocks.availableSkills,
-    loading: false,
-    error: null,
+    loading: mocks.availableSkillsLoading,
+    error: mocks.availableSkillsError,
     refresh: mocks.availableSkillsRefresh
   })
 }))
@@ -810,6 +812,8 @@ describe('AgentComposer', () => {
     mocks.replaceDraft.mockReset()
     mocks.toggleExpanded.mockReset()
     mocks.availableSkills = []
+    mocks.availableSkillsLoading = false
+    mocks.availableSkillsError = null
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
@@ -2842,6 +2846,97 @@ describe('AgentComposer', () => {
         textOffset: 0
       }
     ])
+  })
+
+  it('waits for the new workspace skill list before removing only unavailable cached skills', async () => {
+    const staleSkill = { name: 'stale', filename: 'stale' } satisfies LocalSkill
+    const staleSkillPrompt = 'Use the stale skill.'
+    const folderPrompt = '/old-workspace/project'
+    const cachedFileToken = {
+      id: `file:${file.fileTokenSourceId}`,
+      kind: 'file' as const,
+      label: file.name,
+      payload: file,
+      index: 3,
+      textOffset: 0
+    }
+    const cachedFolderToken = {
+      id: `folder:${folderPrompt}`,
+      kind: 'folder' as const,
+      label: 'project',
+      promptText: folderPrompt,
+      index: 2,
+      textOffset: pdfSkillToken.promptText.length + staleSkillPrompt.length + 2
+    }
+    const cachedPdfSkillToken = { ...pdfSkillToken, index: 0, textOffset: 0 }
+    const cachedStaleSkillToken = {
+      id: 'skill:stale',
+      kind: 'skill' as const,
+      label: staleSkill.name,
+      promptText: staleSkillPrompt,
+      payload: staleSkill,
+      index: 1,
+      textOffset: pdfSkillToken.promptText.length + 1
+    }
+    const cachedText = `${pdfSkillToken.promptText} ${staleSkillPrompt} ${folderPrompt} keep this`
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: cachedText,
+      tokens: [cachedPdfSkillToken, cachedStaleSkillToken, cachedFolderToken, cachedFileToken],
+      files: [file],
+      knowledgeBaseIds: [],
+      workspaceKey: 'workspace-old\0/old-workspace',
+      agentId: 'agent-1'
+    })
+    mocks.availableSkills = [pdfSkill]
+    mocks.availableSkillsLoading = true
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      cachedPdfSkillToken,
+      cachedStaleSkillToken,
+      cachedFolderToken,
+      cachedFileToken
+    ])
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    mocks.availableSkillsLoading = false
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe(`${pdfSkillToken.promptText} ${folderPrompt} keep this`)
+    })
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens?.map((token) => token.id)).toEqual([
+      'skill:pdf',
+      `folder:${folderPrompt}`,
+      `file:${file.fileTokenSourceId}`
+    ])
+    expect(mocks.surfaceProps?.tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'skill:pdf' }),
+        expect.objectContaining({ id: `file:${file.fileTokenSourceId}` })
+      ])
+    )
+    expect(mocks.surfaceProps?.tokens).not.toContainEqual(expect.objectContaining({ id: 'skill:stale' }))
   })
 
   it('uses an isolated launch draft, selects its skill, and focuses without sending', async () => {

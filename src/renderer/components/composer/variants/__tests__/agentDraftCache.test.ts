@@ -108,7 +108,10 @@ describe('agentDraftCache', () => {
 
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
     vi.mocked(cacheService.getCasual).mockReturnValue(written)
-    expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual(draft)
+    expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual({
+      ...draft,
+      shouldValidateSkills: false
+    })
   })
 
   it('does not carry a session draft across an agent change', () => {
@@ -132,11 +135,12 @@ describe('agentDraftCache', () => {
       files: [],
       knowledgeBaseIds: [],
       workspaceKey: scope.workspaceKey,
-      agentId: 'agent-2'
+      agentId: 'agent-2',
+      shouldValidateSkills: false
     })
   })
 
-  it('drops workspace-bound files, folders, and skills when the workspace changes', () => {
+  it('preserves absolute-path files and resource tokens while deferring skill validation after a workspace change', () => {
     const skillPrompt = skillToken.promptText!
     const folderPrompt = folderToken.promptText!
     const linkPrompt = linkToken.promptText!
@@ -151,7 +155,8 @@ describe('agentDraftCache', () => {
           ...knowledgeToken,
           index: 3,
           textOffset: skillPrompt.length + folderPrompt.length + linkPrompt.length + 3
-        }
+        },
+        { ...fileToken, index: 4, textOffset: 0 }
       ],
       files: [file],
       knowledgeBaseIds: ['kb-1'],
@@ -160,18 +165,42 @@ describe('agentDraftCache', () => {
     })
 
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual({
-      text: `${linkPrompt} ${knowledgePrompt} keep this`,
+      text: `${skillPrompt} ${folderPrompt} ${linkPrompt} ${knowledgePrompt} keep this`,
       tokens: [
-        { ...linkToken, index: 0, textOffset: 0 },
-        { ...knowledgeToken, index: 1, textOffset: linkPrompt.length + 1 }
+        { ...skillToken, index: 0, textOffset: 0 },
+        { ...folderToken, index: 1, textOffset: skillPrompt.length + 1 },
+        { ...linkToken, index: 2, textOffset: skillPrompt.length + folderPrompt.length + 2 },
+        {
+          ...knowledgeToken,
+          index: 3,
+          textOffset: skillPrompt.length + folderPrompt.length + linkPrompt.length + 3
+        },
+        { ...fileToken, index: 4, textOffset: 0 }
       ],
-      files: [],
+      files: [file],
       knowledgeBaseIds: ['kb-1'],
-      ...scope
+      ...scope,
+      shouldValidateSkills: true
     })
   })
 
   it('keeps the skill subset available for live tool state restoration', () => {
     expect(getCachedSkillTokens([skillToken, knowledgeToken])).toEqual([skillToken])
+  })
+
+  it('persists pending workspace skill validation until a later restore can retry it', () => {
+    writeAgentDraftCache(getAgentDraftCacheKey('session-1'), {
+      text: skillToken.promptText!,
+      tokens: [skillToken],
+      files: [file],
+      knowledgeBaseIds: [],
+      ...scope,
+      shouldValidateSkills: true
+    })
+
+    const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
+    expect(written).toEqual(expect.objectContaining({ shouldValidateSkills: true }))
+    vi.mocked(cacheService.getCasual).mockReturnValue(written)
+    expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope).shouldValidateSkills).toBe(true)
   })
 })
