@@ -558,6 +558,114 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it.each([
+    { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      runtimeProviderId: 'deepseek',
+      expectedRoute: 'client'
+    },
+    { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
+  ] as const)(
+    'routes DeepSeek V4 Flash web search to $expectedRoute on $endpointType',
+    async ({ endpointType, runtimeProviderId, expectedRoute }) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: runtimeProviderId, providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const deepseekProvider = makeProvider({
+        id: 'deepseek',
+        presetProviderId: 'deepseek',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+        },
+        serverTools: [
+          {
+            id: SERVER_TOOL.WEB_SEARCH,
+            modelScope: 'model-dependent',
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+          }
+        ]
+      })
+      const deepseekModel = makeModel({
+        id: 'deepseek::deepseek-v4-flash',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-v4-flash',
+        endpointTypes: [endpointType],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.client_tools_preferred', false],
+        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+        ['chat.web_search.provider_overrides', {}],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: deepseekProvider,
+        model: deepseekModel,
+        assistant
+      })
+
+      expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(expectedRoute === 'server')
+      expect(result.tools?.web_search === clientSearchEntry.tool).toBe(expectedRoute === 'client')
+    }
+  )
+
+  it.each(['deepseek-v3', 'deepseek-v3.2'])(
+    'keeps Bailian built-in search enabled for %s on Chat Completions',
+    async (apiModelId) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const dashscopeProvider = makeProvider({
+        id: 'dashscope',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+        },
+        serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+      })
+      const dashscopeModel = makeModel({
+        id: `dashscope::${apiModelId}`,
+        providerId: 'dashscope',
+        apiModelId,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      preferenceGetMock.mockImplementation((key: string) => {
+        if (key === 'chat.web_search.client_tools_preferred') return false
+        if (key === 'chat.web_search.max_results') return 5
+        if (key === 'chat.web_search.exclude_domains') return []
+        return null
+      })
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: dashscopeProvider,
+        model: dashscopeModel,
+        assistant
+      })
+
+      expect(result.options.providerOptions).toMatchObject({
+        dashscope: { enable_search: true, search_options: { forced_search: true } }
+      })
+      expect(result.tools?.web_search).toBeUndefined()
+    }
+  )
+
   // Owning a knowledge base is global account state; the KB tools only load when this request also
   // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
   // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.

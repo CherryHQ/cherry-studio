@@ -35,6 +35,7 @@ import {
 const { copyMutation, platformState } = vi.hoisted(() => ({
   copyMutation: {
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
+    beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
     beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
@@ -71,6 +72,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
             Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
             throw error
           }
+          if (included) await copyMutation.beforeCpEntry?.(String(sourcePath), String(destinationPath))
           return included
         }
       })
@@ -153,6 +155,7 @@ describe('agentsFilesystemMigration', () => {
 
   afterEach(async () => {
     copyMutation.afterCopyFile = undefined
+    copyMutation.beforeCpEntry = undefined
     copyMutation.beforeRealpath = undefined
     copyMutation.beforeSymlink = undefined
     copyMutation.copyFileCalls.length = 0
@@ -184,6 +187,24 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(source, 'projects', 'legacy-project', 'session.jsonl'), 'utf8')).toBe(
       '{"session":true}'
     )
+  })
+
+  it('allows Claude config source metadata to change after its content snapshot', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    const sourceFile = path.join(source, 'settings.json')
+    await mkdir(source, { recursive: true })
+    await writeFile(sourceFile, '{"theme":"dark"}')
+    const originalStat = await stat(sourceFile)
+    copyMutation.beforeCpEntry = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourceFile) return
+      await utimes(sourceFile, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
   })
 
   it('reports incremental scan, copy, and verification progress for a large Claude config', async () => {
@@ -364,6 +385,48 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(destinationProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`), 'utf8')).toBe(
       '{"external":true}\n'
     )
+  })
+
+  it('allows Claude session source metadata to change after its content snapshot', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    const legacyProjectsDirectory = path.join(tempRoot, '.claude', 'projects')
+    const destinationProjectsDirectory = path.join(agentsDataRoot, '.claude', 'projects')
+    const sourceProjectDirectory = path.join(
+      legacyProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(legacyWorkspace))
+    )
+    const sourceTranscript = path.join(sourceProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`)
+    await mkdir(sourceProjectDirectory, { recursive: true })
+    await writeFile(sourceTranscript, '{"source":true}\n')
+    const originalStat = await stat(sourceTranscript)
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourceTranscript) return
+      await utimes(sourceTranscript, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      runtimeResumeTokens: [CLAUDE_SESSION_ID]
+    })
+
+    await expect(
+      copyLegacyClaudeSessionData({
+        agentsDataRoot,
+        sourceProjectsDirectories: [legacyProjectsDirectory],
+        destinationProjectsDirectory,
+        sessions: [session]
+      })
+    ).resolves.toBeUndefined()
+
+    const destinationTranscript = path.join(
+      destinationProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(session.systemWorkspacePath!)),
+      `${CLAUDE_SESSION_ID}.jsonl`
+    )
+    expect(await readFile(destinationTranscript, 'utf8')).toBe('{"source":true}\n')
   })
 
   it('replaces only the exact globally discovered Claude JSONL target', async () => {
@@ -912,7 +975,7 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
-  it('aborts if the workspace source changes while its private copy is verified', async () => {
+  it('publishes the verified workspace snapshot if the source changes after its private copy', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -930,40 +993,21 @@ describe('agentsFilesystemMigration', () => {
       createdAt: Date.parse('2026-07-22T00:00:00Z'),
       updatedAt: Date.parse('2026-07-23T00:00:00Z')
     })
-    // Mutate the source right after it is cloned into staging so the final
-    // source-metadata re-check detects the change and aborts before publishing.
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
       if (copiedSourcePath !== sourceFile) return
       copyMutation.afterCopyFile = undefined
       await writeFile(sourceFile, 'changed workspace content')
     }
 
-    await expect(
-      stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [oldSession, latestSession]
-      })
-    ).rejects.toThrow(/changed while being (copied|read)/)
-
-    expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
-    for (const session of [oldSession, latestSession]) {
-      await expect(access(path.join(session.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
-      expect(
-        (await readdir(path.dirname(session.systemWorkspacePath!))).every(
-          (entry) => !entry.startsWith(`.${path.basename(session.systemWorkspacePath!)}.migration-`)
-        )
-      ).toBe(true)
-    }
-    copyMutation.afterCopyFile = undefined
     await stageLegacyAgentFiles({
       agentsDataRoot,
       agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
       sessions: [oldSession, latestSession]
     })
 
+    expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-      'changed workspace content'
+      'original workspace content'
     )
     expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
   })
@@ -1038,6 +1082,50 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('newest soul')
     expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('fallback user')
     expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('fallback fact')
+  })
+
+  it('allows identity source metadata to change when its content stays unchanged', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'USER.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'user identity')
+    const originalStat = await stat(sourcePath)
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourcePath) return
+      await utimes(sourcePath, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: []
+      })
+    ).resolves.toBeUndefined()
+
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'USER.md'), 'utf8')).toBe('user identity')
+  })
+
+  it('publishes the verified identity snapshot when source content changes after it is copied', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'USER.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'original identity')
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourcePath) return
+      await writeFile(sourcePath, 'changed identity')
+    }
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: []
+    })
+
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('original identity')
+    expect((await readdir(agentDataPath)).every((entry) => !entry.startsWith('.USER.md.migration-'))).toBe(true)
+    expect(await readFile(sourcePath, 'utf8')).toBe('changed identity')
   })
 
   it.runIf(process.platform !== 'win32')(
@@ -1744,7 +1832,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'completed.txt'), 'utf8')).toBe('copied value')
   })
 
-  it('aborts before publishing when a source changes during the copy window', async () => {
+  it('allows workspace source metadata to change during the copy window', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourcePath = path.join(legacyWorkspace, 'race.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -1752,8 +1840,7 @@ describe('agentsFilesystemMigration', () => {
     const originalStat = await stat(sourcePath)
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
       if (copiedSourcePath !== sourcePath) return
-      await writeFile(sourcePath, 'newest value')
-      await utimes(sourcePath, originalStat.atime, originalStat.mtime)
+      await utimes(sourcePath, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
     }
     const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
       sourceSessionId: 'session_latest',
@@ -1768,10 +1855,10 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).rejects.toThrow(/changed while being (?:read|copied)/)
+    ).resolves.toBeUndefined()
 
-    expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
-    await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
+    expect(await readFile(sourcePath, 'utf8')).toBe('copied value')
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'race.txt'), 'utf8')).toBe('copied value')
   })
 
   it.runIf(process.platform !== 'win32')(

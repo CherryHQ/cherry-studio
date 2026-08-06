@@ -11121,29 +11121,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.1",
-      "modelId": "claude-opus-4-1",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 18.75
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 75
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.5",
       "modelId": "claude-opus-4-5",
       "pricing": {
@@ -20204,6 +20181,7 @@
     },
     {
       "apiModelId": "gpt-5.6-luna",
+      "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-6-luna",
       "pricing": {
         "cacheRead": {
@@ -20223,11 +20201,23 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "grok-4.5",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "grok-4-5",
       "pricing": {
         "cacheRead": {
@@ -20254,11 +20244,22 @@
               }
             ]
           }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ]
+          }
         }
       }
     },
     {
       "apiModelId": "hy3",
+      "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
       "pricing": {
         "cacheRead": {
@@ -20274,7 +20275,19 @@
           "perMillionTokens": 0.58
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "high"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "kimi-k2.5",
@@ -20917,6 +20930,7 @@
     },
     {
       "apiModelId": "qwen3.8-max",
+      "endpointTypes": ["anthropic-messages"],
       "modelId": "qwen3-8-max",
       "pricing": {
         "cacheRead": {
@@ -20936,7 +20950,60 @@
           "perMillionTokens": 6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 262144,
+                "min": 1
+              },
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1024,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "aion-labs/aion-2.0",
@@ -23925,15 +23992,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1794
+          "perMillionTokens": 0.1768
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.966
+          "perMillionTokens": 0.952
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.036
+          "perMillionTokens": 2.992
         }
       },
       "providerId": "openrouter",
@@ -26421,7 +26488,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.73
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
@@ -27289,7 +27356,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
@@ -27685,6 +27752,41 @@
     {
       "apiModelId": "meta/muse-spark-1.1",
       "modelId": "muse-spark-1-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "meta/muse-spark-1.2",
+      "modelId": "muse-spark-1-2",
+      "name": "Muse Spark 1.2",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29334,11 +29436,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.98
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.95
+          "perMillionTokens": 4
         }
       },
       "providerId": "openrouter",
@@ -36352,5 +36454,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "cfc23aa59b891b91"
+  "version": "5ab3c5c185001410"
 }

@@ -25,7 +25,6 @@ export type SessionExportMenuOptions = Record<
   | 'joplin'
   | 'markdown'
   | 'markdown_reason'
-  | 'notes'
   | 'notion'
   | 'obsidian'
   | 'plain_text'
@@ -135,9 +134,9 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.save-notes',
-  availability: ({ exportMenuOptions, onSaveToNotes }) => ({
-    visible: !!exportMenuOptions?.notes && !!onSaveToNotes,
-    enabled: !!exportMenuOptions?.notes && !!onSaveToNotes
+  availability: ({ onSaveToNotes }) => ({
+    visible: !!onSaveToNotes,
+    enabled: !!onSaveToNotes
   }),
   run: ({ onSaveToNotes }) => onSaveToNotes?.()
 })
