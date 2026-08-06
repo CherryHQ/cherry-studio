@@ -29,7 +29,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -54,12 +54,8 @@ interface UseChatRuntimeStateParams {
   isHistoryLoading: boolean
   initialMessages: CherryUIMessage[]
   uiMessages: CherryUIMessage[]
-  /** See `UseTopicMessagesResult.siblingsMap` — passed through to the write actions. */
-  siblingsMap: Record<string, DbMessage[]>
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
@@ -108,10 +104,8 @@ export function useChatRuntimeState({
   isHistoryLoading,
   initialMessages,
   uiMessages,
-  siblingsMap,
   refresh,
   activeNodeId,
-  rootId,
   messagesCacheMutate,
   assistant,
   onBranchLiveStateChange,
@@ -363,9 +357,7 @@ export function useChatRuntimeState({
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,
     uiMessages: messages,
-    siblingsMap,
     activeNodeId,
-    rootId,
     regenerate,
     setMessages,
     stop,

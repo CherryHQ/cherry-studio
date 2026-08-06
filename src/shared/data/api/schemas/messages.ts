@@ -90,22 +90,6 @@ export interface DeleteMessageResponse {
   newActiveNodeId?: string | null
 }
 
-const DeleteMessagesIdsQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).min(1))
-
-/** Query for deleting one rendered group of assistant replies. */
-export const DeleteMessagesQuerySchema = z.strictObject({
-  ids: DeleteMessagesIdsQueryValueSchema
-})
-export type DeleteMessagesQuery = z.input<typeof DeleteMessagesQuerySchema>
-
 /**
  * Response for "clear all messages" — deletes every content message of a topic
  * (the virtual root's whole subtree) in one transaction, keeping the content-less
@@ -182,21 +166,21 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * Organized by domain responsibility:
  * - /topics/:id/tree - Tree visualization
  * - /topics/:id/messages - Branch messages for conversation
- * - /messages - Assistant reply group operations
+ * - /messages/:id/reply-group - Assistant reply group operations
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
   /**
-   * Delete an explicit group of sibling assistant replies.
+   * Delete the complete assistant reply group containing one representative.
    *
    * The replies are spliced out atomically: each reply's direct children are
    * reparented to the shared user-message parent before the replies are deleted.
    *
-   * @example DELETE /messages?ids=reply_1,reply_2
+   * @example DELETE /messages/reply_1/reply-group
    */
-  '/messages': {
+  '/messages/:id/reply-group': {
     DELETE: {
-      query: DeleteMessagesQuery
+      params: { id: string }
       response: DeleteMessageResponse
     }
   }

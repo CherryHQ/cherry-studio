@@ -123,6 +123,7 @@ import {
   resolveMessageMenuBarTranslationItems
 } from '../messageMenuBarActions'
 import {
+  renderDeleteToolbarAction,
   renderModelPickerToolbarAction,
   renderMoreMenuToolbarAction,
   renderTranslateToolbarAction
@@ -204,7 +205,7 @@ describe('messageMenuBarActions', () => {
   it('disables deletion while the target message is unavailable', () => {
     const context = createActionContext({
       actions: {
-        getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'message-unavailable' })),
+        getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'not-loaded' })),
         deleteMessage: vi.fn()
       } as MessageListActions
     })
@@ -216,6 +217,24 @@ describe('messageMenuBarActions', () => {
       enabled: false,
       reason: 'message.delete.root_unavailable'
     })
+
+    render(
+      renderDeleteToolbarAction({
+        action: deleteAction!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems: []
+      })
+    )
+
+    const deleteButton = screen.getByRole('button')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.closest('[data-testid="mock-tooltip"]')).toHaveAttribute(
+      'data-content',
+      'message.delete.root_unavailable'
+    )
   })
 
   it('keeps user edit toolbar action for root messages', () => {

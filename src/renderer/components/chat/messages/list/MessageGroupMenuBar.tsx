@@ -37,21 +37,12 @@ const MessageGroupMenuBar: FC<Props> = ({
   const actions = useMessageListActions()
   const groupMessageIds = messages.map((message) => message.id)
 
-  const isTransmittingMessage = (m: MessageListItem) => {
-    if (m.role !== 'assistant') return false
-    return m.status === 'pending'
-  }
-
-  const hasTransmittingMessages = messages.some(isTransmittingMessage)
   const deleteAvailability = groupMessageIds
     .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
     .find((availability) => availability?.enabled === false)
-  const isDeleteDisabled = hasTransmittingMessages || deleteAvailability?.enabled === false
-  const deleteDisabledReason = hasTransmittingMessages
-    ? t('message.delete.generating_unavailable')
-    : deleteAvailability?.enabled === false
-      ? getMessageDeleteUnavailableText(deleteAvailability.reason, t)
-      : undefined
+  const isDeleteDisabled = deleteAvailability?.enabled === false
+  const deleteDisabledReason =
+    deleteAvailability?.enabled === false ? getMessageDeleteUnavailableText(deleteAvailability.reason, t) : undefined
 
   const handleDeleteGroup = async () => {
     if (groupMessageIds.length === 0 || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
@@ -69,10 +60,10 @@ const MessageGroupMenuBar: FC<Props> = ({
   }
 
   const hasFailedMessages =
-    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
-    const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    const candidates = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
     let failedCount = 0
     let lastError: unknown
 

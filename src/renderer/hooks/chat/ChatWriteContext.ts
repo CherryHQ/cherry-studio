@@ -18,9 +18,7 @@ export interface DeleteMessageOptions {
   selectedMessageIds?: readonly string[]
 }
 
-export type MessageDeleteAvailability =
-  | { enabled: true }
-  | { enabled: false; reason: 'root-unavailable' | 'message-unavailable' }
+export type MessageDeleteAvailability = { enabled: true } | { enabled: false; reason: 'not-loaded' | 'generating' }
 
 /** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */

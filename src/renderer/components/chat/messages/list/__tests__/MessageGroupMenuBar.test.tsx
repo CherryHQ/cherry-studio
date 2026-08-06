@@ -104,7 +104,12 @@ describe('MessageGroupMenuBar', () => {
 
   it('disables group deletion while a reply in the group is still generating', () => {
     const deleteMessageGroupWithConfirm = vi.fn()
-    mocks.actions = { deleteMessageGroupWithConfirm }
+    mocks.actions = {
+      deleteMessageGroupWithConfirm,
+      getMessageDeleteAvailability: vi.fn((id) =>
+        id === 'assistant-2' ? ({ enabled: false, reason: 'generating' } as const) : ({ enabled: true } as const)
+      )
+    }
     const transmittingMessages = [messages[0], { ...messages[1], status: 'pending' } as MessageListItem]
 
     render(
@@ -125,8 +130,8 @@ describe('MessageGroupMenuBar', () => {
   })
 
   it.each([
-    ['root-unavailable', 'message.delete.root_unavailable'],
-    ['message-unavailable', 'message.delete.root_unavailable']
+    ['not-loaded', 'message.delete.root_unavailable'],
+    ['generating', 'message.delete.generating_unavailable']
   ] as const)('disables group deletion for %s', (reason, tooltip) => {
     mocks.actions = {
       deleteMessageGroupWithConfirm: vi.fn(),

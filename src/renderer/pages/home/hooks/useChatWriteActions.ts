@@ -79,12 +79,7 @@ function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined)
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
-  /** Any sibling member id → full ordered sibling group (see `useTopicMessages`). Used to
-   *  expand displayed reply bubbles to their whole regenerate bucket on group deletion. */
-  siblingsMap: Record<string, DbMessage[]>
   activeNodeId: string | null
-  /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
@@ -107,9 +102,7 @@ export function useChatWriteActions(params: Params): Result {
   const {
     topic,
     uiMessages,
-    siblingsMap,
     activeNodeId,
-    rootId,
     regenerate,
     setMessages,
     stop,
@@ -216,12 +209,14 @@ export function useChatWriteActions(params: Params): Result {
 
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
-      if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
       const message = uiMessages.find((item) => item.id === id)
-      if (!message) return { enabled: false, reason: 'message-unavailable' }
+      if (!message) return { enabled: false, reason: 'not-loaded' }
+      if (message.role === 'assistant' && message.metadata?.status === 'pending') {
+        return { enabled: false, reason: 'generating' }
+      }
       return { enabled: true }
     },
-    [rootId, uiMessages]
+    [uiMessages]
   )
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
@@ -260,17 +255,12 @@ export function useChatWriteActions(params: Params): Result {
       ) {
         throw new Error('Message group deletion is unavailable')
       }
-      // Each rendered bubble is only its model bucket's representative — regenerated
-      // versions of the same reply sit hidden behind the sibling navigator. Expand every
-      // id to its full sibling group so those are deleted with the group. (Hidden siblings
-      // are absent from `uiMessages`, so availability is checked on the displayed ids above.)
-      const targetIds = Array.from(
-        new Set(uniqueMessageIds.flatMap((messageId) => siblingsMap[messageId]?.map((m) => m.id) ?? [messageId]))
-      )
-      const deletedSet = new Set(targetIds)
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
+      // Optimistically remove only the rendered representatives. The service resolves the
+      // complete sibling group inside its transaction and returns the authoritative ids.
+      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(uniqueMessageIds)))
       try {
-        const result = await deleteMessageGroupTrigger({ query: { ids: targetIds.join(',') } })
+        const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
+        await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         invalidateCachedMessageUiStates(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
@@ -278,14 +268,7 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [
-      branchWithoutIds,
-      deleteMessageGroupTrigger,
-      getMessageDeleteAvailability,
-      rollbackBranch,
-      seedOptimisticBranch,
-      siblingsMap
-    ]
+    [branchWithoutIds, deleteMessageGroupTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(

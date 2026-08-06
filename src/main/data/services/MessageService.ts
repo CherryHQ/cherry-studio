@@ -1406,75 +1406,89 @@ export class MessageService {
   }
 
   /**
-   * Delete one rendered group of assistant replies while preserving its descendants.
+   * Delete the complete assistant reply group containing `id`, preserving descendants.
    *
-   * Every target must be a live assistant message under the same parent. Their direct
-   * children are reparented to that shared parent before the replies are removed, so
-   * deleting a multi-model response group has the same splice semantics as deleting a
-   * single message. The whole operation commits atomically.
+   * Group membership is resolved from the database inside the write transaction so the
+   * renderer cannot accidentally omit hidden or newly-created siblings. A zero group id
+   * represents an ungrouped reply and therefore deletes only the requested message.
    */
-  deleteReplyGroup(ids: string[]): DeleteMessageResponse {
-    const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { deletedIds: [] }
-
+  deleteReplyGroup(id: string): DeleteMessageResponse {
     const result = application.get('DbService').withWriteTx((tx) => {
-      const targets = tx
+      const [target] = tx
         .select({
           id: messageTable.id,
           parentId: messageTable.parentId,
           topicId: messageTable.topicId,
-          role: messageTable.role
+          role: messageTable.role,
+          status: messageTable.status,
+          siblingsGroupId: messageTable.siblingsGroupId
         })
         .from(messageTable)
-        .where(and(inArray(messageTable.id, uniqueIds), isNull(messageTable.deletedAt)))
+        .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
+        .limit(1)
         .all()
 
-      if (targets.length !== uniqueIds.length) {
-        const foundIds = new Set(targets.map((target) => target.id))
-        const missingId = uniqueIds.find((id) => !foundIds.has(id)) ?? uniqueIds[0]
-        throw DataApiErrorFactory.notFound('Message', missingId)
-      }
-
-      const first = targets[0]
-      if (!first.parentId || targets.some((target) => target.role !== 'assistant')) {
+      if (!target) throw DataApiErrorFactory.notFound('Message', id)
+      if (!target.parentId || target.role !== 'assistant') {
         throw DataApiErrorFactory.invalidOperation(
           'delete message group',
-          'only sibling assistant replies can be deleted'
+          'only an assistant reply can identify a reply group'
         )
       }
-      if (targets.some((target) => target.parentId !== first.parentId || target.topicId !== first.topicId)) {
-        throw DataApiErrorFactory.invalidOperation('delete message group', 'messages must share one parent')
+
+      const targets =
+        target.siblingsGroupId === 0
+          ? [target]
+          : tx
+              .select({
+                id: messageTable.id,
+                parentId: messageTable.parentId,
+                topicId: messageTable.topicId,
+                role: messageTable.role,
+                status: messageTable.status,
+                siblingsGroupId: messageTable.siblingsGroupId
+              })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.parentId, target.parentId),
+                  eq(messageTable.topicId, target.topicId),
+                  eq(messageTable.role, 'assistant'),
+                  eq(messageTable.siblingsGroupId, target.siblingsGroupId),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+              .all()
+
+      if (targets.some((message) => message.status === 'pending')) {
+        throw DataApiErrorFactory.invalidOperation('delete message group', 'a reply in the group is still generating')
       }
 
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, first.topicId)).limit(1).all()
-      if (!topic) throw DataApiErrorFactory.notFound('Topic', first.topicId)
+      const targetIds = targets.map((message) => message.id)
+
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, target.topicId)).limit(1).all()
+      if (!topic) throw DataApiErrorFactory.notFound('Topic', target.topicId)
 
       const reparentedIds = this.reparentChildrenTx(tx, targets)
       let newActiveNodeId: string | null | undefined
 
-      if (topic.activeNodeId && uniqueIds.includes(topic.activeNodeId)) {
-        const [parent] = tx
-          .select({ role: messageTable.role })
-          .from(messageTable)
-          .where(eq(messageTable.id, first.parentId))
-          .limit(1)
-          .all()
-        newActiveNodeId = !parent || parent.role === 'root' ? null : first.parentId
+      if (topic.activeNodeId && targetIds.includes(topic.activeNodeId)) {
+        newActiveNodeId = this.resolveActiveNodeFallbackTx(tx, target.parentId)
       }
 
-      tx.delete(messageTable).where(inArray(messageTable.id, uniqueIds)).run()
+      tx.delete(messageTable).where(inArray(messageTable.id, targetIds)).run()
 
       if (newActiveNodeId !== undefined) {
         const topicService = getDataService('TopicService')
         if (newActiveNodeId === null) {
-          topicService.clearActiveNodeTx(tx, first.topicId)
+          topicService.clearActiveNodeTx(tx, target.topicId)
         } else {
-          topicService.setActiveNodeTx(tx, first.topicId, newActiveNodeId, { assumeValid: true })
+          topicService.setActiveNodeTx(tx, target.topicId, newActiveNodeId, { assumeValid: true })
         }
       }
 
       return {
-        deletedIds: uniqueIds,
+        deletedIds: targetIds,
         reparentedIds: reparentedIds.length > 0 ? reparentedIds : undefined,
         newActiveNodeId
       }
@@ -1534,7 +1548,6 @@ export class MessageService {
     if (message.role === 'root' || message.parentId === null) {
       throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
     }
-
     // Get all descendant IDs before transaction (for cascade delete)
     let descendantIds: string[] = []
     if (cascade) {
@@ -1547,22 +1560,8 @@ export class MessageService {
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
 
-      // The 'parent' fallback for activeNodeId is the deleted message's parent — but the
-      // virtual root is never a valid active node. Deleting a first-turn message (whose
-      // parent is the root) must clear activeNodeId, not point it at the root. The parent
-      // is always an ancestor (never in deletedIds), so it survives the delete below.
-      let parentFallback: string | null = message.parentId
-      let parentIsRoot = false
-      if (parentFallback) {
-        const [parent] = tx
-          .select({ role: messageTable.role })
-          .from(messageTable)
-          .where(eq(messageTable.id, parentFallback))
-          .limit(1)
-          .all()
-        parentIsRoot = parent?.role === 'root'
-        if (!parent || parentIsRoot) parentFallback = null
-      }
+      // The virtual root is structural and never a valid active node.
+      const parentFallback = this.resolveActiveNodeFallbackTx(tx, message.parentId)
 
       if (cascade) {
         deletedIds = [id, ...descendantIds]
@@ -1618,6 +1617,19 @@ export class MessageService {
         newActiveNodeId
       }
     })
+  }
+
+  private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
+    if (!parentId) return null
+
+    const [parent] = tx
+      .select({ role: messageTable.role })
+      .from(messageTable)
+      .where(and(eq(messageTable.id, parentId), isNull(messageTable.deletedAt)))
+      .limit(1)
+      .all()
+
+    return !parent || parent.role === 'root' ? null : parentId
   }
 
   private reparentChildrenTx(tx: DbOrTx, targets: Array<Pick<MessageRow, 'id' | 'parentId'>>): string[] {

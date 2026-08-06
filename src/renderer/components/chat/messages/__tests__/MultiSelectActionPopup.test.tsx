@@ -79,8 +79,8 @@ describe('MultiSelectionPopup', () => {
     })
 
     it.each([
-      ['root-unavailable', 'message.delete.root_unavailable'],
-      ['message-unavailable', 'message.delete.root_unavailable']
+      ['not-loaded', 'message.delete.root_unavailable'],
+      ['generating', 'message.delete.generating_unavailable']
     ] as const)('disables only deletion for %s', (deleteDisabledReason, tooltip) => {
       render(<MultiSelectActionPopup {...controlledProps()} deleteDisabledReason={deleteDisabledReason} />)
 
