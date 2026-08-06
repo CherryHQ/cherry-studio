@@ -5959,8 +5959,12 @@
             "description": "Caches HTTP, de código, de shaders e CacheStorage, ficheiros temporários e dados de rastreio.",
             "title": "Cache normal"
           },
+          "orphaned_data": {
+            "description": "Remove ficheiros e bases de conhecimento residuais que já não são utilizados. Os dados ainda em utilização são preservados.",
+            "title": "Ficheiros e bases de conhecimento residuais"
+          },
           "restore_staging": {
-            "description": "Ficheiros temporários criados pelo processo antigo de restauro de cópias de segurança. Ao eliminá-los, qualquer restauro incompleto deixa de poder continuar.",
+            "description": "Ficheiros temporários criados durante o restauro de cópias de segurança. Ao eliminá-los, qualquer restauro incompleto deixa de poder continuar.",
             "title": "Ficheiros temporários de restauro"
           },
           "site_data": {

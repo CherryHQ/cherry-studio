@@ -5959,8 +5959,12 @@
             "description": "Caches HTTP, de code, de shaders et CacheStorage, ainsi que fichiers temporaires et données de trace.",
             "title": "Cache standard"
           },
+          "orphaned_data": {
+            "description": "Supprime les fichiers et bases de connaissances résiduels qui ne sont plus utilisés. Les données encore utilisées sont conservées.",
+            "title": "Fichiers et bases de connaissances résiduels"
+          },
           "restore_staging": {
-            "description": "Fichiers temporaires créés par l’ancien processus de restauration de sauvegarde. Leur suppression empêche toute restauration inachevée de se poursuivre.",
+            "description": "Fichiers temporaires créés lors de la restauration d’une sauvegarde. Leur suppression empêche toute restauration inachevée de se poursuivre.",
             "title": "Fichiers temporaires de restauration"
           },
           "site_data": {

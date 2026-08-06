@@ -25,12 +25,17 @@ describe('ClearCachePopup', () => {
     inspectMock.mockImplementation(
       (
         _route: string,
-        { groups }: { groups: Array<'normal_cache' | 'site_data' | 'legacy_v1' | 'restore_staging'> }
+        {
+          groups
+        }: {
+          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'legacy_v1' | 'restore_staging'>
+        }
       ) => {
         const group = groups[0]
         const bytes = {
           normal_cache: 1024,
           site_data: 2048,
+          orphaned_data: 512,
           legacy_v1: 100,
           restore_staging: 4096
         }[group]
@@ -50,24 +55,27 @@ describe('ClearCachePopup', () => {
     )
   })
 
-  it('shows four choices and selects only regular cache by default', async () => {
+  it('shows five choices and selects only regular cache by default', async () => {
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     const checkboxes = screen.getAllByRole('checkbox')
-    expect(checkboxes).toHaveLength(4)
+    expect(checkboxes).toHaveLength(5)
     expect(checkboxes[0]).toBeChecked()
     for (const checkbox of checkboxes.slice(1)) {
       expect(checkbox).not.toBeChecked()
     }
     expect(screen.getByText('旧版本遗留数据')).toBeInTheDocument()
+    expect(screen.getByText('残留文件与知识库')).toBeInTheDocument()
+    expect(screen.getByText(/不再使用的文件和知识库残留/)).toBeInTheDocument()
     expect(screen.getByText(/旧知识库回滚数据/)).toBeInTheDocument()
     expect(screen.getByText('备份恢复临时文件')).toBeInTheDocument()
+    expect(screen.getByText(/备份恢复过程中产生的临时文件/)).toBeInTheDocument()
     expect(screen.getByText(/未完成的恢复将无法继续/)).toBeInTheDocument()
     expect(screen.getByText(/重新登录网站/)).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: '清除缓存' })).toBeEnabled()
-    expect(inspectMock).toHaveBeenCalledTimes(4)
+    expect(inspectMock).toHaveBeenCalledTimes(5)
     expect(inspectBrowserMock).toHaveBeenCalledOnce()
   })
 
@@ -89,7 +97,11 @@ describe('ClearCachePopup', () => {
     inspectMock.mockImplementation(
       (
         _route: string,
-        { groups }: { groups: Array<'normal_cache' | 'site_data' | 'legacy_v1' | 'restore_staging'> }
+        {
+          groups
+        }: {
+          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'legacy_v1' | 'restore_staging'>
+        }
       ) => {
         const group = groups[0]
         return Promise.resolve({
@@ -123,7 +135,7 @@ describe('ClearCachePopup', () => {
 
     await waitFor(() => expect(resolve).toHaveBeenCalledWith(undefined))
     expect(onClear).toHaveBeenCalledWith(['normal_cache'])
-    expect(inspectMock).toHaveBeenCalledTimes(4)
+    expect(inspectMock).toHaveBeenCalledTimes(5)
   })
 
   it('blocks repeated cleanup and refreshes every size after an incomplete cleanup', async () => {
@@ -143,14 +155,14 @@ describe('ClearCachePopup', () => {
     expect(confirmButton).toBeDisabled()
     expect(screen.getByRole('button', { name: '关闭' })).toBeEnabled()
     expect(screen.getAllByRole('checkbox').every((checkbox) => checkbox.hasAttribute('disabled'))).toBe(true)
-    expect(inspectMock).toHaveBeenCalledTimes(4)
+    expect(inspectMock).toHaveBeenCalledTimes(5)
 
     fireEvent.click(confirmButton)
     expect(onClear).toHaveBeenCalledTimes(1)
 
     finishCleanup?.(false)
 
-    await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(8))
+    await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(10))
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     expect(resolve).not.toHaveBeenCalled()
     expect(confirmButton).toBeEnabled()
@@ -181,6 +193,6 @@ describe('ClearCachePopup', () => {
     await cleanup
 
     expect(onClear).toHaveBeenCalledOnce()
-    expect(inspectMock).toHaveBeenCalledTimes(4)
+    expect(inspectMock).toHaveBeenCalledTimes(5)
   })
 })

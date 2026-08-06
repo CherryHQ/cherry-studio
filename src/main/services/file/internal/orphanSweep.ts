@@ -35,7 +35,7 @@
  * compile error (`assertNever`).
  */
 
-import { readdir, stat, unlink } from 'node:fs/promises'
+import { lstat, readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -252,6 +252,22 @@ type FileSweepOutcome =
 
 export type FileSweepReport = FileSweepStats & FileSweepOutcome
 
+function pendingRestoreFileSweepReport(): FileSweepReport {
+  return {
+    ...zeroStats(0, Date.now()),
+    outcome: 'aborted',
+    abortReason: 'pending-restore'
+  }
+}
+
+/** Build the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
+export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+  if (hasPendingRestore()) {
+    return pendingRestoreFileSweepReport()
+  }
+  return runFileSweepInner(deps, false)
+}
+
 /**
  * Enumerate `{userData}/Data/Files/` and unlink:
  *   - UUID-named files whose id is not in the FileEntry snapshot
@@ -267,15 +283,11 @@ export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepRep
   // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
   // not yet referenced by the live DB — exactly what this sweep would unlink.
   if (hasPendingRestore()) {
-    const report: FileSweepReport = {
-      ...zeroStats(0, Date.now()),
-      outcome: 'aborted',
-      abortReason: 'pending-restore'
-    }
+    const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps)
+  const report = await runFileSweepInner(deps, true)
   logFileSweep(report)
   return report
 }
@@ -311,7 +323,7 @@ interface CandidatePlan {
   readonly mtimeMs: number
 }
 
-async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
@@ -344,9 +356,9 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
     let statFailedCount = 0
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
-      let st: Awaited<ReturnType<typeof stat>>
+      let st: Awaited<ReturnType<typeof lstat>>
       try {
-        st = await stat(fullPath)
+        st = await lstat(fullPath)
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code !== 'ENOENT') {
@@ -390,7 +402,7 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
     // intentionally allowed through. Surface it at warn-level so on-call has
     // a forensic breadcrumb when a user reports "Cherry deleted my files":
     // the fraction would otherwise have tripped the safety threshold.
-    if (!abortReason && planned.length > 0) {
+    if (deleteFiles && !abortReason && planned.length > 0) {
       const countFraction = planned.length / Math.max(1, candidatesCount)
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
@@ -424,6 +436,22 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
         scanDurationMs: Date.now() - startedAt,
         outcome: 'aborted',
         abortReason
+      }
+    }
+
+    if (!deleteFiles) {
+      return {
+        entriesInDb: idSnapshot.size,
+        direntsScanned: dirents.length,
+        filesOnDisk: candidatesCount,
+        bytesOnDisk: candidatesBytes,
+        plannedDeleteCount: planned.length,
+        plannedDeleteBytes: plannedBytes,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        statFailedCount,
+        scanDurationMs: Date.now() - startedAt,
+        outcome: 'completed'
       }
     }
 

@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { createReadStream, type Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { bootConfigService } from '@data/bootConfig'
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
+import { KnowledgeBaseIdSchema } from '@shared/data/types/knowledge'
 import type {
   CacheCleanupGroup,
   CacheCleanupGroupInspection,
@@ -322,6 +325,74 @@ async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
   return toSizeSnapshot(await measurePaths(targets), 'estimated')
 }
 
+async function collectOrphanKnowledgeTargets(): Promise<{
+  targets: CleanupTarget[]
+  issues: CacheCleanupIssue[]
+}> {
+  const item = 'orphan_knowledge_bases'
+  if (hasPendingRestore()) {
+    return { targets: [], issues: [issue(item, 'inspection_failed')] }
+  }
+
+  const knowledgeRoot = getCleanupPaths().knowledge
+  const rootStatus = await inspectTarget(knowledgeRoot, item, 'directory')
+  if (rootStatus === 'missing') return { targets: [], issues: [] }
+  if (rootStatus === 'invalid') return { targets: [], issues: [issue(item, 'unsafe_target')] }
+
+  let knownBaseIds: Set<string>
+  let entries: Dirent[]
+  try {
+    knownBaseIds = knowledgeBaseService.listAllIds()
+    entries = await fs.readdir(knowledgeRoot, { withFileTypes: true })
+  } catch (error) {
+    logger.warn('Failed to inspect knowledge base ownership', { path: knowledgeRoot, error })
+    return { targets: [], issues: [issue(item, 'inspection_failed')] }
+  }
+
+  const targets: CleanupTarget[] = []
+  const issues: CacheCleanupIssue[] = []
+  for (const entry of entries) {
+    if (!KnowledgeBaseIdSchema.safeParse(entry.name).success || knownBaseIds.has(entry.name)) continue
+
+    const targetPath = path.join(knowledgeRoot, entry.name)
+    if (entry.isSymbolicLink()) {
+      issues.push(issue(`${item}:${entry.name}`, 'unsafe_target'))
+      continue
+    }
+    if (!entry.isDirectory()) continue
+
+    const status = await inspectTarget(targetPath, `${item}:${entry.name}`, 'directory')
+    if (status === 'valid') {
+      targets.push({ item: `${item}:${entry.name}`, path: targetPath, kind: 'directory' })
+    } else if (status === 'invalid') {
+      issues.push(issue(`${item}:${entry.name}`, 'unsafe_target'))
+    }
+  }
+  return { targets, issues }
+}
+
+async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
+  const [fileReport, knowledgePlan] = await Promise.all([
+    application.get('FileManager').inspectOrphanFiles(),
+    collectOrphanKnowledgeTargets()
+  ])
+  const knowledgeMeasurement = await measurePaths(
+    knowledgePlan.targets.map(({ item, path: targetPath }) => ({ item, path: targetPath }))
+  )
+  const fileIssues: CacheCleanupIssue[] = []
+  if (fileReport.outcome !== 'completed' || fileReport.statFailedCount > 0) {
+    fileIssues.push(issue('orphan_files', 'inspection_failed'))
+  }
+
+  return toSizeSnapshot(
+    {
+      bytes: fileReport.plannedDeleteBytes + knowledgeMeasurement.bytes,
+      issues: [...fileIssues, ...knowledgePlan.issues, ...knowledgeMeasurement.issues]
+    },
+    'exact'
+  )
+}
+
 async function inspectTarget(
   targetPath: string,
   item: string,
@@ -329,19 +400,19 @@ async function inspectTarget(
 ): Promise<'missing' | 'valid' | 'invalid'> {
   try {
     if (await pathHasSymlinkedOwnedSegment(targetPath)) {
-      logger.warn('Legacy cleanup target contains a symbolic-link path segment', { item, path: targetPath })
+      logger.warn('Cleanup target contains a symbolic-link path segment', { item, path: targetPath })
       return 'invalid'
     }
     const stats = await fs.lstat(targetPath)
     const hasExpectedType = kind === 'file' ? stats.isFile() : stats.isDirectory()
     if (stats.isSymbolicLink() || !hasExpectedType) {
-      logger.warn('Legacy cleanup target has an unexpected type', { item, path: targetPath, kind })
+      logger.warn('Cleanup target has an unexpected type', { item, path: targetPath, kind })
       return 'invalid'
     }
     return 'valid'
   } catch (error) {
     if (isNodeError(error, 'ENOENT')) return 'missing'
-    logger.warn('Failed to inspect legacy cleanup target', { item, path: targetPath, kind, error })
+    logger.warn('Failed to inspect cleanup target', { item, path: targetPath, kind, error })
     return 'invalid'
   }
 }
@@ -713,9 +784,11 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
         ? await inspectNormalCache()
         : group === 'site_data'
           ? await inspectSiteData()
-          : group === 'legacy_v1'
-            ? await inspectLegacyV1()
-            : await inspectRestoreStaging()
+          : group === 'orphaned_data'
+            ? await inspectOrphanedData()
+            : group === 'legacy_v1'
+              ? await inspectLegacyV1()
+              : await inspectRestoreStaging()
     return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
@@ -810,6 +883,27 @@ async function clearSiteData(): Promise<CacheCleanupGroupResult> {
   return resultFromSteps('site_data', steps)
 }
 
+async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
+  const [fileReport, knowledgePlan] = await Promise.all([
+    application.get('FileManager').cleanupOrphanFiles(),
+    collectOrphanKnowledgeTargets()
+  ])
+  const steps = await Promise.all(knowledgePlan.targets.map(removeCleanupTarget))
+
+  if (fileReport.outcome === 'completed') {
+    steps.push({ state: fileReport.actualDeleteCount > 0 ? 'cleared' : 'not_found' })
+  } else if (fileReport.outcome === 'partial') {
+    if (fileReport.actualDeleteCount > 0) steps.push({ state: 'cleared' })
+    steps.push({ state: 'failed' })
+  } else if (fileReport.outcome === 'aborted') {
+    steps.push({ state: 'skipped' })
+  } else {
+    steps.push({ state: 'failed' })
+  }
+  steps.push(...knowledgePlan.issues.map(() => ({ state: 'skipped' as const })))
+  return resultFromSteps('orphaned_data', steps)
+}
+
 async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {
   const status = await inspectTarget(target.path, target.item, target.kind)
   if (status === 'missing') return { state: 'not_found' }
@@ -873,6 +967,7 @@ async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResu
   try {
     if (group === 'normal_cache') return await clearNormalCache()
     if (group === 'site_data') return await clearSiteData()
+    if (group === 'orphaned_data') return await clearOrphanedData()
     if (group === 'legacy_v1') return await clearLegacyV1()
     return await clearRestoreStaging()
   } catch (error) {

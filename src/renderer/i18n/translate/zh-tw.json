@@ -5959,8 +5959,12 @@
             "description": "HTTP、程式碼、Shader、CacheStorage 快取，以及暫存檔和 Trace 資料。",
             "title": "一般快取"
           },
+          "orphaned_data": {
+            "description": "清理不再使用的檔案與知識庫殘留，不會影響仍在使用的資料。",
+            "title": "殘留檔案與知識庫"
+          },
           "restore_staging": {
-            "description": "舊版本備份還原過程中產生的暫存檔。清理後，未完成的還原將無法繼續。",
+            "description": "備份還原過程中產生的暫存檔。清理後，未完成的還原將無法繼續。",
             "title": "備份還原暫存檔"
           },
           "site_data": {

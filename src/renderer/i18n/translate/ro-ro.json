@@ -5959,8 +5959,12 @@
             "description": "Cache-uri HTTP, de cod, shader și CacheStorage, fișiere temporare și date de urmărire.",
             "title": "Cache obișnuit"
           },
+          "orphaned_data": {
+            "description": "Elimină fișierele și bazele de cunoștințe rămase care nu mai sunt utilizate. Datele încă utilizate sunt păstrate.",
+            "title": "Fișiere și baze de cunoștințe rămase"
+          },
           "restore_staging": {
-            "description": "Fișiere temporare create de vechiul proces de restaurare a copiilor de siguranță. Ștergerea lor împiedică continuarea oricărei restaurări nefinalizate.",
+            "description": "Fișiere temporare create în timpul restaurării copiilor de siguranță. Ștergerea lor împiedică continuarea oricărei restaurări nefinalizate.",
             "title": "Fișiere temporare de restaurare"
           },
           "site_data": {

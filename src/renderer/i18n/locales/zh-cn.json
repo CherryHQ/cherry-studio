@@ -5959,8 +5959,12 @@
             "description": "HTTP、代码、Shader、CacheStorage 缓存，以及临时文件和 Trace 数据。",
             "title": "普通缓存"
           },
+          "orphaned_data": {
+            "description": "清理不再使用的文件和知识库残留，不会影响正在使用的数据。",
+            "title": "残留文件与知识库"
+          },
           "restore_staging": {
-            "description": "旧版本备份恢复过程中产生的临时文件。清理后，未完成的恢复将无法继续。",
+            "description": "备份恢复过程中产生的临时文件。清理后，未完成的恢复将无法继续。",
             "title": "备份恢复临时文件"
           },
           "site_data": {

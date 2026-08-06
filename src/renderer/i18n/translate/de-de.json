@@ -5959,8 +5959,12 @@
             "description": "HTTP-, Code-, Shader- und CacheStorage-Caches sowie temporäre Dateien und Trace-Daten.",
             "title": "Allgemeiner Cache"
           },
+          "orphaned_data": {
+            "description": "Entfernt übrig gebliebene Dateien und Wissensdatenbanken, die nicht mehr verwendet werden. Weiterhin verwendete Daten bleiben erhalten.",
+            "title": "Übrig gebliebene Dateien und Wissensdatenbanken"
+          },
           "restore_staging": {
-            "description": "Temporäre Dateien, die bei der Wiederherstellung älterer Backups erstellt wurden. Nach dem Löschen kann eine nicht abgeschlossene Wiederherstellung nicht fortgesetzt werden.",
+            "description": "Temporäre Dateien, die bei der Wiederherstellung von Backups erstellt wurden. Nach dem Löschen kann eine nicht abgeschlossene Wiederherstellung nicht fortgesetzt werden.",
             "title": "Temporäre Wiederherstellungsdateien"
           },
           "site_data": {

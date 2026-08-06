@@ -3,7 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { cacheCleanupService } from '@main/services/CacheCleanupService'
+import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,6 +54,20 @@ const KNOWLEDGE_SCHEMA =
   'CREATE TABLE vectors (id TEXT, pageContent TEXT, uniqueLoaderId TEXT, source TEXT, vector BLOB)'
 const MEMORY_SCHEMA = 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)'
 
+const emptyFileSweepReport = {
+  outcome: 'completed' as const,
+  entriesInDb: 0,
+  direntsScanned: 0,
+  filesOnDisk: 0,
+  bytesOnDisk: 0,
+  plannedDeleteCount: 0,
+  plannedDeleteBytes: 0,
+  actualDeleteCount: 0,
+  actualDeleteBytes: 0,
+  statFailedCount: 0,
+  scanDurationMs: 0
+}
+
 describe('CacheCleanupService', () => {
   let root: string
   let tracePath: string
@@ -79,6 +95,9 @@ describe('CacheCleanupService', () => {
     vi.clearAllMocks()
     bootConfigGet.mockReset()
     bootConfigGet.mockReturnValue(undefined)
+    vi.spyOn(knowledgeBaseService, 'listAllIds').mockReturnValue(new Set())
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue(emptyFileSweepReport)
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
     tracePath = rootPath('Trace')
     vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
@@ -95,6 +114,7 @@ describe('CacheCleanupService', () => {
         'v1.cli.install': rootPath('Home', 'install'),
         'v1.database.file': rootPath('cherrystudio.sqlite'),
         'v1.agents.claude': rootPath('.claude'),
+        'feature.backup.restore.file': rootPath('restore-journal.json'),
         'feature.files.data': rootPath('Data', 'Files'),
         'feature.knowledgebase.data': rootPath('Data', 'KnowledgeBase'),
         'cherry.home': rootPath('Home'),
@@ -116,6 +136,7 @@ describe('CacheCleanupService', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await fs.rm(root, { recursive: true, force: true })
   })
 
@@ -185,6 +206,58 @@ describe('CacheCleanupService', () => {
       completeness: 'partial'
     })
     expect(result.results[0]?.size).not.toHaveProperty('issues')
+  })
+
+  it('counts and removes orphan files and UUID knowledge base directories only', async () => {
+    const knownBaseId = '11111111-1111-4111-8111-111111111111'
+    const orphanBaseId = '22222222-2222-4222-8222-222222222222'
+    const knownBasePath = rootPath('Data', 'KnowledgeBase', knownBaseId)
+    const orphanBasePath = rootPath('Data', 'KnowledgeBase', orphanBaseId)
+    const unknownDirectory = rootPath('Data', 'KnowledgeBase', 'custom-data')
+    await writeTestFile(path.join(knownBasePath, 'raw', 'keep.md'), 'keep')
+    await writeTestFile(path.join(orphanBasePath, '.cherry', 'index.sqlite'), Buffer.alloc(11))
+    await writeTestFile(path.join(unknownDirectory, 'keep.bin'), 'keep')
+    vi.mocked(knowledgeBaseService.listAllIds).mockReturnValue(new Set([knownBaseId]))
+    MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      plannedDeleteCount: 1,
+      plannedDeleteBytes: 7
+    })
+    MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue({
+      ...emptyFileSweepReport,
+      plannedDeleteCount: 1,
+      plannedDeleteBytes: 7,
+      actualDeleteCount: 1,
+      actualDeleteBytes: 7
+    })
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(inspection.results[0]).toMatchObject({
+      group: 'orphaned_data',
+      size: { bytes: 18, accuracy: 'exact', completeness: 'complete' }
+    })
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(orphanBasePath)
+    await expectExisting(knownBasePath, unknownDirectory)
+  })
+
+  it('does not follow a UUID-named knowledge base symlink', async () => {
+    const orphanBaseId = '33333333-3333-4333-8333-333333333333'
+    const externalBase = rootPath('ExternalKnowledge')
+    const orphanLink = rootPath('Data', 'KnowledgeBase', orphanBaseId)
+    await writeTestFile(path.join(externalBase, 'keep.bin'), 'keep')
+    await fs.mkdir(path.dirname(orphanLink), { recursive: true })
+    await fs.symlink(externalBase, orphanLink)
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    const cleanup = await cacheCleanupService.run(['orphaned_data'])
+
+    expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
+    expect(cleanup.results[0]?.status).toBe('partial')
+    await expectExisting(externalBase)
+    await expect(fs.lstat(orphanLink)).resolves.toBeDefined()
   })
 
   it('removes exact owned files and directory trees without inspecting their contents', async () => {

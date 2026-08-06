@@ -5959,8 +5959,12 @@
             "description": "HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
             "title": "Regular cache"
           },
+          "orphaned_data": {
+            "description": "Removes leftover files and knowledge bases that are no longer in use. Data still in use is kept.",
+            "title": "Leftover files and knowledge bases"
+          },
           "restore_staging": {
-            "description": "Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
+            "description": "Temporary files created during backup restore. Clearing them prevents any unfinished restore from continuing.",
             "title": "Temporary restore files"
           },
           "site_data": {

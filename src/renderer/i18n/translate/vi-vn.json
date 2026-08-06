@@ -5959,8 +5959,12 @@
             "description": "Bộ nhớ đệm HTTP, mã, shader và CacheStorage, cùng các tệp tạm thời và dữ liệu truy vết.",
             "title": "Bộ nhớ đệm thông thường"
           },
+          "orphaned_data": {
+            "description": "Xóa các tệp và cơ sở kiến thức còn sót lại không còn được sử dụng. Dữ liệu đang sử dụng sẽ được giữ lại.",
+            "title": "Tệp và cơ sở kiến thức còn sót lại"
+          },
           "restore_staging": {
-            "description": "Các tệp tạm thời được tạo bởi quy trình khôi phục bản sao lưu cũ. Sau khi xóa, mọi quá trình khôi phục chưa hoàn tất sẽ không thể tiếp tục.",
+            "description": "Các tệp tạm thời được tạo trong quá trình khôi phục bản sao lưu. Sau khi xóa, mọi quá trình khôi phục chưa hoàn tất sẽ không thể tiếp tục.",
             "title": "Tệp khôi phục tạm thời"
           },
           "site_data": {

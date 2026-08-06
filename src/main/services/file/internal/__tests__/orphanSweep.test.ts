@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -28,7 +28,7 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 
-const { runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
+const { inspectFileSweep, runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
 
 beforeEach(() => {
   hasPendingRestoreMock.mockReturnValue(false)
@@ -244,6 +244,25 @@ describe('runFileSweep (FS-level)', () => {
     vi.restoreAllMocks()
   })
 
+  it('reports orphan bytes without unlinking during inspection', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee49'
+    const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(orphanPath, 'inspect')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(orphanPath, ancient, ancient)
+
+    const report = await inspectFileSweep({ fileEntryService })
+
+    expect(report).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 1,
+      plannedDeleteBytes: 7,
+      actualDeleteCount: 0,
+      actualDeleteBytes: 0
+    })
+    await expect(stat(orphanPath)).resolves.toBeDefined()
+  })
+
   it('unlinks UUID files without a matching DB entry', async () => {
     const knownId = '019606a0-0000-7000-8000-00000000ee50' as FileEntryId
     const orphanId = '019606a0-0000-7000-8000-00000000ee51'
@@ -276,6 +295,22 @@ describe('runFileSweep (FS-level)', () => {
     expect((await stat(knownPath)).size).toBe(1)
     // Orphan file gone.
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('preserves UUID-named symbolic links', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee52'
+    const targetPath = path.join(filesDir, 'keep.txt')
+    const linkPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(targetPath, 'keep')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(targetPath, ancient, ancient)
+    await symlink(targetPath, linkPath)
+
+    const report = await runFileSweep({ fileEntryService })
+
+    expect(report).toMatchObject({ outcome: 'completed', plannedDeleteCount: 0, actualDeleteCount: 0 })
+    expect((await lstat(linkPath)).isSymbolicLink()).toBe(true)
+    expect((await stat(targetPath)).size).toBe(4)
   })
 
   it('preserves orphan files newer than the 5-minute freshness gate', async () => {
