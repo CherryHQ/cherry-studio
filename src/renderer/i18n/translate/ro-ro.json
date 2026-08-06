@@ -4425,7 +4425,7 @@
     "invalid_model": "Model invalid",
     "json_parse_error": "Format JSON invalid",
     "multi_select": {
-      "label": "Multi-model paralel (mutu exclusiv cu multi-asistent)"
+      "label": "Selecție multiplă"
     },
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",

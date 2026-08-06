@@ -23,11 +23,10 @@ const originalResizeObserver = globalThis.ResizeObserver
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
     const { variant, size, type = 'button', ...buttonProps } = props
-    void variant
     void size
 
     return (
-      <button type={type} {...buttonProps}>
+      <button type={type} data-variant={variant} {...buttonProps}>
         {children}
       </button>
     )
@@ -401,8 +400,10 @@ describe('SelectorShell', () => {
     expect(screen.queryByTestId('multi-row')).not.toBeInTheDocument()
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-label', 'Multi model')
-    expect(screen.getByTestId('multi-badge')).not.toHaveTextContent('Multi')
-    expect(screen.getByTestId('multi-badge').querySelector('svg')).not.toBeNull()
+    expect(screen.getByTestId('multi-badge')).toHaveTextContent('Multi')
+    expect(screen.getByTestId('multi-badge').querySelector('svg')).toBeNull()
+    expect(screen.getByTestId('multi-badge')).toHaveAttribute('data-variant', 'secondary')
+    expect(screen.getByTestId('multi-badge')).toHaveClass('bg-secondary/60')
 
     screen.getByTestId('multi-badge').click()
 

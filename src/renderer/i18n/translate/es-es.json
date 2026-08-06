@@ -4425,7 +4425,7 @@
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
     "multi_select": {
-      "label": "Paralelismo multi-modelo (mutuamente excluyente con multi-asistente)"
+      "label": "Selección múltiple"
     },
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
