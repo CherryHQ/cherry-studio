@@ -5,7 +5,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -139,7 +138,7 @@ export const AppShell = () => {
           title: getDefaultRouteTitle(url),
           icon: undefined,
           lastAccessTime: Date.now(),
-          metadata: clearTabInstanceMetadata(tab?.metadata)
+          metadata: undefined
         }
     updateTab(tabId, patch)
 
