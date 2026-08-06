@@ -27,7 +27,9 @@ vi.mock('dexie', () => ({
 }))
 
 import {
+  beginLegacyV1Cleanup,
   clearLegacyV1BrowserData,
+  finalizeLegacyV1Cleanup,
   hasLegacyV1Marker,
   inspectLegacyV1BrowserData,
   LEGACY_LOCAL_STORAGE_KEYS,
@@ -87,11 +89,15 @@ describe('legacyV1BrowserData', () => {
     dexieMock.tableNames.splice(0, dexieMock.tableNames.length, 'message_blocks')
   })
 
-  it('uses only persist:cherry-studio as the v1 visibility marker', () => {
+  it('uses persisted v1 state or an incomplete cleanup as the visibility marker', () => {
     localStorage.setItem('language', 'zh-cn')
     expect(hasLegacyV1Marker()).toBe(false)
 
     localStorage.setItem('persist:cherry-studio', '')
+    expect(hasLegacyV1Marker()).toBe(true)
+
+    localStorage.removeItem('persist:cherry-studio')
+    beginLegacyV1Cleanup()
     expect(hasLegacyV1Marker()).toBe(true)
   })
 
@@ -214,5 +220,30 @@ describe('legacyV1BrowserData', () => {
       group: 'legacy_v1',
       status: 'partial'
     })
+  })
+
+  it('keeps the retry marker after a partial run and clears it after a successful retry', async () => {
+    localStorage.setItem('persist:cherry-studio', 'legacy')
+    beginLegacyV1Cleanup()
+    const deleteRequest = installDeleteDatabase()
+
+    const browserCleanup = clearLegacyV1BrowserData()
+    await vi.waitFor(() => expect(deleteRequest.deleteDatabase).toHaveBeenCalledOnce())
+    deleteRequest.succeed()
+    const partialResult = finalizeLegacyV1Cleanup(
+      mergeLegacyV1CleanupResults({ group: 'legacy_v1', status: 'failed' }, await browserCleanup)
+    )
+
+    expect(partialResult.status).toBe('partial')
+    expect(localStorage.getItem('persist:cherry-studio')).toBeNull()
+    expect(hasLegacyV1Marker()).toBe(true)
+
+    dexieMock.exists.mockResolvedValue(false)
+    const retryResult = finalizeLegacyV1Cleanup(
+      mergeLegacyV1CleanupResults({ group: 'legacy_v1', status: 'not_found' }, await clearLegacyV1BrowserData())
+    )
+
+    expect(retryResult.status).toBe('not_found')
+    expect(hasLegacyV1Marker()).toBe(false)
   })
 })

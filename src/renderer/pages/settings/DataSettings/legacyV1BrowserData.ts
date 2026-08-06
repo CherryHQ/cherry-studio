@@ -6,6 +6,7 @@ const logger = loggerService.withContext('LegacyV1BrowserData')
 
 const LEGACY_DATABASE_NAME = 'CherryStudio'
 const LEGACY_PERSISTED_STATE_KEY = 'persist:cherry-studio'
+const LEGACY_CLEANUP_RETRY_MARKER_KEY = 'cherry-studio:legacy-v1-cleanup-pending'
 const INDEXED_DB_PAGE_SIZE = 100
 const textEncoder = new TextEncoder()
 
@@ -36,11 +37,25 @@ function byteLength(value: string): number {
 
 export function hasLegacyV1Marker(): boolean {
   try {
-    return localStorage.getItem(LEGACY_PERSISTED_STATE_KEY) !== null
+    return (
+      localStorage.getItem(LEGACY_PERSISTED_STATE_KEY) !== null ||
+      localStorage.getItem(LEGACY_CLEANUP_RETRY_MARKER_KEY) !== null
+    )
   } catch (error) {
     logger.warn('Failed to inspect legacy localStorage marker', error as Error)
     return false
   }
+}
+
+export function beginLegacyV1Cleanup(): void {
+  localStorage.setItem(LEGACY_CLEANUP_RETRY_MARKER_KEY, 'true')
+}
+
+export function finalizeLegacyV1Cleanup(result: CacheCleanupGroupResult): CacheCleanupGroupResult {
+  if (result.status === 'cleared' || result.status === 'not_found') {
+    localStorage.removeItem(LEGACY_CLEANUP_RETRY_MARKER_KEY)
+  }
+  return result
 }
 
 function collectLegacyLocalStorageKeys(): { keys: Set<string>; error?: unknown } {

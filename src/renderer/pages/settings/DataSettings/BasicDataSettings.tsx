@@ -23,7 +23,12 @@ import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
-import { clearLegacyV1BrowserData, mergeLegacyV1CleanupResults } from './legacyV1BrowserData'
+import {
+  beginLegacyV1Cleanup,
+  clearLegacyV1BrowserData,
+  finalizeLegacyV1Cleanup,
+  mergeLegacyV1CleanupResults
+} from './legacyV1BrowserData'
 import RestorePopup from './RestorePopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
@@ -190,6 +195,9 @@ const BasicDataSettings: React.FC = () => {
       onClear: async (groups) => {
         setClearingCache(true)
         try {
+          if (groups.includes('legacy_v1')) {
+            beginLegacyV1Cleanup()
+          }
           const mainResult = await ipcApi.request('app.cache_cleanup.run', { groups })
           const results = mainResult.results
 
@@ -197,10 +205,12 @@ const BasicDataSettings: React.FC = () => {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
-            results[legacyIndex] = mergeLegacyV1CleanupResults(
-              mainLegacyResult,
-              await clearLegacyV1BrowserData(() =>
-                toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+            results[legacyIndex] = finalizeLegacyV1Cleanup(
+              mergeLegacyV1CleanupResults(
+                mainLegacyResult,
+                await clearLegacyV1BrowserData(() =>
+                  toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+                )
               )
             )
           }
