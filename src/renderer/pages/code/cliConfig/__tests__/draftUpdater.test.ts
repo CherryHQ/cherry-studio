@@ -169,6 +169,20 @@ describe('updateCliConfigDraftConfig', () => {
     })
   })
 
+  it('preserves OpenCode compaction settings during a config-only update', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const config = JSON.parse(files[0].content)
+    config.autoCompact = true
+    config.compaction = { auto: false, prune: false, reserved: 10000 }
+    files[0].content = JSON.stringify(config)
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+    const parsed = JSON.parse(updated[0].content)
+
+    expect(parsed.compaction).toEqual({ auto: true, prune: false, reserved: 10000 })
+    expect(parsed).not.toHaveProperty('autoCompact')
+  })
+
   it('returns the files unchanged when there is no managed connection', () => {
     const files: CliConfigFileDraft[] = [
       { target: 'codex-config' as CliConfigTarget, label: '', path: '', language: 'toml', content: '' }
@@ -236,7 +250,7 @@ describe('updateCliConfigDraftConfig', () => {
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
     const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
-    expect(parsed.autoCompact).toBe(true)
+    expect(parsed.compaction.auto).toBe(true)
     expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
     expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
   })

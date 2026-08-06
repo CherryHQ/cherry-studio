@@ -96,6 +96,7 @@ describe('clearCliConfig', () => {
       model: 'cherry-deepseek/deepseek-chat',
       provider: { 'cherry-deepseek': { npm: 'x' }, userprov: { npm: 'y' } },
       autoCompact: true,
+      compaction: { auto: true, prune: false, reserved: 10000 },
       maxTurns: 30,
       permission: 'ask',
       userTop: 'keep'
@@ -106,6 +107,7 @@ describe('clearCliConfig', () => {
     expect(JSON.parse(writes['/resolved~/.config/opencode/opencode.json'])).toEqual({
       $schema: 'https://opencode.ai/config.json',
       provider: { userprov: { npm: 'y' } },
+      compaction: { prune: false, reserved: 10000 },
       userTop: 'keep'
     })
   })
