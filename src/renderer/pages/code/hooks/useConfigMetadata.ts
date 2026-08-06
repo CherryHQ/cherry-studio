@@ -72,7 +72,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       // (fable-role) detailed model instead of hiding the model entirely.
       const modelId =
         toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)
-          ? getClaudeContextModelId(provider.id, config)
+          ? getClaudeContextModelId(
+              provider.id,
+              config,
+              isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
+            )
           : providerConfig?.modelId
       let modelName: string | undefined
       if (modelId && isUniqueModelId(modelId)) {
@@ -85,7 +89,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         modelName
       }
     },
-    [modelById]
+    [gatewayModelsById, modelById]
   )
 
   const resolveProviderMeta = useCallback(

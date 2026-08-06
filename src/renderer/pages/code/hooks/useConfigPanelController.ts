@@ -1,7 +1,7 @@
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
@@ -42,6 +42,7 @@ interface UseConfigPanelControllerOptions {
   makeModelFilter: (providerId: string) => (model: Model) => boolean
   /** Synthetic Cherry gateway bundle (null when the gateway config is unavailable). */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
+  gatewayModelsById?: Map<UniqueModelId, Model>
 }
 
 interface ConfigPanelController {
@@ -63,7 +64,8 @@ export function useConfigPanelController({
   setCurrentProvider,
   setCurrentCliConfigConnection,
   makeModelFilter,
-  apiGatewayProvider
+  apiGatewayProvider,
+  gatewayModelsById
 }: UseConfigPanelControllerOptions): ConfigPanelController {
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
@@ -125,10 +127,15 @@ export function useConfigPanelController({
       }
 
       const shouldEnableAfterSave = pendingEnableProviderIdRef.current === editingProvider.id
-      const resolvedCliConfigContext = resolveCliConfigApplyContext(selectedCliTool, editingProvider.id, {
-        modelId,
-        config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
-      })
+      const resolvedCliConfigContext = resolveCliConfigApplyContext(
+        selectedCliTool,
+        editingProvider.id,
+        {
+          modelId,
+          config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
+        },
+        isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined
+      )
       const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
       const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
       const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
@@ -194,7 +201,8 @@ export function useConfigPanelController({
       deleteProviderConfig,
       setCurrentProvider,
       setCurrentCliConfigConnection,
-      resolveGatewayWriteContext
+      resolveGatewayWriteContext,
+      gatewayModelsById
     ]
   )
 
@@ -252,7 +260,12 @@ export function useConfigPanelController({
         // Ensure the provider has a model before injecting. If none is saved,
         // open configuration so the user chooses explicitly.
         const cfg = providerConfigs[provider.id]
-        const cliConfigContext = resolveCliConfigApplyContext(selectedCliTool, provider.id, cfg)
+        const cliConfigContext = resolveCliConfigApplyContext(
+          selectedCliTool,
+          provider.id,
+          cfg,
+          isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
+        )
         if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
           await upsertProviderConfig(provider.id, { modelId: null })
           pendingEnableProviderIdRef.current = provider.id
@@ -302,6 +315,7 @@ export function useConfigPanelController({
       setCurrentProvider,
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
+      gatewayModelsById,
       t
     ]
   )
@@ -357,6 +371,7 @@ export function useConfigPanelController({
               isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
                 ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
                 : undefined,
+            gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
             onSubmit: handlePanelSubmit
           }
         : undefined,

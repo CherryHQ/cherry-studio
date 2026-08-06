@@ -178,7 +178,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     setCurrentProvider,
     setCurrentCliConfigConnection,
     makeModelFilter,
-    apiGatewayProvider: apiGatewayBundle
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById
   })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,

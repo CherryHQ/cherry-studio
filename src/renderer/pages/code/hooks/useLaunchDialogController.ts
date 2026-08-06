@@ -121,7 +121,12 @@ export function useLaunchDialogController({
     }
 
     const cliConfigContext = enabledProvider
-      ? resolveCliConfigApplyContext(selectedCliTool, enabledProvider.id, currentProviderConfig ?? undefined)
+      ? resolveCliConfigApplyContext(
+          selectedCliTool,
+          enabledProvider.id,
+          currentProviderConfig ?? undefined,
+          isApiGatewayProviderId(enabledProvider.id) ? gatewayModelsById : undefined
+        )
       : null
     if (!cliConfigContext) {
       logger.error('Invalid CLI model id configured for launch', {

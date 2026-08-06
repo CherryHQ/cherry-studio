@@ -136,8 +136,8 @@ export function useConfigDraftController({
 
   const resolveManagedOptions = useCallback(
     (modelMode: ClaudeModelMode, config: Record<string, unknown>, modelId: UniqueModelId | undefined) =>
-      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId),
-    [cliTool, provider.id]
+      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId, gateway ? models : undefined),
+    [cliTool, gateway, models, provider.id]
   )
 
   const createManagedDraft = useCallback(
@@ -183,7 +183,8 @@ export function useConfigDraftController({
     initialConfig,
     initialClaudeModelMode,
     initialDraftSeed,
-    gateway
+    gateway,
+    models
   })
 
   useEffect(() => {
@@ -200,7 +201,8 @@ export function useConfigDraftController({
       initialConfig,
       initialClaudeModelMode,
       initialDraftSeed,
-      gateway
+      gateway,
+      models
     } = initialLoadContextRef.current
     const commitLoadedDraft = (nextDraft: ConfigDraft) => {
       draftRef.current = nextDraft
@@ -218,7 +220,8 @@ export function useConfigDraftController({
       initialClaudeModelMode,
       initialDraftSeed,
       connectionMatchesProvider,
-      gateway
+      gateway,
+      gatewayModels: gateway ? models : undefined
     }).then((nextDraft) => {
       if (loadId !== loadIdRef.current) return
       commitLoadedDraft(nextDraft)
@@ -362,7 +365,7 @@ export function useConfigDraftController({
         const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
         const sanitizedConfig = sanitizeCliConfigBlob(cliTool, current.config)
         const cliConfigModelId = isClaudeDetailedSubmit
-          ? getClaudeContextModelId(provider.id, sanitizedConfig)
+          ? getClaudeContextModelId(provider.id, sanitizedConfig, gateway ? models : undefined)
           : current.modelId
         const nextConfig =
           cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
@@ -394,7 +397,19 @@ export function useConfigDraftController({
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id, t])
+  }, [
+    canSave,
+    claudeModelMode,
+    cliTool,
+    commitDraft,
+    createManagedDraft,
+    gateway,
+    models,
+    onSubmit,
+    onClose,
+    provider.id,
+    t
+  ])
 
   return {
     draft,

@@ -34,5 +34,7 @@ export interface ConfigEditPanelProps {
   modelFilter: (model: Model) => boolean
   /** Present when `provider` is the synthetic Cherry gateway (preview key; writes use a fresh key). */
   gateway?: CliConfigGatewayContext
+  /** Models currently addressable through the gateway, keyed by their real model id. */
+  gatewayModels?: Map<UniqueModelId, Model>
   onSubmit: (values: ConfigEditPanelSubmitValues) => Promise<void>
 }
