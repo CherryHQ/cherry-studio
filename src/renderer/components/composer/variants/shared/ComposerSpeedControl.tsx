@@ -116,17 +116,35 @@ export function ComposerSpeedControl({
           ) : (
             <span className="text-muted-foreground">{t('agent.speed.label')}</span>
           )}
-          {supportsFast ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className={cn('ml-auto rounded-full', fastMode && 'text-primary hover:text-primary')}
-              aria-label={t('agent.speed.fast')}
-              aria-pressed={fastMode}
-              onClick={() => onFastModeChange(!fastMode)}>
-              <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
-            </Button>
+          {showEffortSlider || supportsFast ? (
+            <div className="ml-auto flex shrink-0 items-center gap-0.5">
+              {showEffortSlider ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-7 rounded-md px-2 text-muted-foreground text-xs',
+                    effectiveReasoningEffort === 'default' && 'text-primary hover:text-primary'
+                  )}
+                  aria-pressed={effectiveReasoningEffort === 'default'}
+                  onClick={() => onReasoningEffortChange('default')}>
+                  {t(EFFORT_LABEL_KEYS.default)}
+                </Button>
+              ) : null}
+              {supportsFast ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
+                  aria-label={t('agent.speed.fast')}
+                  aria-pressed={fastMode}
+                  onClick={() => onFastModeChange(!fastMode)}>
+                  <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
         {supportsReasoning && showEffortSlider ? (
