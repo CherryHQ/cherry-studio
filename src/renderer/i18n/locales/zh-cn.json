@@ -5783,6 +5783,7 @@
     },
     "assistant": {
       "create_new": "新建助手",
+      "create_tag": "新建",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
       "group_filter": "按分组筛选",
@@ -5970,12 +5971,16 @@
         "third_party": "第三方连接"
       },
       "export_menu": {
+        "categories": {
+          "apps": "第三方应用",
+          "copy": "复制",
+          "file": "文件导出"
+        },
         "docx": "导出为 Word",
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",
         "markdown_reason": "导出为 Markdown（包含思考）",
-        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "plain_text": "复制为纯文本",
@@ -7270,7 +7275,9 @@
       "expand_all": "全部展开",
       "filter": {
         "clear": "清除模型筛选",
-        "label": "筛选模型"
+        "label": "筛选模型",
+        "scroll_left": "向左滚动模型类型",
+        "scroll_right": "向右滚动模型类型"
       },
       "group_disable": "禁用此分组",
       "group_enable": "开启此分组",
