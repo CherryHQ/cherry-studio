@@ -318,14 +318,13 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
         logger.warn(CONCURRENT_MIGRATION_ERROR)
         throw new Error(CONCURRENT_MIGRATION_ERROR)
       }
+      if (!exportPrepared) throw new Error('Migration export has not been prepared.')
+      assertStartMigrationPayload(payload, preparedExportPaths)
+      exportPrepared = false
 
       let runPromise: Promise<MigrationResult> | null = null
 
       try {
-        if (!exportPrepared) throw new Error('Migration export has not been prepared.')
-        assertStartMigrationPayload(payload, preparedExportPaths)
-        exportPrepared = false
-
         // Set up progress callback
         migrationEngine.onProgress((progress) => {
           updateProgress(progress)
@@ -384,6 +383,9 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
           throw error
         }
 
+        // Update progress to error stage so the renderer shows the error UI.
+        // Do NOT re-throw — the progress update already communicates the failure,
+        // and re-throwing causes an unhandled promise rejection in the renderer.
         updateProgress({
           stage: 'error',
           overallProgress: currentProgress.overallProgress,
@@ -392,7 +394,12 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
           error: errorMessage
         })
 
-        throw error
+        return {
+          success: false,
+          migratorResults: [],
+          totalDuration: 0,
+          error: errorMessage
+        } satisfies MigrationResult
       } finally {
         if (runPromise && inFlightMigration === runPromise) {
           inFlightMigration = null

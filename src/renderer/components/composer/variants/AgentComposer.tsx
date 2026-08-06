@@ -62,6 +62,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -472,6 +473,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
           percentage={percentage}
           color={ringColor}
           isCompacting={isCompacting}
+          modelName={model?.name}
           showCategories={false}
         />
       }>
@@ -502,7 +504,17 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
 
 function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
   if (!model) return undefined
-  return [model.apiModelId, parseUniqueModelId(model.id).modelId].filter((value): value is string => Boolean(value))
+  const { providerId, modelId } = parseUniqueModelId(model.id)
+  const apiModelId = model.apiModelId ?? modelId
+  const candidates = [apiModelId, modelId]
+
+  try {
+    candidates.push(formatGatewayModelId(providerId, apiModelId))
+  } catch {
+    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
+  }
+
+  return candidates
 }
 
 type AgentComposerControlProps = Omit<

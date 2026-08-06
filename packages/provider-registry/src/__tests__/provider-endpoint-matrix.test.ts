@@ -112,6 +112,39 @@ describe('deepseek endpoint matrix', () => {
   )
 })
 
+/**
+ * OpenCode Go multiplexes three wire protocols over one base URL, and the protocol per model is
+ * published as models.dev's per-model `provider.npm` (`@ai-sdk/openai` → Responses, `@ai-sdk/anthropic`
+ * → Messages, inherited `@ai-sdk/openai-compatible` → Chat) — which is what the OpenCode client itself
+ * consumes. The vendor's Go endpoint table is asserted against only where the two agree: it still
+ * prints chat/completions for Grok 4.5, months after models.dev moved it to the OpenAI SDK (#17860).
+ */
+describe('opencode (Zen Go) endpoint matrix', () => {
+  it('uses the native OpenAI adapter for the Responses endpoint', () => {
+    expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
+      adapterFamily: 'openai',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      reasoningFormat: { type: 'openai-responses' }
+    })
+  })
+
+  it('prefers Responses for Grok 4.5 while keeping the documented Chat route selectable', () => {
+    expect(endpointsOf('opencode', 'grok-4-5')).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
+  it('pins GPT 5.6 Luna to Responses, the only endpoint Go serves it on', () => {
+    expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
+  })
+
+  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
+    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+  })
+
+  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+    expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
+  })
+})
+
 describe('doubao (Ark) endpoint matrix', () => {
   // Ark serves /responses for the 250615+ line only (docs/82379/1585128), so here a single-element
   // pin IS correct — the vendor genuinely does not serve the other endpoint.

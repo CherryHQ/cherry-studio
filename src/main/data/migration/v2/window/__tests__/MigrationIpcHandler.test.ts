@@ -753,7 +753,11 @@ describe('MigrationIpcHandler', () => {
     it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
-      await expect(invoke(MigrationIpcChannels.StartMigration, startPayload)).rejects.toThrow('Engine exploded')
+      const result = await invoke(MigrationIpcChannels.StartMigration, startPayload)
+
+      // The handler resolves with a failure result instead of rejecting, so the
+      // renderer never sees an unhandled promise rejection.
+      expect(result).toMatchObject({ success: false, error: 'Engine exploded' })
 
       const failure = lastProgress()
       expect(failure.stage).toBe('error')
