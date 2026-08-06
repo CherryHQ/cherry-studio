@@ -59,9 +59,11 @@ import type {
   BabelDocAvailability,
   PdfTranslationFile,
   PdfTranslationHandle,
+  PdfTranslationOutput,
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
+import { loadTranslationFiles } from './translationFiles'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -240,6 +242,8 @@ const TranslatePage: FC = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
+  /** Set only when reopening a finished translation from history; `key` remounts the view. */
+  const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
   const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
@@ -284,6 +288,7 @@ const TranslatePage: FC = () => {
     setIsPdfTextExtracting(false)
     setIsProcessing(false)
     setPdfFile(null)
+    setRestoredPdf(null)
   }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
 
   const safePersist = useCallback(
@@ -556,14 +561,35 @@ const TranslatePage: FC = () => {
   ])
 
   const onHistoryItemClick = useCallback(
-    (history: TranslateHistory) => {
+    async (history: TranslateHistory) => {
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
 
       resetPdfMode()
-      setTranslateInput(history.sourceText)
-      setTranslateOutput(history.targetText)
+
+      // Only reachable from the detail panel's preview action, which `isPdfTranslation`
+      // already gated — a future non-PDF file translation has no viewer to restore into
+      // and never offers the button.
+      if (history.kind === 'file') {
+        const files = await loadTranslationFiles(history.id).catch((error) => {
+          logger.error('Failed to resolve the files of a translate history entry', error as Error)
+          return null
+        })
+        // A moved-away source still resolves (external entries keep their recorded path,
+        // and the left pane renders its own unavailable state); a null path means the
+        // entry itself is gone, which leaves nothing to show side by side.
+        if (!files?.source?.path || !files.target?.path) {
+          toast.error(t('translate.history.file.unavailable'))
+          return
+        }
+        setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
+        setPdfFile({ name: history.sourceText, path: files.source.path })
+      } else {
+        setTranslateInput(history.sourceText)
+        setTranslateOutput(history.targetText)
+      }
+
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
@@ -575,6 +601,7 @@ const TranslatePage: FC = () => {
       setTargetLanguage,
       setTranslateInput,
       setTranslateOutput,
+      t,
       targetLanguage
     ]
   )
@@ -991,7 +1018,9 @@ const TranslatePage: FC = () => {
               </div>
             }>
             <PdfTranslationView
+              key={restoredPdf?.key ?? pdfFile.path}
               file={pdfFile}
+              restoredOutput={restoredPdf?.output}
               modelId={isSelectedPdfModelRoutable ? selectedModelId : undefined}
               sourceLangCode={sourceLanguage}
               babelDocAvailability={babelDoc.availability}

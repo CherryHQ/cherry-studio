@@ -8457,10 +8457,10 @@
     "history": {
       "back": "返回列表",
       "clear": "清空历史",
-      "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
+      "clear_description": "清空历史将删除所有翻译历史记录，并一并回收其中生成的译文文件，是否继续？",
       "copy_target": "复制译文",
       "delete": "删除翻译历史",
-      "delete_description": "确定要删除这条翻译历史记录吗？此操作不可撤销。",
+      "delete_description": "确定要删除这条翻译历史记录吗？若是文件翻译，生成的译文文件也会一并回收。此操作不可撤销。",
       "empty": "暂无翻译历史",
       "error": {
         "add": "添加翻译历史失败",
@@ -8468,6 +8468,17 @@
         "delete": "删除失败",
         "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
+      },
+      "file": {
+        "action_failed": "无法对该文件执行此操作",
+        "badge": "文件翻译",
+        "export": "另存译文文件…",
+        "open": "打开译文文件",
+        "preview": "双栏预览",
+        "reveal": "在文件夹中显示",
+        "source": "源文件",
+        "target": "译文文件",
+        "unavailable": "该翻译记录的文件已不可用"
       },
       "filter": {
         "starred": "仅显示收藏"

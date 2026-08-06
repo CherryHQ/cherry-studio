@@ -1,9 +1,8 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, cleanupPdfMock, cancelPdfMock, ipcSendMock, openMock, translatePdfMock } = vi.hoisted(() => ({
+const { appGetMock, cancelPdfMock, ipcSendMock, openMock, translatePdfMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  cleanupPdfMock: vi.fn(),
   cancelPdfMock: vi.fn(),
   ipcSendMock: vi.fn(),
   openMock: vi.fn(),
@@ -16,7 +15,7 @@ import { translateHandlers } from '../translate'
 
 const webContents = {}
 const windowManager = { getWindow: vi.fn(() => ({ webContents })) }
-const pdfTranslationService = { cancel: cancelPdfMock, cleanup: cleanupPdfMock, translate: translatePdfMock }
+const pdfTranslationService = { cancel: cancelPdfMock, translate: translatePdfMock }
 const req = { streamId: 'translate:1', text: 'hi', targetLangCode: 'en' } as Parameters<
   (typeof translateHandlers)['translate.open']
 >[0]
@@ -79,14 +78,12 @@ describe('translateHandlers', () => {
     })
   })
 
-  it('cancels and cleans up PDF translation jobs', async () => {
+  it('cancels PDF translation jobs', async () => {
     const input = { jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2' }
 
     await translateHandlers['translate.pdf.cancel'](input, { senderId: 'w1' })
-    await translateHandlers['translate.pdf.cleanup'](input, { senderId: 'w1' })
 
     expect(cancelPdfMock).toHaveBeenCalledWith(input.jobId)
-    expect(cleanupPdfMock).toHaveBeenCalledWith(input.jobId)
   })
 
   it('rejects PDF job mutations from an unmanaged sender', async () => {
@@ -95,10 +92,6 @@ describe('translateHandlers', () => {
     await expect(translateHandlers['translate.pdf.cancel'](input, { senderId: null })).rejects.toThrow(
       'translate.pdf.cancel requires a managed window'
     )
-    await expect(translateHandlers['translate.pdf.cleanup'](input, { senderId: null })).rejects.toThrow(
-      'translate.pdf.cleanup requires a managed window'
-    )
     expect(cancelPdfMock).not.toHaveBeenCalled()
-    expect(cleanupPdfMock).not.toHaveBeenCalled()
   })
 })

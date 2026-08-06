@@ -37,9 +37,5 @@ export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> =
   'translate.pdf.cancel': async ({ jobId }, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.cancel requires a managed window')
     application.get('PdfTranslationService').cancel(jobId)
-  },
-  'translate.pdf.cleanup': async ({ jobId }, { senderId }) => {
-    if (!senderId) throw new Error('translate.pdf.cleanup requires a managed window')
-    await application.get('PdfTranslationService').cleanup(jobId)
   }
 }

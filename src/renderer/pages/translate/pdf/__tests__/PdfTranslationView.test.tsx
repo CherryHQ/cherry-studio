@@ -220,7 +220,7 @@ describe('PdfTranslationView', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('cancels an active job on unmount and cleans output that wins the completion race', async () => {
+  it('cancels an active job on unmount and leaves the output that wins the completion race alone', async () => {
     let resolveStart!: (result: { fileName: string; outputPath: string }) => void
     const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
       resolveStart = resolve
@@ -255,12 +255,34 @@ describe('PdfTranslationView', () => {
       jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
     })
 
-    resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
-    await waitFor(() =>
-      expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.cleanup', {
-        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
-      })
+    resolveStart({ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' })
+    // A run that finishes after unmount already recorded itself in history and handed its
+    // PDF to FileManager, so there is nothing left for the renderer to clean up.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
+    expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start', 'translate.pdf.cancel'])
+  })
+
+  it('mounts straight into the side-by-side result when reopened from history', () => {
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
+        restoredOutput={{ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' as AbsoluteFilePath }}
+        onClose={vi.fn()}
+        onHandleChange={vi.fn()}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
     )
+
+    const previews = screen.getAllByTestId('pdf-preview')
+    expect(previews).toHaveLength(2)
+    expect(previews[1]).toHaveAttribute('data-file-path', '/tmp/files/entry-1.pdf')
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
   it('offers inline installation when the PDF runtime reports that BabelDOC is unavailable', async () => {
