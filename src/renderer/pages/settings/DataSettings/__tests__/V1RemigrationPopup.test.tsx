@@ -1,7 +1,7 @@
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,10 @@ vi.mock('../BackupPopup', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { seconds?: number }) =>
+      options?.seconds === undefined ? key : `${key}:${options.seconds}`
+  })
 }))
 
 import V1RemigrationPopup from '../V1RemigrationPopup'
@@ -66,22 +69,39 @@ describe('V1RemigrationPopup', () => {
     await user.click(next)
 
     expect(screen.getByText('settings.data.v1_remigration.backup_message')).toBeInTheDocument()
+    const backupNext = screen.getByRole('button', { name: 'settings.data.v1_remigration.next' })
+    expect(backupNext).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.backup_button' }))
     expect(mocks.backupShow).toHaveBeenCalledExactlyOnceWith({ forceFullBackup: true })
     expect(mocks.request).not.toHaveBeenCalled()
+    expect(backupNext).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.backup_acknowledgement'))
+    expect(backupNext).toBeEnabled()
+    vi.useFakeTimers()
+    act(() => backupNext.click())
 
     expect(screen.getByText('settings.data.v1_remigration.final_confirmation')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-    const confirm = screen.getByRole('button', { name: 'settings.data.v1_remigration.confirm' })
+    const confirm = screen.getByRole('button', { name: 'settings.data.v1_remigration.confirm_countdown:5' })
+    expect(confirm).toBeDisabled()
+    await act(() => vi.advanceTimersByTime(4000))
+    expect(confirm).toBeDisabled()
+    expect(confirm).toHaveTextContent('settings.data.v1_remigration.confirm_countdown:1')
+    confirm.click()
+    expect(mocks.request).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(1000))
     expect(confirm).toBeEnabled()
-    await user.click(confirm)
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledExactlyOnceWith('app.migration_v2.rerun'))
+    expect(confirm).toHaveTextContent('settings.data.v1_remigration.confirm')
+    await act(async () => {
+      confirm.click()
+      await Promise.resolve()
+    })
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('app.migration_v2.rerun')
     expect(confirm).toBeDisabled()
   })
 
-  it('allows backup to be skipped and keeps the final step open when the request fails', async () => {
+  it('accepts an existing backup and keeps the final step open when the request fails', async () => {
     const user = userEvent.setup()
     mocks.request.mockRejectedValueOnce(new Error('marker write failed'))
     render(<PopupHost />)
@@ -93,16 +113,21 @@ describe('V1RemigrationPopup', () => {
     await user.click(screen.getByLabelText('settings.data.v1_remigration.final_retained'))
     await user.click(screen.getByLabelText('settings.data.v1_remigration.acknowledgement'))
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
-    await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.backup_acknowledgement'))
+    const backupNext = screen.getByRole('button', { name: 'settings.data.v1_remigration.next' })
+    vi.useFakeTimers()
+    act(() => backupNext.click())
 
     expect(mocks.backupShow).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(5000))
     const confirm = screen.getByRole('button', { name: 'settings.data.v1_remigration.confirm' })
-    await user.click(confirm)
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledExactlyOnceWith('settings.data.v1_remigration.error')
-      expect(confirm).toBeEnabled()
+    await act(async () => {
+      confirm.click()
+      await Promise.resolve()
+      await Promise.resolve()
     })
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('settings.data.v1_remigration.error')
+    expect(confirm).toBeEnabled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('settings.data.v1_remigration.final_confirmation')).toBeInTheDocument()
   })

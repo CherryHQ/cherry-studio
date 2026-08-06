@@ -3,13 +3,14 @@ import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { SaveIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 
 type Props = PopupInjectedProps<void>
 type WizardStep = 0 | 1 | 2
+const CONFIRM_COUNTDOWN_SECONDS = 5
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
@@ -17,16 +18,34 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [acknowledged, setAcknowledged] = useState(false)
   const [deletionAcknowledged, setDeletionAcknowledged] = useState(false)
   const [retainedDataAcknowledged, setRetainedDataAcknowledged] = useState(false)
+  const [backupAcknowledged, setBackupAcknowledged] = useState(false)
   const [backupPopupOpen, setBackupPopupOpen] = useState(false)
+  const [confirmCountdown, setConfirmCountdown] = useState(CONFIRM_COUNTDOWN_SECONDS)
   const [submitting, setSubmitting] = useState(false)
   const allRisksAcknowledged = acknowledged && deletionAcknowledged && retainedDataAcknowledged
+
+  useEffect(() => {
+    if (step !== 2) return
+
+    const interval = window.setInterval(() => {
+      setConfirmCountdown((seconds) => {
+        if (seconds <= 1) {
+          window.clearInterval(interval)
+          return 0
+        }
+        return seconds - 1
+      })
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [step])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && !submitting) resolve()
   }
 
   const handleConfirm = async () => {
-    if (step !== 2 || !allRisksAcknowledged || submitting) return
+    if (step !== 2 || !allRisksAcknowledged || confirmCountdown > 0 || submitting) return
 
     setSubmitting(true)
     try {
@@ -50,7 +69,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
   const handleNext = () => {
     if (step === 0 && allRisksAcknowledged) setStep(1)
-    if (step === 1) setStep(2)
+    if (step === 1 && backupAcknowledged) {
+      setConfirmCountdown(CONFIRM_COUNTDOWN_SECONDS)
+      setStep(2)
+    }
   }
 
   const handleBack = () => {
@@ -130,6 +152,20 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 <SaveIcon size={14} />
                 {t('settings.data.v1_remigration.backup_button')}
               </Button>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="v1-remigration-backup-acknowledgement"
+                  size="sm"
+                  checked={backupAcknowledged}
+                  onCheckedChange={(checked) => setBackupAcknowledged(checked === true)}
+                />
+                <label
+                  htmlFor="v1-remigration-backup-acknowledgement"
+                  className="cursor-pointer text-foreground text-sm leading-relaxed">
+                  {t('settings.data.v1_remigration.backup_acknowledgement')}
+                </label>
+              </div>
             </div>
           )}
 
@@ -141,25 +177,30 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={() => resolve()}>
-            {t('common.cancel')}
-          </Button>
           {step > 0 && (
-            <Button variant="outline" disabled={submitting} onClick={handleBack}>
+            <Button className="sm:mr-auto" variant="outline" disabled={submitting} onClick={handleBack}>
               {t('settings.data.v1_remigration.back')}
             </Button>
           )}
+          <Button variant="outline" disabled={submitting} onClick={() => resolve()}>
+            {t('common.cancel')}
+          </Button>
           {step < 2 ? (
-            <Button variant="emphasis" disabled={step === 0 && !allRisksAcknowledged} onClick={handleNext}>
+            <Button
+              variant="emphasis"
+              disabled={(step === 0 && !allRisksAcknowledged) || (step === 1 && !backupAcknowledged)}
+              onClick={handleNext}>
               {t('settings.data.v1_remigration.next')}
             </Button>
           ) : (
             <Button
               variant="destructive"
-              disabled={submitting || !allRisksAcknowledged}
+              disabled={submitting || !allRisksAcknowledged || confirmCountdown > 0}
               loading={submitting}
               onClick={handleConfirm}>
-              {t('settings.data.v1_remigration.confirm')}
+              {confirmCountdown > 0
+                ? t('settings.data.v1_remigration.confirm_countdown', { seconds: confirmCountdown })
+                : t('settings.data.v1_remigration.confirm')}
             </Button>
           )}
         </DialogFooter>
