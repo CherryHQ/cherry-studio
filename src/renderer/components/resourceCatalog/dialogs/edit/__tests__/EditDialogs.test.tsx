@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -1477,8 +1478,8 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('keeps the dialog open with a visible error when the save on close fails', async () => {
-    updateAssistantMock.mockRejectedValue(new Error('Network down'))
+  it('prompts without closing or retrying an unchanged failed assistant save', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
@@ -1486,14 +1487,18 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await new Promise((resolve) => setTimeout(resolve, 700))
 
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
@@ -1519,7 +1524,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
-  it('does not silently discard a save when reopened within the exit-animation window with an identical edit', async () => {
+  it('clears the failed assistant save snapshot when reopened within the exit-animation window', async () => {
     // The host (useResourceCatalogController) keeps this dialog instance mounted for
     // DIALOG_EXIT_ANIMATION_MS after `open` goes false, so a reopen within that window
     // reuses the SAME component instance instead of remounting — simulate that with
@@ -1534,17 +1539,13 @@ describe('edit dialogs', () => {
     await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
-    // Discard-close, then reopen on the same instance before it unmounts.
+    // Simulate an external close, then reopen on the same instance before it unmounts.
     rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
     rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
     const saveAttemptsBeforeRetry = updateAssistantMock.mock.calls.length
 
-    // Make the exact same edit again — this reproduces the identical changeKey as the
-    // failed attempt above. Without clearing failedSaveKeyRef on reopen, the stale key
-    // still matches this "new" changeKey, so handleOpenChange takes its synchronous
-    // discard branch and calls onOpenChange(false) immediately — without ever invoking
-    // the save mutation a second time. Assert synchronously (no waitFor) right after the
-    // click so an independent debounced auto-save firing later can't mask that bug.
+    // Make the exact same edit again. The new editing session must not mistake it
+    // for the prior session's failed snapshot and block the save.
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
@@ -1581,16 +1582,36 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the agent dialog open with a visible error when the save on close fails', async () => {
-    updateAgentMock.mockRejectedValue(new Error('Network down'))
+  it('prompts without closing or retrying an unchanged failed agent save', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Agent' } })
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await new Promise((resolve) => setTimeout(resolve, 700))
+
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(updateAgentMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
+    expect(updateAgentMock).toHaveBeenLastCalledWith({
+      body: expect.objectContaining({ name: 'Retry Agent' })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 })
