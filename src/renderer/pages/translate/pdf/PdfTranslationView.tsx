@@ -85,6 +85,7 @@ type PdfTranslationResultState =
   | { type: 'progress'; progress: PdfTranslationUiProgress }
   | { type: 'preparing' }
   | { type: 'ocr_required' }
+  | { type: 'persist_failed' }
   | { type: 'text_fallback'; content: ReactNode }
   | { type: 'checking_dependency' }
   | { type: 'installing_dependency' }
@@ -170,6 +171,9 @@ const getResultState = ({
   }
   if (error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED) {
     return { type: 'ocr_required' }
+  }
+  if (error instanceof IpcError && error.code === translateErrorCodes.PDF_RESULT_PERSIST_FAILED) {
+    return { type: 'persist_failed' }
   }
   // Raw sidecar diagnostics stay in the main-process log; the renderer uses a generic error.
   if (error) return { type: 'error' }
@@ -411,13 +415,18 @@ const PdfTranslationResult = ({
     case 'preparing':
       return <CenteredLoading label={getProgressLabel(t, 'preparing')} />
     case 'ocr_required':
+    case 'persist_failed':
     case 'error':
       return (
         <EmptyState
           icon={AlertCircle}
           title={t('translate.pdf.error.title')}
           description={
-            state.type === 'ocr_required' ? t('translate.pdf.error.ocr_required') : t('translate.pdf.error.generic')
+            state.type === 'ocr_required'
+              ? t('translate.pdf.error.ocr_required')
+              : state.type === 'persist_failed'
+                ? t('translate.pdf.error.persist_failed')
+                : t('translate.pdf.error.generic')
           }
         />
       )

@@ -307,18 +307,20 @@ export class PdfTranslationService extends BaseService {
    */
   private async persistResult(request: PdfTranslationRequest, outputPath: AbsoluteFilePath) {
     const fileManager = application.get('FileManager')
-    const translated = await fileManager.createInternalEntry({
-      source: 'path',
-      path: outputPath,
-      cleanupPolicy: 'delete_when_unreferenced'
-    })
+    let translated: FileEntry | null = null
 
     try {
-      const entry = await this.renameToDisplayName(translated, request)
+      const created = await fileManager.createInternalEntry({
+        source: 'path',
+        path: outputPath,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      translated = created
+      const entry = await this.renameToDisplayName(created, request)
       const fileName = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
 
       const files: CreateFileTranslateHistoryInput['files'] = [{ fileEntryId: entry.id, role: 'target' }]
-      const source = await this.registerSourceEntry(request.sourcePath)
+      const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
       if (source) files.push({ fileEntryId: source.id, role: 'source' })
 
       application.get('DbService').withWriteTx((tx) =>
@@ -333,10 +335,17 @@ export class PdfTranslationService extends BaseService {
 
       return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
     } catch (error) {
-      await fileManager.permanentDelete(translated.id).catch((cleanupError) => {
-        logger.error(`Failed to delete orphaned translated PDF entry ${translated.id}`, cleanupError as Error)
-      })
-      throw error
+      logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+      if (translated) {
+        const translatedId = translated.id
+        await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
+          logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
+        })
+      }
+      throw new IpcError(
+        translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
+        'The PDF was translated, but its result could not be saved'
+      )
     }
   }
 
@@ -357,7 +366,16 @@ export class PdfTranslationService extends BaseService {
       })
       return entry
     }
-    return application.get('FileManager').rename(entry.id, displayName)
+    try {
+      return await application.get('FileManager').rename(entry.id, displayName)
+    } catch (error) {
+      logger.warn('Failed to apply the translated PDF display name; keeping the BabelDOC-derived name', {
+        entryId: entry.id,
+        error: String(error),
+        jobId: request.jobId
+      })
+      return entry
+    }
   }
 
   /**
@@ -368,7 +386,7 @@ export class PdfTranslationService extends BaseService {
    * the translation, which is already on disk — so a failure costs the "source" ref, not
    * the history row.
    */
-  private async registerSourceEntry(sourcePath: AbsoluteFilePath): Promise<FileEntry | null> {
+  private async registerSourceEntry(sourcePath: AbsoluteFilePath, jobId: string): Promise<FileEntry | null> {
     try {
       return await application.get('FileManager').ensureExternalEntry({
         externalPath: sourcePath,
@@ -376,7 +394,9 @@ export class PdfTranslationService extends BaseService {
       })
     } catch (error) {
       logger.warn('Failed to reference the source PDF; recording the translation without it', {
-        error: String(error)
+        error: String(error),
+        jobId,
+        sourcePath
       })
       return null
     }

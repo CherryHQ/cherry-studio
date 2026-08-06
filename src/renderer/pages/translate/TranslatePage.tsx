@@ -566,8 +566,6 @@ const TranslatePage: FC = () => {
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
 
-      resetPdfMode()
-
       // Only reachable from the detail panel's preview action, which `isPdfTranslation`
       // already gated — a future non-PDF file translation has no viewer to restore into
       // and never offers the button.
@@ -583,9 +581,11 @@ const TranslatePage: FC = () => {
           toast.error(t('translate.history.file.unavailable'))
           return
         }
+        resetPdfMode()
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
+        resetPdfMode()
         setTranslateInput(history.sourceText)
         setTranslateOutput(history.targetText)
       }

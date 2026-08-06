@@ -1,5 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -275,6 +276,54 @@ describe('TranslateHistory', () => {
       fireEvent.click(screen.getByRole('button', { name: 'translate.history.file.preview' }))
 
       expect(onHistoryItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: '3', kind: 'file' }))
+    })
+
+    it('reports a missing translated file in the detail panel', async () => {
+      fileMocks.loadTranslationFiles.mockResolvedValue({
+        source: TRANSLATION_FILES.source,
+        target: null
+      })
+
+      await openPdfDetail()
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.history.file.unavailable'))
+      expect(screen.getByRole('button', { name: 'translate.history.file.open' })).toBeDisabled()
+      expect(screen.queryByRole('button', { name: 'translate.history.file.preview' })).not.toBeInTheDocument()
+    })
+
+    it('does not offer preview when the source ref is missing', async () => {
+      fileMocks.loadTranslationFiles.mockResolvedValue({
+        source: null,
+        target: TRANSLATION_FILES.target
+      })
+
+      await openPdfDetail()
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'translate.history.file.open' })).toBeEnabled())
+      expect(screen.queryByRole('button', { name: 'translate.history.file.preview' })).not.toBeInTheDocument()
+    })
+
+    it('logs a late load failure without notifying after the detail panel unmounts', async () => {
+      const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+      const lateError = new Error('late failure')
+      let rejectLoad!: (error: Error) => void
+      fileMocks.loadTranslationFiles.mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectLoad = reject
+        })
+      )
+      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [pdfHistory], total: 1 }))
+      const { unmount } = renderHistory(onHistoryItemClick)
+      fireEvent.click(screen.getByText('paper.pdf'))
+      await waitFor(() => expect(fileMocks.loadTranslationFiles).toHaveBeenCalledWith('3'))
+
+      unmount()
+      await act(async () => {
+        rejectLoad(lateError)
+      })
+
+      expect(loggerError).toHaveBeenCalledWith('Failed to load the files of a translate history entry', lateError)
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
     // `kind` says "this row is a pair of files", not "this row is a pair of PDFs".

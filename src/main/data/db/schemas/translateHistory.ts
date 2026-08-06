@@ -22,8 +22,9 @@ import { translateLanguageTable } from './translateLanguage'
  *   `fileRelations.ts`): SQLite cannot add a constraint in place, so a CHECK would
  *   force drizzle to rebuild this already-shipped table via `INSERT…SELECT` — and
  *   that generated statement wrongly selects the not-yet-existing `kind` column.
- *   Without it the migration is a plain `ADD COLUMN`, and the value stays fenced by
- *   `TranslateHistoryKindSchema` at every boundary.
+ *   Without it the migration is a plain `ADD COLUMN`. DataApi DTOs exclude `kind`,
+ *   both service write paths assign fixed literals, and the row-to-entity read path
+ *   parses persisted values with `TranslateHistoryKindSchema`.
  */
 export const translateHistoryTable = sqliteTable(
   'translate_history',

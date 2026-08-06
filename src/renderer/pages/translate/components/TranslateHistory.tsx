@@ -485,10 +485,13 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: () => 
     let active = true
     loadTranslationFiles(item.id)
       .then((loaded) => {
-        if (active) setFiles(loaded)
+        if (!active) return
+        setFiles(loaded)
+        if (!loaded.target?.path) toast.error(t('translate.history.file.unavailable'))
       })
       .catch((error) => {
         logger.error('Failed to load the files of a translate history entry', error as Error)
+        if (!active) return
         toast.error(t('translate.history.file.unavailable'))
       })
     return () => {
@@ -499,6 +502,7 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: () => 
   const source = files?.source ?? null
   const target = files?.target ?? null
   const targetPath = target?.path ?? null
+  const canPreview = isPdfTranslation(item) && Boolean(source?.path && targetPath)
 
   const runFileAction = useCallback(
     async (action: () => Promise<void>, failureMessage: string) => {
@@ -548,7 +552,7 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: () => 
         )}
       </TranslationFileCard>
       <div className="flex items-center gap-2 pt-1">
-        {isPdfTranslation(item) && (
+        {canPreview && (
           <button
             type="button"
             onClick={onReuse}

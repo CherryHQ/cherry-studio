@@ -539,20 +539,19 @@ export const jobFileRefSchema = createRefSchema(jobRefFields)
 
 // ─── translate_history variant ───
 //
-// Links a FileEntry to a `translate_history` row whose `kind` is `'pdf'`. A
-// layout-preserving PDF translation persists two files: the user's original
-// (`role='source'`, an external entry — Cherry references the path, never
-// copies it, and `permanentDelete` never touches the file itself) and the
-// generated translation (`role='target'`, an internal
-// `delete_when_unreferenced` entry Cherry owns). The association table has an
+// Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. A
+// layout-preserving PDF translation always persists the generated translation
+// (`role='target'`, an internal `delete_when_unreferenced` entry Cherry owns)
+// and, best effort, references the user's original (`role='source'`, an external
+// entry — Cherry never copies it, and `permanentDelete` never touches the file
+// itself). The association table has an
 // FK to `translate_history`, so deleting a history row — individually or via
 // "clear all" — cascades its refs, which is what releases the translated PDF
 // for reclaim.
 //
-// Roles are `source` / `target` rather than the `input` / `output` vocabulary
-// of the painting and job variants: the owning row already describes the same
-// axis as `sourceText` / `targetText` / `sourceLanguage` / `targetLanguage`, so
-// a second set of words for it would only invite mismapping.
+// Roles are `source` / `target` because the owning row already describes that
+// axis as `sourceText` / `targetText` / `sourceLanguage` / `targetLanguage`; a
+// second vocabulary would only invite mismapping.
 //
 // `translate_history.id` is `uuidPrimaryKeyOrdered()` — UUID v7 for rows created
 // in v2 — but v1-migrated rows keep their original ids verbatim, so `sourceId`

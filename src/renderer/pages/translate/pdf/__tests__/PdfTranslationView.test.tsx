@@ -2,6 +2,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgress } from '@shared/ipc/schemas/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,7 @@ const PAPER_PATH = '/tmp/paper.pdf' as AbsoluteFilePath
 const SCAN_PATH = '/tmp/scan.pdf' as AbsoluteFilePath
 
 const mocks = vi.hoisted(() => ({
+  invalidateCache: vi.fn(),
   ipcRequest: vi.fn(),
   progressHandler: null as null | ((payload: PdfTranslationProgress & { jobId: string }) => void),
   stageHandler: null as
@@ -35,6 +37,8 @@ vi.mock('@renderer/components/FilePreview', () => ({
 describe('PdfTranslationView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.invalidateCache.mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(mocks.invalidateCache)
     mocks.progressHandler = null
     mocks.stageHandler = null
   })
@@ -86,6 +90,7 @@ describe('PdfTranslationView', () => {
     await waitFor(() => expect(screen.getAllByTestId('pdf-preview')).toHaveLength(2))
     expect(screen.getAllByTestId('pdf-preview')[1]).toHaveAttribute('data-file-path', '/tmp/job/paper.zh-CN.mono.pdf')
     expect(onStatusChange).toHaveBeenLastCalledWith({ phase: 'success', running: false })
+    expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
   })
 
   it('shows stable streamed progress for the active PDF translation job', async () => {
@@ -260,6 +265,7 @@ describe('PdfTranslationView', () => {
     // PDF to FileManager, so there is nothing left for the renderer to clean up.
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
     expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start', 'translate.pdf.cancel'])
+    expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
   })
 
   it('mounts straight into the side-by-side result when reopened from history', () => {
@@ -353,6 +359,39 @@ describe('PdfTranslationView', () => {
     act(() => handle!.start('zh-cn'))
 
     expect(await screen.findByText('translate.pdf.error.ocr_required')).toBeInTheDocument()
+  })
+
+  it('explains when the completed PDF could not be saved to history', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'translate.pdf.start') {
+        return Promise.reject(
+          new IpcError(translateErrorCodes.PDF_RESULT_PERSIST_FAILED, 'Could not save the translated PDF')
+        )
+      }
+      return Promise.resolve(undefined)
+    })
+    let handle: PdfTranslationHandle | null = null
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="available"
+        babelDocInstalling={false}
+        onClose={vi.fn()}
+        onHandleChange={(next) => {
+          handle = next
+        }}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={vi.fn()}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(handle).not.toBeNull())
+    act(() => handle!.start('zh-cn'))
+
+    expect(await screen.findByText('translate.pdf.error.persist_failed')).toBeInTheDocument()
   })
 
   it('shows a generic message for an unknown sidecar failure instead of the raw stderr', async () => {

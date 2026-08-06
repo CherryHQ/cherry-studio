@@ -8533,6 +8533,7 @@
       "error": {
         "generic": "Something went wrong during translation. Please try again.",
         "ocr_required": "Scanned PDFs are not supported yet.",
+        "persist_failed": "The PDF was translated, but the result could not be saved. Please try again.",
         "title": "PDF translation failed"
       },
       "export_failed": "Failed to export translated PDF",

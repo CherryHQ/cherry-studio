@@ -122,19 +122,19 @@ export const jobFileRefTable = sqliteTable(
 /**
  * Translate history file references.
  *
- * Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. Each
- * file translation writes two rows: `role='source'` for the user's original (an
- * external entry — the path is referenced, never copied or deleted) and
- * `role='target'` for the generated file (an internal
- * `delete_when_unreferenced` entry). Deleting the history row — individually or
- * via "clear all" — cascades both refs, which is what makes the generated file
- * reclaimable by the cleanup pass.
+ * Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. The
+ * current PDF producer writes one `role='target'` row for the generated internal
+ * `delete_when_unreferenced` entry and, best effort, one `role='source'` row for
+ * the user's external original (the path is referenced, never copied or deleted).
+ * Deleting the history row — individually or via "clear all" — cascades its refs,
+ * which is what makes the generated file reclaimable by the cleanup pass.
  *
  * The unique index stays on the `(fileEntryId, sourceId, role)` triple like the
  * other collection ref tables rather than tightening to `(sourceId, role)`:
  * BabelDOC — today's only producer — can emit a dual-layout PDF alongside the
- * mono one (this feature just passes `--no-dual`), and a per-role slot
- * constraint would make adding that a table rebuild.
+ * mono one (this feature just passes `--no-dual`). The triple leaves that
+ * extension available without changing the table or its indexes; a per-role
+ * slot constraint would first have to be relaxed.
  */
 export const translateHistoryFileRefTable = sqliteTable(
   'translate_history_file_ref',

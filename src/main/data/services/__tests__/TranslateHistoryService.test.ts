@@ -5,6 +5,7 @@ import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod'
 
 describe('TranslateHistoryService', () => {
   const dbh = setupTestDatabase()
@@ -143,6 +144,12 @@ describe('TranslateHistoryService', () => {
     it('should throw NotFound for non-existent id', async () => {
       expect(() => translateHistoryService.getById('non-existent')).toThrow()
     })
+
+    it('should reject an invalid persisted history kind at the read boundary', async () => {
+      const seeded = await seedHistory({ kind: 'corrupt' as never })
+
+      expect(() => translateHistoryService.getById(seeded.id!)).toThrow(ZodError)
+    })
   })
 
   describe('create', () => {
@@ -218,6 +225,32 @@ describe('TranslateHistoryService', () => {
       const result = translateHistoryService.update(seeded.id!, {})
       expect(result.id).toBe(seeded.id)
     })
+
+    it('should allow starring a file history without changing its snapshot', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      const result = translateHistoryService.update(created.id, { star: true })
+
+      expect(result.star).toBe(true)
+      expect(result.sourceText).toBe('paper.pdf')
+      expect(result.targetText).toBe('paper.zh-CN.pdf')
+    })
+
+    it.each([
+      ['source text', { sourceText: 'renamed.pdf' }],
+      ['target text', { targetText: 'renamed.zh-CN.pdf' }],
+      ['source language', { sourceLanguage: null }],
+      ['target language', { targetLanguage: null }]
+    ] satisfies [string, UpdateTranslateHistoryDto][])(
+      'should reject %s changes for file histories',
+      async (_field, dto) => {
+        await seedFileEntries()
+        const created = createFileHistory()
+
+        expect(() => translateHistoryService.update(created.id, dto)).toThrow('only star can be changed')
+      }
+    )
   })
 
   describe('delete', () => {
