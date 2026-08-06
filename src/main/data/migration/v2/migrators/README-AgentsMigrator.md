@@ -92,7 +92,10 @@ For each migrated Agent:
 
 Before reading or copying Agent identity and workspace content, migration
 validates every exact v2 target against every v1 source, then clears the final
-`Data/Agents/{agentId}` directories and planned managed Session workspaces.
+`Data/Agents/{agentId}` directories and planned managed Session workspaces that
+are not themselves legacy sources. A target already used as the same Agent's
+exact legacy workspace is retained, including case-only path variants on
+Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
 Validation completes for the whole cleanup plan before any target is removed.
 This avoids hashing or copying data only to fail on stale retry output, while
 leaving legacy short-ID and external user workspaces unchanged. A target
@@ -116,15 +119,16 @@ external user workspace because those paths remain the source of truth when a
 user downgrades to v1. Retry cleanup removes only the exact v2 Agent and managed
 Session targets owned by the current migration plan.
 
-Each entry records its source metadata before copying, verifies that the source
-metadata is unchanged after the copy, and requires the complete private staging
-entry to match the copied-content fingerprint before atomically publishing it.
-After planned targets are cleared, a concurrently created destination is
-fingerprinted and reused only when it is identical. A source that changes
-inside the copy window aborts before workspace publication. UUID staging paths
-keep partial copies out of the final workspace and only the current run's
-staging path is removed; the migration never sweeps other prefix-matching
-entries.
+Filesystem copies use content fingerprints rather than source metadata. Each
+source is fingerprinted before copying, and the complete private staging entry
+must match that fingerprint before atomic publication. Once that verified
+snapshot exists, later inode or timestamp changes do not invalidate it. This
+tolerates cloud-storage hydration and preserves a deterministic source snapshot
+without requiring a user-owned directory to remain quiescent. After planned
+targets are cleared, a concurrently created destination is fingerprinted and
+reused only when it is identical. UUID staging paths keep partial copies out of
+the final workspace and only the current run's staging path is removed; the
+migration never sweeps other prefix-matching entries.
 
 `app_state.key = 'migration_v2_status'` records that the v2 database and file
 copies are ready. It does not mean the v1-compatible source layout was removed,
