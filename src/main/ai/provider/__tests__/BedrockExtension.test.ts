@@ -68,7 +68,7 @@ describe('BedrockExtension toolFactories', () => {
       expect.objectContaining({ id: 'web-search', modelScope: 'model-dependent' })
     )
     expect(BedrockExtension.config.toolFactories?.webSearch).toBeDefined()
-    expect(model && isServerToolModelEligible(model.id, SERVER_TOOL.WEB_SEARCH)).toBe(true)
+    expect(model && isServerToolModelEligible(model.id, 'aws-bedrock', SERVER_TOOL.WEB_SEARCH)).toBe(true)
     expect(model?.capabilities).not.toContain('web-search')
   })
 })

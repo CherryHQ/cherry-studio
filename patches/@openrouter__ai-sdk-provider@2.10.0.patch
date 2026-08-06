@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93b01fd162 100644
+index 0055af0c73ad638a59df92fa5d46edc7995da151..e2923dfdd124505790ecc628c5579a2bf0532703 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
 @@ -398,6 +398,7 @@ type OpenRouterProviderOptions = {
@@ -10,8 +10,44 @@ index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93
  };
  type OpenRouterSharedSettings = OpenRouterProviderOptions & {
      /**
+@@ -732,6 +733,22 @@ type WebSearchToolArgs = {
+     searchPrompt?: string;
+     /** Search engine to use: 'auto', 'native', or 'exa' */
+     engine?: 'auto' | Engine;
++    /** Restrict results to these domains (→ allowed_domains). Mutually exclusive with excludedDomains on some engines. */
++    allowedDomains?: string[];
++    /** Exclude results from these domains (→ excluded_domains). */
++    excludedDomains?: string[];
++};
++type WebFetchToolArgs = {
++    /** Fetch engine to use: 'auto', 'native', 'exa', 'openrouter', 'firecrawl', or 'parallel' */
++    engine?: 'auto' | 'native' | 'exa' | 'openrouter' | 'firecrawl' | 'parallel' | (string & {});
++    /** Maximum fetches per request (→ max_uses). */
++    maxUses?: number;
++    /** Truncate fetched content to this many approximate tokens (→ max_content_tokens). */
++    maxContentTokens?: number;
++    /** Only fetch from these domains (→ allowed_domains). */
++    allowedDomains?: string[];
++    /** Never fetch from these domains (→ blocked_domains). */
++    blockedDomains?: string[];
+ };
+ 
+ interface OpenRouterProvider extends ProviderV3 {
+@@ -774,6 +791,12 @@ interface OpenRouterProvider extends ProviderV3 {
+          * @see https://openrouter.ai/docs/guides/features/server-tools/web-search
+          */
+         webSearch: ProviderToolFactory<unknown, WebSearchToolArgs>;
++        /**
++         * Creates an OpenRouter web fetch server tool.
++         *
++         * @see https://openrouter.ai/docs/guides/features/server-tools/web-fetch
++         */
++        webFetch: ProviderToolFactory<unknown, WebFetchToolArgs>;
+     };
+ }
+ interface OpenRouterProviderSettings {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93b01fd162 100644
+index 0055af0c73ad638a59df92fa5d46edc7995da151..e2923dfdd124505790ecc628c5579a2bf0532703 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -398,6 +398,7 @@ type OpenRouterProviderOptions = {
@@ -22,8 +58,44 @@ index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93
  };
  type OpenRouterSharedSettings = OpenRouterProviderOptions & {
      /**
+@@ -732,6 +733,22 @@ type WebSearchToolArgs = {
+     searchPrompt?: string;
+     /** Search engine to use: 'auto', 'native', or 'exa' */
+     engine?: 'auto' | Engine;
++    /** Restrict results to these domains (→ allowed_domains). Mutually exclusive with excludedDomains on some engines. */
++    allowedDomains?: string[];
++    /** Exclude results from these domains (→ excluded_domains). */
++    excludedDomains?: string[];
++};
++type WebFetchToolArgs = {
++    /** Fetch engine to use: 'auto', 'native', 'exa', 'openrouter', 'firecrawl', or 'parallel' */
++    engine?: 'auto' | 'native' | 'exa' | 'openrouter' | 'firecrawl' | 'parallel' | (string & {});
++    /** Maximum fetches per request (→ max_uses). */
++    maxUses?: number;
++    /** Truncate fetched content to this many approximate tokens (→ max_content_tokens). */
++    maxContentTokens?: number;
++    /** Only fetch from these domains (→ allowed_domains). */
++    allowedDomains?: string[];
++    /** Never fetch from these domains (→ blocked_domains). */
++    blockedDomains?: string[];
+ };
+ 
+ interface OpenRouterProvider extends ProviderV3 {
+@@ -774,6 +791,12 @@ interface OpenRouterProvider extends ProviderV3 {
+          * @see https://openrouter.ai/docs/guides/features/server-tools/web-search
+          */
+         webSearch: ProviderToolFactory<unknown, WebSearchToolArgs>;
++        /**
++         * Creates an OpenRouter web fetch server tool.
++         *
++         * @see https://openrouter.ai/docs/guides/features/server-tools/web-fetch
++         */
++        webFetch: ProviderToolFactory<unknown, WebFetchToolArgs>;
+     };
+ }
+ interface OpenRouterProviderSettings {
 diff --git a/dist/index.js b/dist/index.js
-index 3c6c1b100611983d32172288e9e40a1e6736320d..71bcbc62847eb4db626941ffd99761d82a3b1f2d 100644
+index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b8738b1834c 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -2585,7 +2585,8 @@ var OpenRouterProviderOptionsSchema = import_v43.z.object({
@@ -113,8 +185,37 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..71bcbc62847eb4db626941ffd99761d8
      const usage = responseValue.usage ? {
        inputTokens: responseValue.usage.prompt_tokens,
        outputTokens: responseValue.usage.completion_tokens,
+@@ -5011,6 +5017,18 @@ var webSearch = createProviderToolFactory({
+   id: "openrouter.web_search",
+   inputSchema: webSearchInputSchema
+ });
++var webFetchInputSchema = import_v410.z.object({
++  /** Fetched page content returned by the server tool */
++  url: import_v410.z.string().optional(),
++  title: import_v410.z.string().optional(),
++  content: import_v410.z.string().optional(),
++  status: import_v410.z.string().optional(),
++  error: import_v410.z.string().optional()
++});
++var webFetch = createProviderToolFactory({
++  id: "openrouter.web_fetch",
++  inputSchema: webFetchInputSchema
++});
+ 
+ // src/utils/remove-undefined.ts
+ function removeUndefinedEntries(record) {
+@@ -5324,7 +5342,8 @@ function createOpenRouter(options = {}) {
+   provider.imageModel = createImageModel;
+   provider.videoModel = createVideoModel;
+   provider.tools = {
+-    webSearch
++    webSearch,
++    webFetch
+   };
+   return provider;
+ }
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..d5ae7dcead87ecbc07e3f672ed1145864ce2dcde 100644
+index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3f5fcc3e4 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -2552,7 +2552,8 @@ var OpenRouterProviderOptionsSchema = z3.object({
@@ -204,3 +305,32 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..d5ae7dcead87ecbc07e3f672ed114586
      const usage = responseValue.usage ? {
        inputTokens: responseValue.usage.prompt_tokens,
        outputTokens: responseValue.usage.completion_tokens,
+@@ -4978,6 +4984,18 @@ var webSearch = createProviderToolFactory({
+   id: "openrouter.web_search",
+   inputSchema: webSearchInputSchema
+ });
++var webFetchInputSchema = z11.object({
++  /** Fetched page content returned by the server tool */
++  url: z11.string().optional(),
++  title: z11.string().optional(),
++  content: z11.string().optional(),
++  status: z11.string().optional(),
++  error: z11.string().optional()
++});
++var webFetch = createProviderToolFactory({
++  id: "openrouter.web_fetch",
++  inputSchema: webFetchInputSchema
++});
+ 
+ // src/utils/remove-undefined.ts
+ function removeUndefinedEntries(record) {
+@@ -5291,7 +5309,8 @@ function createOpenRouter(options = {}) {
+   provider.imageModel = createImageModel;
+   provider.videoModel = createVideoModel;
+   provider.tools = {
+-    webSearch
++    webSearch,
++    webFetch
+   };
+   return provider;
+ }

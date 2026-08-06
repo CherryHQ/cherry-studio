@@ -5,7 +5,8 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -31,13 +32,57 @@ export const AppShell = () => {
     openTab
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const isSettingsTabActive = isSettingsPath(activeTab?.url)
+  const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
+  if (activeTab && !isSettingsTabActive) {
+    previousWorkspaceTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
+    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+      if (isSettingsPath(tab.url)) return latest
+      return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+    }, undefined)?.id
+  }
+  const tabBarTabs = useMemo(
+    () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
+    [activeTab, isSettingsTabActive, tabs]
+  )
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  const handleCloseTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      if (isSettingsPath(tab?.url)) {
+        closeTabs([id], previousWorkspaceTabIdRef.current)
+        return
+      }
+      closeTab(id)
+    },
+    [closeTab, closeTabs, tabs]
+  )
+
+  const handleDetachTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      detachTab(id)
+      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
+        setActiveTab(previousWorkspaceTabIdRef.current)
+      }
+    },
+    [detachTab, setActiveTab, tabs]
+  )
+
   const handleOpenGlobalSearch = useCallback(() => {
+    if (isSettingsTabActive) return
     void GlobalSearchPopup.show()
-  }, [])
+  }, [isSettingsTabActive])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+
+  useEffect(() => {
+    if (isSettingsTabActive) {
+      GlobalSearchPopup.hide()
+    }
+  }, [isSettingsTabActive])
 
   useEffect(() => {
     if (!isMac) return
@@ -104,22 +149,23 @@ export const AppShell = () => {
 
   const tabBar = (
     <AppShellTabBar
-      tabs={tabs}
+      tabs={tabBarTabs}
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
+      isFocusedTab={isSettingsTabActive}
       setActiveTab={setActiveTab}
-      closeTab={closeTab}
+      closeTab={handleCloseTab}
       closeTabs={closeTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}
-      detachTab={detachTab}
+      detachTab={handleDetachTab}
       openTab={openTab}
     />
   )
 
   const contentArea = (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
       <main
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
@@ -157,7 +203,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        <Sidebar />
+        {!isSettingsTabActive && <Sidebar />}
         {contentColumn}
       </div>
     )
@@ -176,16 +222,18 @@ export const AppShell = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
-        {!isFullscreen && (
-          <div
-            aria-hidden="true"
-            data-testid="macos-traffic-light-spacer"
-            className="h-11 shrink-0 [-webkit-app-region:drag]"
-          />
-        )}
-        <Sidebar />
-      </div>
+      {!isSettingsTabActive && (
+        <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+          {!isFullscreen && (
+            <div
+              aria-hidden="true"
+              data-testid="macos-traffic-light-spacer"
+              className="h-11 shrink-0 [-webkit-app-region:drag]"
+            />
+          )}
+          <Sidebar />
+        </div>
+      )}
       {contentColumn}
     </div>
   )

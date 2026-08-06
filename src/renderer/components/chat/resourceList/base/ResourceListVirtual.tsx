@@ -89,6 +89,7 @@ type ResourceListVirtualFooter = {
 }
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
+  __resourceListBoundaryId?: string
   __resourceListKind?: 'section'
 }
 
@@ -119,7 +120,7 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
-  return { ...section, __resourceListKind: 'section' }
+  return { ...section, __resourceListBoundaryId: section.id, __resourceListKind: 'section' }
 }
 
 function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
@@ -185,7 +186,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
 
-  const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number]) => {
+  const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number], boundaryId?: string) => {
     const items: ResourceListVirtualItem<T>[] = []
 
     for (const item of group.items) {
@@ -194,7 +195,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
     }
 
     groups.push({
-      group: group.group,
+      group: boundaryId ? { ...group.group, __resourceListBoundaryId: boundaryId } : group.group,
       header: group.group.label ? { type: 'group', group: group.group } : undefined,
       items,
       footer:
@@ -219,7 +220,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
       }
 
       for (const group of section.groups) {
-        appendGroup(group)
+        appendGroup(group, showSectionHeaders ? section.section.id : undefined)
       }
     }
     return groups
@@ -614,6 +615,10 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   })
   const isScrolling = stage !== 'idle'
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
+  const getGroupBoundaryId = useCallback(
+    (group: ResourceListVirtualGroupData) => group.__resourceListBoundaryId ?? group.id,
+    []
+  )
   const getVirtualItemId = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => getItemId(virtualItem.item),
     [getItemId]
@@ -652,8 +657,13 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     [actions]
   )
   const canDragGroup = useCallback(
-    (group: ResourceListVirtualGroupData, groupIndex: number) =>
-      !isSectionVirtualGroup(group) && (canDragGroupMeta?.(group, groupIndex) ?? true),
+    (group: ResourceListVirtualGroupData, groupIndex: number) => {
+      if (isSectionVirtualGroup(group)) {
+        return canDragGroupMeta?.(group, groupIndex) ?? false
+      }
+
+      return canDragGroupMeta?.(group, groupIndex) ?? true
+    },
     [canDragGroupMeta]
   )
   const canDragVirtualItem = useCallback(
@@ -683,7 +693,9 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       sourceIndex?: number
       targetIndex?: number
     }) => {
-      if (isSectionVirtualGroup(payload.activeGroup) || isSectionVirtualGroup(payload.overGroup)) return false
+      const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
+      const overIsSection = isSectionVirtualGroup(payload.overGroup)
+      if (activeIsSection !== overIsSection) return false
 
       return (
         canDropGroupMeta?.({
@@ -692,7 +704,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
           overType: payload.overType,
           sourceIndex: payload.sourceIndex ?? -1,
           targetIndex: payload.targetIndex ?? -1
-        }) ?? true
+        }) ?? !activeIsSection
       )
     },
     [canDropGroupMeta]
@@ -788,6 +800,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         onScroll={handleScroll}
         overscan={6}
         getGroupId={getGroupId}
+        getGroupBoundaryId={getGroupBoundaryId}
         getItemId={getVirtualItemId}
         dragCapabilities={dragCapabilities}
         estimateGroupHeaderSize={estimateResourceListChromeSize}

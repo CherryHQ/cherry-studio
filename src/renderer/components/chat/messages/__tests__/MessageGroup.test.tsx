@@ -349,6 +349,14 @@ describe('MessageGroup', () => {
     expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
+  it('shows the snapshot model identity for a single assistant reply', () => {
+    const messages = [createMessage('msg-1', 0, 'fold')]
+
+    render(<MessageGroup messages={messages} />)
+
+    expectEveryMessageHeaderToShowModelIdentity(true)
+  })
+
   it.each(['vertical', 'grid'] as const)(
     'always shows each model identity in %s multi-model layout',
     (multiModelMessageStyle) => {
