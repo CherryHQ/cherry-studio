@@ -1039,10 +1039,9 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
-    const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text: draft.text,
-      tokens: draft.tokens,
+      text,
+      tokens: draftTokensRef.current,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,

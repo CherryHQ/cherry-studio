@@ -3382,6 +3382,18 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('session two draft'))
     expect(mocks.selectedKnowledgeBases).toEqual([])
     expect(mocks.files).toEqual([])
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
+      {
+        text: 'session one draft',
+        tokens: [knowledgeBaseToken(knowledgeBaseOne), cachedFileToken, pdfSkillToken],
+        files: [file],
+        knowledgeBaseIds: [knowledgeBaseOne.id],
+        workspaceKey: 'workspace-1\0/workspace',
+        agentId: 'agent-1'
+      },
+      expect.any(Number)
+    )
     view.rerender(
       <AgentComposer
         agentId="agent-1"
@@ -4070,7 +4082,7 @@ describe('AgentComposer', () => {
     mocks.files = [file]
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
-      tokens: mocks.surfaceProps?.tokens.map((token) => ({ ...token, index: 0, textOffset: 0 })) ?? []
+      tokens: mocks.surfaceProps?.draftTokens?.map((token) => ({ ...token, index: 0, textOffset: 0 })) ?? []
     }))
 
     render(

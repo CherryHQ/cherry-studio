@@ -2747,6 +2747,8 @@ describe('ChatComposer', () => {
   })
 
   it('persists the live draft with knowledge tokens, ids, and current files', async () => {
+    const knowledgeBase = { id: 'base-1', name: 'Base 1' } as KnowledgeBase
+    mocks.knowledgeBases = [knowledgeBase]
     const cachedFile = {
       name: 'doc.pdf',
       origin_name: 'doc.pdf',
@@ -2794,7 +2796,7 @@ describe('ChatComposer', () => {
       index: 1,
       textOffset: 11
     } as ComposerSerializedToken
-    mocks.selectedKnowledgeBases = [{ id: 'base-1', name: 'Base 1' } as KnowledgeBase]
+    mocks.selectedKnowledgeBases = [knowledgeBase]
     mocks.getDraft.mockReturnValue({ text: 'quoted text', tokens: [quoteToken, knowledgeToken] })
     act(() => {
       mocks.surfaceProps?.onTextChange('quoted text')
@@ -3410,6 +3412,11 @@ describe('ChatComposer', () => {
       status: 'success'
     } as const
     const nextTopic = { ...topic, id: 'topic-2' }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-2'
+        ? { text: 'topic 2 draft', tokens: [], files: [], knowledgeBaseIds: [] }
+        : undefined
+    )
     const onSend = vi.fn().mockResolvedValue(undefined)
     const view = render(
       <MessageEditingProvider>
@@ -3429,7 +3436,12 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
-    expect(mocks.surfaceProps?.text).toBe('original draft')
+    expect(mocks.surfaceProps?.text).toBe('topic 2 draft')
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-1',
+      { text: 'original draft', tokens: [], files: [], knowledgeBaseIds: [] },
+      expect.any(Number)
+    )
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'topic 2 draft', tokens: [] })

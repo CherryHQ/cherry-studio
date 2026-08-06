@@ -163,6 +163,7 @@ interface SavedComposerDraft {
   files: ComposerAttachment[]
   mentionedModels: Model[]
   selectedKnowledgeBases: KnowledgeBase[]
+  knowledgeBaseIds: string[]
 }
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
@@ -483,6 +484,7 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
+  const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -904,13 +906,15 @@ const ChatComposerInner = ({
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
-    if (editingMessage || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
-    const draft = actionsRef.current.getDraft()
+    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
+    const savedDraft = savedDraftBeforeEditingRef.current
+    if (editingMessage && !savedDraft) return
+    const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
-      text: draft.text,
+      text: savedDraft ? draft.text : text,
       tokens: draft.tokens,
-      files: filesRef.current,
-      knowledgeBaseIds: knowledgeBaseIdsRef.current
+      files: savedDraft?.files ?? filesRef.current,
+      knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
@@ -977,7 +981,8 @@ const ChatComposerInner = ({
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
-        selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current
+        selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
+        knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }
     } else {
       exitInputHistoryPreview()
@@ -1153,6 +1158,7 @@ const ChatComposerInner = ({
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
+      surfaceGetDraftRef.current = actions.getDraft
       Object.assign(actionsRef.current, actions)
     },
     [actionsRef]
