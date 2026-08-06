@@ -139,7 +139,16 @@ const MessageErrorInfo: React.FC<{
   ])
 
   useEffect(() => {
-    if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
+    // `aiSummary` short-circuits re-runs once a diagnosis landed — without it,
+    // every <Activity> re-show of the tab would re-issue the AI diagnose call.
+    if (
+      aiSummary ||
+      hasAppOwnedI18nKey ||
+      classification.category !== 'unknown' ||
+      !errorMessage ||
+      !error ||
+      !diagnoseMessageError
+    )
       return
     let cancelled = false
     diagnoseMessageError({
@@ -159,7 +168,16 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, hasAppOwnedI18nKey, i18n.language, message, partId])
+  }, [
+    aiSummary,
+    classification.category,
+    diagnoseMessageError,
+    errorMessage,
+    hasAppOwnedI18nKey,
+    i18n.language,
+    message,
+    partId
+  ])
 
   const diagnosisContext = useMemo(
     () => ({
