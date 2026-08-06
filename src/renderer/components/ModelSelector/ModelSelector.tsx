@@ -300,6 +300,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
+  const hasActiveTagFilterRef = useRef(false)
+  const [renderedOpen, setRenderedOpen] = useState(false)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -325,6 +327,17 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+
+  // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
+  // rendering the open->closed transition unmounts it in that same commit, so the closed-state
+  // effect below can never reset the tags on the stale rows.
+  if (renderedOpen !== open) {
+    setRenderedOpen(open)
+    if (!open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
+      setShellKey((key) => key + 1)
+    }
+  }
+
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const multiSelectModeRef = useRef(multiSelectMode)
   const wasDataEnabledRef = useRef(false)
@@ -404,6 +417,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
+  hasActiveTagFilterRef.current = selectedTags.length > 0
 
   const listHeight = useMemo(
     () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
@@ -518,10 +532,12 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
-      setShellKey((key) => key + 1)
+      if (mountStrategy !== 'lazy-keep' || !hasActiveTagFilterRef.current) {
+        setShellKey((key) => key + 1)
+      }
       setOpen(false)
     },
-    [open, runPendingCloseAction, setOpen]
+    [mountStrategy, open, runPendingCloseAction, setOpen]
   )
 
   const closeBeforeSettingsNavigation = useCallback(

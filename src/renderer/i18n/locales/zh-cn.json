@@ -5828,6 +5828,76 @@
         "title": "调试面板"
       },
       "description": "一款为创造者而生的 AI 助手",
+      "diagnostics": {
+        "actions": {
+          "cancel": "取消",
+          "close": "关闭",
+          "contact": "写邮件给支持",
+          "copy_email": "复制支持邮箱",
+          "export": "导出",
+          "exporting": "正在导出...",
+          "reveal": "打开文件位置"
+        },
+        "dialog": {
+          "description": "将最近的运行信息保存为 ZIP 压缩文件，帮助支持人员定位问题。",
+          "title": "导出诊断包"
+        },
+        "entry": {
+          "button": "导出",
+          "title": "诊断包"
+        },
+        "errors": {
+          "busy": "已有诊断包正在导出",
+          "copy_failed": "无法复制支持邮箱",
+          "destination_conflict": "所选保存位置与诊断数据冲突，请选择其他文件夹。",
+          "email_client_failed": "无法打开邮件客户端，你可以复制支持邮箱。",
+          "export_failed": "无法导出诊断包",
+          "inspect_failed": "暂时无法检查可导出的内容，请稍后重试。",
+          "reveal_failed": "无法打开文件位置"
+        },
+        "inspecting": "正在准备可导出的内容...",
+        "limit": "为控制文件大小，日志和详细记录最多收集 {{size}}，优先保留较新的内容。",
+        "mail": {
+          "body": "请协助排查此 Cherry Studio 问题。\n\n诊断包 ID：{{bundleId}}\n版本：{{version}}\n平台：{{platform}}\n时间范围：{{range}}\n文件：{{fileName}}\n\n请将 ZIP 文件作为附件添加到此邮件。诊断包仅保存在本地，没有自动上传。",
+          "subject": "Cherry Studio 诊断包 {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "我了解以上内容，并只会私下发送给支持人员。",
+          "description": "这些记录可能包含你输入的内容、文件位置、请求和回复内容，以及服务连接信息。应用不会自动隐藏或上传。请只私下发送给支持人员，不要发布到 GitHub 等公开网站。",
+          "title": "分享前请确认"
+        },
+        "range_title": "时间范围",
+        "ranges": {
+          "24h": "最近 24 小时",
+          "3d": "最近 3 天",
+          "7d": "最近 7 天"
+        },
+        "sources": {
+          "inspecting": "正在检查可用内容...",
+          "logs": {
+            "title": "运行日志"
+          },
+          "summary": "{{count}} 个文件，约 {{size}}",
+          "summary_one": "{{count}} 个文件，约 {{size}}",
+          "summary_other": "{{count}} 个文件，约 {{size}}",
+          "system": {
+            "description": "包括应用版本、系统和设备信息。最近崩溃 {{crashCount}} 次，不收集崩溃文件。",
+            "title": "应用和设备信息"
+          },
+          "traces": {
+            "title": "详细运行记录"
+          },
+          "unavailable": "这段时间内没有可导出的内容"
+        },
+        "success": {
+          "email_copied": "已复制支持邮箱",
+          "local_only": "文件只保存在你的电脑上，没有自动上传。写邮件给支持时，请手动添加这个 ZIP 文件作为附件。",
+          "summary": "文件大小 {{size}} · 收集 {{included}} 个文件 · 未收集 {{omitted}} 个文件",
+          "title": "诊断包已导出"
+        },
+        "unknown": "未知",
+        "warning": "部分诊断信息暂时不可用，导出的诊断包可能不完整。"
+      },
       "downloading": "正在下载更新...",
       "enterprise": {
         "title": "企业版"
