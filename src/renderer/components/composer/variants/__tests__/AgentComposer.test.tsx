@@ -239,9 +239,12 @@ vi.mock('@renderer/ipc', () => ({
 // useAgentSessionSlashCommands now observes the shared slash-command catalog via
 // useSharedCacheValue (globally mocked); with no catalog seeded the composer
 // falls back to the builtin list. This inline cacheService only serves the
-// remaining getCasual/setCasual/subscribe consumers.
+// remaining typed-draft, casual queue, and subscribe consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
+    get: vi.fn(() => undefined),
+    has: vi.fn(() => false),
+    set: vi.fn(),
     getCasual: vi.fn(() => ''),
     hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
@@ -738,8 +741,13 @@ describe('AgentComposer', () => {
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
     mocks.listDirectoryEntries.mockResolvedValue([])
+    vi.mocked(cacheService.get).mockReset()
+    vi.mocked(cacheService.get).mockReturnValue(undefined)
+    vi.mocked(cacheService.has).mockReset()
+    vi.mocked(cacheService.has).mockReturnValue(false)
+    vi.mocked(cacheService.set).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
     vi.mocked(cacheService.hasCasual).mockReset()
     vi.mocked(cacheService.hasCasual).mockReturnValue(false)
     vi.mocked(cacheService.setCasual).mockReset()
@@ -1963,7 +1971,7 @@ describe('AgentComposer', () => {
 
   it('does not overwrite the persisted agent draft while previewing input history', async () => {
     seedInputHistory(['history entry'])
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: 'long in-progress agent draft',
       tokens: []
     })
@@ -1981,15 +1989,15 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
-    vi.mocked(cacheService.setCasual).mockClear()
+    vi.mocked(cacheService.set).mockClear()
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
 
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-session-draft-session-1',
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
       expect.objectContaining({ text: 'history entry' }),
       expect.any(Number)
     )
@@ -2816,7 +2824,7 @@ describe('AgentComposer', () => {
   })
 
   it('restores cached skill draft tokens after composer remount', () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: 'Use the pdf skill. continue',
       tokens: [
         {
@@ -2879,7 +2887,7 @@ describe('AgentComposer', () => {
       textOffset: pdfSkillToken.promptText.length + 1
     }
     const cachedText = `${pdfSkillToken.promptText} ${staleSkillPrompt} ${folderPrompt} keep this`
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: cachedText,
       tokens: [cachedPdfSkillToken, cachedStaleSkillToken, cachedFolderToken, cachedFileToken],
       files: [file],
@@ -2950,8 +2958,8 @@ describe('AgentComposer', () => {
       index: 0,
       textOffset: 0
     }
-    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'agent-session-draft-session-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
     )
 
     render(
@@ -2962,7 +2970,7 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: {
             text: 'Use the issue-reporter skill.',
             tokens: [issueReporterToken]
@@ -2971,13 +2979,13 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(cacheService.getCasual).toHaveBeenCalledWith('agent-feedback-draft-feedback-session')
-    expect(cacheService.getCasual).not.toHaveBeenCalledWith('agent-session-draft-session-1')
+    expect(cacheService.get).toHaveBeenCalledWith('agent.composer_draft.feedback_feedback-session')
+    expect(cacheService.get).not.toHaveBeenCalledWith('agent.composer_draft.session_session-1')
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
     expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
     expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
-    expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-feedback-draft-feedback-session',
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'agent.composer_draft.feedback_feedback-session',
       {
         text: 'Use the issue-reporter skill.',
         tokens: [issueReporterToken],
@@ -3017,7 +3025,7 @@ describe('AgentComposer', () => {
       <AgentComposer
         {...defaultProps}
         launchOptions={{
-          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] }
         }}
       />
@@ -3035,8 +3043,8 @@ describe('AgentComposer', () => {
   })
 
   it('does not restore the launch template after the isolated draft was intentionally cleared', () => {
-    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
-    vi.mocked(cacheService.getCasual).mockReturnValue({ text: '', tokens: [] })
+    vi.mocked(cacheService.has).mockReturnValue(true)
+    vi.mocked(cacheService.get).mockReturnValue({ text: '', tokens: [] })
 
     render(
       <AgentComposer
@@ -3046,7 +3054,7 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }
         }}
       />
@@ -3054,8 +3062,8 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.text).toBe('')
     expect(mocks.surfaceProps?.draftTokens).toEqual([])
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-feedback-draft-feedback-session',
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.feedback_feedback-session',
       expect.objectContaining({ text: 'Use the issue-reporter skill.' }),
       expect.any(Number)
     )
@@ -3080,7 +3088,7 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [token] },
           onSent
         }}
@@ -3097,8 +3105,8 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(onSent).toHaveBeenCalledTimes(1)
-    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-      'agent-feedback-draft-feedback-session',
+    expect(cacheService.set).toHaveBeenLastCalledWith(
+      'agent.composer_draft.feedback_feedback-session',
       {
         text: '',
         tokens: [],
@@ -3109,8 +3117,8 @@ describe('AgentComposer', () => {
       },
       expect.any(Number)
     )
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-session-draft-session-1',
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
       expect.anything(),
       expect.anything()
     )
@@ -3127,7 +3135,7 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent-feedback-draft-feedback-session',
+          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
           onSent
         }}
@@ -3139,8 +3147,8 @@ describe('AgentComposer', () => {
     })
 
     expect(onSent).not.toHaveBeenCalled()
-    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-      'agent-feedback-draft-feedback-session',
+    expect(cacheService.set).toHaveBeenLastCalledWith(
+      'agent.composer_draft.feedback_feedback-session',
       {
         text: 'Use the issue-reporter skill.',
         tokens: [],
@@ -3157,7 +3165,7 @@ describe('AgentComposer', () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
     const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: promptText,
       tokens: [
         {
@@ -3191,7 +3199,7 @@ describe('AgentComposer', () => {
 
   it('waits for knowledge bases before reconciling a cached agent knowledge token', async () => {
     mocks.knowledgeBasesLoading = true
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: 'cached knowledge draft',
       tokens: [knowledgeBaseToken(knowledgeBaseOne)],
       files: [],
@@ -3211,7 +3219,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
     expect(mocks.selectedKnowledgeBases).toEqual([])
-    expect(cacheService.setCasual).not.toHaveBeenCalled()
+    expect(cacheService.set).not.toHaveBeenCalled()
 
     mocks.knowledgeBases = [knowledgeBaseOne]
     mocks.knowledgeBasesLoading = false
@@ -3227,8 +3235,8 @@ describe('AgentComposer', () => {
 
     await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
-    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
-      'agent-session-draft-session-1',
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
       expect.objectContaining({ knowledgeBaseIds: [] }),
       expect.any(Number)
     )
@@ -3243,7 +3251,7 @@ describe('AgentComposer', () => {
       index: 0,
       textOffset: 0
     } as ComposerSerializedToken
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: 'cached file draft',
       tokens: [cachedFileToken],
       files: [file],
@@ -3291,8 +3299,8 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-        'agent-session-draft-session-1',
+      expect(cacheService.set).toHaveBeenLastCalledWith(
+        'agent.composer_draft.session_session-1',
         {
           text: `${promptText} keep this`,
           tokens: [cachedToken],
@@ -3318,7 +3326,7 @@ describe('AgentComposer', () => {
     } as ComposerSerializedToken
     const cachedDrafts = new Map<string, unknown>([
       [
-        'agent-session-draft-session-1',
+        'agent.composer_draft.session_session-1',
         {
           text: 'session one draft',
           tokens: [knowledgeBaseToken(knowledgeBaseOne), cachedFileToken, pdfSkillToken],
@@ -3329,7 +3337,7 @@ describe('AgentComposer', () => {
         }
       ],
       [
-        'agent-session-draft-session-2',
+        'agent.composer_draft.session_session-2',
         {
           text: 'session two draft',
           tokens: [],
@@ -3340,7 +3348,7 @@ describe('AgentComposer', () => {
         }
       ]
     ])
-    vi.mocked(cacheService.getCasual).mockImplementation((key: string) => cachedDrafts.get(key))
+    vi.mocked(cacheService.get).mockImplementation((key: string) => cachedDrafts.get(key))
 
     const view = render(
       <AgentComposer
@@ -4132,8 +4140,8 @@ describe('AgentComposer', () => {
       expect.objectContaining({ id: 'quote:queued-agent', kind: 'quote' }),
       expect.objectContaining({ id: `file:${file.fileTokenSourceId}`, kind: 'file' })
     ])
-    expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-session-draft-session-1',
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'agent.composer_draft.session_session-1',
       {
         text: 'queued agent draft',
         tokens: [
@@ -4278,8 +4286,8 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
     expect(mocks.surfaceProps?.text).toBe('draft message')
     expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
-    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
-      'agent-session-draft-session-1',
+    expect(cacheService.set).toHaveBeenLastCalledWith(
+      'agent.composer_draft.session_session-1',
       {
         text: 'draft message',
         tokens: [skillToken, fileToken],
@@ -4296,7 +4304,14 @@ describe('AgentComposer', () => {
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Existing draft',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
+    })
 
     render(
       <AgentComposer
@@ -4375,8 +4390,8 @@ describe('AgentComposer', () => {
   })
 
   it('resets the agent-scoped draft and tool runtime after switching agents', async () => {
-    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key === 'agent-session-draft-session-1'
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'agent.composer_draft.session_session-1'
         ? {
             text: 'draft for agent one',
             tokens: [{ ...pdfSkillToken, index: 0, textOffset: 0 }],
@@ -4556,8 +4571,8 @@ describe('AgentComposer', () => {
     })
     fireEvent.click(screen.getByText('select agent 2'))
 
-    expect(cacheService.setCasual).toHaveBeenCalledWith(
-      'agent-home-draft',
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'agent.composer_draft.home',
       {
         text: 'draft before agent',
         tokens: [],

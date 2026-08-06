@@ -83,6 +83,7 @@ import {
 import {
   AGENT_HOME_DRAFT_CACHE_KEY,
   type AgentComposerDraftCache,
+  type AgentComposerDraftCacheKey,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -269,7 +270,7 @@ export interface AgentComposerSendBody {
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
 
 export interface AgentComposerLaunchOptions {
-  draftCacheKey: string
+  draftCacheKey: AgentComposerDraftCacheKey
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
   onSent?: () => void
 }
@@ -462,7 +463,7 @@ interface InnerProps {
   agentId: string
   sessionId: string
   initialDraft: RestoredAgentComposerDraftCache
-  draftCacheKey: string
+  draftCacheKey: AgentComposerDraftCacheKey
   workspaceKey: string
   shouldPersistInitialDraft: boolean
   sessionData?: ToolContext['session']

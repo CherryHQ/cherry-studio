@@ -77,7 +77,7 @@ describe('AgentComposerSlot', () => {
 
   it('forwards one-shot launch options to the real composer', () => {
     const launchOptions = {
-      draftCacheKey: 'agent-feedback-draft-session-1',
+      draftCacheKey: 'agent.composer_draft.feedback_session-1' as const,
       initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
       onSent: vi.fn()
     }

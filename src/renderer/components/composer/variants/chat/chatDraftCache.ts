@@ -1,18 +1,11 @@
 import { cacheService } from '@data/CacheService'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-
-import type { ComposerSerializedToken } from '../../tokens'
+import type { CacheChatComposerDraft } from '@shared/data/cache/cacheValueTypes'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export const getChatDraftCacheKey = (topicId: string) => `chat-topic-draft-${topicId}`
+export const getChatDraftCacheKey = (topicId: string) => `chat.composer_draft.${topicId}` as const
 
-export interface ChatComposerDraftCache {
-  text: string
-  tokens: ComposerSerializedToken[]
-  files: ComposerAttachment[]
-  knowledgeBaseIds: string[]
-}
+export type ChatComposerDraftCache = CacheChatComposerDraft
 
 const EMPTY_DRAFT_CACHE: ChatComposerDraftCache = { text: '', tokens: [], files: [], knowledgeBaseIds: [] }
 
@@ -21,8 +14,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
-  const cached = cacheService.getCasual<string | ChatComposerDraftCache>(getChatDraftCacheKey(topicId))
-  if (typeof cached === 'string') return { ...EMPTY_DRAFT_CACHE, text: cached }
+  const cached = cacheService.get(getChatDraftCacheKey(topicId))
   if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
 
   return {
@@ -48,7 +40,7 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
 }
 
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
-  cacheService.setCasual<ChatComposerDraftCache>(
+  cacheService.set(
     getChatDraftCacheKey(topicId),
     {
       text: draft.text,

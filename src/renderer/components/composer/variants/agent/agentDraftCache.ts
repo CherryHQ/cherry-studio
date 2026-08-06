@@ -1,24 +1,18 @@
 import { cacheService } from '@data/CacheService'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { CacheAgentComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import type { LocalSkill } from '@shared/types/skill'
 
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export const AGENT_HOME_DRAFT_CACHE_KEY = 'agent-home-draft'
-export const getAgentDraftCacheKey = (sessionId: string) => `agent-session-draft-${sessionId}`
+export type AgentComposerDraftCacheKey = `agent.composer_draft.${string}`
 
-export interface AgentComposerDraftCache {
-  text: string
-  tokens: ComposerSerializedToken[]
-  files: ComposerAttachment[]
-  knowledgeBaseIds: string[]
-  workspaceKey: string
-  agentId: string
-  shouldValidateSkills?: boolean
-}
+export const AGENT_HOME_DRAFT_CACHE_KEY = 'agent.composer_draft.home' as const
+export const getAgentDraftCacheKey = (sessionId: string) => `agent.composer_draft.session_${sessionId}` as const
+
+export type AgentComposerDraftCache = CacheAgentComposerDraft
 
 export interface RestoredAgentComposerDraftCache extends AgentComposerDraftCache {
   shouldValidateSkills: boolean
@@ -80,17 +74,11 @@ export function getCacheableAgentDraft(draft: ComposerSerializedDraft): Composer
   }
 }
 
-export function readAgentDraftCache(cacheKey: string, scope: AgentDraftCacheScope): RestoredAgentComposerDraftCache {
-  const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
-  if (typeof cached === 'string') {
-    return {
-      ...EMPTY_DRAFT_CACHE,
-      text: cached,
-      workspaceKey: scope.workspaceKey,
-      agentId: scope.agentId,
-      shouldValidateSkills: false
-    }
-  }
+export function readAgentDraftCache(
+  cacheKey: AgentComposerDraftCacheKey,
+  scope: AgentDraftCacheScope
+): RestoredAgentComposerDraftCache {
+  const cached = cacheService.get(cacheKey)
   if (!isRecord(cached)) {
     return {
       ...EMPTY_DRAFT_CACHE,
@@ -131,13 +119,13 @@ export function readAgentDraftCache(cacheKey: string, scope: AgentDraftCacheScop
   }
 }
 
-export function hasAgentDraftCache(cacheKey: string): boolean {
-  return cacheService.hasCasual(cacheKey)
+export function hasAgentDraftCache(cacheKey: AgentComposerDraftCacheKey): boolean {
+  return cacheService.has(cacheKey)
 }
 
-export function writeAgentDraftCache(cacheKey: string, draft: AgentComposerDraftCache) {
+export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
   const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
-  cacheService.setCasual<AgentComposerDraftCache>(
+  cacheService.set(
     cacheKey,
     {
       ...cacheableDraft,

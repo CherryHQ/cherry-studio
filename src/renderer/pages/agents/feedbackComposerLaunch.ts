@@ -15,8 +15,8 @@ export function getFeedbackIntentGuardCacheKey(tabId: string): string {
   return `agent-feedback-intent-${tabId}`
 }
 
-function getFeedbackDraftCacheKey(sessionId: string): string {
-  return `agent-feedback-draft-${sessionId}`
+function getFeedbackDraftCacheKey(sessionId: string) {
+  return `agent.composer_draft.feedback_${sessionId}` as const
 }
 
 function getFeedbackLaunchCacheKey(sessionId: string): string {

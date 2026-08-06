@@ -771,7 +771,7 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-      draftCacheKey: 'agent-feedback-draft-session-feedback',
+      draftCacheKey: 'agent.composer_draft.feedback_session-feedback',
       initialDraft: {
         text: 'Use the issue-reporter skill.',
         tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
@@ -783,7 +783,7 @@ describe('AgentPage', () => {
       replace: true
     })
     expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(true)
-    expect(cacheService.hasCasual('agent-feedback-draft-session-feedback')).toBe(true)
+    expect(cacheService.has('agent.composer_draft.feedback_session-feedback')).toBe(true)
 
     agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
     view.unmount()
@@ -792,7 +792,7 @@ describe('AgentPage', () => {
 
     await waitFor(() => {
       expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-        draftCacheKey: 'agent-feedback-draft-session-feedback',
+        draftCacheKey: 'agent.composer_draft.feedback_session-feedback',
         initialDraft: { text: 'Use the issue-reporter skill.' }
       })
     })

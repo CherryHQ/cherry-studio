@@ -13,9 +13,9 @@ import {
 
 vi.mock('@data/CacheService', () => ({
   cacheService: {
-    getCasual: vi.fn(),
-    hasCasual: vi.fn(),
-    setCasual: vi.fn()
+    get: vi.fn(),
+    has: vi.fn(),
+    set: vi.fn()
   }
 }))
 
@@ -77,17 +77,17 @@ const scope = { workspaceKey: 'workspace-1\0/workspace', agentId: 'agent-1' }
 
 describe('agentDraftCache', () => {
   beforeEach(() => {
-    vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.hasCasual).mockReset()
-    vi.mocked(cacheService.setCasual).mockReset()
+    vi.mocked(cacheService.get).mockReset()
+    vi.mocked(cacheService.has).mockReset()
+    vi.mocked(cacheService.set).mockReset()
   })
 
   it('keys default drafts by session and preserves the empty-cache sentinel', () => {
-    vi.mocked(cacheService.hasCasual).mockReturnValue(true)
+    vi.mocked(cacheService.has).mockReturnValue(true)
 
-    expect(getAgentDraftCacheKey('session-1')).toBe('agent-session-draft-session-1')
-    expect(getAgentDraftCacheKey('session-2')).toBe('agent-session-draft-session-2')
-    expect(hasAgentDraftCache('agent-feedback-draft-session-1')).toBe(true)
+    expect(getAgentDraftCacheKey('session-1')).toBe('agent.composer_draft.session_session-1')
+    expect(getAgentDraftCacheKey('session-2')).toBe('agent.composer_draft.session_session-2')
+    expect(hasAgentDraftCache('agent.composer_draft.feedback_session-1')).toBe(true)
   })
 
   it('keeps every active input token, including file and knowledge tokens', () => {
@@ -106,8 +106,8 @@ describe('agentDraftCache', () => {
     }
     writeAgentDraftCache(getAgentDraftCacheKey('session-1'), draft)
 
-    const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
-    vi.mocked(cacheService.getCasual).mockReturnValue(written)
+    const written = vi.mocked(cacheService.set).mock.calls[0][1]
+    vi.mocked(cacheService.get).mockReturnValue(written)
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope)).toEqual({
       ...draft,
       shouldValidateSkills: false
@@ -115,7 +115,7 @@ describe('agentDraftCache', () => {
   })
 
   it('does not carry a session draft across an agent change', () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: 'draft for agent one',
       tokens: [skillToken],
       files: [file],
@@ -145,7 +145,7 @@ describe('agentDraftCache', () => {
     const folderPrompt = folderToken.promptText!
     const linkPrompt = linkToken.promptText!
     const knowledgePrompt = knowledgeToken.promptText!
-    vi.mocked(cacheService.getCasual).mockReturnValue({
+    vi.mocked(cacheService.get).mockReturnValue({
       text: `${skillPrompt} ${folderPrompt} ${linkPrompt} ${knowledgePrompt} keep this`,
       tokens: [
         { ...skillToken, index: 0, textOffset: 0 },
@@ -198,9 +198,9 @@ describe('agentDraftCache', () => {
       shouldValidateSkills: true
     })
 
-    const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
+    const written = vi.mocked(cacheService.set).mock.calls[0][1]
     expect(written).toEqual(expect.objectContaining({ shouldValidateSkills: true }))
-    vi.mocked(cacheService.getCasual).mockReturnValue(written)
+    vi.mocked(cacheService.get).mockReturnValue(written)
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope).shouldValidateSkills).toBe(true)
   })
 })
