@@ -3027,10 +3027,19 @@
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
+          "create": {
+            "content_placeholder": "在此输入笔记内容…",
+            "title_label": "标题",
+            "title_placeholder": "为这篇笔记取个名字"
+          },
           "description": "选择已有笔记作为知识库数据源",
           "empty_description": "请先在「笔记」功能中创建笔记，再回到这里选择。",
           "empty_title": "未找到笔记",
-          "loading": "正在加载笔记…"
+          "loading": "正在加载笔记…",
+          "mode": {
+            "create": "新建笔记",
+            "import": "导入笔记"
+          }
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",

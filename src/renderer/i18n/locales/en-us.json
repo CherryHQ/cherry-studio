@@ -3027,10 +3027,19 @@
           "selected_notes": "{{count}} notes selected"
         },
         "note": {
+          "create": {
+            "content_placeholder": "Write the note content here…",
+            "title_label": "Title",
+            "title_placeholder": "Name this note"
+          },
           "description": "Select existing notes as knowledge base sources",
           "empty_description": "Create notes in the Notes feature, then come back to select them here.",
           "empty_title": "No notes found",
-          "loading": "Loading notes…"
+          "loading": "Loading notes…",
+          "mode": {
+            "create": "New note",
+            "import": "Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
