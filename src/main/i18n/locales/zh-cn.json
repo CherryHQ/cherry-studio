@@ -87,6 +87,10 @@
       "message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
       "title": "重置应用数据"
     },
+    "diagnostic_bundle": {
+      "title": "保存诊断包",
+      "zip_filter": "ZIP 压缩包"
+    },
     "html_files": "HTML 文件",
     "open_file": "打开文件",
     "pdf_files": "PDF 文件",
