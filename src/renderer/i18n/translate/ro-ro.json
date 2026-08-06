@@ -3924,7 +3924,7 @@
         "title": "Confirmare ștergere"
       },
       "failed": "Ștergere eșuată",
-      "first_turn_not_supported": "Primul mesaj al utilizatorului nu poate fi șters.",
+      "generating_unavailable": "Un răspuns din acest grup este încă în curs de generare și nu poate fi șters deocamdată.",
       "root_unavailable": "Mesajele se încarcă în continuare și nu pot fi șterse încă.",
       "success": "Ștergere reușită"
     },
@@ -4009,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Ștergerea unui mesaj de grup va șterge întrebarea utilizatorului și toate răspunsurile asistentului",
-        "title": "Șterge mesajul de grup"
+        "content": "Ștergeți toate răspunsurile asistentului din acest grup? Întrebarea utilizatorului și mesajele ulterioare vor fi păstrate.",
+        "title": "Șterge răspunsurile grupate"
       },
       "retry_failed": "Reîncearcă mesajele eșuate"
     },

@@ -3924,7 +3924,7 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
-      "first_turn_not_supported": "A primeira mensagem do usuário não pode ser excluída.",
+      "generating_unavailable": "Uma resposta deste grupo ainda está a ser gerada e ainda não pode ser eliminada.",
       "root_unavailable": "As mensagens ainda estão carregando e não podem ser excluídas ainda.",
       "success": "Excluído com sucesso"
     },
@@ -4009,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Excluir mensagens de grupo removerá as perguntas dos usuários e todas as respostas do assistente",
-        "title": "Excluir mensagens de grupo"
+        "content": "Eliminar todas as respostas do assistente neste grupo? A pergunta do utilizador e as mensagens posteriores serão mantidas.",
+        "title": "Eliminar respostas agrupadas"
       },
       "retry_failed": "Repetir mensagem com erro"
     },

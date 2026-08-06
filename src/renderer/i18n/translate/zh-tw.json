@@ -3924,7 +3924,7 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
-      "first_turn_not_supported": "第一個用戶訊息無法刪除。",
+      "generating_unavailable": "該分組中仍有回答正在生成，暫時無法刪除。",
       "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },
@@ -4009,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
-        "title": "刪除分組訊息"
+        "content": "是否刪除該分組中的所有助手回答？使用者提問和後續訊息將保留。",
+        "title": "刪除分組回答"
       },
       "retry_failed": "重試出錯的訊息"
     },

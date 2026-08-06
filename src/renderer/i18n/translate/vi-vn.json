@@ -3924,7 +3924,7 @@
         "title": "Xác nhận xóa"
       },
       "failed": "Xóa thất bại",
-      "first_turn_not_supported": "Tin nhắn của người dùng đầu tiên không thể bị xóa.",
+      "generating_unavailable": "Một câu trả lời trong nhóm này vẫn đang được tạo nên chưa thể xóa.",
       "root_unavailable": "Tin nhắn vẫn đang tải và chưa thể xóa được.",
       "success": "Xóa thành công"
     },
@@ -4009,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Xóa một tin nhắn nhóm sẽ xóa câu hỏi của người dùng và tất cả câu trả lời của trợ lý",
-        "title": "Xóa Tin Nhóm"
+        "content": "Xóa tất cả câu trả lời của trợ lý trong nhóm này? Câu hỏi của người dùng và các tin nhắn sau đó sẽ được giữ lại.",
+        "title": "Xóa câu trả lời theo nhóm"
       },
       "retry_failed": "Thử lại các tin nhắn không gửi được"
     },
