@@ -11,6 +11,7 @@ import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
+const removeOrphanBaseArtifacts = vi.hoisted(() => vi.fn())
 const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoisted(() => {
   const createSession = () => ({
     clearCodeCaches: vi.fn(),
@@ -97,6 +98,16 @@ describe('CacheCleanupService', () => {
     bootConfigGet.mockReset()
     bootConfigGet.mockReturnValue(undefined)
     vi.spyOn(knowledgeBaseService, 'listAllIds').mockReturnValue(new Set())
+    removeOrphanBaseArtifacts.mockImplementation(async (baseId: string) => {
+      if (knowledgeBaseService.listAllIds().has(baseId)) return false
+      await fs.rm(rootPath('Data', 'KnowledgeBase', baseId), { recursive: true, force: false })
+      return true
+    })
+    vi.mocked(application.get).mockImplementation(((name: string) => {
+      if (name === 'FileManager') return MockMainFileManagerExport.fileManager
+      if (name === 'KnowledgeService') return { removeOrphanBaseArtifacts }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    }) as typeof application.get)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
@@ -304,6 +315,7 @@ describe('CacheCleanupService', () => {
     const cleanup = await cacheCleanupService.run(['orphaned_data'])
 
     expect(cleanup.results[0]?.status).toBe('not_found')
+    expect(removeOrphanBaseArtifacts).toHaveBeenCalledWith(baseId)
     await expectExisting(basePath)
   })
 
@@ -476,6 +488,76 @@ describe('CacheCleanupService', () => {
     expect(cleanup.results[0]?.status).toBe('cleared')
     expect(updated).toEqual({
       appDataPath: [{ executablePath: '/other/CherryStudio', dataPath: '/other/data' }],
+      retainedField: true
+    })
+  })
+
+  it('recomputes the shared legacy config update after acquiring its cross-process lock', async () => {
+    const executablePath = rootPath('CherryStudio')
+    const homeConfigPath = rootPath('HomeConfig', 'config.json')
+    const lockPath = `${homeConfigPath}.cleanup.lock`
+    const otherEntry = { executablePath: '/other/CherryStudio', dataPath: '/other/data' }
+    const concurrentEntry = { executablePath: '/concurrent/CherryStudio', dataPath: '/concurrent/data' }
+    bootConfigGet.mockReturnValue({ [executablePath]: root })
+    await writeTestFile(
+      homeConfigPath,
+      JSON.stringify({ appDataPath: [{ executablePath, dataPath: root }, otherEntry], retainedField: true })
+    )
+    await writeTestFile(lockPath, 'held by another process')
+
+    let resolveLockAttempt!: () => void
+    const lockAttempted = new Promise<void>((resolve) => {
+      resolveLockAttempt = resolve
+    })
+    const originalOpen = fs.open.bind(fs)
+    vi.spyOn(fs, 'open').mockImplementation(async (targetPath, flags, mode) => {
+      try {
+        return await originalOpen(targetPath, flags, mode)
+      } finally {
+        if (targetPath === lockPath && flags === 'wx') resolveLockAttempt()
+      }
+    })
+
+    const cleanup = cacheCleanupService.run(['legacy_v1'])
+    await lockAttempted
+    await fs.writeFile(
+      homeConfigPath,
+      JSON.stringify({
+        appDataPath: [{ executablePath, dataPath: root }, otherEntry, concurrentEntry],
+        retainedField: true,
+        concurrentField: 'keep'
+      })
+    )
+    await fs.unlink(lockPath)
+
+    await expect(cleanup).resolves.toMatchObject({ results: [{ status: 'cleared' }] })
+    await expect(fs.readFile(homeConfigPath, 'utf8').then(JSON.parse)).resolves.toEqual({
+      appDataPath: [otherEntry, concurrentEntry],
+      retainedField: true,
+      concurrentField: 'keep'
+    })
+  })
+
+  it('does not follow the old predictable cleanup temp-file symlink', async () => {
+    const executablePath = rootPath('CherryStudio')
+    const homeConfigPath = rootPath('HomeConfig', 'config.json')
+    const predictableTempPath = `${homeConfigPath}.cleanup.tmp`
+    const externalPath = rootPath('external-config.json')
+    bootConfigGet.mockReturnValue({ [executablePath]: root })
+    await writeTestFile(
+      homeConfigPath,
+      JSON.stringify({ appDataPath: [{ executablePath, dataPath: root }], retainedField: true })
+    )
+    await writeTestFile(externalPath, 'external-data')
+    await fs.symlink(externalPath, predictableTempPath)
+
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
+
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expect(fs.readFile(externalPath, 'utf8')).resolves.toBe('external-data')
+    await expect(fs.lstat(predictableTempPath)).resolves.toMatchObject({})
+    await expect(fs.readFile(homeConfigPath, 'utf8').then(JSON.parse)).resolves.toEqual({
+      appDataPath: [],
       retainedField: true
     })
   })

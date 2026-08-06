@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, type Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -59,6 +59,9 @@ const COOKIE_RELATIVE_PATHS = [
 ] as const
 
 const ORPHAN_KNOWLEDGE_FRESHNESS_GATE_MS = 5 * 60 * 1000
+const LEGACY_HOME_CONFIG_LOCK_RETRIES = 50
+const LEGACY_HOME_CONFIG_LOCK_RETRY_DELAY_MS = 50
+const LEGACY_HOME_CONFIG_LOCK_STALE_MS = 30_000
 
 type CacheCleanupIssueCode = 'inspection_failed' | 'unsafe_target' | 'invalid_data'
 
@@ -81,10 +84,14 @@ interface CleanupTarget {
 interface JsonMutation {
   item: string
   path: string
-  expectedRaw: string
-  nextValue: Record<string, unknown> | null
+  executablePath: string
+  migratedPath: string
   estimatedBytes: number
 }
+
+type LegacyHomeConfigUpdate =
+  | { state: 'ready'; nextValue: Record<string, unknown> | null }
+  | { state: 'not_applicable' | 'unsafe' | 'invalid' }
 
 interface LegacyCleanupPlan {
   targets: CleanupTarget[]
@@ -106,6 +113,37 @@ function isNodeError(error: unknown, code: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getLegacyHomeConfigUpdate(
+  value: unknown,
+  executablePath: string,
+  migratedPath: string
+): LegacyHomeConfigUpdate {
+  if (!isRecord(value)) return { state: 'invalid' }
+
+  const appDataPath = value.appDataPath
+  if (typeof appDataPath === 'string') return { state: 'unsafe' }
+  if (!Array.isArray(appDataPath)) return { state: 'invalid' }
+
+  const matchingEntries = appDataPath.filter(
+    (entry): entry is Record<string, unknown> => isRecord(entry) && entry.executablePath === executablePath
+  )
+  if (
+    matchingEntries.length === 0 ||
+    matchingEntries.some(
+      (entry) => typeof entry.dataPath !== 'string' || path.resolve(entry.dataPath) !== path.resolve(migratedPath)
+    )
+  ) {
+    return { state: 'not_applicable' }
+  }
+
+  const remainingEntries = appDataPath.filter((entry) => !isRecord(entry) || entry.executablePath !== executablePath)
+  const nextValue = { ...value, appDataPath: remainingEntries }
+  return {
+    state: 'ready',
+    nextValue: remainingEntries.length === 0 && Object.keys(nextValue).length === 1 ? null : nextValue
+  }
 }
 
 function isPathWithin(targetPath: string, rootPath: string): boolean {
@@ -664,14 +702,12 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
     plan.issues.push(issue(item, 'invalid_data'))
     return
   }
-
-  const appDataPath = value.appDataPath
-  if (typeof appDataPath === 'string') {
+  if (typeof value.appDataPath === 'string') {
     // This historical shape applies to every installation sharing ~/.cherrystudio.
     plan.issues.push(issue(item, 'unsafe_target'))
     return
   }
-  if (!Array.isArray(appDataPath)) {
+  if (!Array.isArray(value.appDataPath)) {
     plan.issues.push(issue(item, 'invalid_data'))
     return
   }
@@ -686,40 +722,18 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
     plan.issues.push(issue(item, 'inspection_failed'))
     return
   }
-  const matchingEntries = appDataPath.filter(
-    (entry): entry is Record<string, unknown> => isRecord(entry) && entry.executablePath === executablePath
-  )
-  if (
-    matchingEntries.length === 0 ||
-    typeof migratedPath !== 'string' ||
-    matchingEntries.some(
-      (entry) => typeof entry.dataPath !== 'string' || path.resolve(entry.dataPath) !== path.resolve(migratedPath)
-    )
-  ) {
-    return
-  }
+  if (typeof migratedPath !== 'string') return
 
-  const remainingEntries = appDataPath.filter((entry) => !isRecord(entry) || entry.executablePath !== executablePath)
-  const nextValue = { ...value, appDataPath: remainingEntries }
+  const update = getLegacyHomeConfigUpdate(value, executablePath, migratedPath)
+  if (update.state !== 'ready') return
+
   const size = Buffer.byteLength(raw)
-
-  if (remainingEntries.length === 0 && Object.keys(nextValue).length === 1) {
-    plan.mutations.push({
-      item,
-      path: targetPath,
-      expectedRaw: raw,
-      nextValue: null,
-      estimatedBytes: size
-    })
-    return
-  }
-
-  const nextText = `${JSON.stringify(nextValue, null, 2)}\n`
+  const nextText = update.nextValue === null ? '' : `${JSON.stringify(update.nextValue, null, 2)}\n`
   plan.mutations.push({
     item,
     path: targetPath,
-    expectedRaw: raw,
-    nextValue,
+    executablePath,
+    migratedPath,
     estimatedBytes: Math.max(0, size - Buffer.byteLength(nextText))
   })
 }
@@ -927,16 +941,22 @@ async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
 
 async function removeOrphanKnowledgeTarget(target: CleanupTarget): Promise<CleanupStepResult> {
   const baseId = path.basename(target.path)
+  const status = await inspectTarget(target.path, target.item, target.kind)
+  if (status === 'missing') return { state: 'not_found' }
+  if (status === 'invalid') return { state: 'skipped' }
+
   try {
-    if (knowledgeBaseService.listAllIds().has(baseId)) {
+    const removed = await application.get('KnowledgeService').removeOrphanBaseArtifacts(baseId)
+    if (!removed) {
       logger.info('Skipped knowledge base directory that is no longer orphaned', { baseId, path: target.path })
       return { state: 'not_found' }
     }
+    logger.info('Removed orphan knowledge base artifacts', { baseId, path: target.path })
+    return { state: 'cleared' }
   } catch (error) {
-    logger.warn('Failed to recheck knowledge base ownership before cleanup', { baseId, path: target.path, error })
-    return { state: 'skipped' }
+    logger.error('Failed to remove orphan knowledge base artifacts', { baseId, path: target.path, error })
+    return { state: 'failed' }
   }
-  return removeCleanupTarget(target)
 }
 
 async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {
@@ -954,6 +974,60 @@ async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepRe
   }
 }
 
+async function withLegacyHomeConfigLock<T>(targetPath: string, callback: () => Promise<T>): Promise<T> {
+  const lockPath = `${targetPath}.cleanup.lock`
+
+  for (let attempt = 0; attempt <= LEGACY_HOME_CONFIG_LOCK_RETRIES; attempt += 1) {
+    let lockHandle: Awaited<ReturnType<typeof fs.open>>
+    try {
+      lockHandle = await fs.open(lockPath, 'wx', 0o600)
+    } catch (error) {
+      if (!isNodeError(error, 'EEXIST') || attempt >= LEGACY_HOME_CONFIG_LOCK_RETRIES) throw error
+
+      try {
+        const lockStats = await fs.lstat(lockPath)
+        if (
+          lockStats.isFile() &&
+          !lockStats.isSymbolicLink() &&
+          Date.now() - lockStats.mtimeMs > LEGACY_HOME_CONFIG_LOCK_STALE_MS
+        ) {
+          await fs.unlink(lockPath)
+          continue
+        }
+      } catch (lockError) {
+        if (isNodeError(lockError, 'ENOENT')) continue
+        throw lockError
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, LEGACY_HOME_CONFIG_LOCK_RETRY_DELAY_MS))
+      continue
+    }
+
+    await lockHandle.close()
+    try {
+      return await callback()
+    } finally {
+      await fs.unlink(lockPath).catch(() => undefined)
+    }
+  }
+
+  throw new Error(`Failed to acquire legacy home config lock: ${lockPath}`)
+}
+
+async function replaceLegacyHomeConfig(targetPath: string, nextValue: Record<string, unknown>): Promise<void> {
+  const tempPath = `${targetPath}.cleanup.${randomUUID()}.tmp`
+  const tempHandle = await fs.open(tempPath, 'wx', 0o600)
+  try {
+    await tempHandle.writeFile(`${JSON.stringify(nextValue, null, 2)}\n`, 'utf8')
+    await tempHandle.close()
+    await fs.rename(tempPath, targetPath)
+  } catch (error) {
+    await tempHandle.close().catch(() => undefined)
+    await fs.unlink(tempPath).catch(() => undefined)
+    throw error
+  }
+}
+
 async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepResult> {
   const fileStatus = await inspectTarget(mutation.path, mutation.item, 'file')
   if (fileStatus === 'missing') return { state: 'not_found' }
@@ -961,24 +1035,38 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
     return { state: 'skipped' }
   }
 
-  const tempPath = `${mutation.path}.cleanup.tmp`
   try {
-    const currentRaw = await fs.readFile(mutation.path, 'utf8')
-    if (currentRaw !== mutation.expectedRaw) {
-      return { state: 'skipped' }
-    }
-    if (mutation.nextValue === null) {
-      return removeCleanupTarget({ item: mutation.item, path: mutation.path, kind: 'file' })
-    }
-    await fs.writeFile(tempPath, `${JSON.stringify(mutation.nextValue, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600
+    return await withLegacyHomeConfigLock(mutation.path, async () => {
+      const lockedFileStatus = await inspectTarget(mutation.path, mutation.item, 'file')
+      if (lockedFileStatus === 'missing') return { state: 'not_found' }
+      if (lockedFileStatus === 'invalid') return { state: 'skipped' }
+
+      let value: unknown
+      try {
+        value = JSON.parse(await fs.readFile(mutation.path, 'utf8'))
+      } catch (error) {
+        logger.warn('Failed to parse legacy shared config while applying cleanup', {
+          item: mutation.item,
+          path: mutation.path,
+          error
+        })
+        return { state: 'skipped' }
+      }
+
+      const update = getLegacyHomeConfigUpdate(value, mutation.executablePath, mutation.migratedPath)
+      if (update.state !== 'ready') return { state: update.state === 'not_applicable' ? 'not_found' : 'skipped' }
+
+      if (update.nextValue === null) {
+        await fs.rm(mutation.path, { force: false })
+        logger.info('Removed empty legacy shared config', { item: mutation.item, path: mutation.path })
+        return { state: 'cleared' }
+      }
+
+      await replaceLegacyHomeConfig(mutation.path, update.nextValue)
+      logger.info('Updated legacy shared config', { item: mutation.item, path: mutation.path })
+      return { state: 'cleared' }
     })
-    await fs.rename(tempPath, mutation.path)
-    logger.info('Updated legacy shared config', { item: mutation.item, path: mutation.path })
-    return { state: 'cleared' }
   } catch (error) {
-    await fs.rm(tempPath, { force: true }).catch(() => {})
     logger.error('Failed to update legacy shared config', { item: mutation.item, path: mutation.path, error })
     return { state: 'failed' }
   }

@@ -79,6 +79,10 @@ export class KnowledgeService extends BaseService {
     await this.baseAdmin.deleteBase(baseId)
   }
 
+  async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
+    return await this.baseAdmin.removeOrphanBaseArtifacts(baseId)
+  }
+
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     return await this.baseAdmin.restoreBase(dto)
   }
