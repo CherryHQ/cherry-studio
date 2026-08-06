@@ -5,6 +5,7 @@ import type {
   WebviewAccessibleNodeSummary,
   WebviewAnnotation,
   WebviewAnnotationDocument,
+  WebviewElementLocator,
   WebviewResolvedAnnotation,
   WebviewResolvedAnnotationDocument
 } from '@shared/types/webview'
@@ -68,14 +69,36 @@ const formatAccessibilityContext = (context: WebviewAccessibilityContext) => {
   return lines.join('\n')
 }
 
+const formatRegionElement = (element: WebviewElementLocator) => {
+  const details = [
+    formatCode(element.selector),
+    formatCode(`<${element.tagName.toLowerCase()}>`),
+    element.text ? escapeInlineMarkdown(element.text) : null,
+    element.ariaLabel ? `ARIA label: ${escapeInlineMarkdown(element.ariaLabel)}` : null,
+    element.role ? `role=${formatCode(element.role)}` : null
+  ].filter((part): part is string => part !== null)
+  return `  - ${details.join(' — ')}`
+}
+
+const formatRegion = (region: NonNullable<WebviewAnnotation['region']>) => {
+  const { rect } = region
+  const lines = [`- Region: ${rect.width}×${rect.height} at page (${rect.x}, ${rect.y})`]
+  if (region.elements.length > 0) {
+    lines.push('- Elements in region:', ...region.elements.map(formatRegionElement))
+  }
+  return lines.join('\n')
+}
+
 const formatAnnotation = (annotation: WebviewAnnotation | WebviewResolvedAnnotation, index: number) => {
-  const { element } = annotation
+  const { element, region } = annotation
+  const elementLabel = region ? '- Containing element' : '- Element'
   const metadata = [
     `- Selector: ${formatCode(element.selector)}`,
-    `- Element: ${formatCode(`<${element.tagName.toLowerCase()}>`)}`,
+    `${elementLabel}: ${formatCode(`<${element.tagName.toLowerCase()}>`)}`,
     element.text ? `- Visible text: ${escapeInlineMarkdown(element.text)}` : null,
     element.ariaLabel ? `- ARIA label: ${escapeInlineMarkdown(element.ariaLabel)}` : null,
     element.role ? `- Role: ${formatCode(element.role)}` : null,
+    region ? formatRegion(region) : null,
     'accessibility' in annotation ? formatAccessibilityContext(annotation.accessibility) : null
   ].filter((line): line is string => line !== null)
 

@@ -26,12 +26,31 @@ const privateController = (controller: WebviewAnnotationController) =>
     annotationElements: Map<string, Element>
     editorAnnotationId: string | null
     editorElement: Element | null
+    marqueeRect: unknown
+    pendingRegion: unknown
     openEditor: (element: Element, annotationId?: string | null) => void
     saveEditor: () => void
     deleteEditorAnnotation: () => void
     textarea: HTMLTextAreaElement
     updatePositions: () => void
   }
+
+const mockRect = (element: Element, left: number, top: number, width: number, height: number) => {
+  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    x: left,
+    y: top,
+    toJSON: () => ({})
+  } as DOMRect)
+}
+
+const pointerEvent = (type: string, clientX: number, clientY: number) =>
+  new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, clientX, clientY })
 
 describe('WebviewAnnotationController selectors', () => {
   it('prefers a unique id and resolves it', () => {
@@ -162,6 +181,88 @@ describe('WebviewAnnotationController interactions', () => {
     internals.updatePositions()
 
     expect(internals.annotationElements.get(annotationId)).toBe(replacement)
+  })
+
+  it('marquee-selects overlapping elements into a region annotation', () => {
+    const container = document.createElement('div')
+    container.id = 'canvas'
+    const overlapA = document.createElement('div')
+    overlapA.id = 'overlap-a'
+    const overlapB = document.createElement('div')
+    overlapB.id = 'overlap-b'
+    const card = document.createElement('div')
+    card.id = 'card'
+    const cardChild = document.createElement('span')
+    cardChild.id = 'card-child'
+    card.appendChild(cardChild)
+    container.append(overlapA, overlapB, card)
+    document.body.appendChild(container)
+
+    // Container is mostly outside the box; the two overlapping siblings and the
+    // card (plus its child) are inside. Dedupe must keep the card but drop its child.
+    mockRect(container, 0, 0, 400, 400)
+    mockRect(overlapA, 20, 20, 100, 100)
+    mockRect(overlapB, 50, 50, 100, 100)
+    mockRect(card, 130, 20, 60, 60)
+    mockRect(cardChild, 135, 25, 20, 20)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
+    container.dispatchEvent(pointerEvent('pointerup', 200, 200))
+
+    // The click fired after a completed drag must not open the element editor.
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+    expect(container.dispatchEvent(click)).toBe(false)
+
+    const internals = privateController(controller)
+    internals.textarea.value = 'Untangle this overlap'
+    internals.saveEditor()
+
+    const annotation = controller.getState().annotations[0]
+    expect(annotation.comment).toBe('Untangle this overlap')
+    expect(annotation.element.selector).toBe('#canvas')
+    expect(annotation.region?.rect).toEqual({ x: 10, y: 10, width: 190, height: 190 })
+    expect(annotation.region?.elements.map((element) => element.selector)).toEqual([
+      '#overlap-a',
+      '#overlap-b',
+      '#card'
+    ])
+  })
+
+  it('keeps sub-threshold drags on the single-element click flow', () => {
+    const button = document.createElement('button')
+    button.id = 'tiny-drag'
+    document.body.appendChild(button)
+
+    button.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 12, 13))
+    button.dispatchEvent(pointerEvent('pointerup', 12, 13))
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+
+    const internals = privateController(controller)
+    expect(internals.pendingRegion).toBeNull()
+    expect(internals.editorElement).toBe(button)
+
+    internals.textarea.value = 'Element note'
+    internals.saveEditor()
+    expect(controller.getState().annotations[0].region).toBeUndefined()
+  })
+
+  it('cancels an in-progress marquee with Escape and stays enabled', () => {
+    const container = document.createElement('div')
+    container.id = 'escape-zone'
+    document.body.appendChild(container)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+
+    const internals = privateController(controller)
+    expect(internals.marqueeRect).toBeNull()
+    expect(controller.getState().enabled).toBe(true)
+
+    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
+    expect(internals.pendingRegion).toBeNull()
   })
 
   it('enforces annotation and comment limits', () => {

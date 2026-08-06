@@ -16,6 +16,8 @@ export const WEBVIEW_ANNOTATION_LIMITS = {
   exportMarkdown: 512_000,
   pageTitle: 240,
   pageUrl: 2_048,
+  regionCoord: 10_000_000,
+  regionElements: 12,
   role: 64,
   selector: 2_048,
   tagName: 64,
@@ -50,12 +52,35 @@ export const WebviewElementLocatorSchema = z
   })
   .strict()
 
+export const WebviewRegionRectSchema = z
+  .object({
+    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord)
+  })
+  .strict()
+
+/**
+ * A marquee-selected page region. `rect` is in page coordinates (viewport +
+ * scroll at capture); `elements` are the locators contained in the box. The
+ * annotation's `element` stays the deepest common ancestor so accessibility
+ * resolution works unchanged.
+ */
+export const WebviewAnnotationRegionSchema = z
+  .object({
+    rect: WebviewRegionRectSchema,
+    elements: z.array(WebviewElementLocatorSchema).max(WEBVIEW_ANNOTATION_LIMITS.regionElements)
+  })
+  .strict()
+
 export const WebviewAnnotationSchema = z
   .object({
     id: z.uuid(),
     comment: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.comment),
     createdAt: z.number().int().nonnegative(),
-    element: WebviewElementLocatorSchema
+    element: WebviewElementLocatorSchema,
+    region: WebviewAnnotationRegionSchema.optional()
   })
   .strict()
 
@@ -184,6 +209,8 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
 
 export type WebviewAnnotationTarget = z.infer<typeof WebviewAnnotationTargetSchema>
 export type WebviewElementLocator = z.infer<typeof WebviewElementLocatorSchema>
+export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
+export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
 export type WebviewAnnotationState = z.infer<typeof WebviewAnnotationStateSchema>
 export type WebviewAnnotationDocument = z.infer<typeof WebviewAnnotationDocumentSchema>
