@@ -23,8 +23,20 @@ describe('ReduxStateReader file source', () => {
     const reader = new ReduxStateReader(exportPath)
 
     expect(reader.get('settings', 'theme.mode')).toBe('dark')
-    expect(reader.hasCategory('assistants')).toBe(true)
-    expect(reader.getCategories().sort()).toEqual(['assistants', 'settings'])
+    expect(reader.get('assistants', 'defaultAssistant')).toBe('a1')
+  })
+
+  it('reuses one parsed category until another category is requested', () => {
+    fs.writeFileSync(path.join(exportPath, 'settings.json'), JSON.stringify({ theme: { mode: 'dark' } }))
+    fs.writeFileSync(path.join(exportPath, 'assistants.json'), JSON.stringify({ defaultAssistant: 'a1' }))
+    const reader = new ReduxStateReader(exportPath)
+
+    expect(reader.get('settings', 'theme.mode')).toBe('dark')
+    fs.writeFileSync(path.join(exportPath, 'settings.json'), JSON.stringify({ theme: { mode: 'light' } }))
+    expect(reader.get('settings', 'theme.mode')).toBe('dark')
+
+    expect(reader.get('assistants', 'defaultAssistant')).toBe('a1')
+    expect(reader.get('settings', 'theme.mode')).toBe('light')
   })
 
   it('preserves the legacy raw-string fallback for a malformed slice', () => {
@@ -34,6 +46,12 @@ describe('ReduxStateReader file source', () => {
   })
 
   it('returns undefined for a missing category', () => {
-    expect(new ReduxStateReader(exportPath).getCategory('missing')).toBeUndefined()
+    const reader = new ReduxStateReader(exportPath)
+
+    expect(reader.getCategory('missing')).toBeUndefined()
+    fs.writeFileSync(path.join(exportPath, 'missing.json'), JSON.stringify({ now: 'present' }))
+    expect(reader.getCategory('missing')).toBeUndefined()
+    expect(reader.getCategory('another-missing')).toBeUndefined()
+    expect(reader.getCategory('missing')).toEqual({ now: 'present' })
   })
 })

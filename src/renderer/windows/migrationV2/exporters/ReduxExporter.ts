@@ -242,7 +242,10 @@ export class ReduxExporter {
         foundSlices.add(sliceName)
       })
     } catch (error) {
-      throw new Error(`Failed to parse Redux Persist root data: ${error}`)
+      if (error instanceof SyntaxError) {
+        throw new Error(`Failed to parse Redux Persist root data: ${error.message}`, { cause: error })
+      }
+      throw error
     }
     rawData = null
     const slicesFound = SLICES_TO_EXPORT.filter((sliceName) => foundSlices.has(sliceName))

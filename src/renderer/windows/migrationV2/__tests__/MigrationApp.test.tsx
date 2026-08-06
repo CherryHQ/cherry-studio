@@ -512,7 +512,7 @@ describe('MigrationApp', () => {
     vi.mocked(LocalStorageExporter).mockImplementation(
       () =>
         ({
-          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          export: vi.fn().mockResolvedValue('/renderer/reported/localStorage.json'),
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )

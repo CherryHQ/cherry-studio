@@ -479,17 +479,17 @@ const MigrationApp: React.FC = () => {
       // Export localStorage data
       await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
       const localStorageExporter = new LocalStorageExporter(exportPaths.localStorageExportDirectory)
-      const localStorageFilePath = await localStorageExporter.export()
+      await localStorageExporter.export()
       logger.info('localStorage data exported', {
         entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
+        filePath: exportPaths.localStorageExportPath
       })
 
       // Start migration with exported data
       await actions.startMigration({
         reduxExportPath: reduxResult.exportPath,
         dexieExportPath: exportPaths.dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        localStorageExportPath: exportPaths.localStorageExportPath
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)

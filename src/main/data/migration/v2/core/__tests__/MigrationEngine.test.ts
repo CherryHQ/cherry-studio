@@ -279,6 +279,27 @@ describe('MigrationEngine', () => {
     ])
   })
 
+  it('cleans only registered migration export directories after a failed file-backed run', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const failing = createTestMigrator('failing', 1, events)
+    const cleanup = vi.mocked((engine as any).cleanupTempFiles)
+    failing.execute.mockResolvedValueOnce({ success: false, processedCount: 0, error: 'execute exploded' } as any)
+    engine.registerMigrators([failing as any])
+
+    await expect(
+      engine.run('/untrusted/redux', '/untrusted/dexie', '/untrusted/local/localStorage.json')
+    ).resolves.toMatchObject({ success: false })
+
+    expect(cleanup.mock.calls.map(([exportPath]: [string]) => exportPath)).toEqual([
+      mockPaths.migrationDexieExportDir,
+      mockPaths.migrationLocalStorageExportDir,
+      mockPaths.migrationReduxExportDir
+    ])
+
+    errorSpy.mockRestore()
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
     const runFn = vi.fn()
     const deleteFn = vi.fn(() => ({ run: runFn, where: vi.fn(() => ({ run: runFn })) }))

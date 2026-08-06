@@ -342,17 +342,6 @@ export class MigrationEngine {
       // Mark migration completed
       await this.markCompleted()
 
-      // Cleanup temporary files
-      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
-
-      if (localStorageExportPath) {
-        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
-      }
-
-      if (typeof reduxSource === 'string') {
-        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
-      }
-
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
         migratorCount: results.length
@@ -377,6 +366,19 @@ export class MigrationEngine {
         migratorResults: results,
         totalDuration: Date.now() - startTime,
         error: errorMessage
+      }
+    } finally {
+      // A retry prepares fresh exports, and Skip marks migration completed permanently.
+      // Remove only the registered staging directories on both success and failure so
+      // failed attempts cannot leave large Redux/Dexie snapshots behind indefinitely.
+      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
+
+      if (localStorageExportPath) {
+        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
       }
     }
   }

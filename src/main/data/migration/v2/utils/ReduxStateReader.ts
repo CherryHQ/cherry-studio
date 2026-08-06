@@ -10,6 +10,7 @@ import path from 'path'
 export class ReduxStateReader {
   private readonly data: Record<string, unknown> | null
   private readonly exportPath: string | null
+  private cachedCategory: { name: string; value: unknown } | null = null
 
   constructor(source: Record<string, unknown> | string) {
     this.data = typeof source === 'string' ? null : source
@@ -19,19 +20,23 @@ export class ReduxStateReader {
   private readCategory<T>(category: string): T | undefined {
     if (this.data) return this.data[category] as T | undefined
     if (!this.exportPath) return undefined
+    if (this.cachedCategory?.name === category) return this.cachedCategory.value as T | undefined
 
+    let value: T | undefined
     try {
       const rawValue = fs.readFileSync(path.join(this.exportPath, `${category}.json`), 'utf-8')
       try {
-        return JSON.parse(rawValue) as T
+        value = JSON.parse(rawValue) as T
       } catch (error) {
-        if (error instanceof SyntaxError) return rawValue as T
-        throw error
+        if (error instanceof SyntaxError) value = rawValue as T
+        else throw error
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-      throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+
+    this.cachedCategory = { name: category, value }
+    return value
   }
 
   /**
@@ -71,30 +76,5 @@ export class ReduxStateReader {
    */
   getCategory<T>(category: string): T | undefined {
     return this.readCategory<T>(category)
-  }
-
-  /**
-   * Check if a category exists
-   */
-  hasCategory(category: string): boolean {
-    if (this.data) return category in this.data
-    return this.exportPath ? fs.existsSync(path.join(this.exportPath, `${category}.json`)) : false
-  }
-
-  /**
-   * Get all available categories
-   */
-  getCategories(): string[] {
-    if (this.data) return Object.keys(this.data)
-    if (!this.exportPath) return []
-    try {
-      return fs
-        .readdirSync(this.exportPath)
-        .filter((name) => name.endsWith('.json'))
-        .map((name) => name.slice(0, -'.json'.length))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-      throw error
-    }
   }
 }

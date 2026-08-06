@@ -118,6 +118,21 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   )
   exportPrepared = false
 
+  const cleanupExportDirectories = async (): Promise<void> => {
+    exportPrepared = false
+    await Promise.all(
+      [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
+    )
+  }
+
+  const cleanupExportDirectoriesBestEffort = async (reason: string): Promise<void> => {
+    try {
+      await cleanupExportDirectories()
+    } catch (error) {
+      logger.error(`Failed to cleanup migration exports after ${reason}`, error as Error)
+    }
+  }
+
   // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
   // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
   migrationWindowManager.setQuitRequester(requestQuit)
@@ -126,10 +141,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
     assertMigrationWindowSender(event)
     if (inFlightMigration) throw new Error(CONCURRENT_MIGRATION_ERROR)
 
-    exportPrepared = false
-    await Promise.all(
-      [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
-    )
+    await cleanupExportDirectories()
     await fs.mkdir(paths.migrationTempDir, { recursive: true })
     exportPrepared = true
     return preparedExportPaths
@@ -382,7 +394,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   )
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, async (_event, message: string) => {
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
@@ -390,6 +402,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
       migrators: currentProgress.migrators,
       error: message
     })
+    await cleanupExportDirectoriesBestEffort('renderer export failure')
     return true
   })
 
@@ -416,6 +429,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   ipcMain.handle(MigrationIpcChannels.Cancel, async () => {
     try {
       logger.info('Migration cancelled by user')
+      await cleanupExportDirectoriesBestEffort('migration cancellation')
       migrationWindowManager.close()
       app.quit()
       return true
@@ -436,6 +450,9 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
 
     try {
       logger.info('User chose to skip migration and use defaults')
+      // Cleanup must succeed before skipMigration persists status=completed; otherwise
+      // the next launch bypasses the migration flow and can never retry this cleanup.
+      await cleanupExportDirectories()
       await migrationEngine.skipMigration()
       migrationEngine.close()
       void migrationWindowManager.restartApp()

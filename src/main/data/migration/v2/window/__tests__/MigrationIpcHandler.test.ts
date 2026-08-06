@@ -1,7 +1,7 @@
 import { application } from '@application'
 import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
-import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
@@ -34,6 +34,7 @@ const windowSetStageMock = vi.hoisted(() => vi.fn())
 const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
+const appQuitMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: diagnosticMocks.validateSender }))
 vi.mock('../../migrationDiagnosticBundle', () => {
@@ -108,6 +109,7 @@ describe('MigrationIpcHandler', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks()
+    ;(app as unknown as { quit: typeof appQuitMock }).quit = appQuitMock
     diagnosticMocks.validateSender.mockReturnValue(true)
     diagnosticMocks.saveBundle.mockResolvedValue('included')
     vi.mocked(application.getPath).mockImplementation((key: string, fileName?: string) =>
@@ -645,9 +647,30 @@ describe('MigrationIpcHandler', () => {
 
       await expect(invoke(MigrationIpcChannels.SkipMigration)).resolves.toBe(true)
 
+      expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
+        expect.arrayContaining([
+          migrationPaths.migrationReduxExportDir,
+          migrationPaths.migrationDexieExportDir,
+          migrationPaths.migrationLocalStorageExportDir
+        ])
+      )
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
+      expect(Math.max(...fsMock.rm.mock.invocationCallOrder)).toBeLessThan(
+        engineMock.skipMigration.mock.invocationCallOrder[0]
+      )
       expect(engineMock.skipMigration).toHaveBeenCalledTimes(1)
       expect(engineMock.close).toHaveBeenCalledTimes(1)
       expect(windowRestartAppMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not mark migration completed when staging cleanup fails', async () => {
+      fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.SkipMigration)).rejects.toThrow('staging cleanup failed')
+
+      expect(engineMock.skipMigration).not.toHaveBeenCalled()
+      expect(engineMock.close).not.toHaveBeenCalled()
+      expect(windowRestartAppMock).not.toHaveBeenCalled()
     })
 
     it('keeps the engine open and does not restart when the skip fails', async () => {
@@ -676,18 +699,6 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('migration failure', () => {
-    it('does not clean staged v1 agent files when a later migrator fails and the user skips migration', async () => {
-      engineMock.run.mockResolvedValue({
-        success: false,
-        error: 'KnowledgeVector migration failed',
-        totalDuration: 1200,
-        migratorResults: []
-      })
-
-      await invoke(MigrationIpcChannels.StartMigration, startPayload)
-      await invoke(MigrationIpcChannels.SkipMigration)
-    })
-
     it('broadcasts the error stage with carried migrators/progress when the run reports failure', async () => {
       let engineTick: ((progress: MigrationProgress) => void) | undefined
       engineMock.onProgress.mockImplementation((cb: (progress: MigrationProgress) => void) => {
@@ -738,12 +749,38 @@ describe('MigrationIpcHandler', () => {
       const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
 
       expect(result).toBe(true)
+      expect(fsMock.rm.mock.calls.map(([exportPath]) => exportPath)).toEqual(
+        expect.arrayContaining([
+          migrationPaths.migrationReduxExportDir,
+          migrationPaths.migrationDexieExportDir,
+          migrationPaths.migrationLocalStorageExportDir
+        ])
+      )
+      expect(fsMock.rm).toHaveBeenCalledTimes(3)
       const progress = lastProgress()
       expect(progress.stage).toBe('error')
       expect(progress.error).toBe('Dexie export failed')
       expect(progress.currentMessage).toBe('Dexie export failed')
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
+
+    it('keeps the renderer error when best-effort staging cleanup fails', async () => {
+      fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')).resolves.toBe(true)
+
+      expect(lastProgress()).toMatchObject({ stage: 'error', error: 'Dexie export failed' })
+    })
+  })
+
+  it('best-effort cleans registered export directories before cancelling', async () => {
+    fsMock.rm.mockRejectedValueOnce(new Error('staging cleanup failed'))
+
+    await expect(invoke(MigrationIpcChannels.Cancel)).resolves.toBe(true)
+
+    expect(fsMock.rm).toHaveBeenCalledTimes(3)
+    expect(windowCloseMock).toHaveBeenCalledTimes(1)
+    expect(appQuitMock).toHaveBeenCalledTimes(1)
   })
 
   describe('data-location notice', () => {

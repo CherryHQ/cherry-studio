@@ -68,4 +68,20 @@ describe('ReduxExporter', () => {
 
     expect(invoke.mock.calls.map((call) => String(call[3])).join('')).toBe(settings)
   })
+
+  it('preserves export write errors instead of reporting them as parse failures', async () => {
+    localStorage.setItem('persist:cherry-studio', JSON.stringify({ settings: '{"theme":"dark"}' }))
+    const writeError = new Error('disk full')
+    invoke.mockRejectedValueOnce(writeError)
+
+    await expect(new ReduxExporter().export('/export/redux')).rejects.toBe(writeError)
+  })
+
+  it('labels malformed Redux Persist data as a parse failure', async () => {
+    localStorage.setItem('persist:cherry-studio', '{')
+
+    await expect(new ReduxExporter().export('/export/redux')).rejects.toThrow(
+      'Failed to parse Redux Persist root data: Unterminated Redux Persist root object'
+    )
+  })
 })
