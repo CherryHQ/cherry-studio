@@ -589,7 +589,9 @@ describe('ProviderRegistryService', () => {
           {
             id: 'dashscope',
             name: 'Bailian',
-            endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/' } },
+            endpointConfigs: {
+              'openai-chat-completions': { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/' }
+            },
             defaultChatEndpoint: 'openai-chat-completions',
             metadata: { website: { official: 'https://www.aliyun.com/product/bailian' } }
           }

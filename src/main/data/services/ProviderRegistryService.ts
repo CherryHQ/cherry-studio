@@ -363,11 +363,7 @@ function prettifyIdSegment(segment: string): string {
  *   keeps the clean curated name.
  * - No catalog match → the raw id prettified.
  */
-function deriveResolvedModelName(
-  rawId: string,
-  curatedName: string | null,
-  canonicalApiId: string | null
-): string {
+function deriveResolvedModelName(rawId: string, curatedName: string | null, canonicalApiId: string | null): string {
   if (curatedName && canonicalApiId && rawId === canonicalApiId) return curatedName
 
   const slashIdx = rawId.lastIndexOf('/')
@@ -382,11 +378,7 @@ function deriveResolvedModelName(
   }
 
   if (slashIdx >= 0) {
-    const prefix = rawId
-      .slice(0, slashIdx)
-      .split('/')
-      .map(titleCaseIdToken)
-      .join(': ')
+    const prefix = rawId.slice(0, slashIdx).split('/').map(titleCaseIdToken).join(': ')
     name = `${prefix}: ${name}`
   }
   return name
