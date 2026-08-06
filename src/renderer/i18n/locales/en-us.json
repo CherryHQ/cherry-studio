@@ -5952,8 +5952,8 @@
         "error": "Error clearing cache",
         "options": {
           "legacy_v1": {
-            "description": "Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "Leftover data from older versions"
+            "description": "v1 data no longer used after upgrading to v2, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
+            "title": "Leftover data from v1"
           },
           "normal_cache": {
             "description": "HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",

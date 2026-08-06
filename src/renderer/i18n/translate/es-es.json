@@ -5952,8 +5952,8 @@
         "error": "Error al limpiar la caché",
         "options": {
           "legacy_v1": {
-            "description": "Datos de versiones anteriores que ya no se utilizan tras la actualización, incluidos los datos antiguos de reversión de la base de conocimientos y los datos antiguos de Memory que no se migraron. No se pueden recuperar después de eliminarlos.",
-            "title": "Datos residuales de versiones anteriores"
+            "description": "Datos de v1 que ya no se utilizan después de actualizar a v2, incluidos los datos antiguos de reversión de la base de conocimientos y los datos antiguos de Memory que no se migraron. No se pueden recuperar después de eliminarlos.",
+            "title": "Datos residuales de v1"
           },
           "normal_cache": {
             "description": "Cachés HTTP, de código, shaders y CacheStorage, además de archivos temporales y datos de trazas.",

@@ -5952,8 +5952,8 @@
         "error": "Falha ao limpar cache",
         "options": {
           "legacy_v1": {
-            "description": "Dados de versões anteriores que deixaram de ser utilizados após a atualização, incluindo dados antigos de reversão da base de conhecimentos e dados antigos de Memory que não foram migrados. A eliminação é irreversível.",
-            "title": "Dados residuais de versões anteriores"
+            "description": "Dados da v1 que deixaram de ser utilizados após a atualização para a v2, incluindo dados antigos de reversão da base de conhecimentos e dados antigos de Memory que não foram migrados. A eliminação é irreversível.",
+            "title": "Dados residuais da v1"
           },
           "normal_cache": {
             "description": "Caches HTTP, de código, de shaders e CacheStorage, ficheiros temporários e dados de rastreio.",

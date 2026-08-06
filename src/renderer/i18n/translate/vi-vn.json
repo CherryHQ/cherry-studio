@@ -5952,8 +5952,8 @@
         "error": "Lỗi khi xóa bộ nhớ cache",
         "options": {
           "legacy_v1": {
-            "description": "Dữ liệu từ các phiên bản cũ không còn được sử dụng sau khi nâng cấp, bao gồm dữ liệu hoàn tác cơ sở tri thức cũ và dữ liệu Memory cũ chưa được di chuyển. Không thể khôi phục sau khi xóa.",
-            "title": "Dữ liệu còn sót lại từ phiên bản cũ"
+            "description": "Dữ liệu v1 không còn được sử dụng sau khi nâng cấp lên v2, bao gồm dữ liệu hoàn tác cơ sở tri thức cũ và dữ liệu Memory cũ chưa được di chuyển. Không thể khôi phục sau khi xóa.",
+            "title": "Dữ liệu v1 còn sót lại"
           },
           "normal_cache": {
             "description": "Bộ nhớ đệm HTTP, mã, shader và CacheStorage, cùng các tệp tạm thời và dữ liệu truy vết.",

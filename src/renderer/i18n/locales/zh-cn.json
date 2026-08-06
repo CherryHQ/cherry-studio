@@ -5952,8 +5952,8 @@
         "error": "清除缓存失败",
         "options": {
           "legacy_v1": {
-            "description": "升级后不再使用的旧版本数据，包括旧知识库回滚数据和未迁移的旧记忆数据。清理后无法恢复。",
-            "title": "旧版本遗留数据"
+            "description": "升级到 v2 后不再使用的 v1 版本数据，包括旧知识库回滚数据和未迁移的旧记忆数据。清理后无法恢复。",
+            "title": "v1 版本遗留数据"
           },
           "normal_cache": {
             "description": "HTTP、代码、Shader、CacheStorage 缓存，以及临时文件和 Trace 数据。",

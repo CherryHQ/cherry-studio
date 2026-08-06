@@ -65,10 +65,10 @@ describe('ClearCachePopup', () => {
     for (const checkbox of checkboxes.slice(1)) {
       expect(checkbox).not.toBeChecked()
     }
-    expect(screen.getByText('旧版本遗留数据')).toBeInTheDocument()
+    expect(screen.getByText('v1 版本遗留数据')).toBeInTheDocument()
     expect(screen.getByText('残留文件与知识库')).toBeInTheDocument()
     expect(screen.getByText(/不再使用的文件和知识库残留/)).toBeInTheDocument()
-    expect(screen.getByText(/旧知识库回滚数据/)).toBeInTheDocument()
+    expect(screen.getByText(/升级到 v2 后不再使用的 v1 版本数据/)).toBeInTheDocument()
     expect(screen.getByText('备份恢复临时文件')).toBeInTheDocument()
     expect(screen.getByText(/备份恢复过程中产生的临时文件/)).toBeInTheDocument()
     expect(screen.getByText(/未完成的恢复将无法继续/)).toBeInTheDocument()

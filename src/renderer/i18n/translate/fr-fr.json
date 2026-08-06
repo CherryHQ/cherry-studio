@@ -5952,8 +5952,8 @@
         "error": "Échec de l'effacement du cache",
         "options": {
           "legacy_v1": {
-            "description": "Données d’anciennes versions qui ne sont plus utilisées après la mise à niveau, notamment les anciennes données de restauration de la base de connaissances et les anciennes données Memory non migrées. Leur suppression est irréversible.",
-            "title": "Données résiduelles d’anciennes versions"
+            "description": "Données de la v1 qui ne sont plus utilisées après la mise à niveau vers la v2, notamment les anciennes données de restauration de la base de connaissances et les anciennes données Memory non migrées. Leur suppression est irréversible.",
+            "title": "Données résiduelles de la v1"
           },
           "normal_cache": {
             "description": "Caches HTTP, de code, de shaders et CacheStorage, ainsi que fichiers temporaires et données de trace.",

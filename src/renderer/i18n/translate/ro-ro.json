@@ -5952,8 +5952,8 @@
         "error": "Eroare la golirea memoriei cache",
         "options": {
           "legacy_v1": {
-            "description": "Date din versiunile anterioare care nu mai sunt utilizate după actualizare, inclusiv date vechi pentru revenirea bazei de cunoștințe și date Memory vechi care nu au fost migrate. Ștergerea lor este ireversibilă.",
-            "title": "Date rămase din versiunile anterioare"
+            "description": "Date din v1 care nu mai sunt utilizate după actualizarea la v2, inclusiv date vechi pentru revenirea bazei de cunoștințe și date Memory vechi care nu au fost migrate. Ștergerea lor este ireversibilă.",
+            "title": "Date rămase din v1"
           },
           "normal_cache": {
             "description": "Cache-uri HTTP, de cod, shader și CacheStorage, fișiere temporare și date de urmărire.",

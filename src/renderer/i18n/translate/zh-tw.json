@@ -5952,8 +5952,8 @@
         "error": "清除快取失敗",
         "options": {
           "legacy_v1": {
-            "description": "升級後不再使用的舊版本資料，包括舊知識庫回復資料和未移轉的舊 Memory 資料。清理後無法復原。",
-            "title": "舊版本遺留資料"
+            "description": "升級到 v2 後不再使用的 v1 版本資料，包括舊知識庫回復資料和未移轉的舊 Memory 資料。清理後無法復原。",
+            "title": "v1 版本遺留資料"
           },
           "normal_cache": {
             "description": "HTTP、程式碼、Shader、CacheStorage 快取，以及暫存檔和 Trace 資料。",

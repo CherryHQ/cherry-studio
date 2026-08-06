@@ -5952,8 +5952,8 @@
         "error": "Cache-Löschen fehlgeschlagen",
         "options": {
           "legacy_v1": {
-            "description": "Daten aus älteren Versionen, die nach dem Upgrade nicht mehr verwendet werden, einschließlich alter Rollback-Daten der Wissensdatenbank und alter Memory-Daten, die nicht migriert wurden. Das Löschen kann nicht rückgängig gemacht werden.",
-            "title": "Verbleibende Daten aus älteren Versionen"
+            "description": "Nach dem Upgrade auf v2 nicht mehr verwendete v1-Daten, einschließlich alter Rollback-Daten der Wissensdatenbank und alter Memory-Daten, die nicht migriert wurden. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus v1"
           },
           "normal_cache": {
             "description": "HTTP-, Code-, Shader- und CacheStorage-Caches sowie temporäre Dateien und Trace-Daten.",
