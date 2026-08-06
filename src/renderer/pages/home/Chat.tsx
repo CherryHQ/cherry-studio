@@ -48,6 +48,8 @@ function ChatTopBarControls(props: ChatTopBarControlsProps) {
 
 interface Props {
   activeTopic?: Topic
+  /** The entry topic is still resolving — hold the loading center instead of the empty one. */
+  topicPending?: boolean
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -249,7 +251,9 @@ const Chat: FC<Props> = (props) => {
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (
-      <ConversationCenterState state="loading" />
+      // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
+      // the empty center rather than spinning forever. Same split as AgentChat.
+      <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
 
   return (

@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
+  refreshShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -111,7 +112,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({
-    buildSystemPrompt: mocks.buildPrompt,
+    buildPromptParts: mocks.buildPrompt,
     buildMemoriesSection: vi.fn(async () => undefined)
   }))
 }))
@@ -150,6 +151,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
+  CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
@@ -191,7 +194,8 @@ vi.mock('@main/utils/rtk', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: mocks.getShellEnv
+  getShellEnv: mocks.getShellEnv,
+  refreshShellEnv: mocks.refreshShellEnv
 }))
 
 vi.mock('../ToolApprovalRegistry', () => ({
@@ -205,9 +209,14 @@ const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSe
   '../settingsBuilder'
 )
 
-function getPresetAppend(systemPrompt: unknown): string {
-  expect(systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
-  return (systemPrompt as { append: string }).append
+function systemPromptText(systemPrompt: unknown): string {
+  if (typeof systemPrompt === 'string') return systemPrompt
+  if (Array.isArray(systemPrompt)) return systemPrompt.join('\n')
+  if (systemPrompt && typeof systemPrompt === 'object' && 'append' in systemPrompt) {
+    const append = (systemPrompt as { append?: unknown }).append
+    return typeof append === 'string' ? append : ''
+  }
+  return ''
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
@@ -268,11 +277,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
+    mocks.refreshShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
-    mocks.buildPrompt.mockResolvedValue('soul prompt')
+    mocks.buildPrompt.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
@@ -334,8 +344,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       true,
       '/app/feature.agents.data/agent-1'
     )
-    expect(getPresetAppend(settings.systemPrompt)).toContain('"/workspace/project"')
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, fastMode: true })
+    expect(settings.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Workspace')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
   })
@@ -547,6 +558,133 @@ describe('buildClaudeCodeSessionSettings', () => {
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
     })
+  })
+
+  it('adds loopback bypass rules to the final Agent proxy environment', async () => {
+    const proxyUrl = 'http://remote-proxy.example:7890'
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { no_proxy: 'service.internal; LOCALHOST' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      no_proxy: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]',
+      NO_PROXY: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]'
+    })
+  })
+
+  it('refreshes a cached Cherry proxy after the current proxy is disabled', async () => {
+    const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: staleProxyUrl,
+      HTTPS_PROXY: staleProxyUrl,
+      http_proxy: staleProxyUrl,
+      https_proxy: staleProxyUrl,
+      ALL_PROXY: staleProxyUrl,
+      all_proxy: staleProxyUrl,
+      grpc_proxy: staleProxyUrl,
+      NO_PROXY: 'stale.internal',
+      no_proxy: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(settings.env).not.toHaveProperty('HTTP_PROXY')
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('NO_PROXY')
+    expect(settings.env).not.toHaveProperty('no_proxy')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('preserves an equal user-owned proxy value produced by the refreshed login shell', async () => {
+    const proxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.refreshShellEnv.mockResolvedValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1,[::1]',
+      no_proxy: 'stale.internal,localhost,127.0.0.1,::1,[::1]'
+    })
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('does not refresh when cached Cherry markers match the current proxy', async () => {
+    const proxyUrl = 'http://current-cherry-proxy.example:7890'
+    const currentProxyEnvironment = {
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: '',
+      HTTP_PROXY: proxyUrl
+    }
+    mocks.getShellEnv.mockResolvedValue(currentProxyEnvironment)
+    mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
+
+    await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.refreshShellEnv).not.toHaveBeenCalled()
   })
 
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
@@ -934,7 +1072,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    const systemPrompt = getPresetAppend(settings.systemPrompt)
+    const systemPrompt = systemPromptText(settings.systemPrompt)
     expect(systemPrompt).toContain('## Citations')
     expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
     expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
@@ -958,7 +1096,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
@@ -983,7 +1121,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       knowledgeBaseIds: ['kb-selected']
     })
 
-    expect(getPresetAppend(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
@@ -1004,7 +1142,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
@@ -1027,7 +1165,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
-    expect(getPresetAppend(settings.systemPrompt)).not.toContain('## Citations')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
@@ -1457,7 +1595,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).not.toContain('AskUserQuestion')
   })
 
-  it('assistant role adds interactive no-responder tools to disallowedTools', async () => {
+  it('does not disable normal interactive tools merely because the Agent is built in', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1474,12 +1612,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.disallowedTools ?? []).toEqual(
+    expect(settings.disallowedTools ?? []).not.toEqual(
       expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'])
     )
   })
 
-  it('loads the private skill plugin for the built-in Assistant while keeping setting sources isolated', async () => {
+  it('loads the private skill plugin for the built-in Assistant without restricting normal setting sources', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1502,7 +1640,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.settingSources).toEqual([])
+    expect(settings.settingSources).toEqual(['user', 'project', 'local'])
     expect(settings.plugins).toContainEqual({
       type: 'local',
       path: '/app/feature.agents.claude.root',
@@ -1569,7 +1707,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
     const handlers = cherryServer.server._requestHandlers
     const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
-    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toContain('cli_list')
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+    )
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('exposes CLI management tools to a normal Agent session', async () => {
@@ -1615,7 +1756,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(systemPromptText(settings.systemPrompt)).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -1647,7 +1788,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
-  it('reasserts the Cherry Assistant identity and ownership contract on every submitted prompt', async () => {
+  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1664,25 +1805,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const hook = settings.hooks?.UserPromptSubmit?.[0]?.hooks[0]
-    const output = await hook?.(
-      { hook_event_name: 'UserPromptSubmit', prompt: '我的模型和你的模型分别是什么？' } as never,
-      undefined,
-      {} as never
-    )
-
-    expect(output).toMatchObject({
-      continue: true,
-      hookSpecificOutput: {
-        hookEventName: 'UserPromptSubmit',
-        additionalContext: expect.stringContaining("In a user's message, first-person terms refer to the user")
-      }
-    })
-    expect(output).toMatchObject({
-      hookSpecificOutput: {
-        additionalContext: expect.stringContaining("None establishes the user's identity or preferences")
-      }
-    })
+    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -1804,7 +1927,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
-  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
+  it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {
     const preferenceGet = vi.fn((key: string) => {
       if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
@@ -1831,13 +1954,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(typeof settings.systemPrompt).toBe('string')
-    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
-    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
-    expect(proxyLine).not.toContain('user')
-    expect(proxyLine).not.toContain('pass')
-    expect(proxyLine).not.toContain('token=secret')
-    expect(proxyLine).not.toContain('/path')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Environment')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('proxy.example')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

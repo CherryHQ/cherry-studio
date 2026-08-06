@@ -156,6 +156,7 @@ function SessionInspector() {
         {tabs.map((tab) => `${tab.id}:${tab.isDormant ? 'dormant' : 'awake'}`).join(',')}
       </div>
       <div data-testid="session-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="session-urls">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
     </div>
   )
 }

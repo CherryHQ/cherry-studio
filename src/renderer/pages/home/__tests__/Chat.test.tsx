@@ -59,6 +59,10 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: () => <div data-testid="citations-panel" />
 }))
 
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state">{state}</div>
+}))
+
 vi.mock('@renderer/components/FindBar', () => ({
   FindBar: () => <div data-testid="content-search" />
 }))
@@ -212,10 +216,17 @@ describe('Chat', () => {
   })
 
   it('renders the navbar while the active topic is still resolving', () => {
-    render(<Chat showResourceListControls />)
+    render(<Chat showResourceListControls topicPending />)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeFalsy()
+    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('loading')
+  })
+
+  it('settles on the empty center once the entry resolved no topic', () => {
+    render(<Chat showResourceListControls />)
+
+    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('empty')
   })
 })
