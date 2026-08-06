@@ -4425,7 +4425,8 @@
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
     "multi_select": {
-      "label": "Chọn nhiều"
+      "label": "Chọn nhiều",
+      "tooltip": "Đa mô hình song song"
     },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",

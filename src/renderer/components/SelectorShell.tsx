@@ -1,4 +1,13 @@
-import { Button, Input, Popover, PopoverContent, PopoverTrigger, Switch, usePortalContainer } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip,
+  usePortalContainer
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search, X } from 'lucide-react'
 import {
@@ -47,6 +56,7 @@ export type SelectorShellSearch = {
 type SelectorShellMultiSelectBase = {
   label: ReactNode
   hint?: ReactNode
+  tooltip?: ReactNode
   checked: boolean
   disabled?: boolean
   onCheckedChange: (checked: boolean) => void
@@ -509,23 +519,25 @@ export function SelectorShell({
                     ) : null}
                   </div>
                   {renderMultiSelectAsSearchBadge && multiSelect ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={multiSelect.disabled}
-                      aria-pressed={multiSelect.checked}
-                      aria-label={multiSelect.ariaLabel}
-                      data-testid={multiSelect.dataTestId}
-                      className={cn(
-                        'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
-                        multiSelect.checked
-                          ? 'bg-accent text-accent-foreground hover:bg-accent'
-                          : 'bg-secondary/60 hover:bg-secondary'
-                      )}
-                      onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                      {multiSelect.label}
-                    </Button>
+                    <Tooltip content={multiSelect.tooltip} delay={1500}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={multiSelect.disabled}
+                        aria-pressed={multiSelect.checked}
+                        aria-label={multiSelect.ariaLabel}
+                        data-testid={multiSelect.dataTestId}
+                        className={cn(
+                          'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
+                          multiSelect.checked
+                            ? 'bg-accent text-accent-foreground hover:bg-accent'
+                            : 'bg-secondary/60 hover:bg-secondary'
+                        )}
+                        onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
+                        {multiSelect.label}
+                      </Button>
+                    </Tooltip>
                   ) : null}
                 </div>
               ) : null}
