@@ -58,7 +58,6 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -246,11 +245,11 @@ export class MigrationEngine {
 
   /**
    * Execute full migration
-   * @param reduxData - Parsed Redux state data from Renderer
+   * @param reduxSource - Redux export directory in production; parsed data in focused tests
    * @param dexieExportPath - Path to exported Dexie files
    */
   async run(
-    reduxData: Record<string, unknown>,
+    reduxSource: Record<string, unknown> | string,
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
@@ -269,7 +268,7 @@ export class MigrationEngine {
       const context = await createMigrationContext(
         this.getDb(),
         this.paths,
-        reduxData,
+        reduxSource,
         dexieExportPath,
         localStorageExportPath
       )
@@ -343,13 +342,6 @@ export class MigrationEngine {
       // Mark migration completed
       await this.markCompleted()
 
-      // Cleanup temporary files
-      await this.cleanupTempFiles(dexieExportPath)
-
-      if (localStorageExportPath) {
-        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
-      }
-
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
         migratorCount: results.length
@@ -379,6 +371,19 @@ export class MigrationEngine {
         migratorResults: results,
         totalDuration: Date.now() - startTime,
         error: errorMessage
+      }
+    } finally {
+      // A retry prepares fresh exports, and Skip marks migration completed permanently.
+      // Remove only the registered staging directories on both success and failure so
+      // failed attempts cannot leave large Redux/Dexie snapshots behind indefinitely.
+      await this.cleanupTempFiles(this.paths.migrationDexieExportDir)
+
+      if (localStorageExportPath) {
+        await this.cleanupTempFiles(this.paths.migrationLocalStorageExportDir)
+      }
+
+      if (typeof reduxSource === 'string') {
+        await this.cleanupTempFiles(this.paths.migrationReduxExportDir)
       }
     }
   }

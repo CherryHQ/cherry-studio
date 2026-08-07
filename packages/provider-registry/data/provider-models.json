@@ -22177,15 +22177,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.018
+          "perMillionTokens": 0.0027
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.083
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.167
         }
       },
       "providerId": "openrouter",
@@ -36454,5 +36454,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5ab3c5c185001410"
+  "version": "72a7007d4783a627"
 }

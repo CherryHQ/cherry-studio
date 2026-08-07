@@ -1,6 +1,7 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeQueryOptionsInput {
@@ -38,6 +39,7 @@ export function createClaudeCodeQueryOptions({
 
   const opts: Partial<Options> = {
     ...settingsRest,
+    spawnClaudeCodeProcess,
     model: modelId,
     ...(abortController ? { abortController } : {}),
     resume: effectiveResume ?? settings.resume
