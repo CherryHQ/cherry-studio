@@ -4,6 +4,7 @@ import type { Server } from 'elysia/universal/server'
 import type { Server as HttpServer } from 'http'
 
 import { type ApiGatewayApp, buildApp } from './app'
+import { McpSessionStore } from './mcpSessionStore'
 
 const logger = loggerService.withContext('ApiGateway')
 
@@ -30,6 +31,12 @@ export class ApiGateway {
   private app: ApiGatewayApp | null = null
   private serverInfo: NodeServerInfo | null = null
   private running = false
+  /**
+   * Owned here so session lifetime is exactly server lifetime: once the socket closes every
+   * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
+   * activation (a restart builds a fresh `ApiGateway`, and a port change is a stop→start).
+   */
+  private readonly mcpSessions = new McpSessionStore()
 
   async start(): Promise<void> {
     if (this.running) {
@@ -42,7 +49,7 @@ export class ApiGateway {
     const port = preferenceService.get('feature.api_gateway.port')
     const host = preferenceService.get('feature.api_gateway.host')
 
-    const app = buildApp({ host, port })
+    const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
     this.app = app
 
     return new Promise((resolve, reject) => {
@@ -110,6 +117,9 @@ export class ApiGateway {
       // leave the service stuck `_activated` with a stale `running` cache state.
       await this.serverInfo?.stop?.()
     } finally {
+      // After the socket is gone every session is unreachable; close them so their bridges
+      // and idle sweep don't outlive the server.
+      await this.mcpSessions.closeAll()
       this.running = false
       this.serverInfo = null
       this.app = null
