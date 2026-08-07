@@ -102,15 +102,15 @@ describe('TopicImageCaptureHost', () => {
     const offPathUser = createMessage('user-off-path', 'user', '2026-01-01T00:00:01.000Z', { siblingsGroupId: 1 })
     const olderModelA = createMessage('assistant-model-a-old', 'assistant', '2026-01-01T00:00:02.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-a'
+      modelId: 'provider::model-a'
     })
     const activeModelA = createMessage('assistant-model-a-active', 'assistant', '2026-01-01T00:00:03.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-a'
+      modelId: 'provider::model-a'
     })
     const modelB = createMessage('assistant-model-b', 'assistant', '2026-01-01T00:00:04.000Z', {
       siblingsGroupId: 2,
-      modelId: 'model-b'
+      modelId: 'provider::model-b'
     })
 
     dataApiGetMock.mockResolvedValueOnce({
