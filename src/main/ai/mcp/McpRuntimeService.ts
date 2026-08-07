@@ -31,6 +31,7 @@ import {
   CancelledNotificationSchema,
   type GetPromptResult,
   LoggingMessageNotificationSchema,
+  type Progress,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
@@ -95,6 +96,12 @@ type CallToolArgs = {
   /** Caller-isolation key (e.g. topicId) — abort-by-id only matches within the same scope. */
   scope?: string
   signal?: AbortSignal
+  /**
+   * Receives the upstream server's progress notifications. The renderer gets them
+   * unconditionally over IPC, so this is for callers outside it — currently the MCP bridge,
+   * relaying to a client that supplied a `progressToken`.
+   */
+  onProgress?: ProgressCallback
 }
 type RuntimeCallToolArgs = {
   server: McpServer
@@ -103,6 +110,7 @@ type RuntimeCallToolArgs = {
   callId?: string
   scope?: string
   signal?: AbortSignal
+  onProgress?: ProgressCallback
 }
 
 /**
@@ -115,6 +123,7 @@ function toolCallKey(callId: string, scope?: string): string {
   return scope ? `${scope}\u0000${callId}` : callId
 }
 
+type ProgressCallback = (progress: Progress) => void
 type McpRuntimeState = McpRuntimeStatus['state']
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
@@ -1166,9 +1175,17 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ serverId, name, args, callId, scope, signal }: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool({
+    serverId,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress
+  }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId, scope, signal })
+    return this.callToolByServer({ server, name, args, callId, scope, signal, onProgress })
   }
 
   public async callToolByServer({
@@ -1177,7 +1194,8 @@ export class McpRuntimeService extends BaseService {
     args,
     callId,
     scope,
-    signal
+    signal,
+    onProgress
   }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const registrationKey = toolCallKey(toolCallId, scope)
@@ -1240,6 +1258,15 @@ export class McpRuntimeService extends BaseService {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
             })
+            // Additional consumer outside the renderer; must not break the call or the
+            // broadcast above if it throws.
+            try {
+              onProgress?.(process)
+            } catch (error) {
+              getServerLogger(server, { tool: name, callId: toolCallId }).warn('Progress listener threw', {
+                error
+              })
+            }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
