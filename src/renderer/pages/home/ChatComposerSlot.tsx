@@ -7,6 +7,7 @@ import {
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
 import type { Topic } from '@renderer/types/topic'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -21,8 +22,10 @@ interface ChatComposerSlotBaseProps {
     options?: {
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
+      chatTarget?: ComposerChatTarget
     }
   ) => Promise<void>
+  chatTarget: ComposerChatTarget
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   composerContext?: ComposerContextValue
@@ -40,6 +43,7 @@ export default function ChatComposerSlot({
   topic,
   contextUsage,
   onSend,
+  chatTarget,
   onNewTopic,
   onCreateEmptyTopic,
   sendDisabled,
@@ -57,6 +61,7 @@ export default function ChatComposerSlot({
         contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
+        chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         resolvedContext={assistantContext}
@@ -72,6 +77,7 @@ export default function ChatComposerSlot({
         contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
+        chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         sendDisabled={sendDisabled}

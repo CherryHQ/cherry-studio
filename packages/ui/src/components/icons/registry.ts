@@ -140,7 +140,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // `seed-2.0-lite`/`seed-1.6` match, while `seedream`/`seedance` keep their explicit alts
   [/doubao|seedream|seedance|ep-202|(?:^|[-_/])seed(?:[-_\d]|$)/i, 'doubao'],
   [/^(?:hunyuan|hy-|hy\d)/i, 'hunyuan'],
-  [/kimi|moonshot/i, 'kimi'],
+  [/kimi|moonshot|^k3(?:[-_.]|$)/i, 'kimi'],
   // Other model-specific icons
   [/grok/i, 'grok'],
   [/hailuo/i, 'hailuo'],

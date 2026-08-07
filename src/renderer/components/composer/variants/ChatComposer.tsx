@@ -49,7 +49,7 @@ import {
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -153,8 +153,10 @@ export interface ChatComposerProps {
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
       fastMode?: boolean
+      chatTarget?: ComposerChatTarget
     }
   ) => void | Promise<void>
+  chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -364,6 +366,7 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
+  chatTarget,
   sendDisabled,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -418,6 +421,7 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
+            chatTarget={chatTarget}
             sendDisabled={sendDisabled}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -454,6 +458,7 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
+  chatTarget,
   sendDisabled = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -1157,7 +1162,8 @@ const ChatComposerInner = ({
               : assistantId
                 ? reasoningEffort
                 : 'default',
-          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {})
+          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {}),
+          chatTarget
         })
       })
       if (!payload) return null
@@ -1171,7 +1177,16 @@ const ChatComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope, speedControlModel]
+    [
+      assistantId,
+      chatTarget,
+      fastMode,
+      files,
+      mentionedModels,
+      reasoningEffort,
+      selectedKnowledgeBasesInScope,
+      speedControlModel
+    ]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1185,7 +1200,8 @@ const ChatComposerInner = ({
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
-          ...(payload.fastMode ? { fastMode: true } : {})
+          ...(payload.fastMode ? { fastMode: true } : {}),
+          chatTarget: payload.chatTarget
         })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
@@ -1231,6 +1247,10 @@ const ChatComposerInner = ({
   })
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
+  )
+  const isQueuedFollowupSteerDisabled = useCallback(
+    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
+    [awaitingApproval, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1613,6 +1633,7 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined
           }

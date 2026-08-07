@@ -92,7 +92,10 @@ For each migrated Agent:
 
 Before reading or copying Agent identity and workspace content, migration
 validates every exact v2 target against every v1 source, then clears the final
-`Data/Agents/{agentId}` directories and planned managed Session workspaces.
+`Data/Agents/{agentId}` directories and planned managed Session workspaces that
+are not themselves legacy sources. A target already used as the same Agent's
+exact legacy workspace is retained, including case-only path variants on
+Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
 Validation completes for the whole cleanup plan before any target is removed.
 This avoids hashing or copying data only to fail on stale retry output, while
 leaving legacy short-ID and external user workspaces unchanged. A target
