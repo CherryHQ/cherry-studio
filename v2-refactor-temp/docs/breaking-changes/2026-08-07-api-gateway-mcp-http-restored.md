@@ -18,7 +18,7 @@ They authenticate like every other gateway route (`Authorization: Bearer` / `x-a
 
 Two differences from the v1 endpoints:
 
-- **No sessions.** The proxy is stateless: no `Mcp-Session-Id` is issued, and `GET` on the proxy path returns 405 instead of opening an SSE stream. Standard MCP clients handle this — the spec allows a server not to assign session ids. Because there is no stream to push on, the server does **not** advertise `tools.listChanged`, so a client knows up front to re-list rather than waiting for a notification. Cross-request cancellation (`notifications/cancelled`) is likewise not honored; dropping the connection does stop the upstream call.
+- **Sessions are opt-in.** A client that sends `initialize` gets an `Mcp-Session-Id` and may hold a `GET` stream for server-initiated messages, including `tools/list_changed`. A client that just POSTs a method without handshaking — what plain `curl` and some v1 scripts do — is still served, one request at a time, gets 405 on `GET`, and is told up front that `tools.listChanged` is unavailable so it re-lists instead of waiting for a notification.
 - **Browser callers must be local.** As the MCP transport spec requires, a request carrying an `Origin` that is not a loopback address is rejected with 403, so a malicious web page cannot drive this endpoint through a browser that already holds gateway credentials. Native clients send no `Origin` and are unaffected.
 - **Response bodies.** The two `GET` endpoints return plain objects (`{ servers: [...] }`, `{ id, name, type, description, tools }`) instead of v1's `{ success: true, data: ... }` wrapper. Errors use the gateway's standard error envelope.
 
@@ -28,7 +28,7 @@ Users who ran external automation against Cherry Studio's MCP servers (browser t
 
 ## What the user should do
 
-Nothing to enable — the endpoints are live whenever the API gateway is on. Clients written against v1 should drop the `success`/`data` unwrapping and stop relying on `Mcp-Session-Id`.
+Nothing to enable — the endpoints are live whenever the API gateway is on. Clients written against v1 should drop the `success`/`data` unwrapping; session handling is unchanged from v1 for clients that handshake.
 
 ## Notes for release manager
 
