@@ -55,6 +55,7 @@ export function PageSidebar({
           animate={{ width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+          data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(
@@ -76,7 +77,7 @@ export function PageSidebar({
               label: t('common.resize_panel'),
               onResize: setPaneWidth
             })}
-            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
             <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>

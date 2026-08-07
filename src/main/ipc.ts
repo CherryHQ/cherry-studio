@@ -8,8 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { BrowserWindow, dialog, ipcMain, session } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
@@ -17,18 +16,17 @@ import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
+import { legacyBackupManager as backupManager } from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
-import { getDirectorySize } from './utils/fileOperations'
 import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const backupManager = new LegacyBackupManager()
-
 export async function registerIpc() {
+  void backupManager.cleanupStaleTempArtifacts()
+
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerService = application.get('PowerService')
   // powerService.registerShutdownHandler(() => {
@@ -62,49 +60,6 @@ export async function registerIpc() {
   // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
   //   themeService.setTheme(theme)
   // })
-
-  // clear cache
-  ipcMain.handle(IpcChannel.App_ClearCache, async () => {
-    const sessions = [
-      session.defaultSession,
-      session.fromPartition('persist:webview'),
-      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
-    ]
-
-    try {
-      await Promise.all(
-        sessions.map(async (session) => {
-          await session.clearCache()
-          await session.clearStorageData({
-            storages: ['cookies', 'filesystem', 'shadercache', 'websql', 'serviceworkers', 'cachestorage']
-          })
-        })
-      )
-      await fileManager.clearTemp()
-      // do not clear logs for now
-      // TODO clear logs
-      // await fs.writeFileSync(log.transports.file.getFile().path, '')
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to clear cache:', error)
-      return { success: false, error: error.message }
-    }
-  })
-
-  // get cache size
-  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = application.getPath('app.session.cache')
-    logger.info(`Calculating cache size for path: ${cachePath}`)
-
-    try {
-      const sizeInBytes = await getDirectorySize(cachePath)
-      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
-      return `${sizeInMB}`
-    } catch (error: any) {
-      logger.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
-      return '0'
-    }
-  })
 
   // Select app data path
   ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
@@ -147,17 +102,26 @@ export async function registerIpc() {
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
+    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, async (event, config) => {
+    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    return { result, cleanupFailed: cleanupError !== null }
+  })
   ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
@@ -182,10 +146,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
     searchListDirectoryEntries(dirPath, options)

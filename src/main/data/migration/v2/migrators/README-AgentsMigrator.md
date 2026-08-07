@@ -45,8 +45,11 @@ resolves migration storage through the live application path registry.
   dropped and logged.
 
 The main `BEGIN`/`COMMIT` region contains only synchronous better-sqlite3 work.
-Filesystem probing, message-file materialization, and temporary message
-staging complete before `BEGIN`.
+Filesystem probing and message-file materialization complete before `BEGIN`.
+Messages are normalized into a file-backed SQLite TEMP table in 100-row pages,
+then read and inserted in 100-row pages inside the transaction. This keeps
+message payload memory bounded while preserving atomic import and one final FTS
+rebuild. The temporary tables are dropped before workspace copying.
 
 ## Filesystem split
 
@@ -57,7 +60,8 @@ not require permission to create them. The copy uses a private staging
 directory, verifies the copied source and destination content, and atomically
 publishes the result. If the destination directory already exists, migration
 leaves it untouched and skips the legacy Claude config copy. This copy also
-runs when `agents.db` is absent.
+runs when `agents.db` is absent. Large config trees report throttled scan, copy,
+and verification progress by file count and bytes without logging file content.
 
 For each migrated Agent:
 
@@ -74,36 +78,53 @@ For each migrated Agent:
 - Imported resume tokens remain unchanged. If the latest Claude transcript
   cannot be made available, the normal runtime resume attempt surfaces the
   failure to the user.
-- A symlinked v1 Agent root is treated as an external user workspace: identity
-  may be read from its resolved directory, but the target is never removed.
-- Identity symlinks are followed only when they resolve inside the source
-  workspace and are materialized as ordinary files/directories.
-- Ordinary workspace symlinks remain links. Targets under identity entries are
-  rewritten to Agent data; other internal targets are rewritten to the new
-  Session workspace; external and dangling targets retain their meaning.
+- A symlinked v1 Agent root is skipped without following or removing it.
+- Identity and ordinary workspace symlinks are skipped. Migration copies only
+  regular files and directories so link permissions or unsupported link targets
+  cannot block the rest of the migration.
+- Ordinary workspace content is scanned once. The first verified private
+  staging copy is reused as the regular-content source for later Sessions, so
+  migration does not need an additional full-size template.
 
-Existing identity targets are never overwritten. Identical files from a prior
-attempt are accepted recursively; different files keep both the existing v2
-target and the v1 source in place.
+Before reading or copying Agent identity and workspace content, migration
+validates every exact v2 target against every v1 source, then clears the final
+`Data/Agents/{agentId}` directories and planned managed Session workspaces that
+are not themselves legacy sources. A target already used as the same Agent's
+exact legacy workspace is retained, including case-only path variants on
+Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
+Validation completes for the whole cleanup plan before any target is removed.
+This avoids hashing or copying data only to fail on stale retry output, while
+leaving legacy short-ID and external user workspaces unchanged. A target
+recreated after cleanup is accepted only when it is identical to the verified
+staging copy.
 
 Claude project keys mirror the SDK's cwd sanitizer, including its 200-character
-limit and hash suffix for long paths. Claude session cache copies use the same
-verified staging and conflict rules as other Agent filesystem data; the old cwd
-cache is retained for downgrade compatibility.
+limit and hash suffix for long paths. The atomically published v2 `.claude`
+configuration directory is retained across retries to avoid copying the whole
+tree again. After resolving and snapshotting a Claude Session transcript,
+migration replaces only its exact destination JSONL unless that destination is
+also the sole source. Concurrently recreated entries still use the same
+verified staging and conflict rules; the old cwd cache is retained for
+downgrade compatibility.
 
 ## Copy-only and downgrade contract
 
-The filesystem migration is additive. It never removes or rewrites the v1
-`.claude`, `agents.db`, or `Data/Agents/{legacyAgentId suffix}` workspace
-because those paths remain the source of truth when a user downgrades to v1.
+The filesystem migration is copy-only with respect to v1. It never removes or
+rewrites the v1 `.claude`, `agents.db`, `Data/Agents/{legacyAgentId suffix}`, or
+external user workspace because those paths remain the source of truth when a
+user downgrades to v1. Retry cleanup removes only the exact v2 Agent and managed
+Session targets owned by the current migration plan.
 
-Each entry records its source metadata before copying, verifies that the source
-metadata is unchanged after the copy, and requires the private staging entry
-and published destination to match the same copied-content fingerprint. A
-source that changes inside that window aborts the migration. UUID staging paths
-keep partial copies out of the final workspace and only the current run's
-staging path is removed; the migration never sweeps other prefix-matching
-entries.
+Filesystem copies use content fingerprints rather than source metadata. Each
+source is fingerprinted before copying, and the complete private staging entry
+must match that fingerprint before atomic publication. Once that verified
+snapshot exists, later inode or timestamp changes do not invalidate it. This
+tolerates cloud-storage hydration and preserves a deterministic source snapshot
+without requiring a user-owned directory to remain quiescent. After planned
+targets are cleared, a concurrently created destination is fingerprinted and
+reused only when it is identical. UUID staging paths keep partial copies out of
+the final workspace and only the current run's staging path is removed; the
+migration never sweeps other prefix-matching entries.
 
 `app_state.key = 'migration_v2_status'` records that the v2 database and file
 copies are ready. It does not mean the v1-compatible source layout was removed,
@@ -150,5 +171,5 @@ Related user-visible behavior is recorded under
 
 - `AgentsMigrator.ts` — database preparation, import, validation, and ID remap orchestration.
 - `mappings/AgentsDbMappings.ts` — v1 schema inspection and SQL mapping definitions.
-- `agentsFilesystemMigration.ts` — copy-only identity/workspace staging and verified publication.
+- `agentsFilesystemMigration.ts` — v2 target reset, copy-only v1 reads, and verified publication.
 - `remapAgentPrefixIds.ts` — deterministic ID and foreign-key remapping.

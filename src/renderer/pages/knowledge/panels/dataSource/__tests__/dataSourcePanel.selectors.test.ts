@@ -27,6 +27,11 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemTitle(createNoteItem({ id: 'note-1', content: '\n \n  第一行标题  \n第二行内容' }))).toBe(
       '第一行标题'
     )
+    // A drafted note's title is its own field, so the row shows it rather than the body's opening
+    // line — the same name same-name detection keys off.
+    expect(getItemTitle(createNoteItem({ id: 'note-3', source: '季度复盘', content: '第一行标题\n第二行内容' }))).toBe(
+      '季度复盘'
+    )
     expect(getItemTitle(createNoteItem({ id: 'note-2', content: '\n   \n' }))).toBe('')
   })
 
@@ -40,43 +45,43 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemStatus(createFileItem({ id: 'file-2', status: 'failed' }))).toEqual({
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-red-500/60',
+      textClassName: 'text-error',
       icon: 'alert'
     })
     expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500/70',
+      textClassName: 'text-warning',
       icon: 'loader'
     })
     expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
-      textClassName: 'text-blue-500/70',
+      textClassName: 'text-info',
       icon: 'loader'
     })
     expect(getItemStatus(createFileItem({ id: 'file-5', status: 'processing' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
+      textClassName: 'text-yellow-500',
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
+      textClassName: 'text-yellow-500',
       icon: 'loader'
     })
     expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500/70',
+      textClassName: 'text-warning',
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',
-      textClassName: 'text-zinc-500/70',
+      textClassName: 'text-zinc-500',
       icon: 'loader'
     })
   })

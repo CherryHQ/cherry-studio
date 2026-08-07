@@ -17,6 +17,8 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { getAppLanguage } from '@main/i18n'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -34,11 +36,22 @@ import {
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { getExtraHeaders } from '../../utils/provider'
 import type { AgentSessionUsageCapture } from '../types'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass
+} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
+import {
+  buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
+  getClaudeCodeLoginShellEnvironment,
+  type McpServerSnapshotMap
+} from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
@@ -62,7 +75,7 @@ interface RuntimeModelRef {
 interface ClaudeCodeRouteFacts {
   branch: 'external-cli' | 'gateway' | 'direct'
   baseUrl?: string
-  /** Rotation-insensitive credential identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
+  /** Rotation-insensitive auth/header identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
   credentialsFingerprint: string
   modelIds: {
     primary: string
@@ -76,9 +89,20 @@ interface ClaudeCodeRouteFacts {
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
-  customHeaders?: Record<string, string>
+  customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
   internalRequestToken?: string
+}
+
+/** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
+function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl'>): string | undefined {
+  if (route.branch !== 'gateway' || !route.baseUrl) return undefined
+
+  try {
+    return new URL(route.baseUrl).hostname
+  } catch {
+    return undefined
+  }
 }
 
 interface ConnectionMaterializationFacts {
@@ -86,18 +110,57 @@ interface ConnectionMaterializationFacts {
   mcp: unknown[]
   skills: string[]
   linkedChannelId: string | null
+  contextWindow: number | null
+  proxyEnvironmentFingerprint: string
 }
 
 /**
- * Hash the credential material that identifies a route's auth, independent of which key rotation
- * happens to pick. Direct routes hash the provider's enabled key SET (rotation within the set is
- * invisible; adding/removing/disabling a key changes the fingerprint). Gateway routes hash the
- * stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
+ * Hash the sensitive material that identifies a route's auth, independent of which key rotation
+ * happens to pick. Direct routes hash the provider's enabled key SET and custom headers (rotation
+ * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
+ * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
     .digest('hex')
+}
+
+type CustomHeaderSource = string | Readonly<Record<string, string>> | undefined
+
+/**
+ * Serialize headers in the newline-delimited format consumed by Claude Code's
+ * `ANTHROPIC_CUSTOM_HEADERS`. Later sources win case-insensitively, so provider
+ * settings override Cherry's app attribution and inherited agent/shell headers.
+ */
+function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string | undefined {
+  const headers = new Map<string, { name: string; value: string }>()
+  const setHeader = (rawName: string, rawValue: string) => {
+    const name = rawName.trim()
+    if (!name) return
+    headers.set(name.toLowerCase(), { name, value: rawValue.trim() })
+  }
+
+  for (const source of sources) {
+    if (!source) continue
+    if (typeof source === 'string') {
+      for (const line of source.split('\n')) {
+        const separator = line.indexOf(':')
+        if (separator < 0) continue
+        setHeader(line.slice(0, separator), line.slice(separator + 1))
+      }
+      continue
+    }
+    for (const [name, value] of Object.entries(source)) {
+      setHeader(name, value)
+    }
+  }
+
+  if (headers.size === 0) return undefined
+  return [...headers.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, { name, value }]) => `${name}: ${value}`)
+    .join('\n')
 }
 
 function buildUsageModels(
@@ -130,11 +193,27 @@ function buildUsageModels(
   }))
 }
 
+function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
+  return {
+    ...routeFacts,
+    usageModels: routeFacts.usageModels.map((usageModel) => ({
+      ...usageModel,
+      pricingSnapshot: usageModel.pricingSnapshot
+        ? {
+            ...usageModel.pricingSnapshot,
+            // This records when usage attribution was materialized, not a spawn-time routing fact.
+            capturedAt: undefined
+          }
+        : null
+    }))
+  }
+}
+
 /**
- * Normalized tool-policy facts — the immediately enforceable side of {@link ConnectionConfig}.
- * Permission mode and newly disabled tools can be applied to a running connection; `disabledTools`
- * is also part of the rebuild signature because removing a disabled tool must restore it to the
- * subprocess model context, which the SDK cannot do live.
+ * Normalized tool-policy facts — the boundary-reconcilable side of {@link ConnectionConfig}.
+ * Permission mode can be applied to an idle running connection and newly disabled tools can be
+ * applied mid-turn; `disabledTools` is also part of the rebuild signature because removing a
+ * disabled tool must restore it to the subprocess model context, which the SDK cannot do live.
  */
 export interface ToolPolicyFacts {
   permissionMode: string | null
@@ -166,6 +245,8 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
  */
 export interface ConnectionConfig {
   rebuildSignature: string
+  /** Per-field hashes used only to identify which spawn-frozen facts caused a rebuild. */
+  rebuildFactFingerprints: Readonly<Record<string, string>>
   live: {
     toolPolicy: ToolPolicyFacts
   }
@@ -227,6 +308,21 @@ export async function deriveConnectionConfig(
   }
 }
 
+async function deriveAgentProxyEnvironmentFingerprint(
+  agent: AgentEntity,
+  route: ClaudeCodeRouteFacts
+): Promise<string> {
+  const proxyEnvironment = getProxyEnvironment(process.env)
+  return createAgentProxyEnvironmentFingerprint(
+    {
+      ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)),
+      ...proxyEnvironment,
+      ...agent.configuration?.env_vars
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
+}
+
 async function deriveConnectionConfigFromSnapshot(
   session: AgentSessionEntity,
   agent: AgentEntity,
@@ -241,6 +337,7 @@ async function deriveConnectionConfigFromSnapshot(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -256,31 +353,51 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
   }
-  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd))
+  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd, builtinRole))
   const linkedChannelId = materialized
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const proxyEnvironmentFingerprint =
+    materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
     modelId: uniqueModelId,
+    contextWindow,
     reasoningEffort,
     fastMode: effectiveFastMode,
-    route: routeFacts,
+    route: buildRebuildRouteFacts(routeFacts),
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
+    // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
+    // connection snapshots instead of invalidating this signature every turn.
+    promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
+    promptModelName: agent.modelName || null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
-    envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    envVars: Object.entries(agent.configuration?.env_vars ?? {})
+      .filter(([key]) => !isAgentProxyEnvironmentKey(key))
+      .sort(([a], [b]) => a.localeCompare(b)),
+    proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
+  const rebuildFactFingerprints = Object.fromEntries(
+    Object.entries(rebuildFacts).map(([name, value]) => [
+      name,
+      createHash('sha256')
+        .update(JSON.stringify(value) ?? 'undefined')
+        .digest('hex')
+    ])
+  )
 
   return {
     rebuildSignature: createHash('sha256').update(JSON.stringify(rebuildFacts)).digest('hex'),
+    rebuildFactFingerprints,
     live: {
       toolPolicy: {
         permissionMode: agent.configuration?.permission_mode ?? null,
@@ -344,6 +461,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
+  // settings, and skill materialization can otherwise make the baseline describe a different
+  // compaction window from the one actually passed to Claude Code.
+  const contextWindow = model.contextWindow
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -379,6 +500,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
+        contextWindow,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -405,7 +527,11 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null
+      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      contextWindow: contextWindow ?? null,
+      proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
+        additionalBypassRule: gatewayBypassRule(route)
+      })
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -560,9 +686,10 @@ function deriveRouteFacts(
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
   // Fingerprint the enabled key SET (read-only), not the rotated pick — so prewarm/consume builds
-  // that rotate onto different keys still sign identically, while enabling/disabling/editing a key
-  // invalidates warm reuse.
+  // that rotate onto different keys still sign identically. Include request headers because they
+  // are also fixed at subprocess spawn; editing either input invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
+  const customHeaders = mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider))
   // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
   // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
@@ -576,7 +703,10 @@ function deriveRouteFacts(
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
-    credentialsFingerprint: fingerprintCredentials(enabledKeys),
+    credentialsFingerprint: fingerprintCredentials([
+      ...enabledKeys.map((key) => `api-key:${key}`),
+      ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
+    ]),
     modelIds,
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
@@ -632,6 +762,7 @@ async function resolveClaudeCodeRuntimeRoute(
       return {
         ...facts,
         apiKey: runtimeApiKey,
+        customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
         usageCapture: {
           owner: 'agent-sdk',
           credentialReceipt: resolvedApiKey.apiKeySelection,
@@ -733,25 +864,17 @@ function mergeRuntimeSettings(
   route: ClaudeCodeRuntimeRoute,
   fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
 ): ClaudeCodeSettings {
-  const existingCustomHeaders = settings.env?.ANTHROPIC_CUSTOM_HEADERS
-  const routeCustomHeaders = route.customHeaders
-    ? Object.entries(route.customHeaders)
-        .map(([name, value]) => `${name}: ${value}`)
-        .join('\n')
-    : undefined
-  const customHeaders = [
-    existingCustomHeaders,
-    routeCustomHeaders,
+  const fastModeHeaders =
     route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
       ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
       : undefined
-  ]
-    .filter((header): header is string => Boolean(header))
-    .join('\n')
-
-  return {
-    ...settings,
-    env: {
+  const customHeaders = mergeAnthropicCustomHeaders(
+    settings.env?.ANTHROPIC_CUSTOM_HEADERS,
+    route.customHeaders,
+    fastModeHeaders
+  )
+  const env = mergeAgentLoopbackProxyBypass(
+    {
       ...settings.env,
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
@@ -760,7 +883,12 @@ function mergeRuntimeSettings(
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
       ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
       ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
-    }
+    },
+    { additionalBypassRule: gatewayBypassRule(route) }
+  )
+  return {
+    ...settings,
+    env
   }
 }
 

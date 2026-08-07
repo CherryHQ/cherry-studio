@@ -65,6 +65,8 @@ const mocks = vi.hoisted(() => ({
   topicLayout: undefined as string | undefined,
   inputAdapterFocus: vi.fn(),
   assistantHookArgs: [] as unknown[][],
+  knowledgeBaseHookArgs: [] as unknown[][],
+  modelHookArgs: [] as unknown[][],
   providerHookArgs: [] as unknown[][],
   speedControlProps: undefined as
     | {
@@ -134,6 +136,11 @@ const modelBWithFunctionCall = {
   capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+// Send-time attachment metadata (buildFileParts) resolves through IpcApi.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
@@ -173,6 +180,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
+        </div>
+        <div data-testid="composer-compact-controls">
+          {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
         </div>
         <div data-testid="composer-send-accessory">{sendAccessory}</div>
       </div>
@@ -487,12 +497,19 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
+  useKnowledgeBases: (...args: unknown[]) => {
+    mocks.knowledgeBaseHookArgs.push(args)
+    return { bases: mocks.knowledgeBases, isLoading: false }
+  }
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModels: () => ({ models: [mocks.model ?? model, modelB] })
+  useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
+  useModels: (...args: unknown[]) => {
+    mocks.modelHookArgs.push(args)
+    return { models: [mocks.model ?? model, modelB] }
+  }
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -736,6 +753,8 @@ describe('ChatComposer', () => {
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
     mocks.assistantHookArgs = []
+    mocks.knowledgeBaseHookArgs = []
+    mocks.modelHookArgs = []
     mocks.providerHookArgs = []
     mocks.speedControlProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -751,13 +770,16 @@ describe('ChatComposer', () => {
         }
       }
     })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
+    )
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
           createInternalEntry: vi.fn(async () => ({ id: 'fe-1', ext: 'pdf' })),
-          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf'),
-          getMetadata: vi.fn(async () => ({ kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 }))
+          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf')
         }
       }
     })
@@ -781,6 +803,19 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('renders context usage after the speed control next to the send action', () => {
+    render(<ChatComposer topic={topic} contextUsage={{ contextTokens: 42, modelId: model.id }} onSend={vi.fn()} />)
+
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    const speedControl = within(sendAccessory).getByTestId('chat-speed-control')
+    const indicator = within(sendAccessory).getByRole('meter', {
+      name: 'agent.right_pane.info.context_usage 42%'
+    })
+    expect(speedControl.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(indicator).toHaveAttribute('tabindex', '0')
+    expect(indicator).toHaveAttribute('aria-valuenow', '42')
   })
 
   it('uses page-owned context without querying or rendering duplicate context controls', async () => {
@@ -845,6 +880,14 @@ describe('ChatComposer', () => {
 
     view.unmount()
     expect(nextConversationControlsChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('defers optional resource catalogs on a normal single-model conversation', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: false }])
+    expect(mocks.modelHookArgs.at(-1)).toEqual([{ enabled: true }, { fetchEnabled: false }])
+    expect(mocks.providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
@@ -1006,7 +1049,6 @@ describe('ChatComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
-    expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(webSearchButton)
@@ -1025,7 +1067,6 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const mcpButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })
-    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
 
     fireEvent.click(mcpButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
@@ -1090,7 +1131,6 @@ describe('ChatComposer', () => {
     const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'chat.input.new.context'
     })
-    expect(clearContextButton.querySelector('.lucide-eraser')).toBeInTheDocument()
     expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
     const draftBefore = mocks.surfaceProps?.text
 
@@ -1206,6 +1246,39 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Model A')).toBeInTheDocument()
   })
 
+  it.each(['home', 'docked'] as const)(
+    'forwards compact presentation and keeps pinned shortcuts available for %s placement',
+    (placement) => {
+      const webSearchLauncher = {
+        id: 'web-search',
+        kind: 'command',
+        label: 'chat.input.web_search.label',
+        icon: <span data-testid="web-search-icon" />,
+        sources: ['popover'],
+        active: false
+      }
+      mocks.toolLaunchers = [webSearchLauncher]
+      mocks.toolLaunchersVersion = 1
+
+      render(
+        <ChatPlacementComposer
+          placement={placement}
+          topic={topic}
+          onSend={vi.fn()}
+          externalContextControls
+          compactWhenSingleLine
+        />
+      )
+
+      expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
+      expect(
+        within(screen.getByTestId('composer-compact-controls')).getByRole('button', {
+          name: 'chat.input.web_search.label'
+        })
+      ).toBeInTheDocument()
+    }
+  )
+
   it('does not enable skill marker paste handling', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -1292,8 +1365,6 @@ describe('ChatComposer', () => {
   it('updates the topic assistant from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('assistant-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-
     fireEvent.click(screen.getByText('select assistant 2'))
 
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', { assistantId: 'assistant-2' })
@@ -1302,11 +1373,9 @@ describe('ChatComposer', () => {
   it('updates the assistant model from the composer toolbar', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
   })
 
   it('filters reranker models from the composer model selector', () => {
@@ -1317,14 +1386,16 @@ describe('ChatComposer', () => {
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
   })
 
-  it('keeps web search enabled when switching to a function-calling model', () => {
+  // The composer no longer duplicates the web-search reconciliation: `setModel` does it with an
+  // ungated providers list, while the composer's own list is deferred and empty here.
+  it('delegates the web-search reconciliation to setModel when switching models', () => {
     mocks.selectedModel = modelBWithFunctionCall
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, { enableWebSearch: true })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, {})
   })
 
   it('uses mentioned-model multi-select when requested by the composer toolbar', () => {
@@ -1360,7 +1431,7 @@ describe('ChatComposer', () => {
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
-    expect(mocks.setModel).toHaveBeenCalledWith(model, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(model, {})
     expect(onSend).toHaveBeenCalledWith(
       'hello',
       expect.objectContaining({
@@ -1391,7 +1462,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
   })
 
@@ -1534,12 +1605,6 @@ describe('ChatComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    const newConversationIcon = newTopicButton.querySelector('.new-conversation-icon')
-    expect(newConversationIcon).toHaveAttribute('width', '18')
-    expect(newConversationIcon).toHaveAttribute('height', '18')
-    expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
-    expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
-    expect(newConversationIcon).toHaveAttribute('stroke-width', '1.8')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -2066,6 +2131,40 @@ describe('ChatComposer', () => {
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+  })
+
+  it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const reservedTarget = { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const
+    const view = render(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'reserved follow-up', tokens: [] })
+    })
+
+    let queueContent = mocks.surfaceProps?.queueContent as any
+    const queuedItem = queueContent.props.items[0]
+    expect(queuedItem.payload.chatTarget).toEqual(reservedTarget)
+    expect(queueContent.props.isSteerDisabled(queuedItem)).toBe(true)
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    view.rerender(
+      <ChatComposer
+        topic={topic}
+        chatTarget={{ parentAnchorId: 'different-active-node', mode: 'active-path' }}
+        onSend={onSend}
+      />
+    )
+    queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.isSteerDisabled(queueContent.props.items[0])).toBe(false)
+
+    await act(async () => {
+      await queueContent.props.onSteer(queuedItem.id)
+    })
+
+    expect(onSend).toHaveBeenCalledWith('reserved follow-up', expect.objectContaining({ chatTarget: reservedTarget }))
   })
 
   describe('input history', () => {
@@ -2596,8 +2695,13 @@ describe('ChatComposer', () => {
     })
 
     // The FileEntry is created at send time: the sent file part carries both file identities,
-    // a file:// URL, and a real MIME instead of the raw path / literal extension.
-    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/doc.pdf' })
+    // a file:// URL, a real MIME, and the auto-reclaim cleanup policy instead of the raw path /
+    // literal extension.
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/doc.pdf',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     const sentOptions = onSend.mock.calls[0]?.[1]
     expect(sentOptions?.userMessageParts).toEqual([
       expect.objectContaining({ type: 'text', text: 'quoted text follow up' }),
@@ -2609,65 +2713,6 @@ describe('ChatComposer', () => {
         providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
       }
     ])
-  })
-
-  it('captures scroll eligibility before clearing a long draft or awaiting attachment preparation', async () => {
-    const attachedFile = {
-      id: 'file-1',
-      name: 'doc.pdf',
-      origin_name: 'doc.pdf',
-      ext: '.pdf',
-      type: 'document',
-      size: 1,
-      count: 1,
-      path: '/tmp/doc.pdf',
-      created_at: '2026-01-01T00:00:00.000Z',
-      fileTokenSourceId: 'source-1'
-    } as any
-    const fileToken = {
-      id: 'file:source-1',
-      kind: 'file',
-      label: 'doc.pdf',
-      payload: attachedFile,
-      index: 0,
-      textOffset: 0
-    } as ComposerSerializedToken
-    const entry = createDeferred<Awaited<ReturnType<typeof window.api.file.createInternalEntry>>>()
-    const captureLocalSendScrollEligibility = vi.fn()
-    const onSend = vi.fn().mockResolvedValue(undefined)
-    const longDraft = 'long line\n'.repeat(80)
-    mocks.files = [attachedFile]
-    vi.mocked(window.api.file.createInternalEntry).mockReturnValueOnce(entry.promise)
-
-    render(
-      <ChatComposer
-        topic={topic}
-        onSend={onSend}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
-      />
-    )
-    mocks.setFiles.mockClear()
-
-    let sendPromise = Promise.resolve()
-    act(() => {
-      sendPromise = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: longDraft, tokens: [fileToken] }))
-    })
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(onSend).not.toHaveBeenCalled()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.setFiles.mock.invocationCallOrder[0]
-    )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(window.api.file.createInternalEntry).mock.invocationCallOrder[0]
-    )
-
-    await act(async () => {
-      entry.resolve({ id: 'fe-1', ext: 'pdf' } as Awaited<ReturnType<typeof window.api.file.createInternalEntry>>)
-      await sendPromise
-    })
-
-    expect(onSend).toHaveBeenCalledOnce()
   })
 
   it('does not restore knowledge tokens from the draft cache', () => {
@@ -2890,7 +2935,6 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
       expect(screen.getByText('Model A')).toHaveClass('sr-only')
-      expect(screen.getByTestId('selected-models-trigger')).toHaveClass('w-8')
     })
   })
 
@@ -2942,7 +2986,7 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([modelB])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
-    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
 
     mocks.model = undefined
     mocks.modelPending = true

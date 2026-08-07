@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   generating: false,
   historyItems: [] as PaintingData[],
   historyIsLoading: false,
-  initialSelectionReady: true,
+  draftModelId: undefined as string | undefined,
+  draftProviderId: 'provider-1',
+  modelOptions: [{ value: 'model-1', isEnabled: true }] as { value: string; isEnabled?: boolean }[],
   persistedAt: undefined as string | undefined,
   saveCurrent: vi.fn(),
   submitting: false,
@@ -69,11 +71,15 @@ vi.mock('../components/PaintingComposer', () => ({
     submitting,
     onGenerate
   }: {
-    painting: { prompt?: string }
+    painting: { model?: string; prompt?: string; providerId: string }
     submitting: boolean
     onGenerate: () => void
   }) => (
-    <div data-testid="painting-composer" style={{ height: painting.prompt ? 180 : 64 }}>
+    <div
+      data-testid="painting-composer"
+      data-model-id={painting.model}
+      data-provider-id={painting.providerId}
+      style={{ height: painting.prompt ? 180 : 64 }}>
       <textarea aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
       <button type="button" disabled={submitting} onClick={onGenerate}>
         generate
@@ -104,12 +110,15 @@ vi.mock('../hooks/usePaintingHistory', () => ({
   })
 }))
 
-vi.mock('../hooks/usePaintingInitialProvider', () => ({
-  usePaintingInitialProvider: () => ({ initialProviderId: 'provider-1' })
+vi.mock('../hooks/usePaintingDraftDefaults', () => ({
+  usePaintingDraftDefaults: () => ({
+    providerId: mocks.draftProviderId,
+    modelId: mocks.draftModelId
+  })
 }))
 
-vi.mock('../hooks/usePaintingInitialSelection', () => ({
-  usePaintingInitialSelection: () => mocks.initialSelectionReady
+vi.mock('../hooks/usePaintingInitialDraft', () => ({
+  usePaintingInitialDraft: vi.fn()
 }))
 
 vi.mock('../hooks/usePaintingList', () => ({
@@ -123,7 +132,7 @@ vi.mock('../hooks/usePaintingList', () => ({
 
 vi.mock('../hooks/usePaintingModelCatalog', () => ({
   usePaintingModelCatalog: () => ({
-    currentModelOptions: [{ value: 'model-1' }],
+    currentModelOptions: mocks.modelOptions,
     ensureCurrentCatalog: vi.fn(),
     ensureProviderCatalog: vi.fn()
   })
@@ -142,13 +151,14 @@ vi.mock('../hooks/usePaintingResultSync', () => ({
 }))
 
 vi.mock('../model/paintingPipeline', () => ({
-  createDefaultPainting: (providerId: string) => ({
+  createDefaultPainting: ({ providerId, modelId }: { providerId: string; modelId?: string }) => ({
     id: 'painting-1',
     providerId,
     mode: 'generate',
     prompt: '',
     files: mocks.files,
     params: {},
+    model: modelId,
     persistedAt: mocks.persistedAt
   })
 }))
@@ -167,7 +177,9 @@ describe('PaintingPage showcase', () => {
     mocks.generating = false
     mocks.historyItems = []
     mocks.historyIsLoading = false
-    mocks.initialSelectionReady = true
+    mocks.draftModelId = undefined
+    mocks.draftProviderId = 'provider-1'
+    mocks.modelOptions = [{ value: 'model-1', isEnabled: true }]
     mocks.persistedAt = undefined
     mocks.saveCurrent.mockReset()
     mocks.submitting = false
@@ -177,6 +189,27 @@ describe('PaintingPage showcase', () => {
       label: index === 0 ? 'Motion Step' : `painting template ${index}`,
       prompt: index === 0 ? 'Create a poster for ${CITY RHYTHM}' : `painting prompt ${index}`
     }))
+  })
+
+  it('uses the configured painting model for a new page draft', () => {
+    mocks.draftProviderId = 'openai'
+    mocks.draftModelId = 'dall-e-3'
+
+    render(<PaintingPage />)
+
+    expect(screen.getByTestId('painting-composer')).toHaveAttribute('data-provider-id', 'openai')
+    expect(screen.getByTestId('painting-composer')).toHaveAttribute('data-model-id', 'dall-e-3')
+  })
+
+  it('falls back to the first enabled model when the configured model is unavailable', () => {
+    mocks.modelOptions = [
+      { value: 'disabled-model', isEnabled: false },
+      { value: 'enabled-model', isEnabled: true }
+    ]
+
+    render(<PaintingPage />)
+
+    expect(screen.getByTestId('painting-composer')).toHaveAttribute('data-model-id', 'enabled-model')
   })
 
   it('shows the template showcase only on the untouched blank page', () => {
@@ -213,24 +246,13 @@ describe('PaintingPage showcase', () => {
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
   })
 
-  it('keeps the showcase hidden until the initial history hydration is ready', () => {
+  it('shows the empty-page showcase while painting history is loading', () => {
     mocks.historyIsLoading = true
-    mocks.initialSelectionReady = false
 
     render(<PaintingPage />)
 
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
-  })
-
-  it('keeps the showcase hidden between history hydration and initial painting selection', () => {
-    mocks.historyIsLoading = false
-    mocks.initialSelectionReady = false
-
-    render(<PaintingPage />)
-
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
   })
 
   it('shows an explicit new blank draft after bootstrap even when history exists', () => {

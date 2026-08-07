@@ -48,7 +48,7 @@ const Translate: FC<Props> = ({ text }) => {
   return (
     <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
-        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-muted text-sm opacity-70">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
           <span className="truncate">{t('translate.any.language')}</span>
         </div>
         <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
@@ -64,7 +64,7 @@ const Translate: FC<Props> = ({ text }) => {
       </div>
       <div className="flex w-full flex-1 overflow-hidden">
         {isEmpty(result) ? (
-          <div className="text-foreground-muted italic">{t('translate.output.placeholder')}...</div>
+          <div className="text-foreground-tertiary italic">{t('translate.output.placeholder')}...</div>
         ) : (
           <Scrollbar className="flex flex-1 flex-col gap-2.5">
             <div className="w-full whitespace-pre-wrap break-words">{result}</div>

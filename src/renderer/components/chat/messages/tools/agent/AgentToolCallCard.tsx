@@ -1,9 +1,15 @@
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { AgentToolsType, type ToolInput, type ToolOutput } from '../shared/agentToolTypes'
+import {
+  AgentToolsType,
+  TO_MARKDOWN_RUNTIME_TOOL_NAME,
+  type ToolInput,
+  type ToolOutput
+} from '../shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
+import { ToMarkdownTool } from './ToMarkdownTool'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
 
@@ -57,7 +63,9 @@ export function AgentToolCallCard({
   const actions = useOptionalMessageListActions()
   const renderedItem = isValidAgentToolsType(toolName)
     ? renderTool(toolName, input ?? {}, output, hasError)
-    : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+    : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
+      ? ToMarkdownTool({ input, output })
+      : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
@@ -84,7 +92,7 @@ export function AgentToolCallCard({
       />
     ),
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
   const canShowInlineDetails =
@@ -93,6 +101,7 @@ export function AgentToolCallCard({
   return (
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
+      defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
       isStreaming={isStreaming}
       item={toolContentItem}
       onOpenDetails={openToolFlow}

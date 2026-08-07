@@ -20,7 +20,6 @@ import type {
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -81,7 +80,6 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
-  const { provider } = useProvider(model.providerId)
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({
@@ -95,8 +93,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session, provider })
-  }, [assistant, model, provider, scope, session])
+    return getToolsForScope(scope, { assistant, model, session })
+  }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
@@ -376,12 +374,12 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
         <button
           key={launcher.id}
           type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-foreground-secondary text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-4"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
           data-active
           disabled={launcher.disabled}
           aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
           onClick={() => dispatchLauncher(launcher, { source: 'popover', inputAdapter })}>
-          <span className="flex shrink-0 items-center justify-center text-foreground-muted">{launcher.icon}</span>
+          <span className="flex shrink-0 items-center justify-center text-foreground-tertiary">{launcher.icon}</span>
           {launcher.suffix ? <span className="max-w-24 truncate">{launcher.suffix}</span> : null}
         </button>
       ))}
@@ -396,7 +394,7 @@ export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps)
   return (
     <button
       type="button"
-      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
+      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       aria-label={t('settings.quickPanel.title')}
       onClick={() => unifiedPanelControl.open()}>
       <Plus size={18} />

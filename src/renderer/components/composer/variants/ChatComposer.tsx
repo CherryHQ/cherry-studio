@@ -1,5 +1,8 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -20,7 +23,8 @@ import {
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -29,7 +33,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModels } from '@renderer/hooks/useModel'
+import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -41,19 +45,18 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
-  canModelUseAssistantWebSearch,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { Cable, Eraser } from 'lucide-react'
+import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -103,7 +106,7 @@ const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
   {
     id: ComposerPanelSymbol.McpStatus,
     label: 'MCP',
-    icon: <Cable size={18} aria-hidden />,
+    icon: <McpLogo width={18} height={18} aria-hidden />,
     onSelect: ({ unifiedPanelControl }) =>
       unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
   }
@@ -128,8 +131,14 @@ export interface ChatConversationControlsSnapshot {
 
 export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationControlsSnapshot | null) => void
 
+export interface ChatContextUsageSource {
+  contextTokens: number
+  modelId: UniqueModelId
+}
+
 export interface ChatComposerProps {
   topic?: Topic
+  contextUsage?: ChatContextUsageSource | null
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -144,9 +153,10 @@ export interface ChatComposerProps {
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
       fastMode?: boolean
+      chatTarget?: ComposerChatTarget
     }
   ) => void | Promise<void>
-  captureLocalSendScrollEligibility?: () => void
+  chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -197,8 +207,17 @@ type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
-type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type ChatComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const renderChatPersistentCompactControls = (
+  props: ChatComposerControlProps,
+  inputAdapter: ComposerInputAdapter,
+  unifiedPanelControl: ComposerUnifiedPanelControl
+) => props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
 
 const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
@@ -263,7 +282,9 @@ const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       renderContextControls={() => null}
     />
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
@@ -301,22 +322,65 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
       {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
-type ChatComposerRootProps = ChatComposerProps & {
-  renderControls: ChatComposerControlsRenderer
-  forceNarrowLayout?: boolean
-  deferQuickPanel?: boolean
+function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
+  const { t } = useTranslation()
+  const { model } = useModelById(usage?.modelId)
+  const maxTokens = model?.contextWindow
+  if (!usage || !model || typeof maxTokens !== 'number' || maxTokens <= 0) return null
+
+  const percentage = (usage.contextTokens / maxTokens) * 100
+  const label = t('agent.right_pane.info.context_usage')
+
+  return (
+    <NormalTooltip
+      side="top"
+      sideOffset={8}
+      showArrow={false}
+      contentProps={{
+        className:
+          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
+      }}
+      content={
+        <ContextUsageSummary
+          title={label}
+          emptyLabel={t('common.none')}
+          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name }}
+        />
+      }>
+      <ContextUsageMeter label={label} percentage={percentage} />
+    </NormalTooltip>
+  )
 }
 
-type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+interface ChatComposerPresentationProps {
+  compactWhenSingleLine?: boolean
+}
+
+type ChatComposerRootProps = ChatComposerProps &
+  ChatComposerPresentationProps & {
+    renderControls: ChatComposerControlsRenderer
+    forceNarrowLayout?: boolean
+    deferQuickPanel?: boolean
+  }
+
+type ChatPlacementPresentationProps =
+  | { externalContextControls: true; compactWhenSingleLine?: boolean }
+  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
+type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
+  ChatPlacementPresentationProps
 type ChatPlacementComposerProps =
-  | (ChatComposerProps & { placement: 'home' })
+  | (ChatPlacementHomeProps & { placement: 'home' })
   | (ChatPlacementDockedProps & { placement: 'docked' })
 
 const ChatComposerRoot = ({
   topic,
+  contextUsage,
   scopeKey,
   topicId,
   assistantId,
@@ -325,8 +389,9 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
-  captureLocalSendScrollEligibility,
+  chatTarget,
   sendDisabled,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -371,6 +436,7 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
+            contextUsage={contextUsage}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -379,8 +445,9 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
-            captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+            chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
@@ -395,7 +462,7 @@ const ChatComposerRoot = ({
   )
 }
 
-interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, ChatComposerPresentationProps {
   scopeKey: string
   initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
@@ -407,6 +474,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
+  contextUsage,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -415,8 +483,9 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
-  captureLocalSendScrollEligibility,
+  chatTarget,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -446,10 +515,6 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
-  const { models: allModels } = useModels({ enabled: true })
-  const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
-  const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const {
@@ -463,6 +528,8 @@ const ChatComposerInner = ({
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
   const [searching, setSearching] = useCache('chat.web_search.searching')
@@ -481,6 +548,20 @@ const ChatComposerInner = ({
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
+    Boolean(editingMessageForCurrentTopic) ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -576,7 +657,6 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -584,10 +664,13 @@ const ChatComposerInner = ({
         value: nextReasoningEffort ?? 'default',
         version
       })
+      // No web-search reconciliation here: `setModel` already runs `reconcileWebSearchForModel` with
+      // an ungated providers list. This duplicate read the composer's own list, which is deferred
+      // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
+      // setting for every model whose search is provider-native.
       const extraSettings: {
-        enableWebSearch: boolean
         reasoning_effort?: ReasoningEffortOption
-      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      } = {}
       if (reasoningOverride?.assistantId === assistant.id) {
         extraSettings.reasoning_effort = nextReasoningEffort
       }
@@ -662,6 +745,11 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
       ? editingMessageForCurrentTopic.lockedMentionedModels
       : EMPTY_MODELS
+  const shouldLoadProviders =
+    !externalContextControls &&
+    (mentionedModels.length > 1 || mentionedModelSelectorValue.length > 1 || lockedMentionedModels.length > 1)
+  const { providers: loadedProviders } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const providers = resolvedProviders ?? loadedProviders
   const effectiveSubmittedModels =
     lockedMentionedModels.length > 1
       ? lockedMentionedModels
@@ -1100,7 +1188,8 @@ const ChatComposerInner = ({
               : assistantId
                 ? reasoningEffort
                 : 'default',
-          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {})
+          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {}),
+          chatTarget
         })
       })
       if (!payload) return null
@@ -1114,12 +1203,20 @@ const ChatComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope, speedControlModel]
+    [
+      assistantId,
+      chatTarget,
+      fastMode,
+      files,
+      mentionedModels,
+      reasoningEffort,
+      selectedKnowledgeBasesInScope,
+      speedControlModel
+    ]
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       setIsSending(true)
 
       try {
@@ -1129,7 +1226,8 @@ const ChatComposerInner = ({
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
-          ...(payload.fastMode ? { fastMode: true } : {})
+          ...(payload.fastMode ? { fastMode: true } : {}),
+          chatTarget: payload.chatTarget
         })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
@@ -1140,7 +1238,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [captureLocalSendScrollEligibility, onSend, saveHistory]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1173,6 +1271,14 @@ const ChatComposerInner = ({
     onDrain: sendQueuedPayload,
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
+  const queuedFollowupModelsDataEnabled = queuedFollowups.some(
+    (item) => (item.payload.mentionedModels?.length ?? 0) > 0
+  )
+  const isQueuedFollowupSteerDisabled = useCallback(
+    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
+    [awaitingApproval, isPending]
+  )
+  const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
   // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
   // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
@@ -1347,7 +1453,6 @@ const ChatComposerInner = ({
         return
       }
 
-      captureLocalSendScrollEligibility?.()
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
@@ -1361,7 +1466,7 @@ const ChatComposerInner = ({
       const previousKnowledgeBases = selectedKnowledgeBases
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         setText(previousText)
         setFiles(previousFiles)
@@ -1374,7 +1479,6 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
-      captureLocalSendScrollEligibility,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
@@ -1467,15 +1571,20 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = speedControlModel ? (
-    <ComposerSpeedControl
-      model={speedControlModel}
-      reasoningEffort={reasoningEffort}
-      fastMode={fastMode}
-      onReasoningEffortChange={handleReasoningEffortChange}
-      onFastModeChange={setFastMode}
-    />
-  ) : null
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+    <>
+      {speedControlModel ? (
+        <ComposerSpeedControl
+          model={speedControlModel}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <ChatComposerContextUsage usage={contextUsage} />
+    </>
+  )
 
   return (
     <ComposerToolDerivedStateProvider
@@ -1550,6 +1659,7 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined
           }
@@ -1564,6 +1674,7 @@ const ChatComposerInner = ({
           editable={!searching}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
+          railGutterPx={railGutterPx}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
@@ -1575,6 +1686,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

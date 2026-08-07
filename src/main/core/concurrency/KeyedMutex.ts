@@ -6,29 +6,37 @@ import { Mutex } from 'async-mutex'
  * a knowledge base, a file) each need their own critical section and a single global mutex
  * would serialise unrelated work.
  *
- * Deliberately minimal — the scoped `runExclusive` is the whole API (no bare acquire/release,
- * no cleanup surface; idle mutexes self-delete). async-mutex ships tryAcquire / withTimeout /
- * priority / isLocked: pass one through only when a real consumer needs it, don't pre-expand.
+ * Prefer scoped `runExclusive`. `acquire` exists for resources whose critical section ends on
+ * an event (for example a writable stream); its release callback is idempotent. Idle mutexes
+ * self-delete.
  */
 export class KeyedMutex {
   private readonly mutexes = new Map<string, Mutex>()
 
-  async runExclusive<T>(key: string, task: () => T | Promise<T>): Promise<T> {
+  async acquire(key: string): Promise<() => void> {
     let mutex = this.mutexes.get(key)
     if (!mutex) {
       mutex = new Mutex()
       this.mutexes.set(key, mutex)
     }
-    const release = await mutex.acquire()
+    const releaseMutex = await mutex.acquire()
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      releaseMutex()
+      if (!mutex.isLocked() && this.mutexes.get(key) === mutex) {
+        this.mutexes.delete(key)
+      }
+    }
+  }
+
+  async runExclusive<T>(key: string, task: () => T | Promise<T>): Promise<T> {
+    const release = await this.acquire(key)
     try {
       return await task()
     } finally {
       release()
-      // Only drop the exact mutex we released; a queued waiter may have already replaced it for
-      // the same key after this task released.
-      if (!mutex.isLocked() && this.mutexes.get(key) === mutex) {
-        this.mutexes.delete(key)
-      }
     }
   }
 }

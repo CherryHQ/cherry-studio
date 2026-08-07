@@ -239,16 +239,34 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(1)
   })
 
-  it('applies persisted Claude SDK task events to status tasks', () => {
+  // SDK task events describe spawned processes, not the agent's own plan, so they populate
+  // `runTasks` and stay out of the plan's done/total ratio.
+  it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
     const parts = [
       {
         type: 'data-agent-task-event',
         data: {
           event: 'started',
           taskId: 'task-1',
+          toolUseId: 'tool-use-1',
           status: 'in_progress',
           title: 'Inspect task state',
-          activeText: 'Inspecting task state'
+          activeText: 'Inspecting task state',
+          taskType: 'subagent',
+          subagentType: 'code-reviewer'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'task-1',
+          status: 'in_progress',
+          title: 'Inspecting task state',
+          activeText: 'Reading renderer state',
+          summary: 'Reviewing renderer files',
+          lastToolName: 'Read',
+          usage: { totalTokens: 800, toolUses: 3, durationMs: 6000 }
         }
       },
       {
@@ -257,7 +275,9 @@ describe('agent right pane projections', () => {
           event: 'notification',
           taskId: 'task-1',
           status: 'completed',
-          summary: 'Inspect task state'
+          summary: 'Inspect task state',
+          outputFile: '/tmp/task-1.md',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
         }
       }
     ] as unknown as CherryMessagePart[]
@@ -265,17 +285,28 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.tasks).toEqual([
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+    // Fields the old shared shape could not carry now survive the projection.
+    expect(status.runTasks).toEqual([
       {
         id: 'task-1',
+        toolUseId: 'tool-use-1',
         title: 'Inspect task state',
-        activeText: 'Inspecting task state',
-        status: 'completed'
+        activeText: 'Reading renderer state',
+        status: 'completed',
+        taskType: 'subagent',
+        subagentType: 'code-reviewer',
+        workflowName: undefined,
+        summary: 'Inspect task state',
+        lastToolName: 'Read',
+        outputFile: '/tmp/task-1.md',
+        usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
       }
     ])
   })
 
-  it('projects sub-agents and declared artifacts into status', () => {
+  it('projects declared artifacts into status', () => {
     const parts = [
       toolPart('agent-1', 'Agent', undefined, 'input-available', { description: 'Inspect renderer state' }),
       toolPart('task-1', 'Task', undefined, 'output-error', { name: 'Audit tests' }),
@@ -292,10 +323,6 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.subagents).toEqual([
-      { toolCallId: 'agent-1', name: 'Inspect renderer state', status: 'running' },
-      { toolCallId: 'task-1', name: 'Audit tests', status: 'error' }
-    ])
     expect(status.artifacts).toEqual([
       {
         toolCallId: 'artifacts-1',
@@ -309,6 +336,164 @@ describe('agent right pane projections', () => {
         name: 'output.json',
         description: undefined
       }
+    ])
+  })
+
+  // The completion can land as a part (wake turn) while the late-event cache still holds an earlier
+  // in-progress event; the cache applies last, so without the guard every projection rebuild —
+  // e.g. a renderer refresh — resurrected the settled row.
+  it('never resurrects a settled task from a stale late event', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'local_bash' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {
+        'bg-1': { event: 'progress', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+      }
+    )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
+  })
+
+  it('keeps a stopped task terminal when liveness no longer reports it', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'stopped', summary: 'stopped by user' }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus(
+      [message('m1', parts)],
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
+    )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'stopped' })])
+  })
+
+  // A background task's completion arrives after its turn closed, so it never becomes a part.
+  // Without merging it the row would stay running for the rest of the session.
+  it('settles a run task from lifecycle that arrived after its turn closed', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'sleep 300', taskType: 'local_bash' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const running = buildAgentRightPaneStatus(messages, { m1: parts })
+    expect(running.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+
+    const settled = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {
+        'bg-1': {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'slept',
+          outputFile: '/tmp/bg-1.md'
+        }
+      }
+    )
+
+    // Merged by task id onto the part-derived row, keeping what only the parts knew.
+    expect(settled.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-1',
+        status: 'completed',
+        taskType: 'local_bash',
+        outputFile: '/tmp/bg-1.md'
+      })
+    ])
+  })
+
+  // An interrupted turn kills its subagents without a completion event, so the persisted parts end
+  // at in_progress forever. Liveness — not the events — decides whether a row still spins.
+  it('stops a run task the session is no longer running', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'agent-1', status: 'in_progress', title: 'Review', taskType: 'local_agent' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'progress', taskId: 'agent-1', status: 'in_progress', description: 'Reading files' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const live = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(['m1']), liveBackgroundTaskIds: new Set() }
+    )
+    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+
+    const backgrounded = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set(['agent-1']) }
+    )
+    expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+
+    const stale = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
+    )
+    expect(stale.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
+    ])
+  })
+
+  it('does not resurrect a historical run when an unrelated later turn starts', () => {
+    const historicalParts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          title: 'Historical review',
+          taskType: 'subagent'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const currentParts = [textPart('new turn')]
+    const messages = [message('historical', historicalParts), message('current', currentParts)]
+
+    const status = buildAgentRightPaneStatus(
+      messages,
+      { historical: historicalParts, current: currentParts },
+      {},
+      { activeMessageIds: new Set(['current']), liveBackgroundTaskIds: new Set() }
+    )
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
   })
 })

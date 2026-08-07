@@ -25,7 +25,11 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationStage,
+  type PreparedMigrationExportPaths
+} from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
@@ -66,11 +70,11 @@ const logger = loggerService.withContext('MigrationApp')
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
-  primary: 'border-primary-mute bg-primary/10 text-primary',
-  success: 'border-success bg-success-bg text-success',
-  warning: 'border-warning bg-warning-bg text-warning',
-  destructive: 'border-error-border bg-error-bg text-error-text',
-  neutral: 'border-border bg-muted/40 text-foreground-secondary'
+  primary: 'border-primary/20 bg-primary/10 text-primary',
+  success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+  warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+  destructive: 'border-error-border bg-error-subtle text-error-subtle-foreground',
+  neutral: 'border-border bg-muted/40 text-muted-foreground'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (
@@ -156,14 +160,14 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
               <div
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
-                  isError && 'bg-destructive text-destructive-foreground',
-                  !isError && (active || done) && 'bg-primary text-white',
-                  !isError && !active && !done && 'border border-border bg-background text-foreground-muted'
+                  isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
+                  !isError && (active || done) && 'bg-primary text-primary-foreground',
+                  !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
                 )}>
                 {isError ? (
-                  <X size={13} strokeWidth={2.5} className="lucide-custom text-white" />
+                  <X size={13} strokeWidth={2.5} className="lucide-custom" />
                 ) : done ? (
-                  <Check size={12} strokeWidth={3} className="lucide-custom text-white" />
+                  <Check size={12} strokeWidth={3} className="lucide-custom" />
                 ) : (
                   step.n
                 )}
@@ -172,8 +176,8 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 truncate text-sm',
                   active && 'font-medium text-foreground',
-                  done && 'text-foreground-secondary',
-                  !active && !done && 'text-foreground-muted'
+                  done && 'text-muted-foreground',
+                  !active && !done && 'text-foreground-disabled'
                 )}>
                 {t(step.labelKey)}
               </span>
@@ -260,7 +264,8 @@ const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
           aria-label={t('migration.buttons.more_options')}
           className={cn(
             'text-muted-foreground hover:text-foreground',
-            showLabel ? 'w-full gap-2' : 'text-muted-foreground/60'
+            showLabel && 'w-full gap-2',
+            disabled && 'text-foreground-disabled hover:text-foreground-disabled'
           )}>
           <Wrench size={15} />
           {showLabel && t('migration.buttons.more_options')}
@@ -441,40 +446,50 @@ const MigrationApp: React.FC = () => {
     try {
       logger.info('Starting migration process...')
 
-      // Export Redux data
+      const exportPaths = (await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.PrepareExport
+      )) as PreparedMigrationExportPaths
+
+      // Export Redux slices to disk before opening IndexedDB. Keeping the parsed
+      // state alive through Dexie export raised the renderer's peak heap.
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'redux' })
       const reduxExporter = new ReduxExporter()
-      const reduxResult = reduxExporter.export()
+      const reduxResult = await reduxExporter.export(exportPaths.reduxExportPath)
       logger.info('Redux data exported', {
         slicesFound: reduxResult.slicesFound,
-        slicesMissing: reduxResult.slicesMissing
+        slicesMissing: reduxResult.slicesMissing,
+        exportPath: reduxResult.exportPath
       })
 
       // Export Dexie data
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
-      const dexieExportPath = `${exportBasePath}/dexie_export`
-      const dexieExporter = new DexieExporter(dexieExportPath)
+      const dexieExporter = new DexieExporter(exportPaths.dexieExportPath)
 
-      await dexieExporter.exportAll((p) => {
+      await dexieExporter.exportAll(async (p) => {
+        if (p.progress === 0) {
+          await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, {
+            source: 'dexie',
+            table: p.table
+          })
+        }
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+      logger.info('Dexie data exported', { exportPath: exportPaths.dexieExportPath })
 
       // Export localStorage data
-      const localStorageExportPath = `${exportBasePath}/localstorage_export`
-      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
-      const localStorageFilePath = await localStorageExporter.export()
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
+      const localStorageExporter = new LocalStorageExporter(exportPaths.localStorageExportDirectory)
+      await localStorageExporter.export()
       logger.info('localStorage data exported', {
         entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
+        filePath: exportPaths.localStorageExportPath
       })
 
       // Start migration with exported data
       await actions.startMigration({
-        reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        reduxExportPath: reduxResult.exportPath,
+        dexieExportPath: exportPaths.dexieExportPath,
+        localStorageExportPath: exportPaths.localStorageExportPath
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
@@ -558,7 +573,7 @@ const MigrationApp: React.FC = () => {
               <h1 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.introduction.title')}
               </h1>
-              <p className="mt-2 text-foreground-muted text-sm">{t('migration.introduction.subtitle')}</p>
+              <p className="mt-2 text-muted-foreground text-sm">{t('migration.introduction.subtitle')}</p>
             </TopContent>
 
             <div className="space-y-2.5">
@@ -582,12 +597,12 @@ const MigrationApp: React.FC = () => {
                 <div
                   key={index}
                   className="flex items-start gap-3 rounded-xl border border-border bg-muted/15 px-4 py-3.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40 text-foreground-secondary">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40 text-muted-foreground">
                     {feature.icon}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground text-sm">{feature.title}</p>
-                    <p className="mt-0.5 text-foreground-muted text-xs leading-relaxed">{feature.description}</p>
+                    <p className="mt-0.5 text-muted-foreground text-xs leading-relaxed">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -604,7 +619,7 @@ const MigrationApp: React.FC = () => {
                 <ArrowRight size={14} />
               </Button>
               {progress.dataLocation && (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-foreground-muted text-xs">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-foreground-tertiary text-xs">
                   <FolderOpen size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 break-all">
                     {t('migration.introduction.data_location', { path: progress.dataLocation })}
@@ -623,16 +638,16 @@ const MigrationApp: React.FC = () => {
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.migration.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm">{progressMessage}</p>
+              <p className="mt-1.5 text-muted-foreground text-sm">{progressMessage}</p>
             </TopContent>
             <div>
-              <div className="mb-2 flex items-center justify-between text-foreground-muted text-xs">
+              <div className="mb-2 flex items-center justify-between text-foreground-tertiary text-xs">
                 <span className="tabular-nums">{Math.round(progress.overallProgress)}%</span>
               </div>
               <ProgressBar value={progress.overallProgress} />
             </div>
             <MigratorProgressList migrators={progress.migrators} />
-            <p className="pt-0.5 text-center text-foreground-muted text-xs">{t('migration.migration.do_not_close')}</p>
+            <p className="pt-0.5 text-center text-muted-foreground text-xs">{t('migration.migration.do_not_close')}</p>
           </div>
         )
 
@@ -649,7 +664,7 @@ const MigrationApp: React.FC = () => {
               <h2 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.completed.title')}
               </h2>
-              <p className="mt-2.5 text-foreground-muted text-sm leading-relaxed">
+              <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
                 {t('migration.completed.description')}
               </p>
             </TopContent>
@@ -660,17 +675,17 @@ const MigrationApp: React.FC = () => {
                   <span className="font-semibold text-2xl text-foreground tabular-nums">
                     {summary.completedMigrators}/{summary.totalMigrators}
                   </span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.steps_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.steps_label')}</span>
                 </Stat>
                 <Stat>
                   <span className="font-semibold text-2xl text-foreground tabular-nums">{summary.itemsProcessed}</span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.items_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.items_label')}</span>
                 </Stat>
                 <Stat>
                   <span className="font-semibold text-2xl text-foreground tabular-nums">
                     {formatDuration(summary.durationMs)}
                   </span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.duration_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.duration_label')}</span>
                 </Stat>
               </div>
             )}
@@ -732,14 +747,14 @@ const MigrationApp: React.FC = () => {
                 <AlertTriangle size={26} strokeWidth={1.5} />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.error.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm leading-relaxed">{t('migration.error.description')}</p>
+              <p className="mt-1.5 text-muted-foreground text-sm leading-relaxed">{t('migration.error.description')}</p>
             </TopContent>
             <div
               role="button"
               tabIndex={0}
               aria-label={t('migration.diagnostics.open_from_error')}
               data-migration-error-details=""
-              className="cursor-pointer rounded-lg border border-error-border bg-error-subtle px-3.5 py-3 transition-colors hover:border-destructive/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="cursor-pointer rounded-lg border border-error-border bg-error-subtle px-3.5 py-3 transition-colors hover:border-error focus-visible:border-ring focus-visible:outline-none"
               onClick={openDiagnosticsFromError}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -786,7 +801,7 @@ const MigrationApp: React.FC = () => {
                 {t('migration.version_incompatible.title')}
               </h2>
             </div>
-            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-foreground-secondary text-sm leading-relaxed">
+            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
               <p>{t('migration.version_incompatible.preamble')}</p>
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
@@ -822,7 +837,7 @@ const MigrationApp: React.FC = () => {
               <SelectTrigger
                 aria-label={t('migration.language.select')}
                 size="sm"
-                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-muted text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-muted-foreground text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -836,7 +851,7 @@ const MigrationApp: React.FC = () => {
                 size="icon-sm"
                 aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
                 onClick={toggleTheme}
-                className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
+                className="text-muted-foreground hover:bg-muted/40 hover:text-foreground">
                 <ThemeIcon className="size-3.5" strokeWidth={1.6} />
               </Button>
             </Tooltip>
@@ -844,8 +859,8 @@ const MigrationApp: React.FC = () => {
           <div className="flex items-center gap-2">
             <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
             <span className="font-medium text-foreground text-sm">Cherry Studio</span>
-            <span className="text-foreground-muted">·</span>
-            <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
+            <span className="text-foreground-tertiary">·</span>
+            <span className="text-foreground-tertiary text-xs">{t('migration.title')}</span>
           </div>
           <MigrationWindowControls />
         </header>
