@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset } from '@main/services/dataReset'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -37,6 +38,8 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
     requestUserDataRelocation(path, copy)
   },
+  'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
+  'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
   'app.relaunch': async () => application.relaunch(),
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
