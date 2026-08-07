@@ -16,7 +16,6 @@ import {
   type ResourceListContextValue,
   type ResourceListGroup,
   type ResourceListItemBase,
-  type ResourceListMeta,
   type ResourceListSection,
   useResourceListActions,
   useResourceListControlsState,
@@ -31,7 +30,7 @@ import {
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
 } from './ResourceListGroups'
-import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT, RESOURCE_LIST_MODULE_START_ROW_LAYOUT } from './resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
@@ -120,52 +119,8 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 
-/**
- * A header opens a new module when it labels a group of rows rather than naming one: section
- * headers, and bucket group headers (time ranges, pinned). Entity headers — an agent, an assistant,
- * a workdir — are rows in their own right and stay on the shared rhythm, and so does an
- * `inline-bucket`, which sits among them as the fallback for rows whose owner is gone. The list's
- * first header never gets the break: there is nothing above it to separate from.
- */
-function isModuleStartHeader<T extends ResourceListItemBase>(
-  meta: ResourceListMeta<T>,
-  header: ResourceListVirtualHeader,
-  groupIndex: number
-) {
-  if (groupIndex === 0) return false
-  if (header.type === 'section') return true
-  return meta.getGroupHeaderKind?.(header.group) === 'bucket'
-}
-
-function getResourceListGroupHeaderLayout<T extends ResourceListItemBase>(
-  meta: ResourceListMeta<T>,
-  header: ResourceListVirtualHeader,
-  groupIndex: number
-) {
-  return isModuleStartHeader(meta, header, groupIndex)
-    ? RESOURCE_LIST_MODULE_START_ROW_LAYOUT
-    : RESOURCE_LIST_DEFAULT_ROW_LAYOUT
-}
-
-function useResourceListGroupHeaderLayout<T extends ResourceListItemBase>(meta: ResourceListMeta<T>) {
-  const renderGroupHeader = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) => {
-      const layout = getResourceListGroupHeaderLayout(meta, header, groupIndex)
-      return header.type === 'section' ? (
-        <SectionHeader section={header.section} className={layout.className} />
-      ) : (
-        <GroupHeader group={header.group} className={layout.className} />
-      )
-    },
-    [meta]
-  )
-  const estimateGroupHeaderSize = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) =>
-      getResourceListGroupHeaderLayout(meta, header, groupIndex).size,
-    [meta]
-  )
-
-  return { estimateGroupHeaderSize, renderGroupHeader }
+function renderResourceListGroupHeader(header: ResourceListVirtualHeader) {
+  return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
 }
 
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
@@ -543,7 +498,6 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
-  const { estimateGroupHeaderSize, renderGroupHeader } = useResourceListGroupHeaderLayout(meta)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -609,10 +563,10 @@ export function VirtualItems<T extends ResourceListItemBase>({
         getItemKey={getVirtualRowKey}
         onScroll={handleScroll}
         overscan={6}
-        estimateGroupHeaderSize={estimateGroupHeaderSize}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
-        renderGroupHeader={renderGroupHeader}
+        renderGroupHeader={renderResourceListGroupHeader}
         renderItem={renderVirtualItem}
         renderGroupFooter={renderGroupFooter}
       />
@@ -653,7 +607,6 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
-  const { estimateGroupHeaderSize, renderGroupHeader } = useResourceListGroupHeaderLayout(meta)
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -848,7 +801,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         getGroupBoundaryId={getGroupBoundaryId}
         getItemId={getVirtualItemId}
         dragCapabilities={dragCapabilities}
-        estimateGroupHeaderSize={estimateGroupHeaderSize}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
         canDragGroup={canDragGroup}
@@ -856,7 +809,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         canDropGroup={canDropGroup}
         canDropItem={canDropVirtualItem}
         onDragEnd={handleGroupedDragEnd}
-        renderGroupHeader={renderGroupHeader}
+        renderGroupHeader={renderResourceListGroupHeader}
         renderItem={renderVirtualItem}
         renderGroupFooter={renderGroupFooter}
       />

@@ -6,16 +6,6 @@ export const RESOURCE_LIST_DEFAULT_ROW_LAYOUT = {
   size: 36
 } as const
 
-/**
- * Rows sit on one rhythm; the only break in it is between modules. A header that opens a new module
- * (a section, or a bucket group such as a time range) grows by 8px and bottom-aligns its pill, so
- * the extra space lands above the label instead of splitting it from the rows it introduces.
- */
-export const RESOURCE_LIST_MODULE_START_ROW_LAYOUT = {
-  className: 'h-11 items-end',
-  size: 44
-} as const
-
 export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 
 export type ResourceListPresentation = 'left-panel' | 'right-panel'

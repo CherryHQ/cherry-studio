@@ -134,7 +134,7 @@ import {
   useResourceListRowState
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
-import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT, RESOURCE_LIST_MODULE_START_ROW_LAYOUT } from '../resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from '../resourceListLayout'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -1907,14 +1907,14 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
   })
 
-  it('gives every module start after the first an 8px break, in both the estimate and the row', () => {
+  it('keeps bucket headers on the shared row rhythm while retaining their recessed voice', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     render(
       <Provider
         items={ITEMS}
         groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderKind={() => 'bucket'}>
+        getGroupHeaderKind={(group) => (group.id === 'topic' ? 'bucket' : 'entity')}>
         <ResourceList.Frame>
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
@@ -1927,49 +1927,19 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    // Both groups are declared buckets: the first opens the list, the second opens a new module.
+    // Bucket semantics change the label voice, not the list's shared vertical rhythm.
     const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
     expect(firstHeader.closest('.h-9')).not.toBeNull()
-    expect(secondHeader.closest('.h-11')).not.toBeNull()
+    expect(secondHeader.closest('.h-9')).not.toBeNull()
 
     // The estimate has to agree with what got rendered or the virtualiser scrolls jumpily.
     const rows = lastVirtualizerOptions()
     expect(rows.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size)
     expect(rows.estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
-      RESOURCE_LIST_MODULE_START_ROW_LAYOUT.size
-    )
-  })
-
-  it('keeps an inline bucket on the shared rhythm while it still reads as a bucket', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider
-        items={ITEMS}
-        groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderKind={(group) => (group.id === 'topic' ? 'inline-bucket' : 'entity')}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    // A plain bucket here would open a module and take the 8px break. This one stands among entity
-    // headers, so it keeps the 36px row — and the estimate has to say the same thing.
-    const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
-    expect(secondHeader.closest('.h-11')).toBeNull()
-    expect(secondHeader.closest('.h-9')).not.toBeNull()
-    expect(lastVirtualizerOptions().estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
       RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
     )
 
-    // The rhythm is all it gives up: the recessed label that marks a bucket stays.
+    // Rhythm stays shared; the label voice still distinguishes a bucket from an entity.
     expect(secondHeader.closest('.text-muted-foreground')).not.toBeNull()
     expect(firstHeader.closest('.text-muted-foreground')).toBeNull()
   })

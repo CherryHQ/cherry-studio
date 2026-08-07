@@ -1655,13 +1655,11 @@ const Sessions = ({
   // Which headers name a task's owner (an agent, a folder) and which merely gather rows. Declared by
   // id rather than inferred from "does this header happen to have buttons": a group that is still
   // loading, or one that legitimately has no actions, is not thereby a bucket.
-  // "No workdir" is a state a user picks — a task deliberately left without a directory — so it is a
-  // module of its own like any other bucket. An agent that no longer exists is not a state anyone
-  // chose: that bucket stands in the agent run and keeps its rhythm.
+  // Pinned, time, missing-owner and no-workspace groups all use the recessed bucket voice while
+  // staying on the shared row rhythm.
   const getGroupHeaderKind = useCallback((group: ResourceListGroup): ResourceListGroupHeaderKind => {
-    if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return 'inline-bucket'
-
-    return group.id === SESSION_PINNED_GROUP_ID ||
+    return group.id === SESSION_UNKNOWN_AGENT_GROUP_ID ||
+      group.id === SESSION_PINNED_GROUP_ID ||
       group.id === SESSION_NO_PROJECT_GROUP_ID ||
       group.id === SESSION_NO_WORKDIR_GROUP_ID ||
       group.id.startsWith('session:time:')
