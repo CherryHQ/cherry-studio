@@ -504,12 +504,12 @@ vi.mock('../AgentSidePanel', () => ({
     historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
+    onManageAgents,
     onOpenHistoryRecords,
     onSetPanePosition,
     onCreateSession,
     onShowMissingAgentSelection,
     revealRequest,
-    resourceMenuItems,
     setActiveSessionId
   }: any) => {
     agentPageMocks.agentSidePanelSessionsSource = agentSessionsSource
@@ -572,11 +572,11 @@ vi.mock('../AgentSidePanel', () => ({
           }>
           Replace deleted panel session
         </button>
-        {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
-          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-            {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
+        {onManageAgents && (
+          <button type="button" onClick={() => void onManageAgents()}>
+            agent.manage.title
           </button>
-        ))}
+        )}
       </div>
     )
   }
@@ -589,6 +589,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     agentSessionsSource,
     onAddAgent,
     onActiveAgentDeleted,
+    onManageAgents,
     onOpenHistoryRecords,
     onSelectedAgentClick
   }: {
@@ -597,9 +598,9 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onManageAgents?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAgentClick?: () => void | Promise<void>
-    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     agentPageMocks.agentResourceListSessionsSource = agentSessionsSource
 
@@ -620,6 +621,11 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
         <button type="button" onClick={() => void onSelectedAgentClick?.()}>
           Toggle selected agent pane
         </button>
+        {onManageAgents && (
+          <button type="button" onClick={() => void onManageAgents()}>
+            agent.manage.title
+          </button>
+        )}
       </div>
     )
   }

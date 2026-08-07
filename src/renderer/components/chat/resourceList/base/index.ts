@@ -1,7 +1,8 @@
 export {
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem
-} from './ConversationResourceMenu'
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
+  type ConversationRowStatusValue
+} from './ConversationRowStatus'
 export { resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
 export {
   buildResolvedResourceEntityMenuAction,

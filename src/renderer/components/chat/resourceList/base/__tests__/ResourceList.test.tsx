@@ -125,7 +125,6 @@ import type { ResolvedAction } from '../../../actions/actionTypes'
 import { ResourceListActionContextMenu } from '../../../actions/ResourceListActionContextMenu'
 import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
-import { ConversationResourceMenu } from '../ConversationResourceMenu'
 import {
   ResourceList,
   type ResourceListPresentation,
@@ -913,30 +912,13 @@ describe('ResourceList', () => {
     )
     expect(screen.getByRole('button', { name: 'Item action' })).toHaveClass(
       'hover:bg-accent',
-      'hover:text-accent-foreground'
+      'hover:text-accent-foreground!',
+      'focus-visible:text-accent-foreground!'
     )
-  })
-
-  it('uses product row semantics for conversation resource menu items', () => {
-    render(
-      <ConversationResourceMenu
-        items={[
-          { id: 'inactive', label: 'Inactive', onSelect: vi.fn() },
-          { active: true, id: 'active', label: 'Active', onSelect: vi.fn() }
-        ]}
-      />
-    )
-
-    const inactiveItem = screen.getByRole('button', { name: 'Inactive' })
-    const activeItem = screen.getByRole('button', { name: 'Active' })
-
-    expect(inactiveItem).toHaveClass('hover:bg-resource-list-row-hover', 'focus-visible:bg-resource-list-row-hover')
-    expect(inactiveItem).not.toHaveClass('hover:bg-accent/60', 'focus-visible:bg-accent/60')
-    expect(activeItem).toHaveClass(
-      'bg-resource-list-row-selected',
-      'hover:bg-resource-list-row-selected',
-      'focus-visible:bg-resource-list-row-selected'
-    )
+    // The action rail owns its intrinsic layout reserve; Item no longer needs to inspect React child types.
+    expect(
+      screen.getByRole('button', { name: 'Item action' }).closest('[data-resource-list-item-actions]')
+    ).toHaveClass('max-w-0', 'group-hover:max-w-full', 'focus-within:max-w-full')
   })
 
   it('owns left- and right-panel presentation styling without sidebar semantics', () => {
@@ -1605,6 +1587,7 @@ describe('ResourceList', () => {
     )
 
     const sessionButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionButton.parentElement).toHaveClass('has-[:focus-visible]:bg-resource-list-row-hover')
     const sessionLabel = sessionButton.querySelector('span')
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
     expect(sessionLabel).not.toBeNull()
@@ -2306,8 +2289,10 @@ describe('ResourceList', () => {
     expect(screen.getByText('Alpha 6')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
 
-    const sectionHeader = screen.getByRole('button', { name: 'Assistants' }).closest('div')
+    const sectionButton = screen.getByRole('button', { name: 'Assistants' })
+    const sectionHeader = sectionButton.closest('div')
     expect(sectionHeader).not.toBeNull()
+    expect(sectionButton.parentElement).toHaveClass('has-[:focus-visible]:bg-resource-list-row-hover')
 
     fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
 

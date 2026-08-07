@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
-import { Children, createContext, Fragment, isValidElement, use, useCallback, useEffect, useRef } from 'react'
+import { createContext, use, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -22,7 +22,6 @@ import {
 } from './ResourceListContext'
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
-  getResourceListItemActionYieldClassName,
   RESOURCE_LIST_ACTIVE_ROW_CLASS,
   RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
@@ -391,8 +390,6 @@ type ItemProps<T extends ResourceListItemBase> = ComponentProps<'div'> & {
   tooltip?: ReactNode
 }
 
-const ResourceListItemActionCountContext = createContext(0)
-
 function Item<T extends ResourceListItemBase>({
   item,
   children,
@@ -411,8 +408,6 @@ function Item<T extends ResourceListItemBase>({
   const { getItemId } = useResourceListItemAccessors<T>()
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
-  const actionCount = getResourceListItemActionCount(children)
-
   const content = (
     <div
       ref={ref}
@@ -454,7 +449,7 @@ function Item<T extends ResourceListItemBase>({
         onMouseLeave?.(event)
       }}
       {...props}>
-      <ResourceListItemActionCountContext value={actionCount}>{children}</ResourceListItemActionCountContext>
+      {children}
     </div>
   )
 
@@ -558,8 +553,6 @@ type ItemTitleProps = ComponentProps<'span'> & {
 }
 
 function ItemTitle({ className, fade = false, ref, ...props }: ItemTitleProps) {
-  const actionCount = use(ResourceListItemActionCountContext)
-
   return (
     <span
       ref={ref}
@@ -568,7 +561,6 @@ function ItemTitle({ className, fade = false, ref, ...props }: ItemTitleProps) {
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         RESOURCE_LIST_LABEL_CLASS,
         fade && RESOURCE_LIST_TITLE_FADE_CLASS,
-        getResourceListItemActionYieldClassName(actionCount),
         className
       )}
       {...props}
@@ -593,8 +585,8 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       type={type}
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
-        'hover:bg-accent hover:text-accent-foreground',
-        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:opacity-100 focus-visible:outline-none',
+        'hover:bg-accent hover:text-accent-foreground!',
+        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
@@ -610,40 +602,19 @@ type ItemActionsProps = ComponentProps<'div'> & {
 }
 
 function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
-  const actionCount = use(ResourceListItemActionCountContext)
-
   return (
     <div
       ref={ref}
       data-active={active || undefined}
-      data-action-count={actionCount || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
-        'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
+        '-ml-1.5 -mr-1 pointer-events-none flex max-w-0 shrink-0 items-center gap-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0',
+        'focus-within:pointer-events-auto focus-within:max-w-full focus-within:opacity-100 group-hover:pointer-events-auto group-hover:max-w-full group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:max-w-full data-[active=true]:opacity-100',
         className
       )}
       {...props}
     />
   )
-}
-
-function countResourceListActionSlots(children: ReactNode): number {
-  return Children.toArray(children).reduce<number>((count, child) => {
-    if (isValidElement<{ children?: ReactNode }>(child) && child.type === Fragment) {
-      return count + countResourceListActionSlots(child.props.children)
-    }
-    return count + 1
-  }, 0)
-}
-
-function getResourceListItemActionCount(children: ReactNode): number {
-  return Children.toArray(children).reduce<number>((count, child) => {
-    if (!isValidElement<{ children?: ReactNode }>(child)) return count
-    if (child.type === ItemActions) return count + countResourceListActionSlots(child.props.children)
-    if (child.type === Fragment) return count + getResourceListItemActionCount(child.props.children)
-    return count
-  }, 0)
 }
 
 type BodyProps<T extends ResourceListItemBase> = {

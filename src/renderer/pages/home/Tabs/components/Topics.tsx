@@ -12,7 +12,8 @@ import type {
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
-  type ConversationResourceMenuItem,
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
   ResourceList,
@@ -79,7 +80,7 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
+import { MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -131,16 +132,17 @@ interface Props {
   assistantIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAssistantsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
   presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -238,16 +240,17 @@ export function Topics({
   assistantIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAssistantsActive = false,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
+  onManageAssistants,
   onSetPanePosition,
   panePosition,
   presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -811,9 +814,7 @@ export function Topics({
         ? 'empty'
         : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
+  const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1394,10 +1395,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={topicAssistantSectionIds}
                 />
@@ -1415,10 +1416,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                 />
               }
@@ -1426,10 +1427,10 @@ export function Topics({
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsMenuItem?.active}
+              manageAssistantsActive={manageAssistantsActive}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}
-              onManageAssistants={manageAssistantsMenuItem?.onSelect}
+              onManageAssistants={onManageAssistants}
               onOpenHistoryRecords={onOpenHistoryRecords}
               sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
@@ -1718,8 +1719,16 @@ const TopicRow = memo(function TopicRow({
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
   // a badge instead of a spinner because the turn needs user action.
-  const hasTopicStreamIndicator =
-    (isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)) && !isTopicAwaitingApproval
+  const conversationRowStatus = isTopicAwaitingApproval
+    ? 'approval'
+    : isTopicStreamPending
+      ? 'pending'
+      : isTopicStreamErrored
+        ? 'error'
+        : !isActive && isTopicStreamFulfilled
+          ? 'done'
+          : null
+  const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
@@ -1776,8 +1785,8 @@ const TopicRow = memo(function TopicRow({
             nameAnimationClassName,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and ResourceList reserves the rendered actions.
-            hasTopicStreamIndicator && 'mr-7'
+            // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+            hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -1786,18 +1795,10 @@ const TopicRow = memo(function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!rowState.renaming && isTopicAwaitingApproval && (
-        <span
-          data-testid="topic-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
-          {t('agent.toolPermission.pendingBadge')}
-        </span>
-      )}
-      {hasTopicStreamIndicator && (
-        <TopicStreamIndicator
-          isErrored={isTopicStreamErrored}
-          isFulfilled={isTopicStreamFulfilled}
-          isPending={isTopicStreamPending}
+      {!rowState.renaming && (
+        <ConversationRowStatus
+          status={conversationRowStatus}
+          testId={conversationRowStatus === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
         />
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
@@ -1854,45 +1855,3 @@ const TopicRow = memo(function TopicRow({
     </>
   )
 })
-
-const TopicStreamIndicator = ({
-  isErrored,
-  isFulfilled,
-  isPending
-}: {
-  isErrored: boolean
-  isFulfilled: boolean
-  isPending: boolean
-}) => {
-  const { t } = useTranslation()
-
-  if (!isPending && !isFulfilled && !isErrored) return null
-
-  const statusLabel = isPending
-    ? t('message.tools.status.running')
-    : isErrored
-      ? t('message.tools.status.error')
-      : t('message.tools.status.done')
-
-  return (
-    // Absolute overlay at the actions' resting spot: it fades out on hover /
-    // focus / delete-confirm so the pin + delete buttons take its place (the
-    // dot/spinner and the actions are mutually exclusive, never side by side).
-    <span
-      aria-label={statusLabel}
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
-      data-testid="topic-stream-indicator"
-      role="img">
-      {isPending ? (
-        // A spinner reads as "running", where the old pulsing amber dot looked
-        // like a warning. Error uses a distinct icon instead of relying on
-        // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
-      ) : isErrored ? (
-        <CircleAlert aria-hidden="true" className="size-3 text-error" />
-      ) : (
-        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
-      )}
-    </span>
-  )
-}

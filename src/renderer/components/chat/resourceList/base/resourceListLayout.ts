@@ -49,6 +49,8 @@ export const RESOURCE_LIST_PRESENTATION_CLASS_NAMES: Record<
 export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS =
   'hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover'
 
+export const RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS = 'has-[:focus-visible]:bg-resource-list-row-hover'
+
 export const RESOURCE_LIST_ACTIVE_ROW_CLASS =
   'bg-resource-list-row-active text-resource-list-row-active-foreground hover:bg-resource-list-row-active focus-visible:bg-resource-list-row-active'
 
@@ -100,36 +102,3 @@ export const RESOURCE_LIST_LABEL_CLASS = 'font-normal text-[13px] leading-5'
  */
 export const RESOURCE_LIST_TITLE_FADE_CLASS =
   'overflow-hidden text-clip whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'
-
-/**
- * Reserve the rendered action slots while they are visible. Consumers provide
- * actions; ResourceList owns the slot-to-spacing scale, so page code never has
- * to choose raw margins. NOT group-focus-within: clicking a row focuses it and
- * would pin the yield while the icons stay hidden.
- */
-export function getResourceListItemActionYieldClassName(actionCount: number) {
-  if (actionCount >= 3) {
-    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-16 group-has-[[data-resource-list-item-actions]:focus-within]:mr-16 group-hover:mr-16'
-  }
-  if (actionCount === 2) {
-    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
-  }
-  if (actionCount === 1) {
-    return 'transition-[margin] duration-150 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7 group-has-[[data-resource-list-item-actions]:focus-within]:mr-7 group-hover:mr-7'
-  }
-  return undefined
-}
-
-/** The same action-slot scale for absolutely positioned group-header actions. */
-export function getResourceListGroupHeaderActionYieldClassName(actionCount: number) {
-  if (actionCount >= 3) {
-    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-16 group-has-[:focus-visible]/resource-list-group:pr-16 group-has-data-[state=open]/resource-list-group:pr-16'
-  }
-  if (actionCount === 2) {
-    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-12 group-has-[:focus-visible]/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
-  }
-  if (actionCount === 1) {
-    return 'transition-[padding-right] duration-150 group-hover/resource-list-group:pr-7 group-has-[:focus-visible]/resource-list-group:pr-7 group-has-data-[state=open]/resource-list-group:pr-7'
-  }
-  return undefined
-}

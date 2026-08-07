@@ -4,8 +4,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { cn } from '@renderer/utils/style'
-import { History, MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +12,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResourceListGroupDropAnchor,
   compareResourceOrderKey,
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem,
   ResourceList,
   type ResourceListGroup,
   type ResourceListOrderAnchor,
@@ -103,12 +100,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
-  historyRecordsActive?: boolean
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
-  /** When provided, a history-records button sits next to the add button. */
-  onOpenHistoryRecords?: () => void
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   /** Reorder canonical groups while `groupByGroup` is enabled. Pinned and ungrouped buckets stay fixed. */
@@ -119,6 +112,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
   selectedId?: string | null
+  /** Hides the row selection while a conversation-level center surface owns the content pane. */
+  selectionSuppressed?: boolean
   status?: ResourceListStatus
   variant: 'agent' | 'assistant'
   items: readonly T[]
@@ -139,11 +134,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   emptyFallback,
   getContextMenuActions,
   headerActions,
-  historyRecordsActive = false,
   listRef,
   onAdd,
-  onOpenHistoryRecords,
-  resourceMenuItems,
   onContextMenuAction,
   onReorder,
   onGroupReorder,
@@ -152,6 +144,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onSelectedClick,
   selectedClickId,
   selectedId,
+  selectionSuppressed = false,
   status = 'idle',
   variant,
   items
@@ -162,10 +155,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const hasReorderHandler = !!onReorder || !!onGroupReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
-  const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
+  const effectiveSelectedId = selectionSuppressed ? null : selectedId
+  const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
   const handleItemClick = useCallback(
     (item: T) => {
       if (effectiveSelectedClickId === item.id && onSelectedClick) {
@@ -366,27 +357,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             label={addLabel}
             aria-label={addLabel}
             onClick={() => void onAdd()}
-            actions={
-              headerActions || onOpenHistoryRecords ? (
-                <>
-                  {headerActions}
-                  {onOpenHistoryRecords && (
-                    <Tooltip title={t('history.records.shortTitle')} delay={500}>
-                      <ResourceList.HeaderActionButton
-                        type="button"
-                        aria-label={t('history.records.shortTitle')}
-                        aria-current={historyRecordsActive ? 'page' : undefined}
-                        className={cn(historyRecordsActive && 'bg-muted text-foreground!')}
-                        onClick={() => onOpenHistoryRecords()}>
-                        <History className="block" />
-                      </ResourceList.HeaderActionButton>
-                    </Tooltip>
-                  )}
-                </>
-              ) : undefined
-            }
+            actions={headerActions}
           />
-          <ConversationResourceMenu items={resourceMenuItems} />
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}

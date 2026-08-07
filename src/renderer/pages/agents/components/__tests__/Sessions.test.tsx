@@ -1482,63 +1482,20 @@ describe('Sessions', () => {
     expect(within(collapsedBetaGroupButton).getByText('Beta agent')).toHaveClass('font-medium')
   })
 
-  it('clears session selection while a resource menu item is active', () => {
+  it('clears session selection while agent management is active', () => {
     cacheMocks.state.activeSessionId = 'session-a'
     const onSelectResourceView = vi.fn()
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
     })
 
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onSelectResourceView
-          }
-        ]}
-      />
-    )
+    render(<SessionsForTest manageAgentsActive onManageAgents={onSelectResourceView} />)
 
     expect(screen.queryByRole('button', { name: 'Manage Agents' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
     expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
-  })
-
-  it('keeps Skill management out of the display menu', () => {
-    const onManageAgents = vi.fn()
-    const onManageSkills = vi.fn()
-    setupSessions({
-      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
-    })
-
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onManageAgents
-          },
-          {
-            id: 'skill-resource-view',
-            label: 'Skills',
-            onSelect: onManageSkills
-          }
-        ]}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    expect(onManageSkills).not.toHaveBeenCalled()
-    expect(onManageAgents).not.toHaveBeenCalled()
   })
 
   it('creates sessions from agent group actions', async () => {

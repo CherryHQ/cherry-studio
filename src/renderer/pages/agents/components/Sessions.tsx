@@ -2,7 +2,6 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
   resolveDefaultCollapsedGroupIds,
@@ -127,9 +126,11 @@ type SessionsBaseProps = {
   agentIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAgentsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAgents?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onCreateSession?: (
     defaults: CreateAgentSessionDefaults
@@ -138,7 +139,6 @@ type SessionsBaseProps = {
   panePosition?: TopicTabPosition
   presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
 }
 
 type ControlledSessionsProps = SessionsBaseProps & {
@@ -342,16 +342,17 @@ const Sessions = ({
   agentIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAgentsActive = false,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
+  onManageAgents,
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
   panePosition,
   presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
@@ -1831,9 +1832,7 @@ const Sessions = ({
       : visibleGroupedSessions.length === 0
         ? 'empty'
         : 'idle'
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
+  const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
     displayMode === 'agent'
@@ -1899,10 +1898,10 @@ const Sessions = ({
               actions={
                 <SessionListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAgentsActive={manageAgentsMenuItem?.active}
+                  manageAgentsActive={manageAgentsActive}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-                  onManageAgents={manageAgentsMenuItem?.onSelect}
+                  onManageAgents={onManageAgents}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={
                     displayMode === 'agent'

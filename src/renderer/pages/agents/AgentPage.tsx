@@ -26,10 +26,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import {
-  type ConversationCenterResourceDefinition,
-  useConversationCenterSurface
-} from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -46,7 +43,6 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Bot } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,6 +66,7 @@ import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const logger = loggerService.withContext('AgentPage')
 type AgentConversationResourceKind = 'agent'
+const AGENT_CONVERSATION_RESOURCE_KINDS = ['agent'] as const satisfies readonly AgentConversationResourceKind[]
 const MAX_REUSABLE_EMPTY_MESSAGE_CHECKS = 8
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
@@ -328,30 +325,21 @@ const AgentPage = () => {
     if (missingAgentSelection) return 'missing-agent-selection'
     return 'empty'
   }, [missingAgentSelection, visibleSession?.id])
-  const resourceViewDefinitions = useMemo<
-    readonly ConversationCenterResourceDefinition<AgentConversationResourceKind>[]
-  >(
-    () => [
-      {
-        icon: <Bot />,
-        id: 'agent-resource-view',
-        kind: 'agent',
-        label: t('chat.resource_view.menu.agent')
-      }
-    ],
-    [t]
-  )
+  const conversationResourcesEnabled = !isMessageOnlyView && !isWindowFrame
   const {
     activeResourceKind,
     closeSurface,
     historyActive: historyRecordsActive,
-    resourceMenuItems,
-    toggleHistory: toggleHistoryRecords
+    toggleHistory: toggleHistoryRecords,
+    toggleResource
   } = useConversationCenterSurface<AgentConversationResourceKind>({
     conversationKey: resourceConversationKey,
-    resourceDefinitions: resourceViewDefinitions,
-    disabled: isMessageOnlyView || isWindowFrame
+    disabled: !conversationResourcesEnabled,
+    resourceKinds: AGENT_CONVERSATION_RESOURCE_KINDS
   })
+  const toggleAgentResourceView = useCallback(() => toggleResource('agent'), [toggleResource])
+  const manageAgentsActive = activeResourceKind === 'agent'
+  const onManageAgents = conversationResourcesEnabled ? toggleAgentResourceView : undefined
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -1036,7 +1024,8 @@ const AgentPage = () => {
         }}
         onCreateSession={handleCreateSessionForAgent}
         onShowMissingAgentSelection={showMissingAgentSelection}
-        resourceMenuItems={resourceMenuItems}
+        manageAgentsActive={manageAgentsActive}
+        onManageAgents={onManageAgents}
         onActiveAgentDeleted={handleActiveAgentDeleted}
       />
     ) : (
@@ -1055,7 +1044,8 @@ const AgentPage = () => {
         onShowMissingAgentSelection={isMessageOnlyView ? undefined : showMissingAgentSelection}
         onSetPanePosition={isWindowFrame ? undefined : setSessionListPosition}
         panePosition="left"
-        resourceMenuItems={resourceMenuItems}
+        manageAgentsActive={manageAgentsActive}
+        onManageAgents={onManageAgents}
         setActiveSessionId={setActiveSessionAndClearTransient}
       />
     )

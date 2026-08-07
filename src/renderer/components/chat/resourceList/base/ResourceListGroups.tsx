@@ -3,7 +3,7 @@ import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
-import { Children, Fragment, isValidElement, useCallback, useEffect, useState } from 'react'
+import { isValidElement, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -16,8 +16,8 @@ import {
   useResourceListView
 } from './ResourceListContext'
 import {
-  getResourceListGroupHeaderActionYieldClassName,
   RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
+  RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
   RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS,
@@ -29,15 +29,6 @@ import {
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
-
-function countResourceListActionSlots(children: ReactNode): number {
-  return Children.toArray(children).reduce<number>((count, child) => {
-    if (isValidElement<{ children?: ReactNode }>(child) && child.type === Fragment) {
-      return count + countResourceListActionSlots(child.props.children)
-    }
-    return count + 1
-  }, 0)
-}
 
 /**
  * The chevron slot: an action button's 24px footprint so the chevron lands on the hover actions'
@@ -122,7 +113,8 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         className={cn(
           'flex w-full items-center gap-1.5 px-2.5 text-muted-foreground transition-colors duration-150',
           RESOURCE_LIST_VISUAL_ROW_CLASS,
-          RESOURCE_LIST_INTERACTIVE_ROW_CLASS
+          RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+          RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS
         )}>
         <button
           type="button"
@@ -172,7 +164,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
-  const groupHeaderActionCount = countResourceListActionSlots(groupHeaderAction)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
@@ -242,9 +233,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     // in for one, so it has to read identically.
     showsSelectedSurface && 'font-medium'
   )
-  // The reserve sits on whichever box holds the label, so it shrinks by the actual rendered action
-  // count and the chevron slides left with it. ResourceList owns the slot-to-spacing scale.
-  const groupHeaderActionYieldClassName = getResourceListGroupHeaderActionYieldClassName(groupHeaderActionCount)
   const chevron = (
     <ChevronRight
       size={14}
@@ -259,9 +247,10 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        !showsSelectedSurface && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
+        showsSelectedSurface && 'has-[:focus-visible]:bg-resource-list-row-selected',
         isBucketHeader && 'text-muted-foreground',
         showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
-        isCollapsible && chevronIsOwnButton && groupHeaderActionYieldClassName,
         groupHeaderClassName
       )}>
       {groupHeaderLeadingAction && (
@@ -314,10 +303,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none',
-            groupHeaderActionYieldClassName
-          )}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
@@ -332,11 +318,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           </span>
         </button>
       ) : (
-        <div
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit',
-            groupHeaderActionYieldClassName
-          )}>
+        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
               {groupHeaderIcon}
@@ -349,7 +331,11 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       )}
       {groupHeaderAction && (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:opacity-100"
+          className={cn(
+            '-ml-1.5 pointer-events-none flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-150',
+            !hasLeadingSlot && '-mr-1',
+            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:max-w-full group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:max-w-full has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:max-w-full group-has-[:focus-visible]/resource-list-group:opacity-100'
+          )}
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
           onPointerDown={stopEventPropagation}

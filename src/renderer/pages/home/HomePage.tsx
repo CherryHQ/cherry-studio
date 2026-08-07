@@ -26,10 +26,7 @@ import { useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/ho
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import {
-  type ConversationCenterResourceDefinition,
-  useConversationCenterSurface
-} from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -45,7 +42,6 @@ import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,6 +60,9 @@ import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 type AssistantConversationResourceKind = 'assistant'
+const ASSISTANT_CONVERSATION_RESOURCE_KINDS = [
+  'assistant'
+] as const satisfies readonly AssistantConversationResourceKind[]
 
 type NewTopicAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedNewTopicAssistantSelection = { assistantId?: string; source: NewTopicAssistantSelectionSource }
@@ -286,30 +285,21 @@ const HomePage: FC = () => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
     return 'empty'
   }, [visibleTopic?.id])
-  const resourceViewDefinitions = useMemo<
-    readonly ConversationCenterResourceDefinition<AssistantConversationResourceKind>[]
-  >(
-    () => [
-      {
-        icon: <MessageCircle />,
-        id: 'assistant-resource-view',
-        kind: 'assistant',
-        label: t('chat.resource_view.menu.assistant')
-      }
-    ],
-    [t]
-  )
+  const conversationResourcesEnabled = !isMessageOnlyView && !isWindowFrame
   const {
     activeResourceKind,
     closeSurface,
     historyActive: historyRecordsActive,
-    resourceMenuItems,
-    toggleHistory: toggleHistoryRecords
+    toggleHistory: toggleHistoryRecords,
+    toggleResource
   } = useConversationCenterSurface<AssistantConversationResourceKind>({
     conversationKey: resourceConversationKey,
-    resourceDefinitions: resourceViewDefinitions,
-    disabled: isMessageOnlyView || isWindowFrame
+    disabled: !conversationResourcesEnabled,
+    resourceKinds: ASSISTANT_CONVERSATION_RESOURCE_KINDS
   })
+  const toggleAssistantResourceView = useCallback(() => toggleResource('assistant'), [toggleResource])
+  const manageAssistantsActive = activeResourceKind === 'assistant'
+  const onManageAssistants = conversationResourcesEnabled ? toggleAssistantResourceView : undefined
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -785,7 +775,8 @@ const HomePage: FC = () => {
           setTopicPaneOpen(!topicPaneOpen)
         }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
-        resourceMenuItems={resourceMenuItems}
+        manageAssistantsActive={manageAssistantsActive}
+        onManageAssistants={onManageAssistants}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
       />
     ) : (
@@ -803,7 +794,8 @@ const HomePage: FC = () => {
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
-        resourceMenuItems={resourceMenuItems}
+        manageAssistantsActive={manageAssistantsActive}
+        onManageAssistants={onManageAssistants}
         onSetPanePosition={isWindowFrame ? undefined : setTopicListPosition}
         panePosition="left"
       />
