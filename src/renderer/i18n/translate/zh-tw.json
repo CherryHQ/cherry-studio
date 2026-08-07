@@ -455,6 +455,7 @@
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未知代理",
@@ -6041,12 +6042,16 @@
         "third_party": "第三方連結"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "匯出為 Word",
         "image": "匯出為圖片",
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
         "markdown_reason": "匯出為 Markdown（包含思考）",
-        "notes": "匯出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "plain_text": "複製為純文字",
@@ -7341,7 +7346,9 @@
       "expand_all": "全部展開",
       "filter": {
         "clear": "清除模型篩選",
-        "label": "篩選模型"
+        "label": "篩選模型",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "停用此分組",
       "group_enable": "開啟此分組",
@@ -7870,6 +7877,10 @@
           "title": "每日 10 美元免費 API 額度"
         }
       },
+      "reasoning_format": "[to be translated]:Reasoning Format",
+      "reasoning_format_default": "[to be translated]:Default",
+      "reasoning_format_help": "[to be translated]:Select Self-hosted when serving a reasoning model through vLLM or SGLang, so thinking is toggled via the chat_template_kwargs of the OpenAI-compatible endpoint.",
+      "reasoning_format_self_hosted": "[to be translated]:Self-hosted (vLLM / SGLang)",
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",

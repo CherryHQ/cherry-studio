@@ -455,6 +455,7 @@
         "expand_all": "すべて展開",
         "no_workdir": "作業ディレクトリがありません",
         "show_more": "表示を拡大",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
@@ -6041,12 +6042,16 @@
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Wordとしてエクスポート",
         "image": "画像としてエクスポート",
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
-        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -7341,7 +7346,9 @@
       "expand_all": "すべて展開",
       "filter": {
         "clear": "モデルフィルターをクリア",
-        "label": "モデルをフィルター"
+        "label": "モデルをフィルター",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",
@@ -7870,6 +7877,10 @@
           "title": "毎日 10 米ドル分の無料 API クレジット"
         }
       },
+      "reasoning_format": "[to be translated]:Reasoning Format",
+      "reasoning_format_default": "[to be translated]:Default",
+      "reasoning_format_help": "[to be translated]:Select Self-hosted when serving a reasoning model through vLLM or SGLang, so thinking is toggled via the chat_template_kwargs of the OpenAI-compatible endpoint.",
+      "reasoning_format_self_hosted": "[to be translated]:Self-hosted (vLLM / SGLang)",
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
       "reorder_failed": "プロバイダーの並び替えに失敗しました",

@@ -455,6 +455,7 @@
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
@@ -6041,12 +6042,16 @@
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Экспорт в Word",
         "image": "Экспорт как изображение",
         "joplin": "Экспорт в Joplin",
         "markdown": "Экспорт в Markdown",
         "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
-        "notes": "экспорт в заметки",
         "notion": "Экспорт в Notion",
         "obsidian": "Экспорт в Obsidian",
         "plain_text": "Копировать как чистый текст",
@@ -7341,7 +7346,9 @@
       "expand_all": "Развернуть все",
       "filter": {
         "clear": "Очистить фильтр моделей",
-        "label": "Фильтровать модели"
+        "label": "Фильтровать модели",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",
@@ -7870,6 +7877,10 @@
           "title": "10 USD бесплатных API-кредитов ежедневно"
         }
       },
+      "reasoning_format": "[to be translated]:Reasoning Format",
+      "reasoning_format_default": "[to be translated]:Default",
+      "reasoning_format_help": "[to be translated]:Select Self-hosted when serving a reasoning model through vLLM or SGLang, so thinking is toggled via the chat_template_kwargs of the OpenAI-compatible endpoint.",
+      "reasoning_format_self_hosted": "[to be translated]:Self-hosted (vLLM / SGLang)",
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
       "reorder_failed": "Не удалось изменить порядок поставщиков",

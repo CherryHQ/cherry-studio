@@ -7877,6 +7877,10 @@
           "title": "每日 10 美元免费 API 额度"
         }
       },
+      "reasoning_format": "推理格式",
+      "reasoning_format_default": "默认",
+      "reasoning_format_help": "当通过 vLLM 或 SGLang 提供推理模型时选择“自托管”，以便通过 OpenAI 兼容端点的 chat_template_kwargs 切换思考模式。",
+      "reasoning_format_self_hosted": "自托管（vLLM / SGLang）",
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",

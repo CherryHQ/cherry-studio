@@ -455,6 +455,7 @@
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
         "show_more": "Ανάπτυξη οθόνης",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
@@ -6041,12 +6042,16 @@
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
+        "categories": {
+          "apps": "[to be translated]:Third-party Apps",
+          "copy": "[to be translated]:Copy",
+          "file": "[to be translated]:File Export"
+        },
         "docx": "Εξαγωγή σε Word",
         "image": "Εξαγωγή ως εικόνα",
         "joplin": "Εξαγωγή στο Joplin",
         "markdown": "Εξαγωγή σε Markdown",
         "markdown_reason": "Εξαγωγή σε Markdown (περιλαμβάνει σκέψη)",
-        "notes": "εξαγωγή στις σημειώσεις",
         "notion": "Εξαγωγή στο Notion",
         "obsidian": "Εξαγωγή στο Obsidian",
         "plain_text": "Αντιγραφή ως απλό κείμενο",
@@ -7341,7 +7346,9 @@
       "expand_all": "Ανάπτυξη όλων",
       "filter": {
         "clear": "Εκκαθάριση φίλτρου μοντέλων",
-        "label": "Φιλτράρισμα μοντέλων"
+        "label": "Φιλτράρισμα μοντέλων",
+        "scroll_left": "[to be translated]:Scroll model types left",
+        "scroll_right": "[to be translated]:Scroll model types right"
       },
       "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
@@ -7870,6 +7877,10 @@
           "title": "Δωρεάν ημερήσια πίστωση API αξίας 10 USD"
         }
       },
+      "reasoning_format": "[to be translated]:Reasoning Format",
+      "reasoning_format_default": "[to be translated]:Default",
+      "reasoning_format_help": "[to be translated]:Select Self-hosted when serving a reasoning model through vLLM or SGLang, so thinking is toggled via the chat_template_kwargs of the OpenAI-compatible endpoint.",
+      "reasoning_format_self_hosted": "[to be translated]:Self-hosted (vLLM / SGLang)",
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "reorder_failed": "Αποτυχία αναδιάταξης παρόχων",
