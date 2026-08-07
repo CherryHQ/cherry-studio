@@ -31,7 +31,7 @@ const logger = loggerService.withContext('WebviewAnnotationControls')
 const EMPTY_STATE: WebviewAnnotationState = { enabled: false, annotations: [] }
 const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
 const EDITOR_WIDTH_PX = 320
-const EDITOR_ESTIMATED_HEIGHT_PX = 140
+const EDITOR_ESTIMATED_HEIGHT_PX = 48
 const EDITOR_MARGIN_PX = 8
 const WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS = 5_000
 
@@ -843,7 +843,9 @@ function WebviewAnnotationEditor({
     editorProps: {
       attributes: {
         'aria-label': t('webview.annotation.placeholder'),
-        class: 'max-h-40 min-h-16 overflow-y-auto px-3 pt-2.5 pb-1 text-sm outline-none'
+        // The empty-state placeholder stays on one line; typed text wraps normally.
+        class:
+          'max-h-40 overflow-y-auto py-1 text-sm outline-none [&_p.placeholder]:overflow-hidden [&_p.placeholder]:text-ellipsis [&_p.placeholder]:whitespace-nowrap'
       },
       handleKeyDown: (view, event) => {
         if (event.key === 'Escape') {
@@ -868,46 +870,42 @@ function WebviewAnnotationEditor({
     <div
       role="dialog"
       aria-label={t('webview.annotation.placeholder')}
-      className="fixed z-50 flex flex-col overflow-hidden rounded-[20px] border-[0.5px] border-border bg-card shadow-[0_0_0_0.5px_rgba(0,0,0,0.05),0_8px_24px_rgba(0,0,0,0.16)]"
+      className="fixed z-50 flex items-end gap-1 rounded-[20px] border-[0.5px] border-border bg-card py-1.5 pr-1.5 pl-3 shadow-[0_0_0_0.5px_rgba(0,0,0,0.05),0_8px_24px_rgba(0,0,0,0.16)]"
       style={{ left: position.left, top: position.top, width: EDITOR_WIDTH_PX }}>
-      <EditorContent editor={editor} />
-      <div className="flex h-10 shrink-0 items-center justify-between gap-2 px-2 py-1.25">
-        <div className="flex items-center">
-          {canDelete ? (
-            <Tooltip content={t('webview.annotation.delete')} placement="bottom">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={onDelete}
-                aria-label={t('webview.annotation.delete')}
-                className="rounded-full text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
-                <Trash2 size={14} />
-              </Button>
-            </Tooltip>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        <EditorContent editor={editor} />
+      </div>
+      {canDelete ? (
+        <Tooltip content={t('webview.annotation.delete')} placement="bottom">
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            onClick={onCancel}
-            className="rounded-full text-muted-foreground shadow-none hover:text-foreground">
-            {t('webview.annotation.cancel')}
-          </Button>
-          <Button
-            type="button"
             size="icon-sm"
-            loading={isSaving}
-            disabled={!trimmedComment || isSaving}
-            onClick={() => onSave(trimmedComment)}
-            aria-label={t('webview.annotation.save')}
-            className="rounded-full transition-[transform,background-color,color] active:scale-[0.96]">
-            <ArrowUp size={14} />
+            onClick={onDelete}
+            aria-label={t('webview.annotation.delete')}
+            className="shrink-0 rounded-full text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
+            <Trash2 size={14} />
           </Button>
-        </div>
-      </div>
+        </Tooltip>
+      ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onCancel}
+        className="shrink-0 rounded-full text-muted-foreground shadow-none hover:text-foreground">
+        {t('webview.annotation.cancel')}
+      </Button>
+      <Button
+        type="button"
+        size="icon-sm"
+        loading={isSaving}
+        disabled={!trimmedComment || isSaving}
+        onClick={() => onSave(trimmedComment)}
+        aria-label={t('webview.annotation.save')}
+        className="shrink-0 rounded-full transition-[transform,background-color,color] active:scale-[0.96]">
+        <ArrowUp size={14} />
+      </Button>
     </div>,
     document.body
   )
