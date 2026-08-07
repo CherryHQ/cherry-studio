@@ -1,4 +1,5 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 import { useTranslation } from 'react-i18next'
 
 import { TO_MARKDOWN_RUNTIME_TOOL_NAME } from '../shared/agentToolTypes'
@@ -42,7 +43,9 @@ export function ToMarkdownTool({ input, output }: { input?: unknown; output?: un
         params={
           <SkeletonValue
             value={
-              sourcePath ? <ClickableFilePath path={sourcePath} displayName={sourcePath.split('/').pop()} /> : undefined
+              sourcePath ? (
+                <ClickableFilePath path={sourcePath} displayName={getFilePreviewFileName(sourcePath)} />
+              ) : undefined
             }
             width="120px"
           />
